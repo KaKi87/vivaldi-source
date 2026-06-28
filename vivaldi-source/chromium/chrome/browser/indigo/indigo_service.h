@@ -8,6 +8,9 @@
 #include <optional>
 
 #include "base/callback_list.h"
+#include "base/check.h"
+#include "base/containers/flat_map.h"
+#include "base/files/file_path.h"
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
@@ -21,6 +24,8 @@ class Profile;
 
 namespace indigo {
 
+class ApiClient;
+
 struct RemoteEligibility {
   bool is_service_supported_for_account = false;
   bool has_user_image = false;
@@ -29,8 +34,11 @@ struct RemoteEligibility {
 enum class LocalEligibility {
   kEligible,
   kNotSignedIn,
+  kRefreshTokenInPersistentErrorState,
   kMissingCapabilities,
   kDisabledByPolicy,
+  kMissingScript,
+  kManagedDomain,
 };
 
 // Combined eligibility status including local constraints (features, profile
@@ -69,6 +77,10 @@ class IndigoService : public KeyedService,
                 PrefService* pref_service);
   ~IndigoService() override;
 
+  // Returns the path to the Indigo script if available (either via command line
+  // override or component updater).
+  static std::optional<base::FilePath> GetScriptPath();
+
   // Get and subscribe to information about whether the profile is eligible to
   // use the feature, as far as Chrome is concerned. This includes the user
   // being signed in with an account which isn't barred, for instance, but not
@@ -80,10 +92,17 @@ class IndigoService : public KeyedService,
     return last_known_local_eligibility_;
   }
   bool IsLocallyEligible() const {
-    return GetLocalEligibility() == LocalEligibility::kEligible;
+    LocalEligibility eligibility = GetLocalEligibility();
+    return eligibility == LocalEligibility::kEligible ||
+           eligibility == LocalEligibility::kRefreshTokenInPersistentErrorState;
   }
   base::CallbackListSubscription RegisterLocalEligibilityChangedCallback(
       LocalEligibilityChangedCallback callback);
+
+  ApiClient& GetApiClient() const {
+    CHECK(api_client_);
+    return *api_client_;
+  }
 
   // Anchored messages are rate-limited to reduce user fatigue. Clients should
   // use `CanShowAnchoredMessage` to check eligibility before displaying an
@@ -95,9 +114,13 @@ class IndigoService : public KeyedService,
   // This may require contacting the service.
   void GetCombinedEligibility(CombinedEligibilityCallback callback);
 
-  // Invalidate the cached or in-flight status fetch from the server, so it will
-  // be refetched when GetCombinedEligibility is called next.
-  void InvalidateRemoteEligibility();
+  // Returns the prompt for the given key if available.
+  std::optional<std::string> GetPrompt(const std::string& key) const;
+
+  // Returns the map of all loaded prompts.
+  const base::flat_map<std::string, std::string>& GetLoadedPrompts() const {
+    return prompts_;
+  }
 
   // KeyedService:
   void Shutdown() override;
@@ -106,9 +129,14 @@ class IndigoService : public KeyedService,
   void OnPrimaryAccountChanged(
       const signin::PrimaryAccountChangeEvent& event_details) override;
   void OnExtendedAccountInfoUpdated(const AccountInfo& info) override;
+  void OnErrorStateOfRefreshTokenUpdatedForAccount(
+      const CoreAccountInfo& account_info,
+      const GoogleServiceAuthError& error,
+      signin_metrics::SourceForRefreshTokenOperation token_operation_source)
+      override;
 
-  // Test helpers:
   void SetRemoteEligibilityFetcherForTesting(RemoteEligibilityFetcher fetcher);
+  void SetPromptsLoadedCallbackForTesting(base::OnceClosure callback);
 
  private:
   LocalEligibility ComputeLocalEligibility() const;
@@ -116,6 +144,7 @@ class IndigoService : public KeyedService,
   void OnRemoteEligibilityReceived(
       base::expected<RemoteEligibility, std::string> eligibility_or_error);
   void TriggerRemoteEligibilityFetch();
+  void OnPromptsLoaded(base::flat_map<std::string, std::string> prompts);
 
   raw_ptr<Profile> profile_;
   raw_ptr<signin::IdentityManager> identity_manager_;
@@ -125,10 +154,14 @@ class IndigoService : public KeyedService,
   base::RepeatingCallbackList<void(LocalEligibility)>
       local_eligibility_callback_list_;
 
+  void OnIndigoComponentReady();
+
   base::ScopedObservation<signin::IdentityManager,
                           signin::IdentityManager::Observer>
       identity_manager_observation_{this};
   std::unique_ptr<PrefChangeRegistrar> pref_change_registrar_;
+  base::CallbackListSubscription indigo_component_ready_subscription_;
+  std::unique_ptr<ApiClient> api_client_;
 
   // The earliest time the anchored message can be shown again.
   base::TimeTicks anchored_message_not_before_;
@@ -139,14 +172,16 @@ class IndigoService : public KeyedService,
   // Overrides the server fetch for testing purposes.
   RemoteEligibilityFetcher remote_eligibility_fetcher_;
 
-  // The cached result of the last remote eligibility fetch (or error
-  // description). It is empty if no fetch has succeeded yet or if it was
-  // invalidated.
-  std::optional<base::expected<RemoteEligibility, std::string>>
-      remote_eligibility_;
 
   // Callbacks waiting for the current remote eligibility fetch to complete.
   std::vector<CombinedEligibilityCallback> pending_callbacks_;
+
+  base::flat_map<std::string, std::string> prompts_;
+  bool prompts_loaded_ = false;
+
+  base::OnceClosure prompts_loaded_callback_for_testing_;
+
+  base::WeakPtrFactory<IndigoService> weak_ptr_factory_{this};
 
   // Weak pointer factory used specifically for remote eligibility fetches to
   // allow invalidation of in-flight requests.

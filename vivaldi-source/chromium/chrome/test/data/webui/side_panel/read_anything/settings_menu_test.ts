@@ -4,7 +4,7 @@
 
 import 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 
-import {KEYBOARD_NAV_CLASS, MENU_SHOW_DELAY_MS, SUBMENU_SHOW_DELAY_MS} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
+import {KEYBOARD_NAV_CLASS, MENU_SHOW_DELAY_MS, ReadAnythingSettingsChange, SUBMENU_SHOW_DELAY_MS} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import type {SettingsMenuElement} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import {SettingsOption, ToolbarEvent} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import {assertEquals, assertFalse, assertNotEquals, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
@@ -12,11 +12,14 @@ import {keyDownOn} from 'chrome-untrusted://webui-test/keyboard_mock_interaction
 import {MockTimer} from 'chrome-untrusted://webui-test/mock_timer.js';
 import {eventToPromise, microtasksFinished} from 'chrome-untrusted://webui-test/test_util.js';
 
+import {mockMetrics} from './common.js';
 import {FakeReadingMode} from './fake_reading_mode.js';
+import type {TestMetricsBrowserProxy} from './test_metrics_browser_proxy.js';
 
 
 suite('SettingsMenuElement', () => {
   let settingsMenu: SettingsMenuElement;
+  let metrics: TestMetricsBrowserProxy;
 
   function queryLinksToggle(): HTMLButtonElement|null {
     const actionMenu = settingsMenu.$.lazyMenu.get();
@@ -31,6 +34,7 @@ suite('SettingsMenuElement', () => {
     chrome.readingMode = readingMode as unknown as typeof chrome.readingMode;
     chrome.readingMode.imagesFeatureEnabled = true;
     chrome.readingMode.isLineFocusEnabled = true;
+    metrics = mockMetrics();
 
     settingsMenu = document.createElement('settings-menu');
     settingsMenu.id = 'settingsMenu';
@@ -116,7 +120,7 @@ suite('SettingsMenuElement', () => {
         assertEquals(8, submenuEvents);
       });
 
-  test('links event is fired when links item is clicked', () => {
+  test('links event is fired when links item is clicked', async () => {
     const actionMenu = settingsMenu.$.lazyMenu.get();
     const menuItems =
         Array.from(actionMenu.querySelectorAll<HTMLButtonElement>('.menu-row'));
@@ -132,9 +136,13 @@ suite('SettingsMenuElement', () => {
     targetItem.click();
     assertTrue(linksEventWasFired);
     assertTrue(linkEnabledTogled);
+    assertEquals(
+        ReadAnythingSettingsChange.LINKS_ENABLED_CHANGE,
+        await metrics.whenCalled('recordTextSettingsChange'));
+    assertEquals(1, metrics.getCallCount('recordTextSettingsChange'));
   });
 
-  test('images event is fired when images item is clicked', () => {
+  test('images event is fired when images item is clicked', async () => {
     const actionMenu = settingsMenu.$.lazyMenu.get();
     const menuItems =
         Array.from(actionMenu.querySelectorAll<HTMLButtonElement>('.menu-row'));
@@ -152,6 +160,10 @@ suite('SettingsMenuElement', () => {
     targetItem.click();
     assertTrue(imagesEventWasFired);
     assertTrue(imagesEnabledTogled);
+    assertEquals(
+        ReadAnythingSettingsChange.IMAGES_ENABLED_CHANGE,
+        await metrics.whenCalled('recordTextSettingsChange'));
+    assertEquals(1, metrics.getCallCount('recordTextSettingsChange'));
   });
 
   test('images toggle is disabled when speech is active', async () => {
@@ -180,6 +192,32 @@ suite('SettingsMenuElement', () => {
     targetItem.click();
     assertFalse(imagesEventWasFired);
     assertFalse(imagesEnabledTogled);
+  });
+
+  test('links toggle is disabled when speech is active', async () => {
+    const actionMenu = settingsMenu.$.lazyMenu.get();
+    const menuItems =
+        Array.from(actionMenu.querySelectorAll<HTMLButtonElement>('.menu-row'));
+    const targetItem = menuItems.find(item => item.id === SettingsOption.LINKS);
+    assertTrue(!!targetItem);
+
+    settingsMenu.isSpeechActive = true;
+    await microtasksFinished();
+
+    assertTrue(targetItem.disabled);
+    const toggle = targetItem.querySelector('cr-toggle');
+    assertTrue(!!toggle);
+    assertTrue(toggle.disabled);
+
+    let linksEventWasFired = false;
+    settingsMenu.addEventListener(
+        ToolbarEvent.LINKS, () => linksEventWasFired = true);
+    let linkEnabledTogled = false;
+    chrome.readingMode.onLinksEnabledToggled = () => linkEnabledTogled = true;
+
+    targetItem.click();
+    assertFalse(linksEventWasFired);
+    assertFalse(linkEnabledTogled);
   });
 
   test('moving the mouse removes keyboard-nav class', () => {
@@ -332,41 +370,8 @@ suite('SettingsMenuElement', () => {
     assertFalse(event.defaultPrevented, 'Should not have canceled the event');
   });
 
-
-  test(
-      'links toggle is hidden when readability is on but links are off',
-      async () => {
-        chrome.readingMode.isReadabilityEnabled = true;
-        chrome.readingMode.isReadabilityWithLinksEnabled = false;
-        settingsMenu.settingsPrefs = {...settingsMenu.settingsPrefs};
-        await microtasksFinished();
-
-        assertFalse(!!queryLinksToggle());
-      });
-
-  test(
-      'links toggle is shown when readability is on and links are on',
-      async () => {
-        chrome.readingMode.isReadabilityEnabled = true;
-        chrome.readingMode.isReadabilityWithLinksEnabled = true;
-        settingsMenu.settingsPrefs = {...settingsMenu.settingsPrefs};
-        await microtasksFinished();
-
-        assertTrue(!!queryLinksToggle());
-      });
-
-  test('links toggle is shown when readability is off', async () => {
-    chrome.readingMode.isReadabilityEnabled = false;
-    chrome.readingMode.isReadabilityWithLinksEnabled = false;
-    settingsMenu.settingsPrefs = {...settingsMenu.settingsPrefs};
-    await microtasksFinished();
-
-    assertTrue(!!queryLinksToggle());
-  });
-
   test('links toggle has separator when visible', async () => {
     chrome.readingMode.isReadabilityEnabled = true;
-    chrome.readingMode.isReadabilityWithLinksEnabled = true;
     settingsMenu.settingsPrefs = {...settingsMenu.settingsPrefs};
     await microtasksFinished();
 
@@ -378,28 +383,6 @@ suite('SettingsMenuElement', () => {
     assertTrue(previous.classList.contains('separator'));
   });
 
-  test('images toggle has separator when links hidden', async () => {
-    chrome.readingMode.isReadabilityEnabled = true;
-    chrome.readingMode.isReadabilityWithLinksEnabled = false;
-    chrome.readingMode.imagesFeatureEnabled = true;
-    settingsMenu.settingsPrefs = {...settingsMenu.settingsPrefs};
-    await microtasksFinished();
-
-    const linksToggle = queryLinksToggle();
-    assertFalse(!!linksToggle);
-
-    const actionMenu = settingsMenu.$.lazyMenu.get();
-    const menuItems =
-        Array.from(actionMenu.querySelectorAll<HTMLButtonElement>('.menu-row'));
-    const imagesToggle =
-        menuItems.find(item => item.id === SettingsOption.IMAGES);
-    assertTrue(!!imagesToggle);
-
-    const previous = imagesToggle.previousElementSibling;
-    assertTrue(!!previous);
-    assertEquals('HR', previous.tagName);
-    assertTrue(previous.classList.contains('separator'));
-  });
 
   test('menu items have correct aria-haspopup attribute', () => {
     const actionMenu = settingsMenu.$.lazyMenu.get();
@@ -445,37 +428,8 @@ suite('SettingsMenuElement', () => {
     assertEquals('false', letterSpacingItem.getAttribute('aria-expanded'));
   });
 
-  test('pinned toggle has separator when links and images hidden', async () => {
-    chrome.readingMode.isReadabilityEnabled = true;
-    chrome.readingMode.isReadabilityWithLinksEnabled = false;
-    chrome.readingMode.imagesFeatureEnabled = false;
-    settingsMenu.isImmersiveMode = true;
-    settingsMenu.settingsPrefs = {...settingsMenu.settingsPrefs};
-    await microtasksFinished();
-
-    const linksToggle = queryLinksToggle();
-    assertFalse(!!linksToggle);
-
-    const actionMenu = settingsMenu.$.lazyMenu.get();
-    const menuItems =
-        Array.from(actionMenu.querySelectorAll<HTMLButtonElement>('.menu-row'));
-    const imagesToggle =
-        menuItems.find(item => item.id === SettingsOption.IMAGES);
-    assertFalse(!!imagesToggle);
-
-    const pinnedToggle =
-        menuItems.find(item => item.id === SettingsOption.PINNED_TO_TOOLBAR);
-    assertTrue(!!pinnedToggle);
-
-    const previous = pinnedToggle.previousElementSibling;
-    assertTrue(!!previous);
-    assertEquals('HR', previous.tagName);
-    assertTrue(previous.classList.contains('separator'));
-  });
-
   test('only first toggle has separator', async () => {
     chrome.readingMode.isReadabilityEnabled = true;
-    chrome.readingMode.isReadabilityWithLinksEnabled = true;
     chrome.readingMode.imagesFeatureEnabled = true;
     settingsMenu.isImmersiveMode = true;
     settingsMenu.settingsPrefs = {...settingsMenu.settingsPrefs};

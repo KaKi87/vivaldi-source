@@ -15,11 +15,13 @@
 #import "base/ios/block_types.h"
 #import "base/ios/ios_util.h"
 #import "base/json/string_escape.h"
+#import "base/memory/weak_ptr.h"
 #import "base/metrics/histogram_functions.h"
 #import "base/metrics/user_metrics.h"
 #import "base/metrics/user_metrics_action.h"
 #import "base/notreached.h"
 #import "base/strings/sys_string_conversions.h"
+#import "base/trace_event/trace_event.h"
 #import "build/branding_buildflags.h"
 #import "build/config/ios/buildflags.h"
 #import "ios/web/common/annotations_utils.h"
@@ -680,6 +682,7 @@ BOOL ExtractInteractionState(NSData* data, NSData** interactionState) {
           responseHTMLString:(NSString*)responseHTMLString {
   NSURLRequest* request =
       [[NSURLRequest alloc] initWithURL:net::NSURLWithGURL(URL)];
+  [self ensureWebViewCreated];
   [self.webView loadSimulatedRequest:request
                   responseHTMLString:responseHTMLString];
 }
@@ -694,7 +697,7 @@ BOOL ExtractInteractionState(NSData* data, NSData** interactionState) {
                                 MIMEType:MIMEType
                    expectedContentLength:responseData.length
                         textEncodingName:nil];
-
+  [self ensureWebViewCreated];
   [self.webView loadSimulatedRequest:request
                             response:response
                         responseData:responseData];
@@ -1145,18 +1148,6 @@ BOOL ExtractInteractionState(NSData* data, NSData** interactionState) {
             : [self currentURL];
     _userInteractionState.SetLastUserInteraction(
         std::make_unique<web::UserInteractionEvent>(mainDocumentURL));
-    [self hideAnnotationsHighlight];
-  }
-}
-
-#pragma mark - Context Menu
-
-// Hides annotations highlights triggered by context menu.
-- (void)hideAnnotationsHighlight {
-  web::AnnotationsTextManager* manager =
-      web::AnnotationsTextManager::FromWebState(_webStateImpl);
-  if (manager) {
-    manager->RemoveHighlight();
   }
 }
 
@@ -1256,6 +1247,11 @@ BOOL ExtractInteractionState(NSData* data, NSData** interactionState) {
   // crash. Add a custom drop interaction alongside the default drop
   // interaction.
   [self addCustomURLDropInteractionIfNeeded];
+
+  if ([_containerView webViewContentView] && self.webStateImpl) {
+    [_containerView webViewContentView].mimeType =
+        base::SysUTF8ToNSString(self.webStateImpl->GetContentsMimeType());
+  }
 }
 
 - (void)loadCompleteWithSuccess:(BOOL)loadSuccess
@@ -1424,6 +1420,7 @@ CrFullscreenState CrFullscreenStateFromWKFullscreenState(
 
 // Creates a web view if it's not yet created.
 - (WKWebView*)ensureWebViewCreated {
+  TRACE_EVENT("ui", "-[CRWWebController ensureWebViewCreated]");
   WKWebViewConfiguration* config =
       [self webViewConfigurationProvider].GetWebViewConfiguration();
   return [self ensureWebViewCreatedWithConfiguration:config];
@@ -1443,6 +1440,8 @@ CrFullscreenState CrFullscreenStateFromWKFullscreenState(
 // Creates a web view with given `config`. No-op if web view is already created.
 - (WKWebView*)ensureWebViewCreatedWithConfiguration:
     (WKWebViewConfiguration*)config {
+  TRACE_EVENT("ui",
+              "-[CRWWebController ensureWebViewCreatedWithConfiguration:]");
   if (!self.webView) {
     // This has to be called to ensure the container view of `self.webView` is
     // created. Otherwise `self.webView.frame.size` will be CGSizeZero which
@@ -1831,7 +1830,12 @@ CrFullscreenState CrFullscreenStateFromWKFullscreenState(
           contextForPendingMainFrameNavigationWithURL:newURL];
     }
     navigationContext->SetIsSameDocument(true);
+    base::WeakPtr<web::NavigationContextImpl> weakContext =
+        navigationContext->GetWeakPtr();
     self.webStateImpl->OnNavigationStarted(navigationContext);
+    if (!weakContext) {
+      return;
+    }
     [self didStartLoading];
     self.navigationManagerImpl->CommitPendingItem(
         navigationContext->ReleaseItem());
@@ -1881,6 +1885,7 @@ CrFullscreenState CrFullscreenStateFromWKFullscreenState(
 
 - (void)navigationHandlerDidStartLoading:
     (CRWWKNavigationHandler*)navigationHandler {
+  [_containerView.webViewContentView setObscuredInsets:UIEdgeInsetsZero];
   [self didStartLoading];
 }
 

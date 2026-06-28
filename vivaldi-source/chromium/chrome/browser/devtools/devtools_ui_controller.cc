@@ -6,12 +6,24 @@
 
 #include "chrome/browser/devtools/devtools_contents_resizing_strategy.h"
 #include "chrome/browser/devtools/devtools_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/views/frame/contents_container_view.h"
 #include "chrome/browser/ui/views/frame/contents_web_view.h"
+#include "chrome/browser/ui/views/frame/scrim_view.h"
 #include "ui/views/focus/external_focus_tracker.h"
 
+#include "app/vivaldi_apptools.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "ui/vivaldi_browser_window.h"
+
+DEFINE_USER_DATA(DevtoolsUIController);
+
 DevtoolsUIController::DevtoolsUIController(
-    std::vector<ContentsContainerView*> contents_container_views) {
+    BrowserWindowInterface* browser,
+    std::vector<ContentsContainerView*> contents_container_views)
+    : can_dock_devtools_(browser->GetType() ==
+                         BrowserWindowInterface::Type::TYPE_NORMAL),
+      scoped_data_holder_(browser->GetUnownedUserDataHost(), *this) {
   for (ContentsContainerView* contents_container_view :
        contents_container_views) {
     devtools_web_view_controllers_[contents_container_view] =
@@ -21,22 +33,73 @@ DevtoolsUIController::DevtoolsUIController(
 
 DevtoolsUIController::~DevtoolsUIController() = default;
 
+DevtoolsUIController* DevtoolsUIController::From(
+    BrowserWindowInterface* browser) {
+  return Get(browser->GetUnownedUserDataHost());
+}
+
 void DevtoolsUIController::TearDown() {
   devtools_web_view_controllers_.clear();
 }
 
 bool DevtoolsUIController::UpdateDevtools(
-    ContentsContainerView* contents_container,
     content::WebContents* web_contents,
     bool update_devtools_web_contents) {
-  DevtoolsWebViewController* controller =
-      devtools_web_view_controllers_[contents_container].get();
-  CHECK(controller);
+
+  // Update the VivaldiBrowserWindow if docked.
+  if (vivaldi::IsVivaldiRunning()) {
+    DevToolsWindow* devtools_window =
+        DevToolsWindow::GetInstanceForInspectedWebContents(web_contents);
+    if (devtools_window && devtools_window->IsDocked()) {
+      BrowserWindowInterface* browser =
+          GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+              web_contents);
+      if (browser) {
+        VivaldiBrowserWindow* window =
+            static_cast<VivaldiBrowserWindow*>(browser->GetWindow());
+        window->UpdateDevTools(web_contents);
+      }
+    }
+  }
+
+  auto it = std::ranges::find_if(
+      devtools_web_view_controllers_, [&web_contents](const auto& entry) {
+        return entry.first->contents_view()->web_contents() == web_contents;
+      });
+  if (it == devtools_web_view_controllers_.end()) {
+    return false;
+  }
+
+  DevtoolsWebViewController* controller = it->second.get();
   if (update_devtools_web_contents &&
       !DevToolsWindow::GetInTabWebContents(web_contents, nullptr)) {
     controller->RestoreFocus();
   }
-  return controller->UpdateDevtools(web_contents, update_devtools_web_contents);
+
+  const bool requires_layout =
+      controller->UpdateDevtools(web_contents, update_devtools_web_contents);
+  if (requires_layout) {
+    ContentsContainerView* container_view = it->first;
+    container_view->InvalidateLayout();
+  }
+  return requires_layout;
+}
+
+bool DevtoolsUIController::CanDockDevtools() const {
+  return can_dock_devtools_;
+}
+
+void DevtoolsUIController::SetDevtoolsScrimVisibility(
+    content::WebContents* web_contents,
+    bool visible) {
+  auto it = std::ranges::find_if(
+      devtools_web_view_controllers_, [&web_contents](const auto& entry) {
+        return entry.first->contents_view()->web_contents() == web_contents;
+      });
+  if (it != devtools_web_view_controllers_.end()) {
+    ContentsContainerView* container_view = it->first;
+    container_view->devtools_scrim_view()->SetVisible(visible);
+  }
 }
 
 DevtoolsUIController::DevtoolsWebViewController::DevtoolsWebViewController(

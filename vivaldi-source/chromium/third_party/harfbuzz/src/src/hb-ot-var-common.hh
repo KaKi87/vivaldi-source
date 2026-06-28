@@ -40,14 +40,14 @@ using rebase_tent_result_scratch_t = hb_pair_t<rebase_tent_result_t, rebase_tent
 struct TupleVariationHeader
 {
   friend struct tuple_delta_t;
-  unsigned get_size (unsigned axis_count_times_2) const
+  size_t get_size (unsigned axis_count_times_2) const
   {
     // This function is super hot in mega-var-fonts with hundreds of masters.
     unsigned ti = tupleIndex;
     if (unlikely ((ti & (TupleIndex::EmbeddedPeakTuple | TupleIndex::IntermediateRegion))))
     {
       unsigned count = ((ti & TupleIndex::EmbeddedPeakTuple) != 0) + ((ti & TupleIndex::IntermediateRegion) != 0) * 2;
-      return min_size + count * axis_count_times_2;
+      return hb_unsigned_mul_add_saturate (count, axis_count_times_2, min_size);
     }
     return min_size;
   }
@@ -934,14 +934,16 @@ struct TupleVariationData
     return_trace (c->check_struct (this));
   }
 
-  unsigned get_size (unsigned axis_count_times_2) const
+  size_t get_size (unsigned axis_count_times_2) const
   {
-    unsigned total_size = min_size;
+    size_t total_size = min_size;
     unsigned count = tupleVarCount.get_count ();
     const TupleVariationHeader *tuple_var_header = &(get_tuple_var_header());
     for (unsigned i = 0; i < count; i++)
     {
-      total_size += tuple_var_header->get_size (axis_count_times_2) + tuple_var_header->get_data_size ();
+      total_size = hb_unsigned_add_saturate (total_size,
+					     tuple_var_header->get_size (axis_count_times_2),
+					     (size_t) tuple_var_header->get_data_size ());
       tuple_var_header = &tuple_var_header->get_next (axis_count_times_2);
     }
 

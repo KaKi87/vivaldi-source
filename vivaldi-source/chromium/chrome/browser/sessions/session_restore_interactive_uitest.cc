@@ -11,11 +11,11 @@
 #include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/sessions/session_service_test_helper.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/startup/startup_tab.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
@@ -28,6 +28,7 @@
 #include "components/sessions/content/content_test_helper.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -57,7 +58,7 @@ class SessionRestoreInteractiveTest : public InProcessBrowserTest {
     return InProcessBrowserTest::SetUpUserDataDirectory();
   }
 
-  Browser* QuitBrowserAndRestore(Browser* browser) {
+  BrowserWindowInterface* QuitBrowserAndRestore(Browser* browser) {
     Profile* profile = browser->profile();
 
     // Close the browser.
@@ -78,7 +79,9 @@ class SessionRestoreInteractiveTest : public InProcessBrowserTest {
     // Create a new window, which should trigger session restore.
     chrome::NewEmptyWindow(profile);
 
-    Browser* new_browser = chrome::FindBrowserWithTab(tab_waiter.Wait());
+    BrowserWindowInterface* new_browser =
+        GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+            tab_waiter.Wait());
 
     restore_observer.Wait();
     WaitForTabsToLoad(new_browser);
@@ -162,31 +165,38 @@ class SessionRestoreInteractiveTest : public InProcessBrowserTest {
 IN_PROC_BROWSER_TEST_F(SessionRestoreInteractiveTest, MAYBE_FocusOnLaunch) {
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url1_));
 
-  Browser* new_browser = QuitBrowserAndRestore(browser());
-  ASSERT_EQ(1u, chrome::GetTotalBrowserCount());
+  BrowserWindowInterface* new_browser = QuitBrowserAndRestore(browser());
+  ASSERT_EQ(1u, GlobalBrowserCollection::GetInstance()->GetSize());
   ASSERT_EQ(url1_,
-            new_browser->tab_strip_model()->GetActiveWebContents()->GetURL());
+            new_browser->GetTabStripModel()->GetActiveWebContents()->GetURL());
 
   ui_test_utils::BrowserActivationWaiter waiter(new_browser);
   waiter.WaitForActivation();
 
   // Ensure window has initial focus on launch.
-  EXPECT_TRUE(new_browser->tab_strip_model()
+  EXPECT_TRUE(new_browser->GetTabStripModel()
                   ->GetActiveWebContents()
                   ->GetRenderWidgetHostView()
                   ->HasFocus());
 }
 
-// TODO(crbug.com/40818881): Flaky failures.
-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+// TODO(crbug.com/40818881, 517292406): Flaky failures.
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || \
+    BUILDFLAG(IS_WIN)
 #define MAYBE_RestoreMinimizedWindow DISABLED_RestoreMinimizedWindow
 #else
 #define MAYBE_RestoreMinimizedWindow RestoreMinimizedWindow
 #endif
 // Verify that restoring a minimized window does not create a blank window.
-// Regression test for https://crbug.com/1018885.
+// Regression test for https://crbug.com/40655640.
 IN_PROC_BROWSER_TEST_F(SessionRestoreInteractiveTest,
                        MAYBE_RestoreMinimizedWindow) {
+#if BUILDFLAG(IS_WIN)
+  if (base::FeatureList::IsEnabled(features::kInitialWebUI)) {
+    GTEST_SKIP() << "Skipping test on Windows with InitialWebUI enabled. "
+                    "See crbug.com/477426026";
+  }
+#endif
   // Minimize the window.
   views::test::PropertyWaiter minimize_waiter(
       base::BindRepeating(&ui::BaseWindow::IsMinimized,
@@ -196,20 +206,20 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreInteractiveTest,
   EXPECT_TRUE(minimize_waiter.Wait());
 
   // Restart and session restore the tabs.
-  Browser* restored = QuitBrowserAndRestore(browser());
-  EXPECT_EQ(1, restored->tab_strip_model()->count());
+  BrowserWindowInterface* restored = QuitBrowserAndRestore(browser());
+  EXPECT_EQ(1, restored->GetTabStripModel()->count());
 
   // Expect the window to be visible.
-  // Prior to the fix for https://crbug.com/1018885, the window was active but
+  // Prior to the fix for https://crbug.com/40655640, the window was active but
   // not visible.
-  EXPECT_TRUE(restored->window()->IsActive());
-  EXPECT_TRUE(restored->window()->IsVisible());
+  EXPECT_TRUE(restored->GetWindow()->IsActive());
+  EXPECT_TRUE(restored->GetWindow()->IsVisible());
 }
 
 // Verify that in restoring a browser with a normal and minimized window twice,
 // the minimized window remains minimized. Guards against a regression
-// introduced in the fix for https://crbug.com/1204517. This test fails on
-// Linux and Windows - see https://crbug.com/1213497.
+// introduced in the fix for https://crbug.com/40180053. This test fails on
+// Linux and Windows - see https://crbug.com/40183669.
 // Also fails flakily on Mac.
 IN_PROC_BROWSER_TEST_F(SessionRestoreInteractiveTest,
                        DISABLED_RestoreMinimizedWindowTwice) {
@@ -226,7 +236,7 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreInteractiveTest,
   browser()->window()->Minimize();
   EXPECT_TRUE(minimize_waiter.Wait());
 
-  EXPECT_EQ(2u, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(2u, GlobalBrowserCollection::GetInstance()->GetSize());
 
   // Quit and restore.
   QuitMultiWindowBrowserAndRestore(profile);
@@ -261,7 +271,8 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreVerticalTabsInteractiveTest,
   ASSERT_TRUE(controller->GetUncollapsedWidth() == 200);
 
   // Quit and restore.
-  Browser* const restored_browser = QuitBrowserAndRestore(browser());
+  BrowserWindowInterface* const restored_browser =
+      QuitBrowserAndRestore(browser());
   controller = tabs::VerticalTabStripStateController::From(restored_browser);
 
   // Verify states persist after session restore.

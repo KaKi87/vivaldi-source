@@ -13,37 +13,23 @@ const wchar_t kRegShellOpenNewWindow[] = L"\\shell\\opennewwindow\\command";
 // Cleans up DelegateExecute registry values from old Vivaldi installs.
 void RemoveDelegateExecuteForVivaldi(const base::FilePath& chrome_exe,
                                      const std::wstring& suffix) {
-  bool is_per_user_install = InstallUtil::IsPerUserInstall();
-  HKEY root_key = DetermineRegistrationRoot(is_per_user_install);
-
   // <root>\Software\Classes\Vivaldi<.suffix>\.exe\shell\open\command
   std::wstring delegate_exe_key(ShellUtil::kRegClasses);
   delegate_exe_key.push_back(base::FilePath::kSeparators[0]);
   delegate_exe_key.append(install_static::GetBaseAppId() + suffix);
-  delegate_exe_key.append(ShellUtil::kRegExePath);
   delegate_exe_key.append(ShellUtil::kRegShellOpen);
-  installer::DeleteRegistryValue(root_key, delegate_exe_key,
-                                   WorkItem::kWow64Default,
-                                   ShellUtil::kRegDelegateExecute);
 
   // <root>\Software\Classes\Vivaldi<.suffix>\.exe\shell\opennewwindow\command
   delegate_exe_key = ShellUtil::kRegClasses;
   delegate_exe_key.push_back(base::FilePath::kSeparators[0]);
   delegate_exe_key.append(install_static::GetBaseAppId() + suffix);
-  delegate_exe_key.append(ShellUtil::kRegExePath);
   delegate_exe_key.append(kRegShellOpenNewWindow);
-  installer::DeleteRegistryValue(root_key, delegate_exe_key,
-                                   WorkItem::kWow64Default,
-                                   ShellUtil::kRegDelegateExecute);
 
   // <root>\Software\Classes\VivaldiHTM<.suffix>\shell\open\command
   delegate_exe_key = ShellUtil::kRegClasses;
   delegate_exe_key.push_back(base::FilePath::kSeparators[0]);
   delegate_exe_key.append(GetBrowserProgId(suffix));
   delegate_exe_key.append(ShellUtil::kRegShellOpen);
-  installer::DeleteRegistryValue(root_key, delegate_exe_key,
-                                   WorkItem::kWow64Default,
-                                   ShellUtil::kRegDelegateExecute);
 }
 
 // Constructs a suffix based on path.

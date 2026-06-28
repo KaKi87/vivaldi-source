@@ -758,7 +758,8 @@ class DocWriter(xml_formatted_writer.XMLFormattedWriter):
   #
 
   def IsDeprecatedPolicySupported(self, policy):
-    return True
+    # VB-125639 - Vivaldi does not support deprecated policies.
+    return False
 
   def WritePolicy(self, policy):
     self._AddPolicyRow(self._summary_tbody, policy)

@@ -12,6 +12,7 @@
 
 #include "base/containers/small_map.h"
 #include "base/functional/callback_forward.h"
+#include "base/location.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "base/task/sequenced_task_runner.h"
@@ -23,6 +24,7 @@
 #include "chrome/browser/password_manager/android/password_store_android_backend_api_error_codes.h"
 #include "chrome/browser/password_manager/android/password_store_android_backend_bridge_helper.h"
 #include "chrome/browser/password_manager/android/password_store_android_backend_dispatcher_bridge.h"
+#include "components/password_manager/core/browser/password_store/password_store_backend.h"
 #include "components/password_manager/core/browser/password_store/password_store_backend_metrics_recorder.h"
 
 namespace password_manager {
@@ -108,13 +110,14 @@ class PasswordStoreAndroidBackend
                          bool include_psl,
                          LoginsOrErrorReply callback);
   void AddLoginInternal(std::string account,
-                        const PasswordForm& form,
+                        StoredCredential credential,
                         PasswordChangesOrErrorReply callback);
   void UpdateLoginInternal(std::string account,
-                           const PasswordForm& form,
+                           StoredCredential credential,
                            PasswordChangesOrErrorReply callback);
   void RemoveLoginInternal(std::string account,
-                           const PasswordForm& form,
+                           StoredCredential credential,
+                           const base::Location& location,
                            PasswordChangesOrErrorReply callback);
   void FillMatchingLoginsInternal(std::string account,
                                   LoginsOrErrorReply callback,
@@ -124,6 +127,7 @@ class PasswordStoreAndroidBackend
                                         const PasswordFormDigest& form_digest,
                                         LoginsOrErrorReply callback);
   void RemoveLoginsCreatedBetweenInternal(std::string account,
+                                          const base::Location& location,
                                           base::Time delete_begin,
                                           base::Time delete_end,
                                           PasswordChangesOrErrorReply callback);
@@ -264,7 +268,7 @@ class PasswordStoreAndroidBackend
   // Implements PasswordStoreAndroidBackendDispatcherBridge::Consumer interface.
   void OnCompleteWithLogins(
       PasswordStoreAndroidBackendDispatcherBridge::JobId job_id,
-      std::vector<PasswordForm> passwords) override;
+      std::vector<StoredCredential> passwords) override;
   void OnLoginsChanged(
       PasswordStoreAndroidBackendDispatcherBridge::JobId task_id,
       PasswordChanges changes) override;
@@ -290,6 +294,7 @@ class PasswordStoreAndroidBackend
   // |delay| is the amount of time by which the call to this method was delayed.
   void FilterAndRemoveLogins(
       std::string account,
+      const base::Location& location,
       const base::RepeatingCallback<bool(const GURL&)>& url_filter,
       base::Time delete_begin,
       base::Time delete_end,

@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <map>
 #include <memory>
 #include <utility>
 
@@ -72,9 +71,8 @@ class ShortcutSubManagerTestBase : public WebAppTest {
     WebAppTest::TearDown();
   }
 
-  webapps::AppId InstallWebAppWithShortcuts(
-      std::map<SquareSizePx, SkBitmap> icon_map,
-      bool skip_trusted_icons = false) {
+  webapps::AppId InstallWebAppWithShortcuts(OrderedSizeToBitmap icon_map,
+                                            bool skip_trusted_icons = false) {
     std::unique_ptr<WebAppInstallInfo> info =
         WebAppInstallInfo::CreateWithStartUrlForTesting(kWebAppUrl);
     info->title = u"Test App";
@@ -114,7 +112,7 @@ class ShortcutSubManagerConfigureTest : public ShortcutSubManagerTestBase {
 };
 
 TEST_F(ShortcutSubManagerConfigureTest, ConfigureAppInstall) {
-  std::map<SquareSizePx, SkBitmap> icon_map;
+  OrderedSizeToBitmap icon_map;
   icon_map[icon_size::k16] = CreateSolidColorIcon(icon_size::k16, SK_ColorBLUE);
   icon_map[icon_size::k24] = CreateSolidColorIcon(icon_size::k24, SK_ColorRED);
   icon_map[icon_size::k128] =
@@ -143,7 +141,7 @@ TEST_F(ShortcutSubManagerConfigureTest, ConfigureAppInstall) {
 }
 
 TEST_F(ShortcutSubManagerConfigureTest, FallbackToManifestIconsNoTrusted) {
-  std::map<SquareSizePx, SkBitmap> icon_map;
+  OrderedSizeToBitmap icon_map;
   icon_map[icon_size::k128] =
       CreateSolidColorIcon(icon_size::k128, SK_ColorGREEN);
   icon_map[icon_size::k512] =
@@ -171,7 +169,7 @@ TEST_F(ShortcutSubManagerConfigureTest, FallbackToManifestIconsNoTrusted) {
 }
 
 TEST_F(ShortcutSubManagerConfigureTest, ConfigureAppUninstall) {
-  std::map<SquareSizePx, SkBitmap> icon_map;
+  OrderedSizeToBitmap icon_map;
   icon_map[icon_size::k16] = CreateSolidColorIcon(icon_size::k16, SK_ColorBLUE);
   icon_map[icon_size::k24] = CreateSolidColorIcon(icon_size::k24, SK_ColorRED);
   icon_map[icon_size::k128] =
@@ -198,6 +196,14 @@ class ShortcutSubManagerExecuteTest : public ShortcutSubManagerTestBase {
 #else
     return false;
 #endif
+  }
+
+  bool HasShortcutsPinnedToTaskBar() {
+#if BUILDFLAG(IS_WIN)
+    return true;
+#else
+    return false;
+#endif  // BUILDFLAG(IS_WIN)
   }
 
   SkColor GetShortcutColor(const webapps::AppId& app_id,
@@ -242,7 +248,7 @@ class ShortcutSubManagerExecuteTest : public ShortcutSubManagerTestBase {
   }
 
   webapps::AppId UpdateInstalledWebAppWithNewIcons(
-      std::map<SquareSizePx, SkBitmap> updated_icons) {
+      OrderedSizeToBitmap updated_icons) {
     auto& manager = static_cast<FakeWebContentsManager&>(
         fake_provider().web_contents_manager());
     manager.SetUrlLoaded(web_contents(), kWebAppUrl);
@@ -257,7 +263,7 @@ class ShortcutSubManagerExecuteTest : public ShortcutSubManagerTestBase {
     // Create fake manifest.
     auto manifest = blink::mojom::Manifest::New();
     manifest->start_url = kWebAppUrl;
-    manifest->id = GenerateManifestIdFromStartUrlOnly(kWebAppUrl);
+    manifest->id = GenerateManifestIdFromStartUrlOnly(kWebAppUrl).value();
     manifest->scope = kWebAppUrl.GetWithoutFilename();
     manifest->name = u"New App";
 
@@ -284,8 +290,7 @@ class ShortcutSubManagerExecuteTest : public ShortcutSubManagerTestBase {
     return GenerateAppId(std::nullopt, kWebAppUrl);
   }
 
-  webapps::AppId InstallWebAppNoIntegration(
-      std::map<SquareSizePx, SkBitmap> icon_map) {
+  webapps::AppId InstallWebAppNoIntegration(OrderedSizeToBitmap icon_map) {
     std::unique_ptr<WebAppInstallInfo> info =
         WebAppInstallInfo::CreateWithStartUrlForTesting(kWebAppUrl);
     info->title = u"Test App";
@@ -311,7 +316,7 @@ class ShortcutSubManagerExecuteTest : public ShortcutSubManagerTestBase {
 };
 
 TEST_F(ShortcutSubManagerExecuteTest, InstallAppVerifyCorrectShortcuts) {
-  std::map<SquareSizePx, SkBitmap> icon_map;
+  OrderedSizeToBitmap icon_map;
   icon_map[icon_size::k16] = CreateSolidColorIcon(icon_size::k16, SK_ColorBLUE);
   icon_map[icon_size::k24] = CreateSolidColorIcon(icon_size::k24, SK_ColorRED);
   icon_map[icon_size::k128] =
@@ -329,6 +334,8 @@ TEST_F(ShortcutSubManagerExecuteTest, InstallAppVerifyCorrectShortcuts) {
         profile(), app_id,
         fake_provider().registrar_unsafe().GetAppShortName(app_id)));
 
+    EXPECT_EQ(fake_os_integration().IsAppPinnedToTaskbar(app_id),
+              HasShortcutsPinnedToTaskBar());
     // On all desktop platforms, the shortcut icon that is used for the
     // launcher is icon_size::k128, which should be GREEN as per the icon_map
     // being used above.
@@ -340,7 +347,7 @@ TEST_F(ShortcutSubManagerExecuteTest, InstallAppVerifyCorrectShortcuts) {
 }
 
 TEST_F(ShortcutSubManagerExecuteTest, UpdateAppVerifyCorrectShortcuts) {
-  std::map<SquareSizePx, SkBitmap> icon_map;
+  OrderedSizeToBitmap icon_map;
   icon_map[icon_size::k24] = CreateSolidColorIcon(icon_size::k24, SK_ColorRED);
   icon_map[icon_size::k128] =
       CreateSolidColorIcon(icon_size::k128, SK_ColorYELLOW);
@@ -356,13 +363,15 @@ TEST_F(ShortcutSubManagerExecuteTest, UpdateAppVerifyCorrectShortcuts) {
     EXPECT_TRUE(fake_os_integration().IsShortcutCreated(
         profile(), app_id,
         fake_provider().registrar_unsafe().GetAppShortName(app_id)));
+    EXPECT_EQ(fake_os_integration().IsAppPinnedToTaskbar(app_id),
+              HasShortcutsPinnedToTaskBar());
     EXPECT_THAT(
         GetShortcutColor(
             app_id, fake_provider().registrar_unsafe().GetAppShortName(app_id)),
         testing::Eq(SK_ColorYELLOW));
   }
 
-  std::map<SquareSizePx, SkBitmap> updated_icon_map;
+  OrderedSizeToBitmap updated_icon_map;
   updated_icon_map[icon_size::k128] =
       CreateSolidColorIcon(icon_size::k128, SK_ColorBLUE);
   const webapps::AppId& updated_app_id =
@@ -379,6 +388,8 @@ TEST_F(ShortcutSubManagerExecuteTest, UpdateAppVerifyCorrectShortcuts) {
     EXPECT_TRUE(fake_os_integration().IsShortcutCreated(
         profile(), app_id,
         fake_provider().registrar_unsafe().GetAppShortName(app_id)));
+    EXPECT_EQ(fake_os_integration().IsAppPinnedToTaskbar(app_id),
+              HasShortcutsPinnedToTaskBar());
     EXPECT_THAT(
         GetShortcutColor(
             app_id, fake_provider().registrar_unsafe().GetAppShortName(app_id)),
@@ -389,7 +400,7 @@ TEST_F(ShortcutSubManagerExecuteTest, UpdateAppVerifyCorrectShortcuts) {
 TEST_F(ShortcutSubManagerExecuteTest,
        TwoConsecutiveInstallsUpdateShortcutLocations) {
   // Install an app with icons but no shortcuts.
-  std::map<SquareSizePx, SkBitmap> icon_map;
+  OrderedSizeToBitmap icon_map;
   icon_map[icon_size::k24] = CreateSolidColorIcon(icon_size::k24, SK_ColorRED);
   const webapps::AppId& app_id =
       InstallWebAppNoIntegration(std::move(icon_map));
@@ -410,9 +421,11 @@ TEST_F(ShortcutSubManagerExecuteTest,
   if (HasShortcutsOsIntegration()) {
     EXPECT_FALSE(
         fake_os_integration().IsShortcutCreated(profile(), app_id, app_name));
+    EXPECT_FALSE(fake_os_integration().IsAppPinnedToTaskbar(app_id));
   }
 
-  // This should trigger the application to become fully installed.
+  // This should trigger the application to become fully installed, but does not
+  // create taskbar entries on Windows.
   base::test::TestFuture<void> future;
   fake_provider().scheduler().SetUserDisplayMode(
       app_id, mojom::UserDisplayMode::kStandalone, future.GetCallback());
@@ -435,7 +448,7 @@ TEST_F(ShortcutSubManagerExecuteTest,
 
   // Mimic a 2nd installation with updated icons so that the update flow gets
   // triggered.
-  std::map<SquareSizePx, SkBitmap> new_icons;
+  OrderedSizeToBitmap new_icons;
   new_icons[icon_size::k128] =
       CreateSolidColorIcon(icon_size::k128, SK_ColorYELLOW);
   const webapps::AppId& expected_app_id =
@@ -463,7 +476,7 @@ TEST_F(ShortcutSubManagerExecuteTest,
 }
 
 TEST_F(ShortcutSubManagerExecuteTest, UninstallAppRemovesShortcuts) {
-  std::map<SquareSizePx, SkBitmap> icon_map;
+  OrderedSizeToBitmap icon_map;
   icon_map[icon_size::k16] =
       CreateSolidColorIcon(icon_size::k16, SK_ColorYELLOW);
   icon_map[icon_size::k128] =
@@ -480,6 +493,8 @@ TEST_F(ShortcutSubManagerExecuteTest, UninstallAppRemovesShortcuts) {
     EXPECT_TRUE(OsIntegrationTestOverrideImpl::Get()->IsShortcutCreated(
         profile(), app_id,
         fake_provider().registrar_unsafe().GetAppShortName(app_id)));
+    EXPECT_EQ(fake_os_integration().IsAppPinnedToTaskbar(app_id),
+              HasShortcutsPinnedToTaskBar());
     EXPECT_THAT(
         GetShortcutColor(
             app_id, fake_provider().registrar_unsafe().GetAppShortName(app_id)),
@@ -491,11 +506,12 @@ TEST_F(ShortcutSubManagerExecuteTest, UninstallAppRemovesShortcuts) {
     EXPECT_FALSE(OsIntegrationTestOverrideImpl::Get()->IsShortcutCreated(
         profile(), app_id,
         fake_provider().registrar_unsafe().GetAppShortName(app_id)));
+    EXPECT_FALSE(fake_os_integration().IsAppPinnedToTaskbar(app_id));
   }
 }
 
 TEST_F(ShortcutSubManagerExecuteTest, ForceUnregisterAppInRegistry) {
-  std::map<SquareSizePx, SkBitmap> icon_map;
+  OrderedSizeToBitmap icon_map;
   icon_map[icon_size::k16] = CreateSolidColorIcon(icon_size::k16, SK_ColorBLUE);
   icon_map[icon_size::k24] = CreateSolidColorIcon(icon_size::k24, SK_ColorRED);
   icon_map[icon_size::k128] =
@@ -513,6 +529,8 @@ TEST_F(ShortcutSubManagerExecuteTest, ForceUnregisterAppInRegistry) {
   if (HasShortcutsOsIntegration()) {
     EXPECT_TRUE(
         fake_os_integration().IsShortcutCreated(profile(), app_id, app_name));
+    EXPECT_EQ(fake_os_integration().IsAppPinnedToTaskbar(app_id),
+              HasShortcutsPinnedToTaskBar());
   }
 
   SynchronizeOsOptions options;
@@ -522,11 +540,12 @@ TEST_F(ShortcutSubManagerExecuteTest, ForceUnregisterAppInRegistry) {
   if (HasShortcutsOsIntegration()) {
     ASSERT_FALSE(
         fake_os_integration().IsShortcutCreated(profile(), app_id, app_name));
+    EXPECT_FALSE(fake_os_integration().IsAppPinnedToTaskbar(app_id));
   }
 }
 
 TEST_F(ShortcutSubManagerExecuteTest, ForceUnregisterAppNotInRegistry) {
-  std::map<SquareSizePx, SkBitmap> icon_map;
+  OrderedSizeToBitmap icon_map;
   icon_map[icon_size::k16] = CreateSolidColorIcon(icon_size::k16, SK_ColorBLUE);
   icon_map[icon_size::k24] = CreateSolidColorIcon(icon_size::k24, SK_ColorRED);
   icon_map[icon_size::k128] =
@@ -544,12 +563,15 @@ TEST_F(ShortcutSubManagerExecuteTest, ForceUnregisterAppNotInRegistry) {
   if (HasShortcutsOsIntegration()) {
     EXPECT_TRUE(
         fake_os_integration().IsShortcutCreated(profile(), app_id, app_name));
+    EXPECT_EQ(fake_os_integration().IsAppPinnedToTaskbar(app_id),
+              HasShortcutsPinnedToTaskBar());
   }
 
   test::UninstallAllWebApps(profile());
   if (HasShortcutsOsIntegration()) {
     EXPECT_FALSE(
         fake_os_integration().IsShortcutCreated(profile(), app_id, app_name));
+    EXPECT_FALSE(fake_os_integration().IsAppPinnedToTaskbar(app_id));
   }
   EXPECT_FALSE(
       fake_provider().registrar_unsafe().GetInstallState(app_id).has_value());
@@ -561,6 +583,7 @@ TEST_F(ShortcutSubManagerExecuteTest, ForceUnregisterAppNotInRegistry) {
   if (HasShortcutsOsIntegration()) {
     EXPECT_FALSE(
         fake_os_integration().IsShortcutCreated(profile(), app_id, app_name));
+    EXPECT_FALSE(fake_os_integration().IsAppPinnedToTaskbar(app_id));
   }
 }
 

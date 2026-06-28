@@ -9,14 +9,12 @@
 <translation id="1598449788754183301">Alternar entre pestañas normales o privadas</translation>
 <translation id="1644574205037202324">Historial</translation>
 <translation id="1829244130665387512">Buscar en la página</translation>
-<translation id="1910514478706885609">Abrir en pila de pestañas</translation>
 <translation id="1925021887439448749">Ingresa una dirección web personalizada</translation>
 <translation id="2038563949887743358">Activar la petición para el modo escritorio</translation>
 <translation id="208033313373016095">Modo lectura para páginas web</translation>
 <translation id="2149973817440762519">Editar marcador</translation>
 <translation id="2306442503286132111">Marcador guardado en la carpeta <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Apariencia</translation>
-<translation id="2501278716633472235">Regresar</translation>
 <translation id="2546283357679194313">Datos de las cookies y del sitio</translation>
 <translation id="2633278372998075009">Pestañas privadas</translation>
 <translation id="2650751991977523696">¿Deseas volver a descargar el archivo?</translation>
@@ -43,7 +41,6 @@
 <translation id="3700829948786686853">Bienvenido a Vivaldi</translation>
 <translation id="3719826155360621982">Página principal</translation>
 <translation id="3738139272394829648">Tocar para buscar</translation>
-<translation id="385051799172605136">Regresar</translation>
 <translation id="3987993985790029246">Copiar enlace</translation>
 <translation id="399014816462153200">Artículos leídos:</translation>
 <translation id="4121750346708795461">Al usar esta aplicación, aceptas las <ph name="BEGIN_LINK1" />condiciones de servicio<ph name="END_LINK1" /> y la <ph name="BEGIN_LINK2" />política de privacidad<ph name="END_LINK2" /> de Vivaldi.</translation>
@@ -63,7 +60,6 @@
 
 La función Tocar para buscar solo está disponible cuando Google ha sido establecido como buscador por defecto en Vivaldi.</translation>
 <translation id="4759238208242260848">Descargas</translation>
-<translation id="4777866634702576038">¿Borrar el grupo de pestañas?</translation>
 <translation id="4850886885716139402">Ver</translation>
 <translation id="4883379392681899581">Salir del modo privado</translation>
 <translation id="4943872375798546930">Sin resultados</translation>

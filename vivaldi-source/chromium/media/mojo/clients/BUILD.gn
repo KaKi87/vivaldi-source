@@ -24,6 +24,7 @@ source_set("clients") {
     "//media/test/*",
 
     # TODO(liberato): can we avoid this?
+    "//chrome/browser/android",
     "//content/test/*",
     "//third_party/blink/renderer/modules/mediarecorder",
     "//third_party/blink/renderer/modules/peerconnection",
@@ -157,9 +158,12 @@ source_set("unit_tests") {
     "//gpu/ipc/common:test_support",
     "//media:test_support",
     "//media/mojo:test_support",
+    "//mojo/public/cpp/test_support:test_utils",
     "//testing/gmock",
     "//testing/gtest",
   ]
+
+  public_deps = [ "//mojo/public/cpp/test_support:test_utils" ]
 
   if (is_android) {
     sources += [ "mojo_android_overlay_unittest.cc" ]

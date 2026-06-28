@@ -20,7 +20,6 @@
 #include "android_webview/browser/aw_contents.h"
 #include "android_webview/browser/aw_contents_client_bridge.h"
 #include "android_webview/browser/aw_contents_io_thread_client.h"
-#include "android_webview/browser/aw_contents_statics.h"
 #include "android_webview/browser/aw_cookie_access_policy.h"
 #include "android_webview/browser/aw_devtools_manager_delegate.h"
 #include "android_webview/browser/aw_feature_list_creator.h"
@@ -31,6 +30,8 @@
 #include "android_webview/browser/aw_speech_recognition_manager_delegate.h"
 #include "android_webview/browser/aw_web_contents_delegate.h"
 #include "android_webview/browser/aw_web_contents_view_delegate.h"
+#include "android_webview/browser/content_restriction/aw_content_restriction_manager_client.h"
+#include "android_webview/browser/content_restriction/aw_content_restriction_navigation_throttle.h"
 #include "android_webview/browser/content_restriction/aw_content_restriction_url_loader_throttle.h"
 #include "android_webview/browser/cookie_manager.h"
 #include "android_webview/browser/network_service/aw_browser_context_io_thread_handle.h"
@@ -64,7 +65,6 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
 #include "base/path_service.h"
@@ -121,6 +121,7 @@
 #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "net/android/network_library.h"
+#include "net/base/features.h"
 #include "net/cookies/cookie_setting_override.h"
 #include "net/cookies/site_for_cookies.h"
 #include "net/http/http_util.h"
@@ -288,6 +289,23 @@ void AwContentBrowserClient::OnNetworkServiceCreated(
   network_service->SetUpHttpAuth(network::mojom::HttpAuthStaticParams::New());
   network_service->ConfigureHttpAuthPrefs(
       AwBrowserProcess::GetInstance()->CreateHttpAuthDynamicParams());
+
+  if (net::features::IsDnsPlatformSupported() &&
+      base::FeatureList::IsEnabled(features::kWebViewEnableDnsPlatform)) {
+    // Using the platform DNS APIs requires:
+    // 1. Enabling the built-in DNS client (insecure_dns_client_enabled = true)
+    // 2. Disabling DoH queries, these do not yet use the platform DNS APIs
+    //    (net::SecureDnsMode::kOff)
+    // 3. Make HostResolverManager use the platform DNS APIs
+    //    (insecure_dns_via_platform_apis_enabled = true)
+    network_service->ConfigureStubHostResolver(
+        /*insecure_dns_client_enabled=*/true,
+        /*happy_eyeballs_v3_enabled=*/false, net::SecureDnsMode::kOff,
+        net::DnsOverHttpsConfig(),
+        /*additional_dns_types_enabled=*/true,
+        /*fallback_doh_nameservers=*/std::vector<net::IPEndPoint>(),
+        /*insecure_dns_via_platform_apis_enabled=*/true);
+  }
 }
 
 void AwContentBrowserClient::ConfigureNetworkContextParams(
@@ -487,29 +505,6 @@ void AwContentBrowserClient::AppendExtraCommandLineSwitches(
 
     command_line->CopySwitchesFrom(*base::CommandLine::ForCurrentProcess(),
                                    kSwitchNames);
-  }
-
-  if (base::FeatureList::IsEnabled(
-          features::kWebViewConfigurableLibraryPrefetch)) {
-    RendererLibraryPrefetchMode mode = GetRendererLibraryPrefetchMode();
-    switch (mode) {
-      case RendererLibraryPrefetchMode::kDisabled:
-        command_line->AppendSwitchASCII(
-            switches::kWebViewRendererLibraryPrefetch,
-            switches::kWebViewRendererLibraryPrefetchDisabled);
-        break;
-      case RendererLibraryPrefetchMode::kEnabled:
-        command_line->AppendSwitchASCII(
-            switches::kWebViewRendererLibraryPrefetch,
-            switches::kWebViewRendererLibraryPrefetchEnabled);
-        break;
-      default:
-        // kDefault or unknown values are ignored. But sanitize for histograms.
-        mode = RendererLibraryPrefetchMode::kDefault;
-        break;
-    }
-    base::UmaHistogramEnumeration("Android.WebView.RendererLibraryPrefetchMode",
-                                  mode);
   }
 }
 
@@ -732,14 +727,24 @@ void AwContentBrowserClient::CreateThrottlesForNavigation(
 
   if ((navigation_handle.GetNavigatingFrameType() ==
            FrameType::kPrimaryMainFrame ||
-       navigation_handle.GetNavigatingFrameType() == FrameType::kSubframe) &&
-      registry.IsHTTPOrHTTPS()) {
+       navigation_handle.GetNavigatingFrameType() == FrameType::kSubframe ||
+       navigation_handle.GetNavigatingFrameType() ==
+           FrameType::kPrerenderMainFrame) &&
+      registry.GetNavigationHandle().GetURL().SchemeIsHTTPOrHTTPS()) {
     AwSupervisedUserUrlClassifier* urlClassifier =
         AwSupervisedUserUrlClassifier::GetInstance();
     if (urlClassifier->ShouldCreateThrottle()) {
       registry.AddThrottle(
           std::make_unique<AwSupervisedUserThrottle>(registry, urlClassifier));
     }
+  }
+
+  if (base::FeatureList::IsEnabled(
+          android_webview::features::kWebViewContentRestrictionSupport)) {
+    registry.AddThrottle(
+        std::make_unique<AwContentRestrictionNavigationThrottle>(
+            registry, context->GetContentRestrictionBlockedNavigationTracker(),
+            context->GetContentRestrictionManagerClient()));
   }
 }
 
@@ -798,9 +803,12 @@ AwContentBrowserClient::CreateURLLoaderThrottles(
   if (browser_context &&
       base::FeatureList::IsEnabled(
           android_webview::features::kWebViewContentRestrictionSupport)) {
+    AwBrowserContext* const aw_browser_context =
+        static_cast<AwBrowserContext*>(browser_context);
     result.push_back(std::make_unique<AwContentRestrictionURLLoaderThrottle>(
-        static_cast<AwBrowserContext*>(browser_context)
-            ->GetContentRestrictionManagerClient()));
+        aw_browser_context->GetContentRestrictionManagerClient(),
+        aw_browser_context->GetContentRestrictionBlockedNavigationTracker(),
+        navigation_id));
   }
 
   if (request.destination == network::mojom::RequestDestination::kDocument) {
@@ -1282,7 +1290,8 @@ bool AwContentBrowserClient::WillCreateRestrictedCookieManager(
 
   AwProxyingRestrictedCookieManager::CreateAndBind(
       std::move(target_rcm_remote), is_service_worker, process_id, routing_id,
-      std::move(orig_receiver), aw_cookie_access_policy);
+      isolation_info.site_for_cookies(), std::move(orig_receiver),
+      aw_cookie_access_policy);
 
   return false;  // only made a proxy, still need the actual impl to be made.
 }

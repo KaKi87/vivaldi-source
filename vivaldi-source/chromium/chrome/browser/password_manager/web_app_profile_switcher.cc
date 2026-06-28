@@ -15,7 +15,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/profiles/profile_window.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
@@ -182,15 +181,16 @@ void WebAppProfileSwitcher::LaunchAppWithId(
 
   web_app::WebAppProvider::GetForWebApps(new_profile_)
       ->scheduler()
-      .LaunchApp(app_id, *base::CommandLine::ForCurrentProcess(),
-                 /*current_directory=*/base::FilePath(),
-                 /*protocol_handler_launch_url=*/std::nullopt,
-                 /*file_launch_url=*/std::nullopt, /*launch_files=*/{},
-                 base::IgnoreArgs<base::WeakPtr<Browser>,
-                                  base::WeakPtr<content::WebContents>,
-                                  apps::LaunchContainer>(base::BindOnce(
-                     &WebAppProfileSwitcher::RunCompletionCallback,
-                     weak_factory_.GetWeakPtr())));
+      .LaunchAppFromCommandLine(
+          app_id, *base::CommandLine::ForCurrentProcess(),
+          /*current_directory=*/base::FilePath(),
+          /*protocol_handler_launch_url=*/std::nullopt,
+          /*file_launch_url=*/std::nullopt, /*launch_files=*/{},
+          base::IgnoreArgs<base::WeakPtr<BrowserWindowInterface>,
+                           base::WeakPtr<content::WebContents>,
+                           apps::LaunchContainer>(
+              base::BindOnce(&WebAppProfileSwitcher::RunCompletionCallback,
+                             weak_factory_.GetWeakPtr())));
 }
 
 void WebAppProfileSwitcher::RunCompletionCallback() {

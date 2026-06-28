@@ -17,7 +17,6 @@
 #include "build/build_config.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/browser_widget.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
@@ -164,7 +163,7 @@ void BrowserNativeWidgetAsh::GetWindowPlacement(
   }
 
   // Session restore might be unable to correctly restore other states.
-  // For the record, https://crbug.com/396272
+  // For the record, https://crbug.com/40375827
   if (*show_state != ui::mojom::WindowShowState::kMaximized &&
       *show_state != ui::mojom::WindowShowState::kMinimized) {
     *show_state = ui::mojom::WindowShowState::kNormal;

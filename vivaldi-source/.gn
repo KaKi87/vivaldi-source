@@ -8,21 +8,21 @@
 # The out directories are in the vivaldi folder and thus we have to override
 # the path replacement to chromium for them
 set_path_map([
-    # Prefix, actual path
-    # Most specific prefixes first
-    [
-      "//vivaldi",
-      "//",
-    ],
-    [
-      "//out",
-      "//out",
-    ],
-    [
-      "//",
-      "//chromium",
-    ],
-  ])
+               # Prefix, actual path
+               # Most specific prefixes first
+               [
+                 "//vivaldi",
+                 "//",
+               ],
+               [
+                 "//out",
+                 "//out",
+               ],
+               [
+                 "//",
+                 "//chromium",
+               ],
+             ])
 
 # We mainly use the chromium setup, no need to duplicate the system
 import("//chromium/.gn")
@@ -43,10 +43,16 @@ default_args.devtools_skip_typecheck = false
 default_args.use_dummy_lastchange = false
 default_args.enable_glic = false
 default_args.enable_dice_support = false
-default_args.enable_reporting = false # Reporting API
+default_args.enable_reporting = false  # Reporting API
 default_args.optimize_webui = true
-default_args.webnn_install_runtime_in_chrome_installer = false # Keep false. don't need it in the installer
+default_args.webnn_install_runtime_in_chrome_installer =
+    false  # Keep false. don't need it in the installer
 default_args.webnn_use_litert = false
+default_args.webnn_use_tflite = false
+default_args.enable_pdf_save_to_drive =
+    false  # VB-127868 Do not want Google Drive save icon
+default_args.enable_hangout_services_extension =
+    false  # We no longer need it, apparently
 
 # We don't need the Chrome field trials
 default_args.disable_fieldtrial_testing_config = true

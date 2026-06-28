@@ -10,17 +10,15 @@ source_set("custom_views") {
     "vivaldi_rich_link_text_models.mm",
     "vivaldi_rich_link_text_view.h",
     "vivaldi_rich_link_text_view.mm",
-    "vivaldi_text_field_view.h",
-    "vivaldi_text_field_view.mm",
     "vivaldi_search_bar_view.h",
     "vivaldi_search_bar_view.mm",
+    "vivaldi_text_field_view.h",
+    "vivaldi_text_field_view.mm",
     "vivaldi_text_view.h",
-    "vivaldi_text_view.mm"
+    "vivaldi_text_view.mm",
   ]
 
-  deps = [
-    "//base",
-  ]
+  deps = [ "//base" ]
 
   frameworks = [
     "Foundation.framework",
@@ -34,9 +32,7 @@ swift_source_set("custom_views_swift") {
     "vivaldi_radio_button.swift",
   ]
 
-  deps = [
-    "//ios/chrome/common/ui/colors:swift",
-  ]
+  deps = [ "//ios/chrome/common/ui/colors:swift" ]
 
   frameworks = [
     "UIKit.framework",

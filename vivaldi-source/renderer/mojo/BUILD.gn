@@ -6,7 +6,7 @@ mojom("frame_service") {
 
   public_deps = [
     "//mojo/public/mojom/base",
-    "//ui/gfx/geometry/mojom:mojom",
+    "//ui/gfx/geometry/mojom",
   ]
 }
 
@@ -14,9 +14,7 @@ mojom("frame_host_service") {
   sources = [ "vivaldi_frame_host_service.mojom" ]
   input_root_override = "//vivaldi/"
 
-  public_deps = [
-    "//mojo/public/mojom/base",
-  ]
+  public_deps = [ "//mojo/public/mojom/base" ]
   export_class_attribute_blink = "CORE_EXPORT"
   export_define_blink = "BLINK_CORE_IMPLEMENTATION=1"
   export_header_blink = "third_party/blink/renderer/core/core_export.h"
@@ -26,7 +24,5 @@ mojom("encrypted_media_access") {
   sources = [ "vivaldi_encrypted_media_access.mojom" ]
   input_root_override = "//vivaldi/"
 
-  public_deps = [
-    "//mojo/public/mojom/base",
-  ]
+  public_deps = [ "//mojo/public/mojom/base" ]
 }

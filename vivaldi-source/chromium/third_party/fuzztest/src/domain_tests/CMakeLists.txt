@@ -33,7 +33,6 @@ if (FUZZTEST_BUILD_FLATBUFFERS)
       fuzztest::domain
       fuzztest::domain_testing
       fuzztest::flatbuffers
-      fuzztest::fuzztest_macros
       GTest::gmock_main
       fuzztest_test_flatbuffers_headers
   )
@@ -68,6 +67,7 @@ fuzztest_cc_test(
     "arbitrary_domains_test.cc"
   DEPS
     fuzztest::domain_testing
+    absl::cord
     absl::flat_hash_set
     absl::random_random
     absl::random_bit_gen_ref
@@ -275,6 +275,8 @@ fuzztest_cc_test(
     fuzztest::domain_testing
     absl::flat_hash_set
     absl::random_random
+    absl::status
+    absl::strings
     fuzztest::domain_core
     fuzztest::table_of_recent_compares
     GTest::gmock_main

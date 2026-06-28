@@ -528,7 +528,7 @@ bool BookmarkMenuDelegate::ShouldExecuteCommandWithoutClosingMenu(
   if (!event.IsMouseEvent()) {
     // Restore pre https://crrev.com/c/3820263 behavior, which started calling
     // `ShouldExecuteCommandWithoutClosingMenu` for gesture events and caused
-    // https://crbug.com/1498716 regression.
+    // https://crbug.com/40287549 regression.
     // Gesture events will be handled via `MenuController::Accept()` -> ... ->
     // `BookmarkMenuDelegate::ExecuteCommand()` instead (as it was before).
     return false;
@@ -550,7 +550,7 @@ bool BookmarkMenuDelegate::ShouldExecuteCommandWithoutClosingMenu(
 
     CHECK(menu_id_to_node != menu_id_to_node_map_.end());
     // Close the menu before opening a folder since this may pop up a dialog
-    // over the menu. See https://crbug.com/1105587 for details.
+    // over the menu. See https://crbug.com/40705893 for details.
     return !menu_id_to_node->second.GetIfBookmarkFolder();
   }
   return false;
@@ -1540,8 +1540,9 @@ void BookmarkMenuDelegate::BuildOtherNodeMenuHeader(MenuItemView* menu) {
     menu->RemoveAllMenuItems();
   }
   ui::ImageModel bookmarks_side_panel_icon = ui::ImageModel::FromVectorIcon(
-      kBookmarksSidePanelIcon, ui::kColorMenuIcon,
-      ui::SimpleMenuModel::kDefaultIconSize);
+      features::IsRoundedIconsEnabled() ? kHotelClassIcon
+                                        : kBookmarksSidePanelOldIcon,
+      ui::kColorMenuIcon, ui::SimpleMenuModel::kDefaultIconSize);
   menu->AppendMenuItem(
       IDC_SHOW_BOOKMARK_SIDE_PANEL,
       l10n_util::GetStringUTF16(IDS_BOOKMARKS_ALL_BOOKMARKS_OPEN_SIDE_PANEL),

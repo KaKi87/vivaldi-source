@@ -1,9 +1,9 @@
+import("//build/config/compiler/pgo/pgo.gni")
 import("//vivaldi/gn/config/features.gni")
 import("//vivaldi/gn/config/product.gni")
+import("//vivaldi/gn/config/signer_features.gni")
 import("//vivaldi/gn/config/version.gni")
 import("//vivaldi/testing/testing.gni")
-import("//build/config/compiler/pgo/pgo.gni")
-import("//vivaldi/gn/config/signer_features.gni")
 
 if (is_win) {
   import("//build/config/win/visual_studio_version.gni")
@@ -31,9 +31,7 @@ if (is_win) {
   update_target("//chrome:reorder_imports") {
     inputs = []
     outputs = []
-    inputs = [
-      "$root_out_dir/initialexe/vivaldi.exe",
-    ]
+    inputs = [ "$root_out_dir/initialexe/vivaldi.exe" ]
     outputs = [
       "$root_out_dir/vivaldi.exe",
       "$root_out_dir/vivaldi.exe.pdb",
@@ -60,24 +58,18 @@ if (is_win) {
   }
 
   update_template_instance("//chrome:chrome_dll_version") {
-    sources -= ["app/chrome_dll.ver"]
-    sources += [
-      "//vivaldi/app/other_resources/vivaldi_dll.ver"
-    ]
+    sources -= [ "app/chrome_dll.ver" ]
+    sources += [ "//vivaldi/app/other_resources/vivaldi_dll.ver" ]
   }
 
   update_template_instance("//chrome:chrome_exe_version") {
-    sources -= ["app/chrome_exe.ver"]
-    sources += [
-      "//vivaldi/app/other_resources/vivaldi_exe.ver"
-    ]
+    sources -= [ "app/chrome_exe.ver" ]
+    sources += [ "//vivaldi/app/other_resources/vivaldi_exe.ver" ]
   }
 
   update_template_instance("//chrome/chrome_elf:chrome_elf_resources") {
-    sources -= ["chrome_elf.ver"]
-    sources += [
-      "//vivaldi/app/other_resources/vivaldi_elf.ver"
-    ]
+    sources -= [ "chrome_elf.ver" ]
+    sources += [ "//vivaldi/app/other_resources/vivaldi_elf.ver" ]
   }
 }
 
@@ -85,13 +77,15 @@ if (is_android) {
   update_template_instance("//chrome/android:chrome_public_apk") {
     apk_name = "Vivaldi.${vivaldi_version_full}"
     lint_baseline_file = "//chrome/android/expectations/lint-baseline.xml"
-    lint_suppressions_file = "$root_gen_dir/vivaldi/android/merged_suppression.xml"
-    lint_suppressions_dep = "//vivaldi/android:generate_merged_lint_suppression_file"
+    lint_suppressions_file =
+        "$root_gen_dir/vivaldi/android/merged_suppression.xml"
+    lint_suppressions_dep =
+        "//vivaldi/android:generate_merged_lint_suppression_file"
     not_needed([
-      "lint_suppressions_dep",
-      "lint_baseline_file",
-      "lint_suppressions_file",
-      ])
+                 "lint_suppressions_dep",
+                 "lint_baseline_file",
+                 "lint_suppressions_file",
+               ])
   }
 
   update_template_instance("//chrome/android:chrome_public_bundle") {
@@ -100,30 +94,35 @@ if (is_android) {
       # enable_lint = true
     }
     lint_baseline_file = "//chrome/android/expectations/lint-baseline.xml"
-    lint_suppressions_file = "$root_gen_dir/vivaldi/android/merged_suppression.xml"
-    lint_suppressions_dep = "//vivaldi/android:generate_merged_lint_suppression_file"
+    lint_suppressions_file =
+        "$root_gen_dir/vivaldi/android/merged_suppression.xml"
+    lint_suppressions_dep =
+        "//vivaldi/android:generate_merged_lint_suppression_file"
     not_needed([
-      "lint_suppressions_dep",
-      "lint_baseline_file",
-      "lint_suppressions_file",
-      ])
+                 "lint_suppressions_dep",
+                 "lint_baseline_file",
+                 "lint_suppressions_file",
+               ])
   }
 }
 
 if (!is_ios) {
   update_template_instance("//chrome/app/vector_icons:chrome_vector_icons") {
-    sources -= ["browser_logo.icon"]
-    sources += ["//vivaldi/app/resources/vector_icons/browser_logo.icon"]
+    sources -= [ "browser_logo_old.icon" ]
+    sources += [ "//vivaldi/app/resources/vector_icons/browser_logo_old.icon" ]
   }
 
   update_template_instance("//ui/message_center:message_center_vector_icons") {
-    sources -= ["product.icon"]
-    sources += ["//vivaldi/app/resources/message_center_vector_icons/product.icon"]
+    sources -= [ "product_old.icon" ]
+    sources += [
+      "//vivaldi/app/resources/message_center_vector_icons/product_old.icon",
+    ]
   }
 
-  update_template_instance("//components/omnibox/browser:omnibox_vector_icons") {
-    sources -= ["product.icon"]
-    sources += ["//vivaldi/app/resources/vector_icons/product.icon"]
+  update_template_instance(
+      "//components/omnibox/browser:omnibox_vector_icons") {
+    sources -= [ "product_old.icon" ]
+    sources += [ "//vivaldi/app/resources/vector_icons/product_old.icon" ]
   }
 }
 

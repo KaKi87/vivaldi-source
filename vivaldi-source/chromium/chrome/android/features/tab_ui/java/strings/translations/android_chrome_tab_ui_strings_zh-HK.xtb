@@ -31,12 +31,14 @@
 <translation id="1828808367831369073">已將 <ph name="TABS_COUNT_ONE" /> 個分頁分組</translation>
 <translation id="1844381456014878100">閒置 7 天後</translation>
 <translation id="1869137256605757565">{TABS_COUNT,plural, =1{<ph name="TABS_COUNT_ONE" /> 個分頁}other{<ph name="TABS_COUNT_MANY" /> 個分頁}}</translation>
+<translation id="1894429470045525403">{TAB_COUNT,plural, =1{將分頁新增至閱讀清單}other{將分頁新增至閱讀清單}}</translation>
 <translation id="1909810060368225529">注意：所有人都能看到此共用分頁群組的變更，所有人都可以變更你的共用分頁群組</translation>
 <translation id="1925363809167540686">{TAB_COUNT,plural, =1{固定單一分頁}other{固定多個分頁}}</translation>
 <translation id="1982637982196732906">移到閒置部分</translation>
 <translation id="2050597508048557928">{TABS_COUNT,plural, =1{將揀咗嘅 <ph name="TABS_COUNT_ONE" /> 個分頁加入書籤}other{將揀咗嘅 <ph name="TABS_COUNT_MANY" /> 個分頁加入書籤}}</translation>
 <translation id="2055057176188061528">選取分頁群組或建立新的分頁群組</translation>
 <translation id="2074527029802029717">取消固定分頁</translation>
+<translation id="2111670510994270194">在右側新增分頁</translation>
 <translation id="2118649612461486615">商店資料</translation>
 <translation id="2123073051266141035">{INCOGNITO_TABS_COUNT,plural, =1{你可以在「最近開啟的分頁」和「分頁群組」部分重新開啟已關閉的分頁和群組。你將無法查看無痕式分頁。}other{你可以在「最近開啟的分頁」和「分頁群組」部分重新開啟已關閉的分頁和群組。你將無法查看 # 個無痕式分頁。}}</translation>
 <translation id="2153899164605463849">{TAB_COUNT,plural, =1{將單一網站取消靜音}other{將多個網站取消靜音}}</translation>
@@ -75,6 +77,8 @@
 <translation id="3052964831964880138"><ph name="PRODUCT_NAME" /> 降價 <ph name="PRICE_DROP" /></translation>
 <translation id="3078350928901129212"><ph name="COLOR_NAME" />分頁群組顏色圖示</translation>
 <translation id="311432875115153175">分頁群組清單閂咗</translation>
+<translation id="3152596030350326139">橫向顯示分頁</translation>
+<translation id="31806439105337256">直向顯示分頁</translation>
 <translation id="3194464645767632461">評分</translation>
 <translation id="3269930881809501915">{TABS_COUNT,plural, =1{將 <ph name="TABS_COUNT_ONE" /> 個分頁加去群組}other{將 <ph name="TABS_COUNT_MANY" /> 個分頁加去群組}}</translation>
 <translation id="3328308545011660196">建議：似乎有 <ph name="NUMBER_OF_TABS" /> 個相關嘅分頁。要唔要將佢哋分組？</translation>
@@ -124,6 +128,7 @@
 <translation id="5076161749301278626">要查看商店評論嗎？</translation>
 <translation id="5161254044473106830">必須提供標題</translation>
 <translation id="524477996738997490">{AUTO_DELETE_DELAY,plural, =1{Chrome 會在 <ph name="AUTO_DELETE_DELAY_ONE" /> 個月後自動關閉閒置的分頁和分頁群組。你可在設定中變更這項設定。}other{Chrome 會在 <ph name="AUTO_DELETE_DELAY_MANY" /> 個月後自動關閉閒置的分頁和分頁群組。你可在設定中變更這項設定。}}</translation>
+<translation id="5254233580564156835">記憶體用量：<ph name="MEMORY_USAGE" /></translation>
 <translation id="5339733443032484186">最後一個分頁</translation>
 <translation id="5380159289133845234">封存重複的分頁</translation>
 <translation id="5446043142172831860">移除分頁並離開群組</translation>
@@ -163,11 +168,13 @@
 <translation id="6589356853295569750">共用分頁群組變更通知已開啟，並顯示在整個畫面</translation>
 <translation id="6590332670428149473">開啟共享分頁群組「<ph name="TITLE_OF_GROUP" />」的操作選單，顏色為「<ph name="COLOR_NAME" />」。</translation>
 <translation id="6615455863669487791">顯示</translation>
+<translation id="6686490380836145850">關閉右側分頁</translation>
 <translation id="6694634756612002311">管理共用設定</translation>
 <translation id="6709297274997495821">選取分頁</translation>
 <translation id="6744956528665271406">編輯群組顏色</translation>
 <translation id="6784585810034073638">{TAB_COUNT,plural, =1{加去有 <ph name="TAB_COUNT1" /> 個分頁嘅「<ph name="TITLE_OF_GROUP" />」群組}other{加去有 <ph name="TAB_COUNT1" /> 個分頁嘅「<ph name="TITLE_OF_GROUP" />」群組}}</translation>
 <translation id="6818926723028410516">選取項目</translation>
+<translation id="68541483639528434">關閉其他分頁</translation>
 <translation id="6856809498882026482">隱藏多重選取模式</translation>
 <translation id="6957436309971790274">閒置 21 天後</translation>
 <translation id="7064815189603108598">{NUMBER_OF_TABS,plural, =1{展開有 <ph name="TABS_COUNT_ONE" /> 個分頁嘅共享分頁群組「<ph name="TITLE_OF_GROUP" />」，顏色係<ph name="COLOR_NAME" />。}other{展開有 <ph name="TABS_COUNT_MANY" /> 個分頁嘅共享分頁群組「<ph name="TITLE_OF_GROUP" />」，顏色係<ph name="COLOR_NAME" />。}}</translation>

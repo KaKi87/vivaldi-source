@@ -1,16 +1,20 @@
-import ("//vivaldi/testing/testing.gni")
+import("//vivaldi/testing/testing.gni")
 
 update_template_instance("//chrome:packed_resources") {
   if (!defined(additional_extra_paks)) {
     additional_extra_paks = []
   }
-  additional_extra_paks += [
-    "$root_gen_dir/vivaldi/vivaldi_extension_resources.pak",
-  ]
+  additional_extra_paks +=
+      [ "$root_gen_dir/vivaldi/vivaldi_extension_resources.pak" ]
+
   # Both deps and public_deps need to be updated; deps are used by subtargets
-  if (!defined(deps)) { deps = [] }
+  if (!defined(deps)) {
+    deps = []
+  }
   deps += [ "//vivaldi/extensions:resources" ]
-  if (!defined(public_deps)) { public_deps = [] }
+  if (!defined(public_deps)) {
+    public_deps = []
+  }
   public_deps += [ "//vivaldi/extensions:resources" ]
 }
 
@@ -32,18 +36,17 @@ if (!is_android) {
   }
   update_target("//chrome/browser/extensions:extensions") {
     deps += [
+      "//vivaldi/extensions/ext_data",
       "//vivaldi/extensions/schema",
       "//vivaldi/prefs:prefs_files_generator",
     ]
-    allow_circular_includes_from += [
-      "//components/bookmarks/browser",
-    ]
+    allow_circular_includes_from += [ "//components/bookmarks/browser" ]
   }
 }
 
 update_target("//chrome/browser/ui:ui") {
   public_deps += [
-    "//components/sessions:sessions",
+    "//components/sessions",
     "//vivaldi/extensions/api:apis",
     "//vivaldi/extensions/schema",
     "//vivaldi/extensions/tools",
@@ -56,11 +59,11 @@ update_target("//chrome/browser/ui:ui") {
 
 update_target("//components/guest_view/browser:browser") {
   public_deps += [
-    "//extensions/browser:cws_item_service_proto",
     "//chrome/browser/resource_coordinator:mojo_bindings",
+    "//extensions/browser:cws_item_service_proto",
     "//extensions/buildflags",
-    "//vivaldi/extensions/helper:app_helper",
     "//vivaldi/extensions:vivaldi_extension_component_wrapper",
+    "//vivaldi/extensions/helper:app_helper",
   ]
 }
 
@@ -87,13 +90,12 @@ update_target("//chrome/browser/apps/platform_apps:platform_apps") {
 }
 
 update_template_instance("//third_party/blink/renderer/platform:platform") {
-  visibility += [
-    "//vivaldi/extensions/api:apis",
-  ]
+  visibility += [ "//vivaldi/extensions/api:apis" ]
 }
 
 if (vivaldi_build_tests) {
   update_target("//components:components_unittests") {
-    assert_no_deps = [] # //components/history/core/browser depends on extensions and chrome
+    assert_no_deps =
+        []  # //components/history/core/browser depends on extensions and chrome
   }
 }

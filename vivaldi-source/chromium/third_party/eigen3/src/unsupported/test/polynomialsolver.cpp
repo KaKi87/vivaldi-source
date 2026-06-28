@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
 #include <unsupported/Eigen/Polynomials>
@@ -17,9 +18,7 @@ using namespace std;
 namespace Eigen {
 namespace internal {
 template <int Size>
-struct increment_if_fixed_size {
-  enum { ret = (Size == Dynamic) ? Dynamic : Size + 1 };
-};
+struct increment_if_fixed_size : std::integral_constant<int, (Size == Dynamic) ? Dynamic : Size + 1> {};
 }  // namespace internal
 }  // namespace Eigen
 
@@ -164,7 +163,7 @@ template <typename Scalar_, int Deg_>
 void polynomialsolver(int deg) {
   typedef typename NumTraits<Scalar_>::Real RealScalar;
   typedef internal::increment_if_fixed_size<Deg_> Dim;
-  typedef Matrix<Scalar_, Dim::ret, 1> PolynomialType;
+  typedef Matrix<Scalar_, Dim::value, 1> PolynomialType;
   typedef Matrix<Scalar_, Deg_, 1> EvalRootsType;
   typedef Matrix<RealScalar, Deg_, 1> RealRootsType;
 

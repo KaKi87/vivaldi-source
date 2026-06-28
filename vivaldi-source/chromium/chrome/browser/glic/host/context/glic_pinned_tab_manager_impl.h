@@ -26,7 +26,7 @@ class GlicMetrics;
 class GlicPinnedTabManagerImpl : public GlicPinnedTabManager {
  public:
   explicit GlicPinnedTabManagerImpl(Profile* profile,
-                                    GlicInstance::UiDelegate* ui_delegate,
+                                    GlicInstance* glic_instance,
                                     GlicMetrics* metrics);
   ~GlicPinnedTabManagerImpl() override;
 
@@ -46,6 +46,9 @@ class GlicPinnedTabManagerImpl : public GlicPinnedTabManager {
   bool PinTabs(base::span<const tabs::TabHandle> tab_handles,
                GlicPinTrigger trigger) override;
 
+  void SetPinTrigger(tabs::TabHandle tab_handle,
+                     GlicPinTrigger trigger) override;
+
   bool UnpinTabs(base::span<const tabs::TabHandle> tab_handles,
                  GlicUnpinTrigger trigger) override;
 
@@ -62,7 +65,7 @@ class GlicPinnedTabManagerImpl : public GlicPinnedTabManager {
   std::optional<GlicPinnedTabUsage> GetPinnedTabUsage(
       tabs::TabHandle tab_handle) const override;
 
-  std::vector<content::WebContents*> GetPinnedTabs() const override;
+  std::vector<tabs::TabInterface*> GetPinnedTabs() const override;
 
   void SubscribeToPinCandidates(
       mojom::GetPinCandidatesOptionsPtr options,
@@ -77,9 +80,8 @@ class GlicPinnedTabManagerImpl : public GlicPinnedTabManager {
 
   // Visible for testing.
   virtual bool IsBrowserValidForSharing(BrowserWindowInterface* browser_window);
-  // Visible for testing.
-  virtual bool IsValidForSharing(content::WebContents* web_contents);
-  // Visible for testing.
+  virtual bool IsTabValidForPinning(tabs::TabInterface* tab);
+  virtual bool IsValidForSharing(tabs::TabInterface* tab);
   virtual bool IsGlicWindowShowing();
 
  private:
@@ -92,9 +94,9 @@ class GlicPinnedTabManagerImpl : public GlicPinnedTabManager {
   // Sends the current list of pin candidates to the observer.
   void SendPinCandidatesUpdate();
 
-  // Returns a vector of web contents for potential pin candidates. The vector
+  // Returns a vector of tabs for potential pin candidates. The vector
   // is not sorted or truncated.
-  std::vector<content::WebContents*> GetUnsortedPinCandidates();
+  std::vector<tabs::TabInterface*> GetUnsortedPinCandidates();
 
   class PinnedTabObserver;
   friend PinnedTabObserver;
@@ -135,7 +137,7 @@ class GlicPinnedTabManagerImpl : public GlicPinnedTabManager {
 
   // List of callbacks to invoke when the collection of pinned tabs changes
   // (including changes to metadata).
-  base::RepeatingCallbackList<void(const std::vector<content::WebContents*>&)>
+  base::RepeatingCallbackList<void(const std::vector<tabs::TabInterface*>&)>
       pinned_tabs_changed_callback_list_;
 
   // List of callbacks to invoke when the tab data for a pinned tab changes.
@@ -154,7 +156,7 @@ class GlicPinnedTabManagerImpl : public GlicPinnedTabManager {
   // Enables searching for pin_candidates.
   raw_ptr<Profile> profile_;
 
-  raw_ptr<GlicInstance::UiDelegate> ui_delegate_;
+  raw_ptr<GlicInstance> glic_instance_;
 
   // Enables providing pin-related input to metrics.
   raw_ptr<GlicMetrics> metrics_;

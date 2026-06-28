@@ -15,7 +15,6 @@ import android.widget.ImageButton;
 import android.widget.ImageView.ScaleType;
 
 import androidx.annotation.VisibleForTesting;
-import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.view.ViewCompat;
 import androidx.core.widget.ImageViewCompat;
 import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat;
@@ -105,8 +104,7 @@ public class HistoryItemView extends SelectableItemView<HistoryItem> {
         mRemoveButton.setContentDescription(getContext().getString(R.string.remove));
         ImageViewCompat.setImageTintList(
                 mRemoveButton,
-                AppCompatResources.getColorStateList(
-                        getContext(), R.color.default_icon_color_secondary_tint_list));
+                getContext().getColorStateList(R.color.default_icon_color_secondary_tint_list));
         mRemoveButton.setOnClickListener(v -> remove());
         mRemoveButton.setScaleType(ScaleType.CENTER_INSIDE);
         mRemoveButton.setPaddingRelative(
@@ -174,8 +172,7 @@ public class HistoryItemView extends SelectableItemView<HistoryItem> {
 
             if (!ChromeApplicationImpl.isVivaldi())
             mTitleView.setTextColor(
-                    AppCompatResources.getColorStateList(
-                            getContext(), R.color.default_text_color_list));
+                    getContext().getColorStateList(R.color.default_text_color_list));
         }
 
         if (item.isClusterHead()) {
@@ -380,11 +377,9 @@ public class HistoryItemView extends SelectableItemView<HistoryItem> {
         ImageView iconView = getIconView();
         ImageView checkImage = getCheckImage();
         if (isChecked() && checkImage != null) {
-            if (checkImage != null) {
                 checkImage.setVisibility(View.VISIBLE);
                 setBackgroundResource(
                        R.drawable.rounded_rectangle_surface_container_low);
-            }
         } else {
             if (iconView != null) {
                 iconView.setImageDrawable(getIconDrawable());

@@ -5,6 +5,7 @@
 
 #include "base/feature_list.h"
 #include "base/no_destructor.h"
+#include "chrome/browser/multistep_filter/core/multistep_filter_log_router_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/common/channel_info.h"
@@ -15,6 +16,7 @@
 #include "components/multistep_filter/core/multistep_filter_service.h"
 #include "components/multistep_filter/core/storage/filter_store.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
+#include "components/unified_consent/url_keyed_data_collection_consent_helper.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/storage_partition.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
@@ -36,6 +38,7 @@ MultistepFilterServiceFactory::MultistepFilterServiceFactory()
     : ProfileKeyedServiceFactory("MultistepFilterService",
                                  ProfileSelections::BuildForRegularProfile()) {
   DependsOn(IdentityManagerFactory::GetInstance());
+  DependsOn(MultistepFilterLogRouterFactory::GetInstance());
 }
 
 MultistepFilterServiceFactory::~MultistepFilterServiceFactory() = default;
@@ -50,15 +53,21 @@ MultistepFilterServiceFactory::BuildServiceInstanceForBrowserContext(
   signin::IdentityManager* identity_manager =
       IdentityManagerFactory::GetForProfile(profile);
 
+  MultistepFilterLogRouter* log_router =
+      MultistepFilterLogRouterFactory::GetForProfile(profile);
+
   std::unique_ptr<AnnotationIndexClient> annotation_index_client =
       AnnotationIndexClient::Create(
           context->GetDefaultStoragePartition()
               ->GetURLLoaderFactoryForBrowserProcess(),
-          chrome::GetChannel());
+          identity_manager, log_router);
 
   return std::make_unique<MultistepFilterService>(
       std::move(annotation_index_client), std::make_unique<FilterStore>(),
-      identity_manager);
+      identity_manager,
+      unified_consent::UrlKeyedDataCollectionConsentHelper::
+          NewAnonymizedDataCollectionConsentHelper(profile->GetPrefs()),
+      log_router);
 }
 
 }  // namespace multistep_filter

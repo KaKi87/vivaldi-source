@@ -29,6 +29,7 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/logging.h"
+#include "base/memory/ptr_util.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/version.h"
@@ -53,7 +54,7 @@
 #include "installer/mini_installer/setup/update_active_setup_version_work_item.h"
 #include "installer/mini_installer/util/app_command.h"
 #include "installer/mini_installer/util/callback_work_item.h"
-#include "installer/mini_installer/util/conditional_work_item_list.h"
+#include "installer/mini_installer/util/conditional_work_item.h"
 #include "installer/mini_installer/util/create_reg_key_work_item.h"
 #include "installer/mini_installer/util/firewall_manager_win.h"
 #include "installer/mini_installer/util/google_update_constants.h"
@@ -62,6 +63,7 @@
 #include "installer/mini_installer/util/install_util.h"
 #include "installer/mini_installer/util/installation_state.h"
 #include "installer/mini_installer/util/l10n_string_util.h"
+#include "installer/mini_installer/util/move_tree_work_item.h"
 #include "installer/mini_installer/util/set_reg_value_work_item.h"
 #include "installer/mini_installer/util/shell_util.h"
 #include "installer/mini_installer/util/util_constants.h"
@@ -100,16 +102,14 @@ void AddInstallerCopyTasks(const InstallParams& install_params,
   base::FilePath exe_dst(installer_dir.Append(setup_path.BaseName()));
 
   if (exe_dst != setup_path) {
-    install_list->AddCopyTreeWorkItem(setup_path, exe_dst, temp_path,
-                                      WorkItem::ALWAYS);
+    install_list->AddCopyTreeWorkItem(setup_path, exe_dst, temp_path);
   }
 
   if (installer_state.RequiresActiveSetup()) {
     // Make a copy of setup.exe with a different name so that Active Setup
     // doesn't require an admin on XP thanks to Application Compatibility.
     base::FilePath active_setup_exe(installer_dir.Append(kActiveSetupExe));
-    install_list->AddCopyTreeWorkItem(setup_path, active_setup_exe, temp_path,
-                                      WorkItem::ALWAYS);
+    install_list->AddCopyTreeWorkItem(setup_path, active_setup_exe, temp_path);
   }
 
   base::FilePath archive_dst(installer_dir.Append(archive_path.BaseName()));
@@ -122,14 +122,56 @@ void AddInstallerCopyTasks(const InstallParams& install_params,
     // copied.
     if (temp_path.IsParent(archive_path)) {
       install_list->AddMoveTreeWorkItem(archive_path, archive_dst, temp_path,
-                                        WorkItem::ALWAYS_MOVE);
+                                        WorkItem::MoveTreeOptions{});
     } else {
       // This may occur when setup is run out of an existing installation
       // directory. We cannot remove the system-level archive.
-      install_list->AddCopyTreeWorkItem(archive_path, archive_dst, temp_path,
-                                        WorkItem::ALWAYS);
+      install_list->AddCopyTreeWorkItem(archive_path, archive_dst, temp_path);
     }
   }
+}
+
+// Create Version key for a product (if not already present) and sets the new
+// product version as the last step.
+void AddVersionKeyWorkItems(const InstallParams& install_params,
+                            WorkItemList* list) {
+  const InstallerState& installer_state = *install_params.installer_state;
+  const HKEY root = installer_state.root_key();
+
+  // Only set "lang" for user-level installs since for system-level, the install
+  // language may not be related to a given user's runtime language.
+  const bool add_language_identifier = !installer_state.system_install();
+
+  const std::wstring clients_key = install_static::GetClientsKeyPath();
+  list->AddCreateRegKeyWorkItem(root, clients_key, KEY_WOW64_32KEY);
+
+  list->AddSetRegValueWorkItem(root, clients_key, KEY_WOW64_32KEY,
+                               google_update::kRegNameField,
+                               InstallUtil::GetDisplayName(),
+                               true);  // overwrite name also
+
+  // Clean up when updating from M85 and older installs.
+  // Can be removed after newer stable builds have been in the wild
+  // enough to have done a reasonable degree of clean up.
+  list->AddDeleteRegValueWorkItem(root, clients_key, KEY_WOW64_32KEY,
+                                  L"oopcrashes");
+
+  if (add_language_identifier) {
+    // Write the language identifier of the current translation. Omaha's set of
+    // languages is a superset of Chrome's set of translations with this one
+    // exception: what Chrome calls "en-us", Omaha calls "en". sigh.
+    std::wstring language(GetCurrentTranslation());
+    if (base::EqualsCaseInsensitiveASCII(language, "en-us")) {
+      language.resize(2);
+    }
+    list->AddSetRegValueWorkItem(root, clients_key, KEY_WOW64_32KEY,
+                                 google_update::kRegLangField, language,
+                                 false);  // do not overwrite language
+  }
+  list->AddSetRegValueWorkItem(
+      root, clients_key, KEY_WOW64_32KEY, google_update::kRegVersionField,
+      ASCIIToWide(install_params.new_version->GetString()),
+      true);  // overwrite version
 }
 
 // A callback invoked by |work_item| that adds firewall rules for Chrome. Rules
@@ -252,23 +294,47 @@ void AddChromeWorkItems(const InstallParams& install_params,
     }
   }
 
-  // Delete any new_chrome.exe if present (we will end up creating a new one
-  // if required) and then copy chrome.exe
+  // Move the version directory into place. Note that we pass true for
+  // check_duplicates to avoid failing on in-use repair runs if the
+  // current_version is the same as the new_version.
+  const base::FilePath target_version_dir =
+      target_path.AppendASCII(new_version.GetString());
+  bool check_for_duplicates =
+      (current_version.IsValid() && current_version == new_version);
+  // Allow items in `src_path` to be left behind. It is in a temporary directory
+  // that will eventually be cleaned up.
+  install_list->AddMoveTreeWorkItem(
+      src_path.AppendASCII(new_version.GetString()), target_version_dir,
+      temp_path,
+      WorkItem::MoveTreeOptions{.check_for_duplicates = check_for_duplicates,
+                                .lenient_deletion = true});
+
+  // Copy installer in install directory.
+  AddInstallerCopyTasks(install_params, install_list);
+
+  // Move chrome.exe to new_chrome.exe if the target is in use; otherwise,
+  // delete a pre-existing new_chrome.exe and overwrite the target.
   base::FilePath new_chrome_exe(target_path.Append(installer::kChromeNewExe));
 
   install_list->AddDeleteTreeWorkItem(new_chrome_exe, temp_path);
 
-  WorkItem::CopyOverWriteOption vivaldi_exe_write_option =
-      WorkItem::NEW_NAME_IF_IN_USE;
-  if (!vivaldi::IsInstallSilentUpdate()) {
-    // If this is not a live update, assume that all Vivaldi processes should be
-    // terminated at this point.
-    vivaldi_exe_write_option = WorkItem::ALWAYS;
-  }
-  install_list->AddCopyTreeWorkItem(src_path.Append(installer::kChromeExe),
-                                    target_path.Append(installer::kChromeExe),
-                                    temp_path, vivaldi_exe_write_option,
-                                    new_chrome_exe);
+  auto not_in_use_list = base::WrapUnique(WorkItem::CreateWorkItemList());
+  not_in_use_list->AddDeleteTreeWorkItem(new_chrome_exe, temp_path);
+  // Allow items in `src_path` to be left behind. It is in a temporary directory
+  // that will eventually be cleaned up.
+  not_in_use_list->AddMoveTreeWorkItem(
+      src_path.Append(installer::kChromeExe),
+      target_path.Append(installer::kChromeExe), temp_path,
+      WorkItem::MoveTreeOptions{.lenient_deletion = true});
+
+  install_list->AddWorkItem(WorkItem::CreateConditionalWorkItem(
+      std::make_unique<ConditionFileInUse>(
+          target_path.Append(installer::kChromeExe)),
+      /*if_item=*/
+      base::WrapUnique(WorkItem::CreateMoveTreeWorkItem(
+          src_path.Append(installer::kChromeExe), new_chrome_exe, temp_path,
+          WorkItem::MoveTreeOptions{.lenient_deletion = true})),
+      /*else_item=*/std::move(not_in_use_list)));
 
   // Install kVisualElementsManifest if it is present in |src_path|. No need to
   // make this a conditional work item as if the file is not there now, it will
@@ -279,7 +345,7 @@ void AddChromeWorkItems(const InstallParams& install_params,
     install_list->AddMoveTreeWorkItem(
         src_path.Append(installer::kVisualElementsManifest),
         target_path.Append(installer::kVisualElementsManifest), temp_path,
-        WorkItem::ALWAYS_MOVE);
+        WorkItem::MoveTreeOptions{});
   } else {
     // We do not want to have an old VisualElementsManifest pointing to an old
     // version directory. Delete it as there wasn't a new one to replace it.
@@ -287,19 +353,8 @@ void AddChromeWorkItems(const InstallParams& install_params,
         target_path.Append(installer::kVisualElementsManifest), temp_path);
   }
 
-  // In the past, we copied rather than moved for system level installs so that
-  // the permissions of %ProgramFiles% would be picked up.  Now that |temp_path|
-  // is in %ProgramFiles% for system level installs (and in %LOCALAPPDATA%
-  // otherwise), there is no need to do this.
-  // Note that we pass true for check_duplicates to avoid failing on in-use
-  // repair runs if the current_version is the same as the new_version.
-  bool check_for_duplicates =
-      (current_version.IsValid() && current_version == new_version);
-  install_list->AddMoveTreeWorkItem(
-      src_path.AppendASCII(new_version.GetString()),
-      target_path.AppendASCII(new_version.GetString()), temp_path,
-      check_for_duplicates ? WorkItem::CHECK_DUPLICATES
-                           : WorkItem::ALWAYS_MOVE);
+  // Update the version key now that chrome.exe or new_chrome.exe is in place.
+  AddVersionKeyWorkItems(install_params, install_list);
 
   // Delete any old_chrome.exe if present (ignore failure if it's in use).
   install_list
@@ -422,6 +477,10 @@ void AddUninstallShortcutWorkItems(const InstallParams& install_params,
     install_list->AddSetRegValueWorkItem(reg_root, uninstall_reg,
                                          KEY_WOW64_32KEY, L"InstallLocation",
                                          install_path.value(), true);
+
+    install_list->AddSetRegValueWorkItem(
+        reg_root, uninstall_reg, KEY_WOW64_32KEY, L"EstimatedSize",
+        static_cast<DWORD>(install_params.estimated_size), true);
 
     std::wstring chrome_icon = ShellUtil::FormatIconLocation(
         install_path.Append(kChromeExe),
@@ -603,25 +662,24 @@ bool AppendPostInstallTasks(const InstallParams& install_params,
   // We update the 'opv' value with the current version that is active,
   // the 'cpv' value with the critical update version (if present), and the
   // 'cmd' value with the rename command to run.
+  std::unique_ptr<WorkItemList> in_use_update_work_items;
   {
-    std::unique_ptr<WorkItemList> in_use_update_work_items(
-        WorkItem::CreateConditionalWorkItemList(
-            new ConditionRunIfFileExists(new_chrome_exe)));
+    in_use_update_work_items.reset(WorkItem::CreateWorkItemList());
     in_use_update_work_items->set_log_message("InUseUpdateWorkItemList");
 
-    // Delay deploying the new chrome_proxy while chrome is running.
-    in_use_update_work_items->AddCopyTreeWorkItem(
+    // Delay deploying the new chrome_proxy while chrome is running. Allow items
+    // in `src_path` to be left behind. It is in a temporary directory that will
+    // eventually be cleaned up.
+    in_use_update_work_items->AddMoveTreeWorkItem(
         src_path.Append(kChromeProxyExe),
-        target_path.Append(kChromeProxyNewExe), temp_path, WorkItem::ALWAYS);
-
-    post_install_task_list->AddWorkItem(in_use_update_work_items.release());
+        target_path.Append(kChromeProxyNewExe), temp_path,
+        WorkItem::MoveTreeOptions{.lenient_deletion = true});
   }
 
   // Append work items that will be executed if this was NOT an in-use update.
+  std::unique_ptr<WorkItemList> regular_update_work_items;
   {
-    std::unique_ptr<WorkItemList> regular_update_work_items(
-        WorkItem::CreateConditionalWorkItemList(
-            new Not(new ConditionRunIfFileExists(new_chrome_exe))));
+    regular_update_work_items.reset(WorkItem::CreateWorkItemList());
     regular_update_work_items->set_log_message("RegularUpdateWorkItemList");
 
     // Disable for Vivaldi standalone the downgrade and related functionality
@@ -657,14 +715,19 @@ bool AppendPostInstallTasks(const InstallParams& install_params,
       // clang-format on
     }
 
-    // Only copy chrome_proxy.exe directly when chrome.exe isn't in use to avoid
-    // different versions getting mixed up between the two binaries.
-    regular_update_work_items->AddCopyTreeWorkItem(
+    // Only move chrome_proxy.exe directly when chrome.exe isn't in use to avoid
+    // different versions getting mixed up between the two binaries. Allow items
+    // in `src_path` to be left behind. It is in a temporary directory that will
+    // eventually be cleaned up.
+    regular_update_work_items->AddMoveTreeWorkItem(
         src_path.Append(kChromeProxyExe), target_path.Append(kChromeProxyExe),
-        temp_path, WorkItem::ALWAYS);
-
-    post_install_task_list->AddWorkItem(regular_update_work_items.release());
+        temp_path, WorkItem::MoveTreeOptions{.lenient_deletion = true});
   }
+
+  post_install_task_list->AddWorkItem(WorkItem::CreateConditionalWorkItem(
+      std::make_unique<ConditionFileExists>(new_chrome_exe),
+      std::move(in_use_update_work_items),
+      std::move(regular_update_work_items)));
 
   // If we're told that we're an MSI install, make sure to set the marker
   // in the client state key so that future updates do the right thing.
@@ -751,10 +814,13 @@ void AddInstallWorkItems(const InstallParams& install_params,
     add_acl_to_histogram_storage_dir_work_item->set_rollback_enabled(false);
   }
 
+  // The order of operations here is important. vivaldi.exe must be put into
+  // place only after all of its required dependencies so that a launch can
+  // succeed even if the installer is still performing work and so that abnormal
+  // termination doesn't result in a broken browser. Additionally, the version
+  // key must only be updated once it is no longer necessary for the same
+  // version to be installed in case of failure.
   AddChromeWorkItems(install_params, install_list);
-
-  // Copy installer in install directory
-  AddInstallerCopyTasks(install_params, install_list);
 
   // Do not create registry entries for Vivaldi standalone install.
   if (!vivaldi::IsInstallStandalone()) {
@@ -895,7 +961,8 @@ void AddOldWerHelperRegistrationCleanupItems(HKEY root,
           value_name.size() - value_prefix.size() - value_postfix.size());
       if (base::Version(base::WideToASCII(value_version)).IsValid()) {
         list->AddDeleteRegValueWorkItem(root, wer_registry_path,
-                                        WorkItem::kWow64Default, value_name);
+                                        WorkItem::kWow64Default, value_name)
+            ->set_best_effort(true);
       }
     }
   }
@@ -909,12 +976,14 @@ void AddWerHelperRegistration(HKEY root,
   std::wstring wer_registry_path = GetWerHelperRegistryPath();
 
   list->AddCreateRegKeyWorkItem(root, wer_registry_path,
-                                WorkItem::kWow64Default);
+                                WorkItem::kWow64Default)
+      ->set_best_effort(true);
 
   // The DWORD value is not important.
   list->AddSetRegValueWorkItem(root, wer_registry_path, WorkItem::kWow64Default,
                                wer_helper_path.value().c_str(), DWORD{0},
-                               /*overwrite=*/true);
+                               /*overwrite=*/true)
+      ->set_best_effort(true);
 }
 
 void AddSetMsiMarkerWorkItem(const InstallerState& installer_state,
@@ -928,19 +997,6 @@ void AddSetMsiMarkerWorkItem(const InstallerState& installer_state,
   DCHECK(set_msi_work_item);
   set_msi_work_item->set_best_effort(true);
   set_msi_work_item->set_log_message("Could not write MSI marker!");
-}
-
-void AddCleanupDeprecatedPerUserRegistrationsWorkItems(WorkItemList* list) {
-  // This cleanup was added in M49. There are still enough active users on M48
-  // and earlier today (M55 timeframe) to justify keeping this cleanup in-place.
-  // Remove this when that population stops shrinking.
-  VLOG(1) << "Adding unregistration items for per-user Metro keys.";
-  list->AddDeleteRegKeyWorkItem(HKEY_CURRENT_USER,
-                                install_static::GetRegistryPath() + L"\\Metro",
-                                KEY_WOW64_32KEY);
-  list->AddDeleteRegKeyWorkItem(HKEY_CURRENT_USER,
-                                install_static::GetRegistryPath() + L"\\Metro",
-                                KEY_WOW64_64KEY);
 }
 
 void AddActiveSetupWorkItems(const InstallerState& installer_state,
@@ -974,7 +1030,7 @@ void AddActiveSetupWorkItems(const InstallerState& installer_state,
   list->AddSetRegValueWorkItem(root, active_setup_path, WorkItem::kWow64Default,
                                L"StubPath", cmd.GetCommandLineString(), true);
 
-  // TODO(grt): http://crbug.com/75152 Write a reference to a localized
+  // TODO(grt): http://crbug.com/41337274 Write a reference to a localized
   // resource.
   list->AddSetRegValueWorkItem(root, active_setup_path, WorkItem::kWow64Default,
                                L"Localized Name", InstallUtil::GetDisplayName(),
@@ -1025,8 +1081,9 @@ void AddOsUpgradeWorkItems(const InstallerState& installer_state,
     // Log everything for now.
     cmd_line.AppendSwitch(installer::switches::kVerboseLogging);
     // This will make the updater append
-    // <prev_windows_version>-<new_windows_version> to the upgrade commandline.
-    cmd_line.AppendArg("%1");
+    // --os-upgrade-versions=<prev_windows_version>-<new_windows_version> to the
+    // upgrade commandline.
+    cmd_line.AppendSwitchASCII(installer::switches::kOsUpgradeVersions, "%1");
 
     // `GetCommandLineStringWithUnsafeInsertSequences` should be safe to use
     // because the updater will do the substitution, not the Windows shell.

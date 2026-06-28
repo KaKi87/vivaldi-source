@@ -8,8 +8,8 @@
 
 #include "base/time/time.h"
 #include "chrome/browser/send_tab_to_self/receiving_ui_handler.h"
+#include "components/send_tab_to_self/fake_send_tab_to_self_model.h"
 #include "components/send_tab_to_self/page_context.h"
-#include "components/send_tab_to_self/test_send_tab_to_self_model.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 
@@ -41,7 +41,7 @@ class TestReceivingUiHandler : public ReceivingUiHandler {
 // remotely.
 TEST(SendTabToSelfClientServiceTest, MultipleEntriesAdded) {
   // Set up the test objects.
-  TestSendTabToSelfModel test_model;
+  FakeSendTabToSelfModel test_model;
   TestReceivingUiHandler* test_handler = new TestReceivingUiHandler();
   SendTabToSelfClientService client_service(
       std::unique_ptr<TestReceivingUiHandler>(test_handler), &test_model);
@@ -53,7 +53,7 @@ TEST(SendTabToSelfClientServiceTest, MultipleEntriesAdded) {
   SendTabToSelfEntry entry2("b", GURL("http://www.example-b.com"), "b site",
                             base::Time(), "device b", "device a", PageContext(),
                             NavigationHistory());
-  client_service.EntriesAddedRemotely({&entry1, &entry2});
+  client_service.OnEntriesAddedRemotely({&entry1, &entry2});
 
   EXPECT_EQ(2u, test_handler->number_displayed_entries());
 }

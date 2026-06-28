@@ -550,6 +550,7 @@ bloqueado</translation>
 <translation id="7451784507428459503">Los vídeos de YouTube no se reproducen, o tienen problemas</translation>
 <translation id="7454640759045234067">Rastreadores bloqueados</translation>
 <translation id="7461899062138731833">FUENTES</translation>
+<translation id="7468954955637197279">Vista accesoria del teclado</translation>
 <translation id="7473891865547856676">No, gracias</translation>
 <translation id="749277285729135008">Seleccionar la barra de direcciones al abrir una pestaña nueva</translation>
 <translation id="7504733216949066481">¡Error al traducir!</translation>
@@ -591,6 +592,7 @@ bloqueado</translation>
 <translation id="7925340978147141704">Mostrar contraseña</translation>
 <translation id="7930665886069596866">Algo no funciona como debería</translation>
 <translation id="7931102520806266819">Abrir en una pestaña privada</translation>
+<translation id="7932430723325928206">Mostrar sugerencias de autocompletado sobre el teclado</translation>
 <translation id="7961270736686975887">Intercambiar idiomas</translation>
 <translation id="7967161908152532036">Dirección del sitio web</translation>
 <translation id="7979036127916589816">Error en la sincronización</translation>
@@ -620,6 +622,7 @@ bloqueado</translation>
 <translation id="8289933454364510719">Arriba o abajo</translation>
 <translation id="8304044605002588416">Personalizar el botón de la página de inicio</translation>
 <translation id="8304538706952727936">Libérate de las grandes tecnológicas</translation>
+<translation id="8316087354921793295">Tus datos se guardarán en tu cuenta de Vivaldi cuando actives la sincronización.</translation>
 <translation id="8323167517179506834">Introducir URL</translation>
 <translation id="8326104954595890674">Nueva pestaña privada</translation>
 <translation id="8329813750766387010">Actualizada: <ph name="DATE" /></translation>
@@ -664,6 +667,7 @@ bloqueado</translation>
 <translation id="8786689981011401964">Fondos de pantalla</translation>
 <translation id="8804164990146287819">Política de privacidad</translation>
 <translation id="8805346136361295421">Ocultar 'Encontrar en página'</translation>
+<translation id="8806518325449247164">Búsqueda premium, sin anuncios ni rastreadores</translation>
 <translation id="8818152010000655963">Fondo de pantalla</translation>
 <translation id="8819841443522803117">¿Hora de cambiar tu navegador predeterminado? Elige Vivaldi.</translation>
 <translation id="8820817407110198400">Marcadores</translation>
@@ -696,11 +700,11 @@ bloqueados</translation>
 <translation id="9157459516617966251">Editar enlace</translation>
 <translation id="9157539936604258187">Abrir enlace</translation>
 <translation id="9165758833825521812">Modo lectura</translation>
-<translation id="9171713938468458286">Dos niveles</translation>
 <translation id="9195659219948942754">Sigue usando los datos sincronizados en tu cuenta de Vivaldi</translation>
 <translation id="9195802773917252923">Activar alias de los marcadores</translation>
 <translation id="9212737146310746733">Farsi (<ph name="ORIGIN" />)</translation>
 <translation id="9218693288527810093">Bloquear rastreadores</translation>
+<translation id="9222340187757024053">Mostrar vista accesoria del teclado</translation>
 <translation id="924053859552461110">Personalizar la página de inicio</translation>
 <translation id="925891113183098411">Tengo problemas a la hora de sincronizar mis datos entre dispositivos</translation>
 <translation id="932327136139879170">Inicio</translation>

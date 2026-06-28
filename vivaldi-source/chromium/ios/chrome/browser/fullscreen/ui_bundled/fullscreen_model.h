@@ -10,6 +10,7 @@
 #include <cmath>
 
 #import "base/observer_list.h"
+#include "base/memory/weak_ptr.h"
 #import "ios/chrome/browser/broadcaster/ui_bundled/chrome_broadcast_observer_bridge.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/scoped_fullscreen_disabler.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -322,6 +323,10 @@ class FullscreenModel : public ChromeBroadcastObserverInterface,
   std::optional<base::TimeTicks> start_scrolling_time_ = std::nullopt;
   // True is the scrolling time have been recorded.
   bool is_scrolling_time_recorded_ = false;
+  // Time when fullscreen mode was entered.
+  std::optional<base::TimeTicks> time_entered_fullscreen_ = std::nullopt;
+  // Time when fullscreen mode was exited.
+  std::optional<base::TimeTicks> time_exited_fullscreen_ = std::nullopt;
   // The minimum scroll amount that will result in beginning to enter or exit
   // fullscreen.
   CGFloat scroll_threshold_ = 0.0;
@@ -331,6 +336,8 @@ class FullscreenModel : public ChromeBroadcastObserverInterface,
   bool manually_forced_ = false;
 
   friend class FullscreenModelTest;
+
+  base::WeakPtrFactory<FullscreenModel> weak_factory_{this};
 };
 
 #endif  // IOS_CHROME_BROWSER_FULLSCREEN_UI_BUNDLED_FULLSCREEN_MODEL_H_

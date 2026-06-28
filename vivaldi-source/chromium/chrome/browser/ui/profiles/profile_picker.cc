@@ -19,7 +19,6 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
-#include "components/signin/public/base/signin_switches.h"
 
 namespace {
 
@@ -146,7 +145,7 @@ StartupProfileMode ProfilePicker::GetStartupMode() {
     return StartupProfileMode::kBrowserWindow;
   }
 
-  // TODO (crbug/1155158): Move this over the urls check (in
+  // TODO (crbug.com/40159795): Move this over the urls check (in
   // startup_browser_creator.cc) once the profile picker can forward urls
   // specified in command line.
   if (availability_on_startup == AvailabilityOnStartup::kForced) {
@@ -175,12 +174,7 @@ StartupProfileMode ProfilePicker::GetStartupMode() {
 
   size_t number_of_profiles = profile_manager->GetNumberOfProfiles();
   // Need to consider 0 profiles as this is what happens in some browser-tests.
-  if (number_of_profiles == 0) {
-    return StartupProfileMode::kBrowserWindow;
-  }
-  if (number_of_profiles == 1 &&
-      !base::FeatureList::IsEnabled(
-          switches::kShowProfilePickerToAllUsersExperiment)) {
+  if (number_of_profiles <= 1) {
     return StartupProfileMode::kBrowserWindow;
   }
 

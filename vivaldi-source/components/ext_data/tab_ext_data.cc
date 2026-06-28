@@ -7,14 +7,14 @@ namespace vivaldi {
 TabExtData::~TabExtData() {}
 
 /*static*/ TabExtData* TabExtData::Get(content::WebContents* contents) {
-  auto *res = TabExtDataImpl::FromWebContents(contents);
+  auto* res = TabExtDataImpl::FromWebContents(contents);
   CHECK(res);
   return res;
 }
 
 /*static*/ const TabExtData* TabExtData::Get(
     const content::WebContents* contents) {
-  auto * res = TabExtDataImpl::FromWebContents(contents);
+  auto* res = TabExtDataImpl::FromWebContents(contents);
   CHECK(res);
   return res;
 }

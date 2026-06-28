@@ -68,6 +68,7 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.lang.ref.WeakReference;
 import java.util.function.Predicate;
 
 // Vivaldi
@@ -128,6 +129,7 @@ public class CustomTabActivityNavigationController
     private final CustomTabObserver mCustomTabObserver;
     private final CloseButtonNavigator mCloseButtonNavigator;
     private final Activity mActivity;
+    private final ActivityLifecycleDispatcher mLifecycleDispatcher;
     private final SettableNonNullObservableSupplier<Boolean> mBackPressStateSupplier =
             ObservableSuppliers.createNonNull(false);
 
@@ -188,15 +190,28 @@ public class CustomTabActivityNavigationController
         mCustomTabObserver = customTabObserver;
         mCloseButtonNavigator = closeButtonNavigator;
         mActivity = activity;
+        mLifecycleDispatcher = lifecycleDispatcher;
 
         lifecycleDispatcher.register(this);
         mTabProvider.addObserver(mTabObserver);
         ChromeBrowserInitializer.getInstance()
-                .runNowOrAfterFullBrowserStarted(
-                        () -> {
-                            mBackPressStateSupplier.set(
-                                    mTabProvider.getTab() != null && !shouldDeferToOs());
-                        });
+                .runNowOrAfterFullBrowserStarted(createDeferredBackPressStateUpdate(this));
+    }
+
+    private static Runnable createDeferredBackPressStateUpdate(
+            CustomTabActivityNavigationController controller) {
+        WeakReference<CustomTabActivityNavigationController> weakController =
+                new WeakReference<>(controller);
+        return () -> {
+            CustomTabActivityNavigationController currentController = weakController.get();
+            if (currentController == null
+                    || currentController.mLifecycleDispatcher.isActivityFinishingOrDestroyed()) {
+                return;
+            }
+            currentController.mBackPressStateSupplier.set(
+                    currentController.mTabProvider.getTab() != null
+                            && !currentController.shouldDeferToOs());
+        };
     }
 
     /**
@@ -291,7 +306,7 @@ public class CustomTabActivityNavigationController
     private void finishActivity(@FinishReason int reason, boolean separateTask) {
         // If we're closing the last tab and it doesn't have beforeunload, just finish the Activity
         // manually. If we had called mTabController.closeTab() and waited for the Activity to close
-        // as a result we would have a visual glitch: https://crbug.com/1087108.
+        // as a result we would have a visual glitch: https://crbug.com/40694665.
         MinimizeAppAndCloseTabBackPressHandler.record(MinimizeAppAndCloseTabType.MINIMIZE_APP);
         MinimizeAppAndCloseTabBackPressHandler.recordForCustomTab(
                 MinimizeAppAndCloseTabType.MINIMIZE_APP, separateTask);
@@ -365,7 +380,7 @@ public class CustomTabActivityNavigationController
         ResolveInfo resolveInfo = DefaultBrowserInfo.getDefaultWebBrowserInfo();
         if (resolveInfo != null) {
             intent.setPackage(resolveInfo.activityInfo.packageName);
-            // crbug.com/1265223
+            // crbug.com/40801270
             if (intent.resolveActivity(mActivity.getPackageManager()) == null) {
                 intent.setPackage(null);
             }

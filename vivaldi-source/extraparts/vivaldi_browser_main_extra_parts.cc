@@ -48,6 +48,9 @@
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "sessions/index_service_factory.h"
 #include "sync/note_sync_service_factory.h"
+#include "thirdparty/brave/components/debounce/core/browser/debounce_service_factory.h"
+#include "thirdparty/brave/components/query_filter/query_filter_service_factory.h"
+#include "thirdparty/brave/components/url_sanitizer/url_sanitizer_service_factory.h"
 #include "translate_history/th_service_factory.h"
 #include "ui/lazy_load_service_factory.h"
 #include "ui/window_registry_service_factory.h"
@@ -151,7 +154,6 @@ void VivaldiBrowserMainExtraParts::PostEarlyInitialization() {
 void VivaldiBrowserMainExtraParts::
     EnsureBrowserContextKeyedServiceFactoriesBuilt() {
   vivaldi_status::VivaldiStatusFactory::GetInstance();
-  translate::TranslateLanguageList::DisableUpdate();
 #if !BUILDFLAG(IS_ANDROID)
   vivaldi::NotesModelFactory::GetInstance();
   calendar::CalendarServiceFactory::GetInstance();
@@ -175,6 +177,9 @@ void VivaldiBrowserMainExtraParts::
   vivaldi::RequestFilterProxyingWebSocket::EnsureAssociatedFactoryBuilt();
   vivaldi::NotesModelFactory::GetInstance();
   direct_match::DirectMatchServiceFactory::GetInstance();
+  query_filter::QueryFilterServiceFactory::GetInstance();
+  debounce::DebounceServiceFactory::GetInstance();
+  url_sanitizer::URLSanitizerServiceFactory::GetInstance();
   VivaldiImageStore::InitFactory();
   vivaldi_status::VivaldiStatusFactory::GetInstance();
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -386,6 +391,9 @@ void VivaldiBrowserMainExtraPartsSmall::
   // VivaldiInitProfile
   page_actions::ServiceFactory::GetInstance();
   adblock_filter::RuleServiceFactory::GetInstance();
+  query_filter::QueryFilterServiceFactory::GetInstance();
+  debounce::DebounceServiceFactory::GetInstance();
+  url_sanitizer::URLSanitizerServiceFactory::GetInstance();
   vivaldi::RequestFilterManagerFactory::GetInstance();
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)

@@ -59,10 +59,17 @@ class ChromiumSystemIdentityManager final : public SystemIdentityManager {
   void FetchCapabilities(id<SystemIdentity> identity,
                          const std::vector<std::string>& names,
                          FetchCapabilitiesCallback callback) final;
-  void BuildExternalPrivacyContext(
+  void FetchCapabilitiesWithPartial(
       id<SystemIdentity> identity,
-      UIViewController* view_controller,
-      BuildExternalPrivacyContextCallback callback) final;
+      const std::vector<std::string>& names,
+      FetchCapabilitiesCompletion completion,
+      FetchPartialCapabilitiesCallback partial_callback) final;
+  void RegisterExternalPrivacyContextProvider(
+      id<ExternalPrivacyContextUIProvider> provider) final;
+  void UnregisterExternalPrivacyContextProvider(
+      id<ExternalPrivacyContextUIProvider> provider) final;
+  void ExternalPrivacyContextProviderReady(
+      id<ExternalPrivacyContextUIProvider> provider) final;
   bool HandleMDMNotification(id<SystemIdentity> identity,
                              NSArray<id<SystemIdentity>>* active_identities,
                              id<RefreshAccessTokenError> error,
@@ -186,10 +193,26 @@ void ChromiumSystemIdentityManager::FetchCapabilities(
   NOTREACHED();
 }
 
-void ChromiumSystemIdentityManager::BuildExternalPrivacyContext(
+void ChromiumSystemIdentityManager::FetchCapabilitiesWithPartial(
     id<SystemIdentity> identity,
-    UIViewController* view_controller,
-    BuildExternalPrivacyContextCallback callback) {
+    const std::vector<std::string>& names,
+    FetchCapabilitiesCompletion completion,
+    FetchPartialCapabilitiesCallback partial_callback) {
+  NOTREACHED();
+}
+
+void ChromiumSystemIdentityManager::RegisterExternalPrivacyContextProvider(
+    id<ExternalPrivacyContextUIProvider> provider) {
+  NOTREACHED();
+}
+
+void ChromiumSystemIdentityManager::UnregisterExternalPrivacyContextProvider(
+    id<ExternalPrivacyContextUIProvider> provider) {
+  NOTREACHED();
+}
+
+void ChromiumSystemIdentityManager::ExternalPrivacyContextProviderReady(
+    id<ExternalPrivacyContextUIProvider> provider) {
   NOTREACHED();
 }
 

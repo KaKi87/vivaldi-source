@@ -9,13 +9,14 @@
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
+#include "chrome/browser/actor/actor_metrics.h"
 #include "chrome/browser/actor/actor_tab_data.h"
-#include "chrome/browser/actor/shared_types.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/actor/core/shared_types.h"
 #include "components/network_session_configurator/common/network_switches.h"
 #include "components/optimization_guide/content/browser/page_content_proto_provider.h"
 #include "components/optimization_guide/proto/features/common_quality_data.pb.h"
@@ -155,7 +156,7 @@ class ActorUiDomNodeGeometryBrowserTest
 
     tab_data_ =
         ActorTabData::From(browser()->tab_strip_model()->GetActiveTab());
-    tab_data_->DidObserveContent(apc);
+    tab_data_->DidObserveContent(apc, ApcSource::kActor);
     std::move(quit_closure).Run();
   }
 

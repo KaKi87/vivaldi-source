@@ -1,4 +1,3 @@
-
 declare_args() {
   generate_untranslated = false
 }

@@ -39,6 +39,20 @@ pub fn get_decoder(filename: &str) -> decoder::Decoder {
     decoder
 }
 
+pub fn read_image(path: &str) -> AvifResult<Image> {
+    use crabby_avif::utils::reader::{Config, Reader};
+    Ok(<dyn Reader>::create(path)?
+        .read_frame(&Config::default())?
+        .0)
+}
+
+#[cfg(feature = "png")]
+pub fn write_png(image: &Image, filename: &str) -> AvifResult<()> {
+    use crabby_avif::utils::writer::{png::PngWriter, Writer};
+    let mut file = std::fs::File::create(filename).unwrap();
+    PngWriter::default().write_frame(&mut file, image)
+}
+
 fn full_to_limited_pixel(min: u32, max: u32, full: u32, v: u16) -> u16 {
     let v = v as u32;
     let v = (((v * (max - min)) + (full / 2)) / full) + min;
@@ -95,7 +109,7 @@ pub fn generate_gradient_image(
         let max_xy_sum = plane_data.width + plane_data.height - 2;
         for y in 0..plane_data.height {
             if image.depth == 8 {
-                let row = image.row_exact_mut(plane, y)?;
+                let row = image.row_mut(plane, y)?;
                 for x in 0..plane_data.width {
                     let value = (x + y + plane as u32) % (max_xy_sum + 1);
                     let pixel = &mut row[x as usize];
@@ -106,7 +120,7 @@ pub fn generate_gradient_image(
                 }
             } else {
                 let max_channel = image.max_channel() as u32;
-                let row = image.row16_exact_mut(plane, y)?;
+                let row = image.row16_mut(plane, y)?;
                 for x in 0..plane_data.width {
                     let value = (x + y + plane as u32) % (max_xy_sum + 1);
                     let pixel = &mut row[x as usize];
@@ -205,11 +219,11 @@ pub fn fill_plane(image: &mut Image, plane: Plane, value: u16) -> AvifResult<()>
     let plane_data = image.plane_data(plane).ok_or(AvifError::NoContent)?;
     for y in 0..plane_data.height {
         if image.depth == 8 {
-            for pixel in image.row_exact_mut(Plane::A, y)? {
+            for pixel in image.row_mut(Plane::A, y)? {
                 *pixel = value as u8;
             }
         } else {
-            for pixel in image.row16_exact_mut(Plane::A, y)? {
+            for pixel in image.row16_mut(Plane::A, y)? {
                 *pixel = value;
             }
         }

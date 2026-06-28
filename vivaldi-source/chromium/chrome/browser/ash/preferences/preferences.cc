@@ -12,6 +12,7 @@
 
 #include "ash/birch/coral_util.h"
 #include "ash/constants/ash_features.h"
+#include "ash/constants/ash_login_pref_names.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/constants/ash_switches.h"
 #include "ash/constants/geolocation_access_level.h"
@@ -23,6 +24,7 @@
 #include "ash/system/geolocation/geolocation_controller.h"
 #include "ash/system/privacy_hub/privacy_hub_controller.h"
 #include "base/check_deref.h"
+#include "base/check_is_test.h"
 #include "base/command_line.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
@@ -41,15 +43,12 @@
 #include "chrome/browser/ash/input_method/editor_consent_enums.h"
 #include "chrome/browser/ash/input_method/input_method_persistence.h"
 #include "chrome/browser/ash/input_method/input_method_syncer.h"
-#include "chrome/browser/ash/login/login_pref_names.h"
 #include "chrome/browser/ash/login/session/user_session_manager.h"
 #include "chrome/browser/ash/policy/skyvault/policy_utils.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/ash/system/input_device_settings.h"
 #include "chrome/browser/ash/system/timezone_resolver_manager.h"
 #include "chrome/browser/ash/system/timezone_util.h"
-#include "chrome/browser/browser_process.h"
-#include "chrome/browser/browser_process_platform_part.h"
 #include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/prefs/pref_service_syncable_util.h"
 #include "chrome/browser/ui/ash/system/system_tray_client_impl.h"
@@ -118,21 +117,31 @@ const char* const kCopyToKnownUserPrefs[] = {
 
 }  // namespace
 
-Preferences::Preferences(PrefService* local_state,
-                         ApplicationLocaleStorage* application_locale_storage)
+Preferences::Preferences(
+    PrefService* local_state,
+    ApplicationLocaleStorage* application_locale_storage,
+    system::TimeZoneResolverManager* timezone_resolver_manager)
     : Preferences(local_state,
                   application_locale_storage,
+                  timezone_resolver_manager,
                   input_method::InputMethodManager::Get()) {}
 
-Preferences::Preferences(PrefService* local_state,
-                         ApplicationLocaleStorage* application_locale_storage,
-                         input_method::InputMethodManager* input_method_manager)
+Preferences::Preferences(
+    PrefService* local_state,
+    ApplicationLocaleStorage* application_locale_storage,
+    system::TimeZoneResolverManager* timezone_resolver_manager,
+    input_method::InputMethodManager* input_method_manager)
     : local_state_(CHECK_DEREF(local_state)),
       application_locale_storage_(CHECK_DEREF(application_locale_storage)),
+      timezone_resolver_manager_(timezone_resolver_manager),
       prefs_(nullptr),
       input_method_manager_(input_method_manager),
       user_(nullptr),
-      user_is_primary_(false) {}
+      user_is_primary_(false) {
+  if (!timezone_resolver_manager_) {
+    CHECK_IS_TEST();
+  }
+}
 
 Preferences::~Preferences() {
   prefs_->RemoveObserver(this);
@@ -147,7 +156,7 @@ void Preferences::RegisterPrefs(PrefRegistrySimple* registry) {
                                 false);
   registry->RegisterBooleanPref(prefs::kOwnerTapToClickEnabled, true);
   // TODO(jamescook): Move ownership and registration into ash.
-  registry->RegisterStringPref(::prefs::kLogoutStartedLast, std::string());
+  registry->RegisterStringPref(ash::prefs::kLogoutStartedLast, std::string());
   registry->RegisterStringPref(ash::prefs::kSigninScreenTimezone,
                                std::string());
   registry->RegisterIntegerPref(
@@ -191,7 +200,7 @@ void Preferences::RegisterProfilePrefs(
   // TODO(yusukes): Remove the runtime hack.
   if (base::SysInfo::IsRunningOnChromeOS()) {
     hardware_keyboard_id =
-        local_state.GetString(::prefs::kHardwareKeyboardLayout);
+        local_state.GetString(ash::prefs::kHardwareKeyboardLayout);
   } else {
     hardware_keyboard_id = "xkb:us::eng";  // only for testing.
   }
@@ -277,7 +286,7 @@ void Preferences::RegisterProfilePrefs(
   registry->RegisterListPref(ash::prefs::kLanguageAllowedInputMethods);
   registry->RegisterBooleanPref(
       ash::prefs::kLanguageAllowedInputMethodsForceEnabled, false);
-  registry->RegisterListPref(::prefs::kAllowedLanguages);
+  registry->RegisterListPref(ash::prefs::kAllowedLanguages);
   registry->RegisterStringPref(ash::prefs::kLanguagePreloadEngines,
                                hardware_keyboard_id);
   registry->RegisterStringPref(ash::prefs::kLanguageEnabledImes, "");
@@ -377,12 +386,12 @@ void Preferences::RegisterProfilePrefs(
   registry->RegisterIntegerPref(prefs::kKeyEventRemappedToSixPackPageDown, 0);
 
   // Don't sync the note-taking app; it may not be installed on other devices.
-  registry->RegisterStringPref(::prefs::kNoteTakingAppId, std::string());
+  registry->RegisterStringPref(ash::prefs::kNoteTakingAppId, std::string());
 
-  registry->RegisterBooleanPref(::prefs::kLockScreenAutoStartOnlineReauth,
+  registry->RegisterBooleanPref(ash::prefs::kLockScreenAutoStartOnlineReauth,
                                 false);
 
-  registry->RegisterBooleanPref(::prefs::kShowMobileDataNotification, true);
+  registry->RegisterBooleanPref(ash::prefs::kShowMobileDataNotification, true);
 
   // Initially all existing users would see "What's new" for current version
   // after update.
@@ -392,11 +401,12 @@ void Preferences::RegisterProfilePrefs(
 
   ::disks::prefs::RegisterProfilePrefs(registry);
 
-  registry->RegisterStringPref(::prefs::kTermsOfServiceURL, "");
+  registry->RegisterStringPref(ash::prefs::kTermsOfServiceURL, "");
 
-  registry->RegisterBooleanPref(::prefs::kTouchVirtualKeyboardEnabled, false);
-  registry->RegisterBooleanPref(::prefs::kVirtualKeyboardSmartVisibilityEnabled,
-                                true);
+  registry->RegisterBooleanPref(ash::prefs::kTouchVirtualKeyboardEnabled,
+                                false);
+  registry->RegisterBooleanPref(
+      ash::prefs::kVirtualKeyboardSmartVisibilityEnabled, true);
 
   registry->RegisterStringPref(prefs::kCaptureModePolicySavePath,
                                std::string());
@@ -421,7 +431,8 @@ void Preferences::RegisterProfilePrefs(
   // explicitly enabled for the signin screen (usually by policy).
   if (local_state.GetAllPrefStoresInitializationStatus() ==
           PrefService::INITIALIZATION_STATUS_WAITING ||
-      system::InputDeviceSettings::Get()->ForceKeyboardDrivenUINavigation()) {
+      system::InputDeviceSettings::ForceKeyboardDrivenUINavigation(
+          local_state)) {
     allow_time_zone_resolve_by_default = false;
   }
 
@@ -586,8 +597,8 @@ void Preferences::RegisterProfilePrefs(
 
   registry->RegisterBooleanPref(prefs::kRecordArcAppSyncMetrics, false);
 
-  registry->RegisterBooleanPref(::prefs::kTPMFirmwareUpdateCleanupDismissed,
-                                false);
+  registry->RegisterBooleanPref(
+      ::ash::prefs::kTPMFirmwareUpdateCleanupDismissed, false);
 
   registry->RegisterBooleanPref(::prefs::kStartupBrowserWindowLaunchSuppressed,
                                 false);
@@ -683,12 +694,12 @@ void Preferences::RegisterProfilePrefs(
                                std::string());
 
   registry->RegisterIntegerPref(
-      ::prefs::kSkyVaultMigrationState,
+      ash::prefs::kSkyVaultMigrationState,
       static_cast<int>(policy::local_user_files::State::kUninitialized));
-  registry->RegisterIntegerPref(::prefs::kSkyVaultMigrationRetryCount, 0);
-  registry->RegisterTimePref(::prefs::kSkyVaultMigrationScheduledStartTime,
+  registry->RegisterIntegerPref(ash::prefs::kSkyVaultMigrationRetryCount, 0);
+  registry->RegisterTimePref(ash::prefs::kSkyVaultMigrationScheduledStartTime,
                              base::Time());
-  registry->RegisterTimePref(::prefs::kSkyVaultMigrationStartTime,
+  registry->RegisterTimePref(ash::prefs::kSkyVaultMigrationStartTime,
                              base::Time());
   FrozenUpdateNotification::RegisterProfilePrefs(registry);
 }
@@ -746,7 +757,7 @@ void Preferences::InitUserPrefs(sync_preferences::PrefServiceSyncable* prefs) {
                               callback);
   allowed_input_methods_force_enabled_.Init(
       ash::prefs::kLanguageAllowedInputMethodsForceEnabled, prefs, callback);
-  allowed_languages_.Init(::prefs::kAllowedLanguages, prefs, callback);
+  allowed_languages_.Init(ash::prefs::kAllowedLanguages, prefs, callback);
   preferred_languages_.Init(language::prefs::kPreferredLanguages, prefs,
                             callback);
   ime_menu_activated_.Init(ash::prefs::kLanguageImeMenuActivated, prefs,
@@ -811,9 +822,8 @@ void Preferences::Init(Profile* profile, const user_manager::User* user) {
   ime_state_ = session_manager->GetDefaultIMEState(profile);
 
   if (user_is_primary_) {
-    g_browser_process->platform_part()
-        ->GetTimezoneResolverManager()
-        ->SetPrimaryUserPrefs(prefs_);
+    CHECK(timezone_resolver_manager_);
+    timezone_resolver_manager_->SetPrimaryUserPrefs(prefs_);
   }
 
   // Initialize preferences to currently saved state.
@@ -1047,8 +1057,6 @@ void Preferences::ApplyPreferences(ApplyReason reason,
     if (user_is_active) {
       mouse_settings.SetPrimaryButtonRight(right);
     }
-    ReportBooleanPrefApplication(reason, "Mouse.PrimaryButtonRight.Changed",
-                                 "Mouse.PrimaryButtonRight.Started", right);
     // Save owner preference in local state to use on login screen.
     if (user_is_owner) {
       if (local_state_->GetBoolean(prefs::kOwnerPrimaryMouseButtonRight) !=
@@ -1126,9 +1134,6 @@ void Preferences::ApplyPreferences(ApplyReason reason,
     if (user_is_active) {
       touchpad_settings.SetHapticClickSensitivity(sensitivity_int);
     }
-    ReportSensitivityPrefApplication(
-        reason, "Touchpad.HapticClickSensitivity.Changed",
-        "Touchpad.HapticClickSensitivity.Started", sensitivity_int);
   }
   if (reason != REASON_PREF_CHANGED ||
       pref_name == ::prefs::kDownloadDefaultDirectory) {
@@ -1216,7 +1221,7 @@ void Preferences::ApplyPreferences(ApplyReason reason,
     }
   }
   if (reason != REASON_PREF_CHANGED ||
-      pref_name == ::prefs::kAllowedLanguages) {
+      pref_name == ash::prefs::kAllowedLanguages) {
     locale_util::RemoveDisallowedLanguagesFromPreferred(prefs_);
   }
 
@@ -1314,9 +1319,8 @@ void Preferences::ApplyPreferences(ApplyReason reason,
                                    prefs_, false /* check_policy */)));
     }
     if (user_is_primary_) {
-      g_browser_process->platform_part()
-          ->GetTimezoneResolverManager()
-          ->UpdateTimezoneResolver();
+      CHECK(timezone_resolver_manager_);
+      timezone_resolver_manager_->UpdateTimezoneResolver();
       if (system::TimeZoneResolverManager::
                   GetEffectiveUserTimeZoneResolveMethod(
                       prefs_, true /* check_policy */) ==

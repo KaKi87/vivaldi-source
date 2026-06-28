@@ -31,12 +31,14 @@
 <translation id="1828808367831369073"><ph name="TABS_COUNT_ONE" /> ta varaq guruhlandi</translation>
 <translation id="1844381456014878100">7 kun nofaol boʻlganidan keyin</translation>
 <translation id="1869137256605757565">{TABS_COUNT,plural, =1{<ph name="TABS_COUNT_ONE" /> ta varaq}other{<ph name="TABS_COUNT_MANY" /> ta varaq}}</translation>
+<translation id="1894429470045525403">{TAB_COUNT,plural, =1{Varaqni oʻqish roʻyxatiga kiritish}other{Varaqlarni oʻqish roʻyxatiga kiritish}}</translation>
 <translation id="1909810060368225529">Eslatma: Ushbu umumiy varaqlar guruhidagi oʻzgarishlar hammaga koʻrinadi. Umumiy varaqlar guruhiga har qanday ishtirokchi oʻzgartirish kiritishi mumkin</translation>
 <translation id="1925363809167540686">{TAB_COUNT,plural, =1{Varaqni mahkamlash}other{Varaqlarni mahkamlash}}</translation>
 <translation id="1982637982196732906">Nofaol seansga olish</translation>
 <translation id="2050597508048557928">{TABS_COUNT,plural, =1{Tanlangan <ph name="TABS_COUNT_ONE" /> ta varaqni bukmarklash}other{Tanlangan <ph name="TABS_COUNT_MANY" /> ta varaqni bukmarklash}}</translation>
 <translation id="2055057176188061528">Varaqlar guruhini tanlang yoki yangisini yarating</translation>
 <translation id="2074527029802029717">Ichki oynani olib tashlash</translation>
+<translation id="2111670510994270194">Oʻng tomonda yangi varaq ochish</translation>
 <translation id="2118649612461486615">Doʻkon haqida</translation>
 <translation id="2123073051266141035">{INCOGNITO_TABS_COUNT,plural, =1{Oxirgi varaqlar va Varaqlar guruhi panellaridagi yopilgan varaq va guruhlar qayta ochiladi. Inkognito varaqlar tiklanmaydi.}other{Oxirgi varaqlar va Varaqlar guruhi panellaridagi yopilgan varaq va guruhlar qayta ochiladi. # ta inkognito varaq tiklanmaydi.}}</translation>
 <translation id="2153899164605463849">{TAB_COUNT,plural, =1{Sayt ovozini yoqish}other{Saytlar ovozini yoqish}}</translation>
@@ -75,6 +77,8 @@
 <translation id="3052964831964880138"><ph name="PRODUCT_NAME" /> narxlari <ph name="PRICE_DROP" /> ga tushdi</translation>
 <translation id="3078350928901129212"><ph name="COLOR_NAME" /> rangli varaqlar guruhi belgisi</translation>
 <translation id="311432875115153175">Varaqlar guruhlari roʻyxati yopildi</translation>
+<translation id="3152596030350326139">Varaqlarni gorizontal chiqarish</translation>
+<translation id="31806439105337256">Varaqlarni vertikal chiqarish</translation>
 <translation id="3194464645767632461">reyting</translation>
 <translation id="3269930881809501915">{TABS_COUNT,plural, =1{<ph name="TABS_COUNT_ONE" /> ta varaqni guruhga kiritish}other{<ph name="TABS_COUNT_MANY" /> ta varaqni guruhga kiritish}}</translation>
 <translation id="3328308545011660196">Taklif: <ph name="NUMBER_OF_TABS" /> ta varaq aloqador. Ular guruhlansinmi?</translation>
@@ -124,6 +128,7 @@
 <translation id="5076161749301278626">Doʻkon sharhlari ochilsinmi?</translation>
 <translation id="5161254044473106830">Sarlavha kiriting</translation>
 <translation id="524477996738997490">{AUTO_DELETE_DELAY,plural, =1{Chrome nofaol varaqlar va varaqlar guruhini <ph name="AUTO_DELETE_DELAY_ONE" /> oydan keyin avtomatik yopadi. Buni sozlamalardan oʻzgartirish mumkin.}other{Chrome nofaol varaqlar va varaqlar guruhini <ph name="AUTO_DELETE_DELAY_MANY" /> oydan keyin avtomatik yopadi. Buni sozlamalardan oʻzgartirish mumkin.}}</translation>
+<translation id="5254233580564156835">Xotira sarfi: <ph name="MEMORY_USAGE" /></translation>
 <translation id="5339733443032484186">Oxirgi varaq</translation>
 <translation id="5380159289133845234">Takroriy varaqlarni arxivlash</translation>
 <translation id="5446043142172831860">Varaqni olib tashlash va guruhni tark etish</translation>
@@ -163,11 +168,13 @@
 <translation id="6589356853295569750">Umumy varaqlar guruhi oʻzgarishlari haqidagi eslatma toʻliq hajmda ochildi</translation>
 <translation id="6590332670428149473"><ph name="COLOR_NAME" /> rangli <ph name="TITLE_OF_GROUP" /> umumiy varaqlar guruhi uchun amallar menyusini ochish</translation>
 <translation id="6615455863669487791">Ko‘rsatish</translation>
+<translation id="6686490380836145850">O‘ng tomondagi ichki oynalarni yopish</translation>
 <translation id="6694634756612002311">Ulashuvni boshqarish</translation>
 <translation id="6709297274997495821">Varaqni tanlash</translation>
 <translation id="6744956528665271406">Guruh rangini tahrirlash</translation>
 <translation id="6784585810034073638">{TAB_COUNT,plural, =1{<ph name="TAB_COUNT1" /> varaqli “<ph name="TITLE_OF_GROUP" />” guruhiga qoʻshish}other{<ph name="TAB_COUNT1" /> varaqli “<ph name="TITLE_OF_GROUP" />” guruhiga qoʻshish}}</translation>
 <translation id="6818926723028410516">Fayllarni tanlang</translation>
+<translation id="68541483639528434">Boshqa ichki oynalarni yopish</translation>
 <translation id="6856809498882026482">Bir nechta variant tanlanadigan rejimni yopish</translation>
 <translation id="6957436309971790274">21 kun nofaol boʻlganidan keyin</translation>
 <translation id="7064815189603108598">{NUMBER_OF_TABS,plural, =1{<ph name="TITLE_OF_GROUP" /> umumiy varaqlar guruhini yoyish, varaqlari: <ph name="TABS_COUNT_ONE" /> ta, rangi: <ph name="COLOR_NAME" />.}other{<ph name="TITLE_OF_GROUP" /> umumiy varaqlar guruhini yoyish, varaqlari: <ph name="TABS_COUNT_MANY" /> ta, rangi: <ph name="COLOR_NAME" />.}}</translation>

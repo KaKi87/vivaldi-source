@@ -6,6 +6,7 @@
 
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "base/command_line.h"
@@ -28,7 +29,6 @@
 #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
 #include "chrome/browser/extensions/extension_management.h"
 #include "chrome/browser/extensions/extension_service.h"
-#include "chrome/browser/extensions/managed_installation_mode.h"
 #include "chrome/browser/metrics/chrome_metrics_service_accessor.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/safe_browsing/extension_telemetry/activity_log_ingester.h"
@@ -72,6 +72,7 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/install_prefs_helper.h"
+#include "extensions/browser/managed_installation_mode.h"
 #include "extensions/browser/path_util.h"
 #include "extensions/common/extension_features.h"
 #include "extensions/common/file_util.h"
@@ -239,30 +240,31 @@ void RecordEnterpriseReportSize(size_t size) {
       "SafeBrowsing.ExtensionTelemetry.Enterprise.ReportSize", size);
 }
 
-static_assert(extensions::Manifest::NUM_LOAD_TYPES == 10,
+static_assert(std::to_underlying(extensions::Manifest::Type::kNumLoadTypes) ==
+                  10,
               "ExtensionTelemetryReportRequest::ExtensionInfo::Type "
               "needs to match extensions::Manifest::Type.");
 ExtensionInfo::Type GetType(extensions::Manifest::Type type) {
   switch (type) {
-    case extensions::Manifest::TYPE_UNKNOWN:
+    case extensions::Manifest::Type::kUnknown:
       return ExtensionInfo::UNKNOWN_TYPE;
-    case extensions::Manifest::TYPE_EXTENSION:
+    case extensions::Manifest::Type::kExtension:
       return ExtensionInfo::EXTENSION;
-    case extensions::Manifest::TYPE_THEME:
+    case extensions::Manifest::Type::kTheme:
       return ExtensionInfo::THEME;
-    case extensions::Manifest::TYPE_USER_SCRIPT:
+    case extensions::Manifest::Type::kUserScript:
       return ExtensionInfo::USER_SCRIPT;
-    case extensions::Manifest::TYPE_HOSTED_APP:
+    case extensions::Manifest::Type::kHostedApp:
       return ExtensionInfo::HOSTED_APP;
-    case extensions::Manifest::TYPE_LEGACY_PACKAGED_APP:
+    case extensions::Manifest::Type::kLegacyPackagedApp:
       return ExtensionInfo::LEGACY_PACKAGED_APP;
-    case extensions::Manifest::TYPE_PLATFORM_APP:
+    case extensions::Manifest::Type::kPlatformApp:
       return ExtensionInfo::PLATFORM_APP;
-    case extensions::Manifest::TYPE_SHARED_MODULE:
+    case extensions::Manifest::Type::kSharedModule:
       return ExtensionInfo::SHARED_MODULE;
-    case extensions::Manifest::TYPE_LOGIN_SCREEN_EXTENSION:
+    case extensions::Manifest::Type::kLoginScreenExtension:
       return ExtensionInfo::LOGIN_SCREEN_EXTENSION;
-    case extensions::Manifest::TYPE_CHROMEOS_SYSTEM_EXTENSION:
+    case extensions::Manifest::Type::kChromeOSSystemExtension:
       // TODO(mgawad): introduce new CHROMEOS_SYSTEM_EXTENSION type.
       return ExtensionInfo::EXTENSION;
     default:

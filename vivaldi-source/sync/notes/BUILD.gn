@@ -34,7 +34,7 @@ static_library("sync_notes") {
   deps = [
     "//base",
     "//components/bookmarks/browser",
-    "//components/keyed_service/core:core",
+    "//components/keyed_service/core",
     "//components/sync",
     "//components/version_info",
     "//ui/base",

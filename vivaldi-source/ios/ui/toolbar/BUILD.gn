@@ -2,17 +2,20 @@
 
 source_set("vivaldi_toolbar") {
   sources = [
-    "vivaldi_toolbar_constants.h",
-    "vivaldi_toolbar_constants.mm",
     "vivaldi_sticky_toolbar_view.h",
     "vivaldi_sticky_toolbar_view.mm",
+    "vivaldi_toolbar_constants.h",
+    "vivaldi_toolbar_constants.mm",
   ]
 
   deps = [
+    "resources:vivaldi_toolbar_assets",
     "//base",
     "//ui/base",
-    "resources:vivaldi_toolbar_assets",
   ]
 
- frameworks = [ "UIKit.framework", "Foundation.framework" ]
+  frameworks = [
+    "UIKit.framework",
+    "Foundation.framework",
+  ]
 }

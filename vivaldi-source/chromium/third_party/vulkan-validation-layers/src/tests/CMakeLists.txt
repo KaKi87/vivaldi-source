@@ -29,15 +29,16 @@ else()
     add_executable(vk_layer_validation_tests)
 endif()
 target_sources(vk_layer_validation_tests PRIVATE
-    unit/amd_best_practices.cpp
     unit/android_hardware_buffer.cpp
     unit/android_hardware_buffer_positive.cpp
     unit/android_external_resolve.cpp
     unit/android_external_resolve_positive.cpp
-    unit/arm_best_practices.cpp
     unit/atomics.cpp
     unit/atomics_positive.cpp
     unit/best_practices.cpp
+    unit/best_practices_amd.cpp
+    unit/best_practices_arm.cpp
+    unit/best_practices_nvidia.cpp
     unit/best_practices_positive.cpp
     unit/buffer.cpp
     unit/buffer_positive.cpp
@@ -47,6 +48,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/copy_buffer_image_positive.cpp
     unit/data_graph.cpp
     unit/data_graph_positive.cpp
+    unit/tile_shading.cpp
+    unit/tile_shading_positive.cpp
     unit/debug_extensions.cpp
     unit/debug_extensions_positive.cpp
     unit/debug_descriptor.cpp
@@ -59,6 +62,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/descriptor_buffer_positive.cpp
     unit/descriptor_heap.cpp
     unit/descriptor_heap_positive.cpp
+    unit/descriptor_heap_untyped.cpp
+    unit/descriptor_heap_untyped_positive.cpp
     unit/descriptor_indexing.cpp
     unit/descriptor_indexing_positive.cpp
     unit/descriptors.cpp
@@ -80,6 +85,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/dynamic_rendering_local_read_positive.cpp
     unit/dynamic_state.cpp
     unit/dynamic_state_positive.cpp
+    unit/event.cpp
+    unit/event_positive.cpp
     unit/external_memory_metal.cpp
     unit/external_memory_sync.cpp
     unit/external_memory_sync_positive.cpp
@@ -158,7 +165,6 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/mesh_positive.cpp
     unit/multiview.cpp
     unit/multiview_positive.cpp
-    unit/nvidia_best_practices.cpp
     unit/object_lifetime.cpp
     unit/object_lifetime_positive.cpp
     unit/other_positive.cpp

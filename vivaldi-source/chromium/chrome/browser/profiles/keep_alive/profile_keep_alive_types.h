@@ -186,7 +186,10 @@ enum class ProfileKeepAliveOrigin {
   // Used while showing the Skills dialog.
   kSkillsDialog = 43,
 
-  kMaxValue = kSkillsDialog,
+  // Used during WebApp database cleanup from corruption
+  kWebAppDatabaseCorruptionRecovery = 44,
+
+  kMaxValue = kWebAppDatabaseCorruptionRecovery,
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/profile/enums.xml)
 

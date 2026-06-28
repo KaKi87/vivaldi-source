@@ -633,9 +633,10 @@ class Program::MainLinkTask final : public Program::MainLinkLoadTask
   private:
     angle::Result linkImpl();
 
-    // State needed for link
-    const Caps &mCaps;
-    const Limitations &mLimitations;
+    // State needed for link.  Note that Caps and Limitations are copied because the context that
+    // started the link task may get destroyed before the link job is finished.
+    const Caps mCaps;
+    const Limitations mLimitations;
     const Version mClientVersion;
     const bool mIsWebGL;
     Program *mProgram;
@@ -1145,7 +1146,6 @@ angle::Result Program::linkJobImpl(const Caps &caps,
             mState.mExecutable->mPod.numViews = vertexShader->numViews;
             mState.mExecutable->mPod.hasClipDistance =
                 vertexShader->metadataFlags.test(sh::MetadataFlags::HasClipDistance);
-            mState.mExecutable->mPod.specConstUsageBits |= vertexShader->specConstUsageBits;
         }
 
         const SharedCompiledShaderState &fragmentShader =
@@ -1177,7 +1177,6 @@ angle::Result Program::linkJobImpl(const Caps &caps,
                 fragmentShader->metadataFlags.test(sh::MetadataFlags::HasStencilInputAttachment);
             mState.mExecutable->mPod.advancedBlendEquations =
                 fragmentShader->advancedBlendEquations;
-            mState.mExecutable->mPod.specConstUsageBits |= fragmentShader->specConstUsageBits;
             mState.mExecutable->mPod.hasFragCoord =
                 fragmentShader->metadataFlags.test(sh::MetadataFlags::HasFragCoord);
 
@@ -1256,6 +1255,7 @@ void Program::resolveLinkImpl(const Context *context)
         // The above means that it's ok for ANGLE to reset the executable here, but it *may* be
         // helpful to applications if it doesn't.  We do reset it however, the info log should
         // already have enough debug information for the application.
+        waitForPostLinkTasks(context);
         mState.mExecutable->reset();
         return;
     }

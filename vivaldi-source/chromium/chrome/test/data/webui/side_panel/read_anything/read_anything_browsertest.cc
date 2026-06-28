@@ -9,6 +9,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry_id.h"
+#include "chrome/browser/ui/side_panel/side_panel_enums.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/web_ui_mocha_browser_test.h"
@@ -38,7 +39,7 @@ class ReadAnythingMochaBrowserTest : public WebUIMochaBrowserTest {
     content::WaitForLoadStop(web_contents);
 
     ASSERT_TRUE(RunTestOnWebContents(web_contents, file, trigger, true));
-    side_panel_ui->Close(SidePanelEntry::PanelType::kContent);
+    side_panel_ui->Close();
   }
 
  private:
@@ -56,7 +57,13 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, SpeechPresentationRules) {
                    "mocha.run()");
 }
 
-IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, NodeStore) {
+// TODO(crbug.com/502069860): Re-enable after fixing flakiness.
+#if BUILDFLAG(IS_WIN)
+#define MAYBE_NodeStore DISABLED_NodeStore
+#else
+#define MAYBE_NodeStore NodeStore
+#endif
+IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, MAYBE_NodeStore) {
   RunSidePanelTest("side_panel/read_anything/node_store_test.js",
                    "mocha.run()");
 }
@@ -127,8 +134,19 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, SpeechController) {
                    "mocha.run()");
 }
 
-IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, Common) {
+// TODO(crbug.com/502069860): Re-enable after fixing flakiness.
+#if BUILDFLAG(IS_WIN)
+#define MAYBE_Common DISABLED_Common
+#else
+#define MAYBE_Common Common
+#endif
+IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, MAYBE_Common) {
   RunSidePanelTest("side_panel/read_anything/common_test.js", "mocha.run()");
+}
+
+IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, RectCalculations) {
+  RunSidePanelTest("side_panel/read_anything/rect_calculations_test.js",
+                   "mocha.run()");
 }
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, Logger) {
@@ -196,7 +214,8 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, LineSpacing) {
                    "mocha.run()");
 }
 
-IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, Movement) {
+// TODO(crbug.com/501840500): It is flaky on all platforms.
+IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, DISABLED_Movement) {
   RunSidePanelTest("side_panel/read_anything/movement_test.js", "mocha.run()");
 }
 
@@ -250,6 +269,22 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, LineFocusController) {
                    "mocha.run()");
 }
 
+IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, LineFocusStyleMode) {
+  RunSidePanelTest("side_panel/read_anything/line_focus_style_mode_test.js",
+                   "mocha.run()");
+}
+
+// TODO(crbug.com/502069860): Re-enable after fixing flakiness.
+#if BUILDFLAG(IS_WIN)
+#define MAYBE_LineFocusMoveMode DISABLED_LineFocusMoveMode
+#else
+#define MAYBE_LineFocusMoveMode LineFocusMoveMode
+#endif
+IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, MAYBE_LineFocusMoveMode) {
+  RunSidePanelTest("side_panel/read_anything/line_focus_move_mode_test.js",
+                   "mocha.run()");
+}
+
 IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, DomQueries) {
   RunSidePanelTest("side_panel/read_anything/dom_queries_test.js",
                    "mocha.run()");
@@ -275,6 +310,11 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, TtsVoiceFiltering) {
                    "mocha.run()");
 }
 
+IN_PROC_BROWSER_TEST_F(ReadAnythingMochaTest, WebSpeechTtsClient) {
+  RunSidePanelTest("side_panel/read_anything/webspeech_tts_client_test.js",
+                   "mocha.run()");
+}
+
 class ImmersiveReadAnythingMochaTest : public ReadAnythingMochaBrowserTest {
  protected:
   ImmersiveReadAnythingMochaTest() {
@@ -296,7 +336,14 @@ IN_PROC_BROWSER_TEST_F(ImmersiveReadAnythingMochaTest, SettingsMenu) {
                    "mocha.run()");
 }
 
-IN_PROC_BROWSER_TEST_F(ImmersiveReadAnythingMochaTest, ToolbarSettingsMenu) {
+// TODO(crbug.com/509759561): Re-enable after fixing flakiness.
+#if BUILDFLAG(IS_WIN)
+#define MAYBE_ToolbarSettingsMenu DISABLED_ToolbarSettingsMenu
+#else
+#define MAYBE_ToolbarSettingsMenu ToolbarSettingsMenu
+#endif
+IN_PROC_BROWSER_TEST_F(ImmersiveReadAnythingMochaTest,
+                       MAYBE_ToolbarSettingsMenu) {
   RunSidePanelTest("side_panel/read_anything/toolbar_settings_menu_test.js",
                    "mocha.run()");
 }
@@ -307,8 +354,7 @@ class ImmersiveReadAnythingWithReadabilityMochaTest
   ImmersiveReadAnythingWithReadabilityMochaTest() {
     scoped_feature_list_.InitWithFeatures(
         {features::kImmersiveReadAnything,
-         features::kReadAnythingWithReadability,
-         features::kReadAnythingWithReadabilityAllowLinks},
+         features::kReadAnythingWithReadability},
         {});
   }
 
@@ -316,10 +362,23 @@ class ImmersiveReadAnythingWithReadabilityMochaTest
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
+// TODO(https://crbug.com/502274118): Flaky on some windows builders.
+#if BUILDFLAG(IS_WIN)
+#define MAYBE_ReadabilityImageClassifier DISABLED_ReadabilityImageClassifier
+#else
+#define MAYBE_ReadabilityImageClassifier ReadabilityImageClassifier
+#endif
 IN_PROC_BROWSER_TEST_F(ImmersiveReadAnythingWithReadabilityMochaTest,
-                       ReadabilityImageClassifier) {
+                       MAYBE_ReadabilityImageClassifier) {
   RunSidePanelTest(
       "side_panel/read_anything/readability_image_classifier_test.js",
+      "mocha.run()");
+}
+
+IN_PROC_BROWSER_TEST_F(ImmersiveReadAnythingWithReadabilityMochaTest,
+                       ReadabilityContentProcessing) {
+  RunSidePanelTest(
+      "side_panel/read_anything/readability_content_processing_test.js",
       "mocha.run()");
 }
 

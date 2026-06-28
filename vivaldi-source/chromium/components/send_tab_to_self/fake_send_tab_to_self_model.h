@@ -1,46 +1,91 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SEND_TAB_TO_SELF_FAKE_SEND_TAB_TO_SELF_MODEL_H_
 #define COMPONENTS_SEND_TAB_TO_SELF_FAKE_SEND_TAB_TO_SELF_MODEL_H_
 
-#include "components/send_tab_to_self/send_tab_to_self_model.h"
-#include "components/sync/model/model_type_controller_delegate.h"
-
+#include <map>
+#include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
+
+#include "base/functional/callback.h"
+#include "components/send_tab_to_self/send_tab_to_self_model.h"
+
+class GURL;
 
 namespace send_tab_to_self {
 
+class SendTabToSelfEntry;
+struct NavigationHistory;
+struct PageContext;
 struct TargetDeviceInfo;
 
-// A SendTabToSelfModel that is backed by hardcoded data rather than synced
-// data, and which can therefore be used even without sync or signin. For
-// debugging & testing only.
-class FakeSendTabToSelfModel : public SendTabToSelfModel {
+class FakeSendTabToSelfModel final : public SendTabToSelfModel {
  public:
   FakeSendTabToSelfModel();
   ~FakeSendTabToSelfModel() override;
 
-  FakeSendTabToSelfModel(const FakeSendTabToSelfModel&) = delete;
-  FakeSendTabToSelfModel& operator=(const FakeSendTabToSelfModel&) = delete;
-
+  // SendTabToSelfModel:
   std::vector<std::string> GetAllGuids() const override;
-  void DeleteAllEntries() override;
   const SendTabToSelfEntry* GetEntryByGUID(
       const std::string& guid) const override;
-  const SendTabToSelfEntry* AddEntry(
+  std::vector<const SendTabToSelfEntry*>
+  GetUnopenedEntriesTargetedToLocalDevice() const override;
+  const SendTabToSelfEntry* SendEntry(
       const GURL& url,
       const std::string& title,
-      base::Time navigation_time,
-      const std::string& target_device_cache_guid) override;
-  void DeleteEntry(const std::string& guid) override;
+      const std::string& target_device_cache_guid,
+      const PageContext& context,
+      NavigationHistory navigation_history,
+      base::OnceCallback<void(SendTabToSelfResult)> commit_confirmation)
+      override;
   void DismissEntry(const std::string& guid) override;
   void MarkEntryOpened(const std::string& guid) override;
   bool IsReady() override;
   bool HasValidTargetDevice() override;
   std::vector<TargetDeviceInfo> GetTargetDeviceInfoSortedList() override;
+
+  // Methods to configure the fake behavior:
+  void SetIsReady(bool is_ready);
+  void SetHasValidTargetDevice(bool has_valid_target_device);
+  void SetTargetDeviceInfoSortedList(
+      const std::vector<TargetDeviceInfo>& devices);
+  void AddTargetDevice(const TargetDeviceInfo& device);
+  void SetLocalDeviceName(std::string_view device_name);
+  void SetLocalCacheGuid(std::string_view cache_guid);
+  void SetSendResult(SendTabToSelfResult result);
+
+  using SendEntryCallback =
+      base::RepeatingCallback<void(const SendTabToSelfEntry*)>;
+  void SetSendEntryCallback(SendEntryCallback callback);
+
+  // Simulates an entry being added from a remote device.
+  const SendTabToSelfEntry* AddEntryRemotely(
+      const GURL& url,
+      const std::string& title,
+      const std::string& target_device_cache_guid,
+      const PageContext& context,
+      NavigationHistory navigation_history);
+
+  const std::string& last_opened_guid() const { return last_opened_guid_; }
+  const std::string& last_dismissed_guid() const {
+    return last_dismissed_guid_;
+  }
+
+ private:
+  bool is_ready_ = true;
+  bool has_valid_target_device_ = false;
+  std::string local_device_name_ = "device";
+  std::string local_cache_guid_ = "";
+  std::map<std::string, std::unique_ptr<SendTabToSelfEntry>> entries_;
+  std::vector<TargetDeviceInfo> devices_;
+  std::string last_opened_guid_;
+  std::string last_dismissed_guid_;
+  SendEntryCallback send_entry_callback_;
+  SendTabToSelfResult send_result_ = SendTabToSelfResult::kSuccess;
 };
 
 }  // namespace send_tab_to_self

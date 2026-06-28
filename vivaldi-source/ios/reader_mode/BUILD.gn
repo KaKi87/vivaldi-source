@@ -5,9 +5,9 @@ import("//ios/web/public/js_messaging/optimize_js.gni")
 optimize_js("vivaldi_reader_mode_js") {
   primary_script = "resources/reader_mode_controls.js"
   sources = [
-    "resources/reader_mode_controls.js",
     "resources/readability.js",
     "resources/readability_readerable.js",
+    "resources/reader_mode_controls.js",
   ]
 
   deps = [
@@ -18,17 +18,17 @@ optimize_js("vivaldi_reader_mode_js") {
 
 source_set("vivaldi_reader_mode_feature") {
   sources = [
-    "vivaldi_reader_mode_java_script_feature.h",
-    "vivaldi_reader_mode_java_script_feature.mm",
     "reader_mode_controller.h",
     "reader_mode_controller.mm",
     "reader_mode_controller_ui_bridge.mm",
+    "vivaldi_reader_mode_java_script_feature.h",
+    "vivaldi_reader_mode_java_script_feature.mm",
   ]
 
   deps = [
     ":vivaldi_reader_mode_js",
     "//base",
-    "//components/prefs:prefs",
+    "//components/prefs",
     "//components/prefs/ios",
     "//ios/web/common",
     "//ios/web/public",

@@ -799,13 +799,13 @@ void AddVivaldiSpecificWorkItems(const installer::InstallParams& install_params,
   // (ignore failure if it doesn't exist)
   install_list
       ->AddMoveTreeWorkItem(update_notifier, old_update_notifier, temp_path,
-                            WorkItem::ALWAYS_MOVE)
+                            WorkItem::MoveTreeOptions{.lenient_deletion = true})
       ->set_best_effort(true);
 
   // Install the new update_notifier.exe
   install_list->AddCopyTreeWorkItem(
       src_path.Append(vivaldi::constants::kVivaldiUpdateNotifierExe),
-      update_notifier, temp_path, WorkItem::CopyOverWriteOption::ALWAYS);
+      update_notifier, temp_path);
 
   // Mark standalone or system installs.
   if (IsInstallStandalone()) {

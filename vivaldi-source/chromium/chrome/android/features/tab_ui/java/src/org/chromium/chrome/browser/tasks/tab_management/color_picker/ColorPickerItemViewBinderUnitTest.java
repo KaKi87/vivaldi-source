@@ -20,6 +20,8 @@ import android.graphics.drawable.LayerDrawable;
 import android.view.View;
 import android.widget.ImageView;
 
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
+
 import com.google.android.material.button.MaterialButton;
 
 import org.junit.Assert;
@@ -37,6 +39,7 @@ import org.chromium.chrome.browser.tasks.tab_management.R;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.tab_groups.TabGroupColorId;
 import org.chromium.components.tab_groups.TabGroupColorPickerUtils;
+import org.chromium.components.tab_groups.TabGroupsFeatureMap;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
@@ -48,7 +51,8 @@ import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 @Features.DisableFeatures({
     ChromeFeatureList.ANDROID_SURFACE_COLOR_UPDATE,
     ChromeFeatureList.GRID_TAB_SWITCHER_SURFACE_COLOR_UPDATE,
-    ChromeFeatureList.ANDROID_THEME_MODULE
+    ChromeFeatureList.ANDROID_THEME_MODULE,
+    TabGroupsFeatureMap.UPDATE_TAB_GROUP_COLORS
 })
 public class ColorPickerItemViewBinderUnitTest {
     private Activity mActivity;
@@ -70,7 +74,8 @@ public class ColorPickerItemViewBinderUnitTest {
                         () -> {
                             mModel.set(IS_SELECTED, !mModel.get(IS_SELECTED));
                         },
-                        false);
+                        false,
+                        /* itemIndex= */ 0);
 
         mPropertyModelChangeProcessor =
                 PropertyModelChangeProcessor.create(
@@ -201,21 +206,65 @@ public class ColorPickerItemViewBinderUnitTest {
     }
 
     @Test
+    public void testColorPickerItem_accessibilityDelegate() {
+        View colorIcon = mColorPickerItemView.findViewById(R.id.color_picker_icon);
+        AccessibilityNodeInfoCompat info = AccessibilityNodeInfoCompat.obtain();
+        colorIcon
+                .getAccessibilityDelegate()
+                .onInitializeAccessibilityNodeInfo(colorIcon, info.unwrap());
+
+        AccessibilityNodeInfoCompat.CollectionItemInfoCompat itemInfo =
+                info.getCollectionItemInfo();
+        Assert.assertNotNull(itemInfo);
+        assertEquals(0, itemInfo.getRowIndex());
+        assertEquals(1, itemInfo.getRowSpan());
+        assertEquals(0, itemInfo.getColumnIndex());
+        assertEquals(1, itemInfo.getColumnSpan());
+        Assert.assertFalse(itemInfo.isSelected());
+
+        mModel.set(IS_SELECTED, true);
+        colorIcon
+                .getAccessibilityDelegate()
+                .onInitializeAccessibilityNodeInfo(colorIcon, info.unwrap());
+        itemInfo = info.getCollectionItemInfo();
+        Assert.assertTrue(itemInfo.isSelected());
+    }
+
+    @Test
+    public void testColorPickerItem_accessibilityDelegate_customPosition() {
+        PropertyModel model =
+                ColorPickerItemProperties.create(
+                        TabGroupColorId.BLUE,
+                        ColorPickerType.TAB_GROUP,
+                        false,
+                        () -> {},
+                        false,
+                        /* itemIndex= */ 5);
+        PropertyModelChangeProcessor.create(
+                model, mColorPickerItemView, ColorPickerItemViewBinder::bind);
+
+        View colorIcon = mColorPickerItemView.findViewById(R.id.color_picker_icon);
+        AccessibilityNodeInfoCompat info = AccessibilityNodeInfoCompat.obtain();
+        colorIcon
+                .getAccessibilityDelegate()
+                .onInitializeAccessibilityNodeInfo(colorIcon, info.unwrap());
+
+        AccessibilityNodeInfoCompat.CollectionItemInfoCompat itemInfo =
+                info.getCollectionItemInfo();
+        Assert.assertNotNull(itemInfo);
+        assertEquals(5, itemInfo.getColumnIndex());
+    }
+
+    @Test
     @EnableFeatures({ChromeFeatureList.ANDROID_THEME_MODULE})
     public void testColorPickerItem_isSelected_withThemeModuleEnabled() {
         MaterialButton view = mColorPickerItemView.findViewById(R.id.color_picker_icon);
         String color = mActivity.getString(R.string.tab_group_color_blue);
-        int notSelectedStringId =
-                R.string.accessibility_tab_group_color_picker_color_item_not_selected_description;
-        String notSelectedString = mActivity.getString(notSelectedStringId, color);
-        int selectedStringId =
-                R.string.accessibility_tab_group_color_picker_color_item_selected_description;
-        String selectedString = mActivity.getString(selectedStringId, color);
 
-        assertEquals(notSelectedString, view.getContentDescription());
+        assertEquals(color, view.getContentDescription());
 
         mModel.set(IS_SELECTED, true);
 
-        assertEquals(selectedString, view.getContentDescription());
+        assertEquals(color, view.getContentDescription());
     }
 }

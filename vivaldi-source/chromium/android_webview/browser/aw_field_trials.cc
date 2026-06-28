@@ -18,7 +18,6 @@
 #include "components/payments/content/android/payment_feature_map.h"
 #include "components/permissions/features.h"
 #include "components/safe_browsing/core/common/features.h"
-#include "components/stylus_handwriting/android/stylus_handwriting_feature_map.h"
 #include "components/variations/feature_overrides.h"
 #include "components/viz/common/features.h"
 #include "content/public/common/content_features.h"
@@ -32,7 +31,6 @@
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/features_generated.h"
 #include "ui/android/ui_android_features.h"
-#include "ui/base/ui_base_features.h"
 #include "ui/gl/gl_features.h"
 #include "ui/gl/gl_switches.h"
 
@@ -70,6 +68,13 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   // concluded.
   aw_feature_overrides.DisableFeature(
       input::features::kUpdateScrollPredictorInputMapping);
+
+  // InputVizard is disabled on WebView as it is a Chrome-only feature that
+  // moves input handling to the VizCompositor thread, which is out of scope
+  // for WebView's Synchronous Compositor architecture.
+  aw_feature_overrides.DisableFeature(input::features::kInputOnViz);
+  aw_feature_overrides.DisableFeature(
+      input::features::kInputVizardSpeculativeTransfer);
 
   // Disable enforcing `noopener` on Blob URL navigations on WebView.
   aw_feature_overrides.DisableFeature(
@@ -111,11 +116,6 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
 
   // Disable scrollbar-width on WebView.
   aw_feature_overrides.DisableFeature(blink::features::kScrollbarWidth);
-
-  // TODO(crbug.com/402144902): Remove this once webview experiment has
-  // concluded.
-  aw_feature_overrides.DisableFeature(
-      ::features::kSendEmptyGestureScrollUpdate);
 
   // Disable Populating the VisitedLinkDatabase on WebView.
   aw_feature_overrides.DisableFeature(history::kPopulateVisitedLinkDatabase);
@@ -293,8 +293,6 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   // policy currently blocks iframes from using it. crbug.com/442879527
   aw_feature_overrides.DisableFeature(
       network::features::kLocalNetworkAccessChecks);
-  aw_feature_overrides.DisableFeature(
-      network::features::kLocalNetworkAccessChecksSplitPermissions);
 
   // Disable background media for WebView, until we have consensus on long-term
   // behavior crbug.com/453706851
@@ -313,12 +311,13 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   // See crbug.com/1309151.
   aw_feature_overrides.DisableFeature(::features::kGpuShaderDiskCache);
 
+  // GpuPersistentCache is enabled by default on Clank but not on WebView yet.
+  // Disable it by default so it can be rolled out using Finch.
+  aw_feature_overrides.DisableFeature(::features::kGpuPersistentCache);
+
   // Don't pass the data about browser window position on screen to WebView.
   aw_feature_overrides.DisableFeature(ui::kAndroidUseCorrectWindowBounds);
 
-  // Launched for WebView. Experimentation needed for Chrome on Android.
-  aw_feature_overrides.EnableFeature(
-      stylus_handwriting::android::kProbeStylusWritingInBackground);
 
   // As WebSettings.setAllowContentAccess() allows this to be controlled by
   // the WebView's host, we keep the old behavior for content:// URLs.
@@ -328,4 +327,14 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   // its Viz thread is updated to handle IO.
   aw_feature_overrides.DisableFeature(
       ::features::kVizDirectCompositorThreadIpcFrameSinkManager);
+
+  // TODO(crbug.com/441800312): Enable this once WebView experiment has
+  // concluded.
+  aw_feature_overrides.DisableFeature(
+      blink::features::kUnthrottleAsyncTouchMoves);
+
+  // Disable `PrefetchRequestStatusListenerAsync` on WebView to run an
+  // experiment on WebView.
+  aw_feature_overrides.DisableFeature(
+      ::features::kPrefetchRequestStatusListenerAsync);
 }

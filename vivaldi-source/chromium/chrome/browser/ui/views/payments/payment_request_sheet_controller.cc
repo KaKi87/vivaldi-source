@@ -18,6 +18,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider.h"
 #include "ui/compositor/layer.h"
@@ -245,7 +246,9 @@ class PaymentRequestBackArrowButton : public views::ImageButton {
       : views::ImageButton(std::move(back_arrow_callback)) {
     ConfigureVectorImageButton(this);
     views::SetImageFromVectorIconWithColor(
-        this, vector_icons::kBackArrowIcon,
+        this,
+        features::IsRoundedIconsEnabled() ? vector_icons::kArrowBackIcon
+                                          : vector_icons::kBackArrowOldIcon,
         {kColorPaymentsRequestBackArrowButtonIcon,
          kColorPaymentsRequestBackArrowButtonIconDisabled});
     constexpr int kBackArrowSize = 16;
@@ -590,7 +593,7 @@ bool PaymentRequestSheetController::DisplayDynamicBorderForHiddenContents() {
 
 bool PaymentRequestSheetController::ShouldAccelerateEnterKey() {
   // Subclasses must explicitly opt-into this behavior. Be aware of the risks of
-  // enabling click-jacking of the Enter key; see https://crbug.com/1403539
+  // enabling click-jacking of the Enter key; see https://crbug.com/40062377
   return false;
 }
 

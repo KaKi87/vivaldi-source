@@ -13,7 +13,7 @@ import static org.junit.Assert.assertTrue;
 
 import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeBookmarksUrl;
 import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeNtpUrl;
-import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNonNativeNtpUrl;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNtpUrl;
 
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.filters.MediumTest;
@@ -33,12 +33,12 @@ import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.ImportantFormFactors;
 import org.chromium.base.test.util.UserActionTester;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.app.bookmarks.BookmarkActivity;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.ui.signin.signin_promo.SigninPromoCoordinator;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ntp.IncognitoNewTabPageStation;
@@ -238,8 +238,8 @@ public class BookmarkOpenerTest {
 
         List<BookmarkId> ids = new ArrayList<>();
         ids.add(addMobileBookmark("test", url));
-        ids.add(addMobileBookmark("test1", new GURL(getOriginalNonNativeNtpUrl())));
-        ids.add(addMobileBookmark("test2", new GURL(getOriginalNonNativeNtpUrl())));
+        ids.add(addMobileBookmark("test1", new GURL(getOriginalNtpUrl())));
+        ids.add(addMobileBookmark("test2", new GURL(getOriginalNtpUrl())));
 
         ChromeTabbedActivity cta = mPage.getActivity();
         openBookmarkManager(mPage);
@@ -272,8 +272,8 @@ public class BookmarkOpenerTest {
 
         List<BookmarkId> ids = new ArrayList<>();
         ids.add(addMobileBookmark("test", url));
-        ids.add(addMobileBookmark("test1", new GURL(getOriginalNonNativeNtpUrl())));
-        ids.add(addMobileBookmark("test2", new GURL(getOriginalNonNativeNtpUrl())));
+        ids.add(addMobileBookmark("test1", new GURL(getOriginalNtpUrl())));
+        ids.add(addMobileBookmark("test2", new GURL(getOriginalNtpUrl())));
 
         IncognitoNewTabPageStation incognitoPageStation = mPage.openNewIncognitoTabOrWindowFast();
         ChromeTabbedActivity cta = incognitoPageStation.getActivity();

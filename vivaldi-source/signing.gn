@@ -7,10 +7,15 @@ declare_overrides() {
   sign_executables = true
 }
 
+assert(is_vivaldi) # Needed to maintain sequence
+
 import("//vivaldi/gn/config/stored_version.gni")
+
+assert(is_vivaldi) # Needed to maintain sequence
+
+import("//vivaldi/gn/compile_updates.gni")
 import("//vivaldi/gn/config/features.gni")
 import("//vivaldi/gn/config/product.gni")
-import("//vivaldi/gn/compile_updates.gni")
 import("//vivaldi/gn/product_updates.gni")
 
 import("//vivaldi/gn/source_updates.gni")
@@ -25,17 +30,17 @@ if (is_win) {
   }
 }
 if (is_ios) {
-#  update_target("//ios/chrome/app:chrome") {
-#    deps = []
-#  }
+  #  update_target("//ios/chrome/app:chrome") {
+  #    deps = []
+  #  }
 }
 
 group("signings") {
   deps = []
   if (is_win) {
     deps += [
-      "//vivaldi/installer/mini_installer/mini_installer",
       "//vivaldi/installer/enterprise",
+      "//vivaldi/installer/mini_installer/mini_installer",
     ]
   }
   if (is_mac) {

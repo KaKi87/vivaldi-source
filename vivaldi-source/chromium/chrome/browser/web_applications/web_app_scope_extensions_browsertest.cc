@@ -118,7 +118,7 @@ class WebAppScopeExtensionsBrowserTest
     url_overrides_[manifest_url] = manifest_file;
     url_overrides_[association_url] = association_file;
 
-    webapps::AppId app_id = InstallWebAppFromPageAndCloseAppBrowser(
+    webapps::AppId app_id = InstallWebAppInNewTabAndClose(
         browser(),
         primary_server_.GetURL("/web_apps/get_manifest.html?manifest.json"));
 
@@ -435,8 +435,7 @@ INSTANTIATE_TEST_SUITE_P(
     All,
     WebAppScopeExtensionsBrowserTest,
 #if BUILDFLAG(IS_CHROMEOS)
-    testing::Values(apps::test::LinkCapturingFeatureVersion::kV1DefaultOff,
-                    apps::test::LinkCapturingFeatureVersion::kV2DefaultOff)
+    testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff)
 #else
     testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
                     apps::test::LinkCapturingFeatureVersion::kV2DefaultOn)
@@ -485,8 +484,7 @@ INSTANTIATE_TEST_SUITE_P(
     All,
     WebAppScopeExtensionsDisabledBrowserTest,
 #if BUILDFLAG(IS_CHROMEOS)
-    testing::Values(apps::test::LinkCapturingFeatureVersion::kV1DefaultOff,
-                    apps::test::LinkCapturingFeatureVersion::kV2DefaultOff)
+    testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff)
 #else
     testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
                     apps::test::LinkCapturingFeatureVersion::kV2DefaultOn)

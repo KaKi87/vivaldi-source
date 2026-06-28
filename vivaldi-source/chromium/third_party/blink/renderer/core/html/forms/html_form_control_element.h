@@ -90,8 +90,8 @@ class CORE_EXPORT HTMLFormControlElement : public HTMLElement,
   // Return true if this control can submit a form.
   // i.e. canBeSuccessfulSubmitButton() && !isDisabledFormControl().
   bool IsSuccessfulSubmitButton() const;
-  virtual bool IsActivatedSubmit() const { return false; }
-  virtual void SetActivatedSubmit(bool) {}
+  bool IsActivatedSubmit() const override { return false; }
+  void SetActivatedSubmit(bool) override {}
 
   struct PopoverTargetElement final {
    public:
@@ -130,6 +130,9 @@ class CORE_EXPORT HTMLFormControlElement : public HTMLElement,
     return autofill_state_ == WebAutofillState::kPreviewed;
   }
   void SetAutofillState(WebAutofillState = WebAutofillState::kAutofilled);
+  // Returns true if this element can be autofilled by the embedder's Autofill
+  // agent.
+  bool IsAutofillable() const;
 
   bool MatchesToolSubmitActivePseudoClass() const;
 

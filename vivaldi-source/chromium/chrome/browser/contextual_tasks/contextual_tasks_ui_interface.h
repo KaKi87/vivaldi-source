@@ -8,6 +8,7 @@
 #include "base/observer_list.h"
 #include "chrome/browser/contextual_tasks/task_info_delegate.h"
 #include "components/lens/lens_overlay_invocation_source.h"
+#include "components/omnibox/browser/searchbox.mojom.h"
 #include "content/public/browser/page_navigator.h"
 #include "mojo/public/cpp/bindings/remote.h"
 
@@ -28,9 +29,12 @@ class ClientToAimMessage;
 }  // namespace lens
 
 namespace contextual_tasks {
+class ContextualTasksComposeboxHandlerInterface;
 namespace mojom {
 class Page;
 }  // namespace mojom
+
+class ContextualTasksAutoSuggestionManager;
 
 // An interface to interact with the Contextual Tasks WebUI (ContextualTasksUI)
 // from the rest of the browser process.
@@ -42,6 +46,9 @@ class ContextualTasksUIInterface : public TaskInfoDelegate {
   };
 
   ~ContextualTasksUIInterface() override = default;
+
+  // Returns the auto-suggestion manager.
+  virtual ContextualTasksAutoSuggestionManager* GetAutoSuggestionManager() = 0;
 
   // Returns the Profile associated with this WebUI.
   virtual Profile* GetProfile() = 0;
@@ -74,6 +81,12 @@ class ContextualTasksUIInterface : public TaskInfoDelegate {
   // Returns whether the Lens overlay is currently showing.
   virtual bool IsLensOverlayShowing() const = 0;
 
+  // Starts the platform's native voice recognition system.
+  virtual void StartPlatformVoiceRecognition() = 0;
+
+  // Called when the platform voice recognition completes with a result.
+  virtual void OnVoiceTranscribed(const std::string& query) = 0;
+
   // Notifies the UI of the page context eligibility.
   virtual void OnPageContextEligibilityChecked(
       bool is_page_context_eligible) = 0;
@@ -86,6 +99,9 @@ class ContextualTasksUIInterface : public TaskInfoDelegate {
 
   // Moves the UI associated with this WebUI to a new tab.
   virtual void MoveTaskUiToNewTab() = 0;
+
+  // Notifies the UI that the expand button enabled state should be updated.
+  virtual void UpdateExpandButtonEnabled(bool enabled) = 0;
 
   virtual GURL GetWebUiUrl() = 0;
 
@@ -110,6 +126,19 @@ class ContextualTasksUIInterface : public TaskInfoDelegate {
   // for the same task will return nullptr.
   virtual std::unique_ptr<contextual_search::InputStateModel>
   TakeInputStateModel() = 0;
+
+  // Fetches the restored tab IDs attached to the WebContents for the
+  // current task.
+  virtual std::vector<int32_t> GetRestoredTabIds() = 0;
+
+  // Notifies the UI that restored tabs have been successfully fetched from the
+  // database.
+  void OnRestoredTabsFetched(
+      std::vector<searchbox::mojom::TabInfoPtr> tabs) override = 0;
+
+  // Registers the composebox handler with this UI.
+  virtual void SetComposeboxHandler(
+      ContextualTasksComposeboxHandlerInterface* handler) = 0;
 
   // Helpers.
 

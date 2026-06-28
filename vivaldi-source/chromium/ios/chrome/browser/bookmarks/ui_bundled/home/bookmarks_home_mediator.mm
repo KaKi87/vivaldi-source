@@ -96,6 +96,21 @@ bool AnyNodeHasChildren(const std::vector<const BookmarkNode*>& nodes) {
   return false;
 }
 
+void QueryLocalBookmarksCompletionWithDescription(
+    std::string user_email,
+    queryLocalBookmarksCompletion completion,
+    std::map<syncer::DataType, syncer::LocalDataDescription> description) {
+  CHECK(completion);
+  auto it = description.find(syncer::BOOKMARKS);
+  // GetLocalDataDescriptions() can return an empty result if data type is
+  // still in configuration, or has an error.
+  if (it != description.end()) {
+    completion(it->second.item_count, std::move(user_email));
+    return;
+  }
+  completion(0, std::move(user_email));
+}
+
 }  // namespace
 
 bool IsABookmarkNodeSectionForIdentifier(
@@ -261,10 +276,10 @@ bool IsABookmarkNodeSectionForIdentifier(
       [self shouldDisplayCloudSlashIconWithBookmarkNode:self.displayedNode];
   // Add all bookmarks and folders of the currently displayed node to the table.
   for (const auto& child : self.displayedNode->children()) {
-    BookmarksHomeNodeItem* nodeItem = [[BookmarksHomeNodeItem alloc]
-        initWithType:BookmarksHomeItemTypeBookmark
-        bookmarkNode:child.get()];
-    nodeItem.shouldDisplayCloudSlashIcon = shouldDisplayCloudSlashIcon;
+    BookmarksHomeNodeItem* nodeItem =
+        [BookmarksHomeNodeItem makeItemWithType:BookmarksHomeItemTypeBookmark
+                                   bookmarkNode:child.get()
+                    shouldDisplayCloudSlashIcon:shouldDisplayCloudSlashIcon];
     [self.consumer.tableViewModel
                         addItem:nodeItem
         toSectionWithIdentifier:BookmarksHomeSectionIdentifierBookmarks];
@@ -351,11 +366,12 @@ bool IsABookmarkNodeSectionForIdentifier(
       continue;
     } // End Vivaldi
 
-    BookmarksHomeNodeItem* item = [[BookmarksHomeNodeItem alloc]
-        initWithType:BookmarksHomeItemTypeBookmark
-        bookmarkNode:permanentNode];
-    item.shouldDisplayCloudSlashIcon =
+    BOOL shouldDisplayCloudSlashIcon =
         [self shouldDisplayCloudSlashIconWithBookmarkNode:permanentNode];
+    BookmarksHomeNodeItem* item =
+        [BookmarksHomeNodeItem makeItemWithType:BookmarksHomeItemTypeBookmark
+                                   bookmarkNode:permanentNode
+                    shouldDisplayCloudSlashIcon:shouldDisplayCloudSlashIcon];
     [self.consumer.tableViewModel addItem:item
                   toSectionWithIdentifier:sectionIdentifier];
   }
@@ -364,9 +380,9 @@ bool IsABookmarkNodeSectionForIdentifier(
     // Add trash folder
     const BookmarkNode* trashNode = _bookmarkModel->trash_node();
     BookmarksHomeNodeItem* trashBarItem =
-        [[BookmarksHomeNodeItem alloc]
-            initWithType:BookmarksHomeItemTypeBookmark
-            bookmarkNode:trashNode];
+        [BookmarksHomeNodeItem makeItemWithType:BookmarksHomeItemTypeBookmark
+                                   bookmarkNode:trashNode
+                    shouldDisplayCloudSlashIcon:NO];
     trashBarItem.shouldShowTrashIcon = YES;
     [self.consumer.tableViewModel
         addItem:trashBarItem
@@ -498,22 +514,13 @@ bool IsABookmarkNodeSectionForIdentifier(
                           true);
 }
 
-- (void)queryLocalBookmarks:(void (^)(int local_bookmarks_count,
-                                      std::string user_email))completion {
-  std::string user_email = self.syncService->GetAccountInfo().email;
+- (void)queryLocalBookmarks:(queryLocalBookmarksCompletion)completion {
+  std::string userEmail = self.syncService->GetAccountInfo().email;
+  CHECK(completion);
   self.syncService->GetLocalDataDescriptions(
       syncer::DataTypeSet({syncer::BOOKMARKS}),
-      base::BindOnce(^(std::map<syncer::DataType, syncer::LocalDataDescription>
-                           description) {
-        auto it = description.find(syncer::BOOKMARKS);
-        // GetLocalDataDescriptions() can return an empty result if data type is
-        // still in configuration, or has an error.
-        if (it != description.end()) {
-          completion(it->second.item_count, std::move(user_email));
-          return;
-        }
-        completion(0, std::move(user_email));
-      }));
+      base::BindOnce(&QueryLocalBookmarksCompletionWithDescription, userEmail,
+                     completion));
 }
 
 - (bookmark_utils_ios::NodeSet&)selectedNodesForEditMode {
@@ -669,13 +676,17 @@ bool IsABookmarkNodeSectionForIdentifier(
 }
 
 - (BookmarksHomeNodeItem*)itemForNode:(const BookmarkNode*)bookmarkNode {
+  bookmarks::BookmarkModel* model = _bookmarkModel.get();
+  if (!model) {
+    return nil;
+  }
   NSArray<TableViewItem*>* items = [self.consumer.tableViewModel
       itemsInSectionWithIdentifier:BookmarksHomeSectionIdentifierBookmarks];
   for (TableViewItem* item in items) {
     if (item.type == BookmarksHomeItemTypeBookmark) {
       BookmarksHomeNodeItem* nodeItem =
           base::apple::ObjCCastStrict<BookmarksHomeNodeItem>(item);
-      if (nodeItem.bookmarkNode == bookmarkNode) {
+      if ([nodeItem bookmarkNode:model] == bookmarkNode) {
         return nodeItem;
       }
     }
@@ -814,18 +825,12 @@ bool IsABookmarkNodeSectionForIdentifier(
     return NO;
   }
   // Do not show if last syncing account is different from the current one.
-  // Note that the "last syncing" account pref is cleared during the migration
-  // of syncing users to the signed-in state, but these users should also be
-  // covered here, so check the "migrated syncing user" pref too.
   // This implicitly covers the case when SyncDisabled policy is enabled, as
-  // kGoogleServicesLastSyncingGaiaId will be empty.
+  // kGoogleServicesSyncingGaiaIdMigratedToSignedIn will be empty.
   ProfileIOS* profile = [self originalProfile];
-  const GaiaId lastSyncingGaiaId(
-      profile->GetPrefs()->GetString(prefs::kGoogleServicesLastSyncingGaiaId));
   const GaiaId migratedGaiaId(profile->GetPrefs()->GetString(
       prefs::kGoogleServicesSyncingGaiaIdMigratedToSignedIn));
-  if (self.syncService->GetAccountInfo().gaia != lastSyncingGaiaId &&
-      self.syncService->GetAccountInfo().gaia != migratedGaiaId) {
+  if (self.syncService->GetAccountInfo().gaia != migratedGaiaId) {
     return NO;
   }
   // Do not show if the user is in an error state that makes data upload
@@ -1000,11 +1005,10 @@ bool IsABookmarkNodeSectionForIdentifier(
         // Skipping the node, because it is already in trash
         continue;
       }
-      BookmarksHomeNodeItem* nodeItem = [[BookmarksHomeNodeItem alloc]
-          initWithType:BookmarksHomeItemTypeBookmark
-          bookmarkNode:node];
-      nodeItem.shouldDisplayCloudSlashIcon =
-          [self shouldDisplayCloudSlashIconWithBookmarkNode:node];
+      BookmarksHomeNodeItem* nodeItem =
+          [BookmarksHomeNodeItem makeItemWithType:BookmarksHomeItemTypeBookmark
+                                     bookmarkNode:node
+                      shouldDisplayCloudSlashIcon:NO];
       [self.consumer.tableViewModel
                           addItem:nodeItem
           toSectionWithIdentifier:BookmarksHomeSectionIdentifierBookmarks];
@@ -1014,11 +1018,12 @@ bool IsABookmarkNodeSectionForIdentifier(
   } // End Vivaldi
 
   for (const BookmarkNode* node : nodes) {
-    BookmarksHomeNodeItem* nodeItem = [[BookmarksHomeNodeItem alloc]
-        initWithType:BookmarksHomeItemTypeBookmark
-        bookmarkNode:node];
-    nodeItem.shouldDisplayCloudSlashIcon =
+    BOOL shouldDisplayCloudSlashIcon =
         [self shouldDisplayCloudSlashIconWithBookmarkNode:node];
+    BookmarksHomeNodeItem* nodeItem =
+        [BookmarksHomeNodeItem makeItemWithType:BookmarksHomeItemTypeBookmark
+                                   bookmarkNode:node
+                    shouldDisplayCloudSlashIcon:shouldDisplayCloudSlashIcon];
     [self.consumer.tableViewModel
                         addItem:nodeItem
         toSectionWithIdentifier:BookmarksHomeSectionIdentifierBookmarks];
@@ -1073,11 +1078,9 @@ bool IsNodeInTrash(const BookmarkNode* node, const BookmarkNode* trashNode) {
       continue;
 
     BookmarksHomeNodeItem* nodeItem =
-      [[BookmarksHomeNodeItem alloc]
-        initWithType:BookmarksHomeItemTypeBookmark
-        bookmarkNode:child.get()];
-    nodeItem.shouldDisplayCloudSlashIcon =
-        [self shouldDisplayCloudSlashIconWithBookmarkNode:self.displayedNode];;
+        [BookmarksHomeNodeItem makeItemWithType:BookmarksHomeItemTypeBookmark
+                                   bookmarkNode:child.get()
+                    shouldDisplayCloudSlashIcon:NO];
     [bookmarkItems addObject:nodeItem];
   }
 

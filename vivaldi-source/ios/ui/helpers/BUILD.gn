@@ -6,26 +6,26 @@ source_set("helpers") {
   sources = [
     "vivaldi_colors_helper.h",
     "vivaldi_colors_helper.mm",
+    "vivaldi_global_helpers.h",
+    "vivaldi_global_helpers.mm",
     "vivaldi_uiview_layout_helper.h",
     "vivaldi_uiview_layout_helper.mm",
     "vivaldi_uiview_style_helper.h",
     "vivaldi_uiview_style_helper.mm",
-    "vivaldi_global_helpers.h",
-    "vivaldi_global_helpers.mm",
   ]
 
   deps = [
-   "//base",
-   "//url",
-   "//ios/chrome/browser/shared/ui/util",
-   "//ios/components/webui:url_constants",
+    "//base",
+    "//ios/chrome/browser/shared/ui/util",
+    "//ios/components/webui:url_constants",
+    "//url",
   ]
 
- frameworks = [
-  "ImageIO.framework",
-  "UIKit.framework",
-  "Foundation.framework",
- ]
+  frameworks = [
+    "ImageIO.framework",
+    "UIKit.framework",
+    "Foundation.framework",
+  ]
 }
 
 swift_source_set("helpers_swift") {
@@ -34,7 +34,5 @@ swift_source_set("helpers_swift") {
     "vivaldi_string_extension.swift",
   ]
 
-  frameworks = [
-    "Foundation.framework",
-  ]
+  frameworks = [ "Foundation.framework" ]
 }

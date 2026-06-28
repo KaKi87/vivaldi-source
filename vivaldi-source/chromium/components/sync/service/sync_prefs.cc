@@ -28,6 +28,7 @@
 #include "components/signin/public/base/signin_prefs.h"
 #include "components/signin/public/base/signin_switches.h"
 #include "components/sync/base/account_pref_utils.h"
+#include "components/sync/base/custom_passphrase_bootstrap_token.h"
 #include "components/sync/base/features.h"
 #include "components/sync/base/passphrase_enums.h"
 #include "components/sync/base/pref_names.h"
@@ -641,24 +642,32 @@ void SyncPrefs::ClearAllEncryptionBootstrapTokens() {
   }
 }
 
-std::string SyncPrefs::GetEncryptionBootstrapTokenForAccount(
+CustomPassphraseBootstrapToken SyncPrefs::GetEncryptionBootstrapTokenForAccount(
+    const os_crypt_async::Encryptor& encryptor,
     const GaiaId& gaia_id) const {
   if (gaia_id.empty()) {
-    return std::string();
+    return CustomPassphraseBootstrapToken();
   }
   const std::string* account_passphrase =
       pref_service_
           ->GetDict(prefs::internal::kSyncEncryptionBootstrapTokenPerAccount)
           .FindString(signin::GaiaIdHash::FromGaiaId(gaia_id).ToBase64());
-  return account_passphrase ? *account_passphrase : std::string();
+  if (!account_passphrase) {
+    return CustomPassphraseBootstrapToken();
+  }
+  return CustomPassphraseBootstrapToken::FromEncryptedPref(*account_passphrase,
+                                                           encryptor);
 }
 
-void SyncPrefs::SetEncryptionBootstrapTokenForAccount(const std::string& token,
-                                                      const GaiaId& gaia_id) {
+void SyncPrefs::SetEncryptionBootstrapTokenForAccount(
+    const CustomPassphraseBootstrapToken& token,
+    const os_crypt_async::Encryptor& encryptor,
+    const GaiaId& gaia_id) {
   CHECK(!gaia_id.empty());
   SetAccountKeyedPrefValue(
       pref_service_, prefs::internal::kSyncEncryptionBootstrapTokenPerAccount,
-      signin::GaiaIdHash::FromGaiaId(gaia_id), base::Value(token));
+      signin::GaiaIdHash::FromGaiaId(gaia_id),
+      base::Value(token.ToEncryptedPref(encryptor)));
 }
 
 void SyncPrefs::ClearEncryptionBootstrapTokenForAccount(const GaiaId& gaia_id) {
@@ -768,10 +777,15 @@ bool SyncPrefs::IsTypeSupportedInTransportMode(UserSelectableType type) {
     case UserSelectableType::kSavedTabGroups:
       return IsReplaceSyncPromosWithSignInPromosEnabled();
     case UserSelectableType::kExtensions:
-      return switches::IsExtensionsExplicitBrowserSigninEnabled();
+#if BUILDFLAG(IS_CHROMEOS)
+      return base::FeatureList::IsEnabled(kReplaceSyncPromosWithSignInPromos);
+#else
+      return true;
+#endif  // BUILDFLAG(IS_CHROMEOS)
     case UserSelectableType::kThemes:
 #if BUILDFLAG(IS_ANDROID)
-      return false;
+      return base::FeatureList::IsEnabled(
+          syncer::kNewTabPageCustomizationThemeSync);
 #elif BUILDFLAG(IS_IOS)
       // Allow 'Themes' toggle on iOS if the feature is enabled.
       return base::FeatureList::IsEnabled(syncer::kSyncThemesIos);
@@ -782,8 +796,12 @@ bool SyncPrefs::IsTypeSupportedInTransportMode(UserSelectableType type) {
     case UserSelectableType::kApps:
       return IsReplaceSyncPromosWithSignInPromosEnabled();
     case UserSelectableType::kCookies:
-      // `kCookies` is not supported in transport mode (ChromeOS-only type).
+#if BUILDFLAG(IS_CHROMEOS)
+      return base::FeatureList::IsEnabled(kReplaceSyncPromosWithSignInPromos);
+#else
+      // ChromeOS-only type.
       return false;
+#endif
 
     // Vivaldi
     case UserSelectableType::kNotes:
@@ -1134,41 +1152,6 @@ void SyncPrefs::MigrateGlobalDataTypePrefsToAccount(PrefService* pref_service,
                            kMigratedPart2AndFullyDone);
 }
 
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
-// static
-void SyncPrefs::MaybeMigrateAutofillToPerAccountPref(
-    PrefService* pref_service) {
-  if (pref_service->GetBoolean(kAutofillPerAccountPrefMigrationDone)) {
-    return;
-  }
-  pref_service->SetBoolean(kAutofillPerAccountPrefMigrationDone, true);
-
-  const GaiaId last_syncing_gaia_id(
-      pref_service->GetString(::prefs::kGoogleServicesLastSyncingGaiaId));
-  if (last_syncing_gaia_id.empty()) {
-    return;
-  }
-
-  if (pref_service->GetBoolean(prefs::internal::kSyncKeepEverythingSynced)) {
-    return;
-  }
-
-  for (auto user_selectable_type :
-       {UserSelectableType::kPasswords, UserSelectableType::kAutofill}) {
-    const char* const pref_name_for_type =
-        GetPrefNameForType(user_selectable_type);
-    if (pref_service->GetBoolean(pref_name_for_type)) {
-      continue;
-    }
-
-    SetAccountKeyedPrefDictEntry(
-        pref_service, prefs::internal::kSelectedTypesPerAccount,
-        signin::GaiaIdHash::FromGaiaId(last_syncing_gaia_id),
-        pref_name_for_type, base::Value(false));
-  }
-}
-#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
-
 void SyncPrefs::MarkPartialSyncToSigninMigrationFullyDone() {
   // If the first part of the migration has run, but the second part has not,
   // then mark the migration as fully done - at this point (after signout)
@@ -1193,8 +1176,12 @@ bool SyncPrefs::IsTypeSelectedByDefaultInTransportMode(
     case UserSelectableType::kHistory:
     case UserSelectableType::kTabs:
     case UserSelectableType::kSavedTabGroups:
+#if BUILDFLAG(IS_CHROMEOS)
+      return IsReplaceSyncPromosWithSignInPromosEnabled();
+#else
       // History and tabs require a separate opt in.
       return false;
+#endif
     case UserSelectableType::kBookmarks:
     case UserSelectableType::kReadingList:
       return IsBookmarksSelectedByDefaultInTransportMode(*pref_service_,

@@ -60,14 +60,14 @@ public class TabListEditorCloseAction extends TabListEditorAction {
     public void onSelectionStateChange(List<TabListEditorItemSelectionId> itemIds) {
         int size =
                 editorSupportsActionOnRelatedTabs()
-                        ? getTabCountIncludingRelatedTabs(getTabGroupModelFilter(), itemIds)
+                        ? getTabCountIncludingRelatedTabs(getTabModel(), itemIds)
                         : itemIds.size();
         setEnabledAndItemCount(!itemIds.isEmpty(), size);
 
         // Note(david@vivaldi.com): Remove or disable items if applicable.
-        setEnabledAndItemCount(VivaldiTabModelUtils.maybeRemoveOrDisableTabActionMenuItem(
-                                       getTabGroupModelFilter().getTabModel(),
-                                       getTabsOrTabsAndRelatedTabsFromSelection(), null, this),
+        setEnabledAndItemCount(
+                VivaldiTabModelUtils.maybeRemoveOrDisableTabActionMenuItem(
+                        getTabModel(), getTabsOrTabsAndRelatedTabsFromSelection(), null, this),
                 getTabsOrTabsAndRelatedTabsFromSelection().size());
     }
 
@@ -78,8 +78,7 @@ public class TabListEditorCloseAction extends TabListEditorAction {
             @Nullable MotionEventInfo triggeringMotion) {
         assert !tabs.isEmpty() : "Close action should not be enabled for no tabs.";
         // We only allow undo for non peripherals.
-        getTabGroupModelFilter()
-                .getTabModel()
+        getTabModel()
                 .getTabRemover()
                 .closeTabs(
                         TabClosureParams.closeTabs(tabs)

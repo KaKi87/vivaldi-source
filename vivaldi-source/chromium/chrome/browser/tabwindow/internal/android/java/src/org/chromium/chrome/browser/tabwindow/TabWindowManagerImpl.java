@@ -40,8 +40,8 @@ import org.chromium.chrome.browser.tabmodel.AsyncTabParams;
 import org.chromium.chrome.browser.tabmodel.AsyncTabParamsManager;
 import org.chromium.chrome.browser.tabmodel.MismatchedIndicesHandler;
 import org.chromium.chrome.browser.tabmodel.NextTabPolicy.NextTabPolicySupplier;
+import org.chromium.chrome.browser.tabmodel.SupportedProfileType;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabGroupVisualDataStore;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
@@ -145,7 +145,8 @@ public class TabWindowManagerImpl implements TabWindowManager {
             TabCreatorManager tabCreatorManager,
             NextTabPolicySupplier nextTabPolicySupplier,
             MismatchedIndicesHandler mismatchedIndicesHandler,
-            @WindowId int windowId) {
+            @WindowId int windowId,
+            @SupportedProfileType int supportedProfileType) {
         if (windowId == INVALID_WINDOW_ID) return null;
 
         // Return the already existing selector if found.
@@ -209,13 +210,15 @@ public class TabWindowManagerImpl implements TabWindowManager {
                         modalDialogManager,
                         profileProviderSupplier,
                         tabCreatorManager,
-                        nextTabPolicySupplier);
+                        nextTabPolicySupplier,
+                        supportedProfileType);
 
         mWindowIdToSelectors.put(assignedWindowId, selector);
         mSelectorsToWindowId.put(selector, assignedWindowId);
         mActivityAssignments.put(activity, selector);
 
-        Pair res = Pair.create(assignedWindowId, selector);
+        Pair<@WindowId Integer, TabModelSelector> res =
+                Pair.<@WindowId Integer, TabModelSelector>create(assignedWindowId, selector);
         Log.i(
                 TAG_MULTI_INSTANCE,
                 "Returning new selector for " + activity + " with window id: " + res);
@@ -668,7 +671,7 @@ public class TabWindowManagerImpl implements TabWindowManager {
         TabGroupSyncService tabGroupSyncService = TabGroupSyncServiceFactory.getForProfile(profile);
         if (tabGroupSyncService == null) return;
 
-        List<TabGroupModelFilter> filterList = new ArrayList<>();
+        List<TabModel> tabModelList = new ArrayList<>();
         for (TabModelSelector selector : tabModelSelectorList) {
             // This process is async and it's possible something was shut down during
             // the wait for all these tab models to init. In that case, just bail and
@@ -677,10 +680,9 @@ public class TabWindowManagerImpl implements TabWindowManager {
                 return;
             }
 
-            filterList.add(selector.getModel(/* incognito= */ false));
+            tabModelList.add(selector.getModel(/* incognito= */ false));
         }
-        TabGroupSyncUtils.unmapLocalIdsNotInTabGroupModelFilterList(
-                tabGroupSyncService, filterList);
+        TabGroupSyncUtils.unmapLocalIdsNotInTabModelList(tabGroupSyncService, tabModelList);
     }
 
     private void deleteOrphanedTabGroupData(List<TabModelSelector> tabModelSelectors) {

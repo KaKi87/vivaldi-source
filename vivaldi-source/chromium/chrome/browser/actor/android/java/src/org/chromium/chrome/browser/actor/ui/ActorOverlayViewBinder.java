@@ -5,7 +5,6 @@
 package org.chromium.chrome.browser.actor.ui;
 
 import android.view.View;
-import android.view.ViewGroup.MarginLayoutParams;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.ui.modelutil.PropertyKey;
@@ -22,24 +21,34 @@ class ActorOverlayViewBinder {
      * @param key The property key that changed.
      */
     public static void bind(PropertyModel model, ActorOverlayView view, PropertyKey key) {
-        if (key == ActorOverlayProperties.VISIBLE || key == ActorOverlayProperties.CAN_SHOW) {
-            boolean visible =
-                    model.get(ActorOverlayProperties.VISIBLE)
-                            && model.get(ActorOverlayProperties.CAN_SHOW);
+        if (key == ActorOverlayProperties.VISIBLE) {
+            boolean visible = model.get(ActorOverlayProperties.VISIBLE);
             int visibility = visible ? View.VISIBLE : View.GONE;
             if (view.getVisibility() != visibility) {
                 view.setVisibility(visibility);
             }
-        } else if (key == ActorOverlayProperties.TOP_MARGIN
+        } else if (key == ActorOverlayProperties.LEFT_MARGIN
+                || key == ActorOverlayProperties.TOP_MARGIN
+                || key == ActorOverlayProperties.RIGHT_MARGIN
                 || key == ActorOverlayProperties.BOTTOM_MARGIN) {
+            int left = model.get(ActorOverlayProperties.LEFT_MARGIN);
             int top = model.get(ActorOverlayProperties.TOP_MARGIN);
+            int right = model.get(ActorOverlayProperties.RIGHT_MARGIN);
             int bottom = model.get(ActorOverlayProperties.BOTTOM_MARGIN);
-            MarginLayoutParams params = (MarginLayoutParams) view.getLayoutParams();
-            if (params == null || params.topMargin != top || params.bottomMargin != bottom) {
-                view.setMargins(top, bottom);
-            }
+            view.setMargins(left, top, right, bottom);
         } else if (key == ActorOverlayProperties.ON_CLICK_LISTENER) {
             view.setOnClickListener(model.get(ActorOverlayProperties.ON_CLICK_LISTENER));
+        } else if (key == ActorOverlayProperties.TAKE_OVER_TASK_BUTTON_VISIBLE) {
+            boolean visible = model.get(ActorOverlayProperties.TAKE_OVER_TASK_BUTTON_VISIBLE);
+            View button = view.getTakeOverButton();
+            int visibility = visible ? View.VISIBLE : View.GONE;
+            if (button.getVisibility() != visibility) {
+                button.setVisibility(visibility);
+            }
+        } else if (key == ActorOverlayProperties.ON_TAKE_OVER_CLICK_LISTENER) {
+            view.getTakeOverButton()
+                    .setOnClickListener(
+                            model.get(ActorOverlayProperties.ON_TAKE_OVER_CLICK_LISTENER));
         }
     }
 }

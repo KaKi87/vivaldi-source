@@ -27,12 +27,16 @@ enum ChromeIsolatedWorldIDs {
   // Grabbing 5 world IDs for the content injection feature.
   ISOLATED_WORLD_ID_VIVALDI_CONTENT_INJECTION,
   ISOLATED_WORLD_ID_VIVALDI_CONTENT_INJECTION_END =
-      ISOLATED_WORLD_ID_VIVALDI_CONTENT_INJECTION + 5,
+      ISOLATED_WORLD_ID_VIVALDI_CONTENT_INJECTION + 3,
 
   // Numbers for isolated worlds for extensions are set in
   // extensions/renderer/script_injection.cc, and are are greater than or equal
   // to this number.
-  ISOLATED_WORLD_ID_EXTENSIONS
+  ISOLATED_WORLD_ID_EXTENSIONS // Vivaldi: force a merge conflict if anything is added after this
 };
+
+static_assert(static_cast<int>(ISOLATED_WORLD_ID_EXTENSIONS) <=
+              content::ISOLATED_WORLD_ID_MAX);
+
 // LINT.ThenChange(//chrome/android/java/src/org/chromium/chrome/browser/common/ChromeIsolatedWorldIds.java)
 #endif  // CHROME_COMMON_CHROME_ISOLATED_WORLD_IDS_H_

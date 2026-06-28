@@ -28,12 +28,12 @@ template("merge_plist") {
   }
 }
 
-
 merge_plist("merge_vivaldi_localize_strings") {
   format = "xml1"
   plist_templates = [
     "//ios/chrome/app/resources/chrome_localize_strings_config.plist",
-    "vivaldi_localize_strings_config.plist"
+    "vivaldi_localize_strings_config.plist",
   ]
-  output_name = "$root_gen_dir/vivaldi/ios/vivaldi_localize_strings_config.plist"
+  output_name =
+      "$root_gen_dir/vivaldi/ios/vivaldi_localize_strings_config.plist"
 }

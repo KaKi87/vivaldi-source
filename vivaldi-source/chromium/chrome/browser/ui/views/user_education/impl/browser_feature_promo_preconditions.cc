@@ -29,13 +29,14 @@
 #include "components/user_education/common/feature_promo/impl/common_preconditions.h"
 #include "components/user_education/common/feature_promo/impl/feature_promo_controller_impl.h"
 #include "components/user_education/common/user_education_features.h"
-#include "components/user_education/views/view_subregion_anchor.h"
 #include "components/user_education/webui/help_bubble_handler.h"
-#include "components/user_education/webui/tracked_element_help_bubble_webui_anchor.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/events/types/event_type.h"
 #include "ui/views/interaction/element_tracker_views.h"
+#include "ui/views/interaction/view_subregion_anchor.h"
 #include "ui/views/widget/widget.h"
+#include "ui/webui/tracked_element/tracked_element_handler.h"
+#include "ui/webui/tracked_element/tracked_element_web_ui.h"
 
 DEFINE_FEATURE_PROMO_PRECONDITION_IDENTIFIER_VALUE(kWindowActivePrecondition);
 DEFINE_FEATURE_PROMO_PRECONDITION_IDENTIFIER_VALUE(
@@ -70,12 +71,10 @@ user_education::FeaturePromoResult WindowActivePrecondition::CheckPrecondition(
   if (auto* const view_el = element_ref.get_as<views::TrackedElementViews>()) {
     widget = view_el->view()->GetWidget();
   } else if (auto* const subregion_el =
-                 element_ref.get_as<user_education::ViewSubregionAnchor>()) {
+                 element_ref.get_as<views::ViewSubregionAnchor>()) {
     widget = subregion_el->view().GetWidget();
-  } else if (auto* web_el =
-                 element_ref.get_as<
-                     user_education::TrackedElementHelpBubbleWebUIAnchor>()) {
-    auto* const contents = web_el->handler()->GetWebContents();
+  } else if (auto* web_el = element_ref.get_as<ui::TrackedElementWebUI>()) {
+    auto* const contents = web_el->handler()->web_contents();
     widget = views::Widget::GetWidgetForNativeWindow(
         contents->GetTopLevelNativeWindow());
   }

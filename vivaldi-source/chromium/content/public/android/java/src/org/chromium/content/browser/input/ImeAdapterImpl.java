@@ -31,7 +31,6 @@ import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.WindowManager;
 import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.CorrectionInfo;
 import android.view.inputmethod.DeleteGesture;
@@ -68,7 +67,6 @@ import org.chromium.blink_public.web.WebInputEventModifier;
 import org.chromium.blink_public.web.WebTextInputMode;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.content.R;
 import org.chromium.content.browser.GestureListenerManagerImpl;
 import org.chromium.content.browser.RenderCoordinatesImpl;
 import org.chromium.content.browser.WindowEventObserver;
@@ -95,7 +93,6 @@ import org.chromium.ui.base.ime.TextInputType;
 import org.chromium.ui.mojom.ImeTextSpanType;
 import org.chromium.ui.mojom.VirtualKeyboardPolicy;
 import org.chromium.ui.mojom.VirtualKeyboardVisibilityRequest;
-import org.chromium.ui.widget.Toast;
 
 import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
@@ -205,6 +202,10 @@ public class ImeAdapterImpl
     // True if ImeAdapter is connected to render process.
     private boolean mIsConnected;
 
+    private boolean mAllowFullscreenIme;
+
+    private boolean mKeyboardSuppressed;
+
     // Whether to force show keyboard during stylus handwriting. We do not show it when writing
     // system is active and stylus is used to edit input text. This is used to show the soft
     // keyboard from Direct writing toolbar.
@@ -215,6 +216,8 @@ public class ImeAdapterImpl
     private String[] mSupportedMimeTypes = {};
 
     private @Nullable AutocorrectManager mAutocorrectManager;
+
+    private @Nullable ImeRenderWidgetHostImpl mBoundImeRenderWidgetHost;
 
     // Vivaldi
     private final @Nullable VivaldiMultiDisplayFocusGuard mFocusGuard =
@@ -273,7 +276,9 @@ public class ImeAdapterImpl
         public void onConnectionError(MojoException e) {}
 
         @Override
-        public void close() {}
+        public void close() {
+            mHandle.close();
+        }
     }
 
     /**
@@ -356,7 +361,9 @@ public class ImeAdapterImpl
         sNativeHelperMap.put(mNativeImeAdapterAndroid, new WeakReference<>(this));
         ImeAdapterImplJni.get().initialize(mNativeImeAdapterAndroid);
         WindowEventObserverManager.from(mWebContents).addObserver(this);
-        if (ContentFeatureMap.isEnabled(ContentFeatures.ANDROID_PK_AUTOCORRECT_UNDERLINE)) {
+        if (ContentFeatureMap.isEnabled(ContentFeatures.ANDROID_PK_AUTOCORRECT_UNDERLINE)
+                || ContentFeatureMap.isEnabled(
+                        ContentFeatures.ANDROID_PK_AUTOCORRECT_UNDERLINE_V2)) {
             mAutocorrectManager = new AutocorrectManager(this);
         }
     }
@@ -539,9 +546,15 @@ public class ImeAdapterImpl
      */
     public @Nullable ChromiumBaseInputConnection onCreateInputConnection(
             EditorInfo outAttrs, boolean allowKeyboardLearning) {
+        outAttrs.imeOptions = 0;
+
         // InputMethodService evaluates fullscreen mode even when the new input connection is
         // null. This makes sure IME doesn't enter fullscreen mode or open custom UI.
-        outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN | EditorInfo.IME_FLAG_NO_EXTRACT_UI;
+        if (!mAllowFullscreenIme) {
+            outAttrs.imeOptions |=
+                    EditorInfo.IME_FLAG_NO_FULLSCREEN | EditorInfo.IME_FLAG_NO_EXTRACT_UI;
+        }
+
         if (ContentFeatureMap.isEnabled(ContentFeatureList.ANDROID_MEDIA_INSERTION)) {
             mSupportedMimeTypes =
                     ImeAdapterImplJni.get().getSupportedMimeTypes(mNativeImeAdapterAndroid);
@@ -615,6 +628,19 @@ public class ImeAdapterImpl
         }
     }
 
+    @Override
+    public void setAllowFullscreenIme(boolean allow) {
+        mAllowFullscreenIme = allow;
+    }
+
+    @Override
+    public void setKeyboardSuppressed(boolean suppressed) {
+        mKeyboardSuppressed = suppressed;
+        if (mKeyboardSuppressed) {
+            hideKeyboard();
+        }
+    }
+
     @VisibleForTesting
     void setInputConnectionFactory(ChromiumBaseInputConnection.Factory factory) {
         mInputConnectionFactory = factory;
@@ -659,7 +685,14 @@ public class ImeAdapterImpl
         if ((metaState & KeyEvent.META_SHIFT_ON) != 0) {
             modifiers |= WebInputEventModifier.SHIFT_KEY;
         }
-        if ((metaState & KeyEvent.META_ALT_ON) != 0) {
+        if ((metaState & KeyEvent.META_ALT_LEFT_ON) != 0) {
+            modifiers |= WebInputEventModifier.ALT_KEY;
+        }
+        if ((metaState & KeyEvent.META_ALT_RIGHT_ON) != 0) {
+            modifiers |= WebInputEventModifier.ALT_GR_KEY;
+        }
+        if ((metaState & (KeyEvent.META_ALT_LEFT_ON | KeyEvent.META_ALT_RIGHT_ON)) == 0
+                && (metaState & KeyEvent.META_ALT_ON) != 0) {
             modifiers |= WebInputEventModifier.ALT_KEY;
         }
         if ((metaState & KeyEvent.META_CTRL_ON) != 0) {
@@ -840,8 +873,6 @@ public class ImeAdapterImpl
                         // internally for rendering the underline but are not reported to the IME
                         // to prevent unexpected behavior in the IME.
                         if (mAutocorrectManager != null
-                                && ContentFeatureMap.isEnabled(
-                                        ContentFeatures.ANDROID_PK_AUTOCORRECT_UNDERLINE)
                                 && info.getType() == ImeTextSpanType.AUTOCORRECT) {
                             continue;
                         }
@@ -894,6 +925,10 @@ public class ImeAdapterImpl
     /** Show soft keyboard only if it is the current keyboard configuration. */
     private void showSoftKeyboard() {
         if (!isValid()) return;
+        if (mKeyboardSuppressed) {
+            Log.d(TAG, "showSoftKeyboard: blocked because keyboard is suppressed");
+            return;
+        }
         if (DEBUG_LOGS) Log.i(TAG, "showSoftKeyboard");
         View containerView = getContainerView();
 
@@ -1060,6 +1095,12 @@ public class ImeAdapterImpl
             resetAndHideKeyboard();
         else
         if (!gainFocus && hideKeyboardOnBlur) resetAndHideKeyboard();
+        if (gainFocus
+                && isValid()
+                && ContentFeatureMap.isEnabled(
+                        ContentFeatureList.ANDROID_FORCE_TEXT_INPUT_STATE_UPDATE_UPON_FOCUS)) {
+            requestTextInputStateUpdate();
+        }
         if (mInputConnectionFactory != null) {
             mInputConnectionFactory.onViewFocusChanged(gainFocus);
         }
@@ -1107,6 +1148,11 @@ public class ImeAdapterImpl
         mStylusWritingImeCallback = null;
         if (mWebContents.getStylusWritingHandler() != null) {
             mWebContents.getStylusWritingHandler().onImeAdapterDestroyed();
+        }
+
+        if (mBoundImeRenderWidgetHost != null) {
+            mBoundImeRenderWidgetHost.close();
+            mBoundImeRenderWidgetHost = null;
         }
 
         WeakReference<ImeAdapterImpl> oldValue = sNativeHelperMap.remove(mNativeImeAdapterAndroid);
@@ -1167,6 +1213,12 @@ public class ImeAdapterImpl
 
     public boolean performEditorAction(int actionCode) {
         if (!isValid()) return false;
+
+        // Only hide the keyboard on DONE if fullscreen IME is allowed/enabled.
+        // See crbug.com/498324340.
+        if (actionCode == EditorInfo.IME_ACTION_DONE && mAllowFullscreenIme) {
+            hideKeyboard();
+        }
 
         // If mTextInputAction has been specified (indicating an enterKeyHint
         // has been specified in the HTML) then we do will send the enter key
@@ -1298,7 +1350,7 @@ public class ImeAdapterImpl
                                 lastKeyDownEvent.getUnicodeChar());
 
                 if (mAutocorrectManager != null) {
-                    mAutocorrectManager.onCommitText();
+                    mAutocorrectManager.onCommitTextOrSendKeyEvent();
                 }
                 return true;
             }
@@ -1328,8 +1380,8 @@ public class ImeAdapterImpl
             // followed by commitText(). We append the underline here because the text
             // must be committed before the span can be applied to it.
             if (mAutocorrectManager != null) {
-                mAutocorrectManager.maybeAppendAutocorrectUnderlineSpan();
-                mAutocorrectManager.onCommitText();
+                mAutocorrectManager.maybeApplyDeferredUnderline();
+                mAutocorrectManager.onCommitTextOrSendKeyEvent();
             }
 
         } else {
@@ -1382,6 +1434,10 @@ public class ImeAdapterImpl
 
         for (ImeEventObserver observer : mEventObservers) observer.onBeforeSendKeyEvent(event);
         onImeEvent();
+
+        if (action == KeyEvent.ACTION_DOWN && mAutocorrectManager != null) {
+            mAutocorrectManager.onCommitTextOrSendKeyEvent();
+        }
 
         return ImeAdapterImplJni.get()
                 .sendKeyEvent(
@@ -1493,6 +1549,7 @@ public class ImeAdapterImpl
                         ImeAdapterImpl.this,
                         start,
                         end,
+                        text,
                         text.toString(),
                         newCursorPosition);
         return true;
@@ -1576,8 +1633,10 @@ public class ImeAdapterImpl
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA
                 && Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1
                 && ContentFeatureList.sAccessibilityMagnificationFollowsFocus.isEnabled()) {
-            Rect nodePix = fromCssToDevicePix(nodeLeftDip, nodeTopDip, nodeRightDip, nodeBottomDip);
-            if (!nodePix.isEmpty()) {
+            Rect nodePix =
+                    fromViewportDipToViewContentPix(
+                            nodeLeftDip, nodeTopDip, nodeRightDip, nodeBottomDip, containerView);
+            if (nodePix != null && !nodePix.isEmpty()) {
                 containerView.requestRectangleOnScreen(
                         nodePix,
                         /* immediate= */ false,
@@ -1640,8 +1699,11 @@ public class ImeAdapterImpl
     /** Send a request to the native counterpart to give the latest text input state update. */
     boolean requestTextInputStateUpdate() {
         if (!isValid()) return false;
-        // You won't get state update anyways.
-        if (mInputConnection == null) return false;
+        if (mInputConnection == null
+                && !ContentFeatureMap.isEnabled(
+                        ContentFeatureList.ANDROID_FORCE_TEXT_INPUT_STATE_UPDATE_UPON_FOCUS)) {
+            return false;
+        }
         return ImeAdapterImplJni.get().requestTextInputStateUpdate(mNativeImeAdapterAndroid);
     }
 
@@ -1661,25 +1723,6 @@ public class ImeAdapterImpl
                 immediateRequest, monitorRequest, getContainerView());
     }
 
-    @CalledByNative
-    void onCommitContentResult(boolean success) {
-        if (!success) {
-            try {
-                // If the rich content commit fails, display the failure message.
-                Toast.makeText(
-                                getContainerView().getContext(),
-                                R.string.rich_content_commit_failure_message,
-                                Toast.LENGTH_SHORT)
-                        .show();
-            } catch (WindowManager.BadTokenException e) {
-                Log.w(
-                        TAG,
-                        "Failed to display message toast to notify the rich content commit"
-                                + " failure.");
-            }
-        }
-    }
-
     /**
      * Sends rich content into the current focused text field
      *
@@ -1689,15 +1732,9 @@ public class ImeAdapterImpl
      */
     boolean commitContent(byte[] bytes, String extension) {
         onImeEvent();
-        if (isValid()
+        return isValid()
                 && ImeAdapterImplJni.get()
-                        .insertMediaFromBytes(mNativeImeAdapterAndroid, bytes, extension)) {
-            return true;
-
-        } else {
-            onCommitContentResult(false);
-            return false;
-        }
+                        .insertMediaFromBytes(mNativeImeAdapterAndroid, bytes, extension);
     }
 
     /** Lazily creates/returns a StylusWritingImeCallback object. */
@@ -1776,23 +1813,49 @@ public class ImeAdapterImpl
     }
 
     /**
-     * Converts bounds from CSS pixels to device pixels, accounting for page scale, device scale,
-     * and content Y offset.
+     * Converts bounds from device-independent pixels in viewport space to device pixels in
+     * view-content space, clamped to the visible rectangle of the container view.
      *
-     * @param left left X coordinate in CSS pixels
-     * @param top top Y coordinate in CSS pixels
-     * @param right right X coordinate in CSS pixels
-     * @param bottom bottom Y coordinate in CSS pixels
-     * @return {@link Rect} with the device pixel equivalents of the provided coordinates.
+     * @param left left X coordinate in Blink viewport-relative DIPs
+     * @param top top Y coordinate in Blink viewport-relative DIPs
+     * @param right right X coordinate in Blink viewport-relative DIPs
+     * @param bottom bottom Y coordinate in Blink viewport-relative DIPs
+     * @param containerView view to clamp coordinates to
+     * @return {@link Rect} with the device pixel equivalents of the provided coordinates in
+     *     view-content space, clamped to the visible portion of the container view, or null if the
+     *     bounds do not intersect the visible portion of the container view.
      */
-    private Rect fromCssToDevicePix(float left, float top, float right, float bottom) {
+    private @Nullable Rect fromViewportDipToViewContentPix(
+            float left, float top, float right, float bottom, View containerView) {
+        // Get container view's visible area in view-content coordinates.
+        // Chrome team trial-and-error has determined that (inconsistently with other View
+        // documentation), "top left" in the View#getLocalVisibleRect is in content space rather
+        // than viewport space for the view.
+        Rect visibleRect = new Rect();
+        if (!containerView.getLocalVisibleRect(visibleRect)) {
+            return null; // The container is entirely offscreen.
+        }
+
+        // Scale bounds to device pixels in Android view coordinates.
         RenderCoordinatesImpl coords = mWebContents.getRenderCoordinates();
-        final int topOffset = coords.getContentOffsetYPixInt();
-        return new Rect(
-                (int) coords.fromLocalCssToPix(left),
-                ((int) coords.fromLocalCssToPix(top)) + topOffset,
-                (int) coords.fromLocalCssToPix(right),
-                ((int) coords.fromLocalCssToPix(bottom)) + topOffset);
+        final int topOffset = coords.getContentOffsetYPixInt(); // Offset for Chrome address bar.
+        final float scale = coords.getDeviceScaleFactor();
+        Rect bounds =
+                new Rect(
+                        (int) (left * scale),
+                        (int) (top * scale) + topOffset,
+                        (int) (right * scale),
+                        (int) (bottom * scale) + topOffset);
+
+        // Translate bounds to view-content coordinates by adding Android view scroll. This is a
+        // no-op for Chrome (which always reports zero scroll), but will adjust for WebView scroll.
+        bounds.offset(containerView.getScrollX(), containerView.getScrollY());
+
+        // Clamp to visible area and return clamped bounds in view-content coordinates.
+        if (!bounds.intersect(visibleRect)) {
+            return null; // The bounds are entirely offscreen.
+        }
+        return bounds;
     }
 
     /**
@@ -1818,23 +1881,26 @@ public class ImeAdapterImpl
             // Convert caret bounds from CSS pixels to device pixels relative to root view.
             var caretCss = cursorAnchorInfo.insertionMarker;
             Rect caretPix =
-                    fromCssToDevicePix(
+                    fromViewportDipToViewContentPix(
                             caretCss.x,
                             caretCss.y,
                             caretCss.x + caretCss.width,
-                            caretCss.y + caretCss.height);
+                            caretCss.y + caretCss.height,
+                            containerView);
 
-            // Note: `SDK_INT_FULL` added in `BAKLAVA`, hence two checks.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA
-                    && Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
-                containerView.requestRectangleOnScreen(
-                        caretPix,
-                        /* immediate= */ false,
-                        View.RECTANGLE_ON_SCREEN_REQUEST_SOURCE_TEXT_CURSOR);
-            } else {
-                // Fallback to previous API (where `requestRectangleOnScreen()` calls are assumed
-                // to come from text cursor moves).
-                containerView.requestRectangleOnScreen(caretPix);
+            if (caretPix != null) {
+                // Note: `SDK_INT_FULL` added in `BAKLAVA`, hence two checks.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA
+                        && Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
+                    containerView.requestRectangleOnScreen(
+                            caretPix,
+                            /* immediate= */ false,
+                            View.RECTANGLE_ON_SCREEN_REQUEST_SOURCE_TEXT_CURSOR);
+                } else {
+                    // Fallback to previous API (where `requestRectangleOnScreen()` calls are
+                    // assumed to come from text cursor moves).
+                    containerView.requestRectangleOnScreen(caretPix);
+                }
             }
         }
     }
@@ -1848,9 +1914,13 @@ public class ImeAdapterImpl
      */
     @CalledByNative
     private void bindImeRenderHost(long nativeHandle) {
+        if (mBoundImeRenderWidgetHost != null) {
+            mBoundImeRenderWidgetHost.close();
+            mBoundImeRenderWidgetHost = null;
+        }
         MessagePipeHandle handle =
                 CoreImpl.getInstance().acquireNativeHandle(nativeHandle).toMessagePipeHandle();
-        new ImeRenderWidgetHostImpl(this, handle);
+        mBoundImeRenderWidgetHost = new ImeRenderWidgetHostImpl(this, handle);
     }
 
     /**
@@ -1875,6 +1945,9 @@ public class ImeAdapterImpl
             float insertionMarkerHorizontal,
             float insertionMarkerTop,
             float insertionMarkerBottom) {
+        View containerView = getContainerView();
+        if (containerView == null) return;
+
         mCursorAnchorInfoController.onUpdateFrameInfo(
                 scaleFactor,
                 contentOffsetYPix,
@@ -1883,7 +1956,7 @@ public class ImeAdapterImpl
                 insertionMarkerHorizontal,
                 insertionMarkerTop,
                 insertionMarkerBottom,
-                getContainerView());
+                containerView);
     }
 
     @CalledByNative
@@ -1946,6 +2019,10 @@ public class ImeAdapterImpl
                 ContentFeatureMap.isEnabled(
                         ContentFeatureList
                                 .ANDROID_BLOCK_MISSPELLING_SUGGESTION_SPAN_IN_COMPOSITION_MODE);
+        final boolean blockGrammarInComposition =
+                ContentFeatureMap.isEnabled(
+                        ContentFeatureList
+                                .ANDROID_BLOCK_GRAMMAR_SUGGESTION_SPAN_IN_COMPOSITION_MODE);
 
         SpannableString spannableString = ((SpannableString) text);
         CharacterStyle[] spans = spannableString.getSpans(0, text.length(), CharacterStyle.class);
@@ -1993,15 +2070,26 @@ public class ImeAdapterImpl
                         (suggestionSpan.getFlags() & SuggestionSpan.FLAG_EASY_CORRECT) != 0;
                 final boolean isMisspellingSpan =
                         (suggestionSpan.getFlags() & SuggestionSpan.FLAG_MISSPELLED) != 0;
+                final boolean isGrammarSpan =
+                        (suggestionSpan.getFlags() & SuggestionSpan.FLAG_GRAMMAR_ERROR) != 0;
                 final boolean isAutoCorrectionSpan =
                         (suggestionSpan.getFlags() & SuggestionSpan.FLAG_AUTO_CORRECTION) != 0;
 
-                if (!isEasyCorrectSpan && !isMisspellingSpan && !isAutoCorrectionSpan) continue;
+                if (!isEasyCorrectSpan
+                        && !isMisspellingSpan
+                        && !isGrammarSpan
+                        && !isAutoCorrectionSpan) {
+                    continue;
+                }
 
                 // Some IMEs (Gboard) require the additional suggestion spans with FLAG_MISSPELLED
                 // present in the surrounding text to guide their custom spell check bar. We should
                 // not report these "artificial" suggestion spans to Blink.
                 if (!isEasyCorrectSpan && isMisspellingSpan && blockMisspellingInComposition) {
+                    continue;
+                }
+
+                if (!isEasyCorrectSpan && isGrammarSpan && blockGrammarInComposition) {
                     continue;
                 }
 
@@ -2015,14 +2103,23 @@ public class ImeAdapterImpl
                 final int suggestionHighlightColor =
                         (underlineColor & 0x00FFFFFF) + (newAlpha << 24);
 
-                // In native side, we treat FLAG_AUTO_CORRECTION span as kMisspellingSuggestion
+                // In native side, we treat FLAG_AUTO_CORRECTION span as kAutocorrect
                 // marker with 0 suggestion.
+                @ImeTextSpanType.EnumType int type = ImeTextSpanType.SUGGESTION;
+                if (isAutoCorrectionSpan) {
+                    type = ImeTextSpanType.AUTOCORRECT;
+                } else if (isMisspellingSpan) {
+                    type = ImeTextSpanType.MISSPELLING_SUGGESTION;
+                } else if (isGrammarSpan) {
+                    type = ImeTextSpanType.GRAMMAR_SUGGESTION;
+                }
+
                 ImeAdapterImplJni.get()
                         .appendSuggestionSpan(
                                 imeTextSpans,
                                 spannableString.getSpanStart(suggestionSpan),
                                 spannableString.getSpanEnd(suggestionSpan),
-                                isMisspellingSpan || isAutoCorrectionSpan,
+                                type,
                                 removeOnFinishComposing,
                                 underlineColor,
                                 suggestionHighlightColor,
@@ -2106,7 +2203,7 @@ public class ImeAdapterImpl
                 long spanPtr,
                 int start,
                 int end,
-                boolean isMisspelling,
+                @ImeTextSpanType.EnumType int type,
                 boolean removeOnFinishComposing,
                 int underlineColor,
                 int suggestionHighlightColor,
@@ -2133,7 +2230,8 @@ public class ImeAdapterImpl
                 ImeAdapterImpl self,
                 int start,
                 int end,
-                String text,
+                CharSequence text,
+                String textStr,
                 int newCursorPosition);
 
         boolean insertMediaFromBytes(long nativeImeAdapterAndroid, byte[] bytes, String extension);

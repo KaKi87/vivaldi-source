@@ -7,8 +7,6 @@
 
 #import "base/feature_list.h"
 
-class ProfileIOS;
-
 namespace first_run {
 
 // Defines the different experiment arms for the Animated Default Browser Promo
@@ -47,6 +45,8 @@ enum class BestFeaturesScreenVariationType {
   kSignedInUsersOnlyAfterDBPromo,
   // Show the address bar promo instead of the Best Features screen.
   kAddressBarPromoInsteadOfBestFeaturesScreen,
+  // Show the general screen to all users as a part of the Best of App FRE.
+  kBestOfApp,
 };
 
 // Enum to represent arms of feature kUpdatedFirstRunSequence.
@@ -91,10 +91,8 @@ extern const char kUpdatedFirstRunSequenceParam[];
 BestFeaturesScreenVariationType GetBestFeaturesScreenVariationType();
 
 // Returns which variation of the kUpdatedFirstRunSequence feature is enabled or
-// `kDisabled` if the feature is disabled. This feature is disabled for profiles
-// that can be eligible to search engine choice screens.
-UpdatedFRESequenceVariationType GetUpdatedFRESequenceVariation(
-    ProfileIOS* profile);
+// `kDisabled` if the feature is disabled.
+UpdatedFRESequenceVariationType GetUpdatedFRESequenceVariation();
 
 // Whether the Default Browser Experiment in the FRE is enabled. This feature is
 // disabled when kUpdatedFirstRunSequence is enabled.

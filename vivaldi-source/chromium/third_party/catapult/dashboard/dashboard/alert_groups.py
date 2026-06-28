@@ -22,6 +22,8 @@ from google.appengine.api import taskqueue
 
 DEFAULT_UNGROUPED_GROUP_NAME = 'Ungrouped'
 SKIA_UNGROUPED_GROUP_NAME = 'Ungrouped_Skia'
+UNGROUPED_ANOMALIES_PROCESSING_LIMIT = 100
+
 
 UNGROUPED_GROUP_MAPPING = {
     alert_group.AlertGroup.Type.test_suite: DEFAULT_UNGROUPED_GROUP_NAME,
@@ -79,10 +81,19 @@ def _ProcessUngroupedAlerts(group_type: int):
     return
 
   ungrouped = ungrouped_list[0]
-  ungrouped_anomalies = ndb.get_multi(ungrouped.anomalies)
+  logging.info('[ConfirmFix] Ungrouped bucket contains %i anomaly keys.', len(ungrouped.anomalies))
+
+  # Limit processing to avoid timeouts and datastore limits.
+  keys_to_process = ungrouped.anomalies[:UNGROUPED_ANOMALIES_PROCESSING_LIMIT]
+
+  logging.info('[ConfirmFix] Attempting ndb.get_multi on %i keys...', len(keys_to_process))
+  ungrouped_anomalies = ndb.get_multi(keys_to_process)
+
+  # Filter out any None results if any keys were invalid or deleted
+  ungrouped_anomalies = [a for a in ungrouped_anomalies if a is not None]
 
   logging.info('%i anomalies found in %s group: %s', len(ungrouped_anomalies),
-               ungrouped_group_name, ungrouped.anomalies)
+               ungrouped_group_name, keys_to_process)
 
   # Parity on anomaly counts under ungrouped
   try:

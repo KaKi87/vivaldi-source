@@ -21,6 +21,10 @@
 
 #include "app/vivaldi_resources.h"
 
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+#include "components/os_crypt/async/browser/os_crypt_async.h"
+#endif  // BUILDFLAG(IS_LINUX)
+
 ExternalProcessImporterClient::ExternalProcessImporterClient(
     base::WeakPtr<ExternalProcessImporterHost> importer_host,
     const user_data_importer::SourceProfile& source_profile,
@@ -119,6 +123,16 @@ void ExternalProcessImporterClient::OnImportFinished(
   if (cancelled_)
     return;
 
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+  if (pending_password_decryption_) {
+    DeferredImportFinished deferred_import;
+    deferred_import.succeeded = succeeded;
+    deferred_import.error_msg = error_msg;
+    deferred_import_finished_ = std::move(deferred_import);
+    return;
+  }
+#endif  // IS_LINUX
+
   if (!succeeded)
     LOG(WARNING) << "Import failed.  Error: " << error_msg;
   Cleanup();
@@ -136,6 +150,23 @@ void ExternalProcessImporterClient::OnImportItemFinished(
     user_data_importer::ImportItem import_item) {
   if (cancelled_)
     return;
+
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+  if (import_item == user_data_importer::PASSWORDS &&
+      pending_password_decryption_) {
+    deferred_password_item_finished_ = true;
+    if (pending_password_decryption_failed_.has_value()) {
+      MaybeCompletePendingPasswordImport();
+    }
+    return;
+  }
+#endif  // IS_LINUX
+
+  if (import_item == user_data_importer::PASSWORDS && password_import_failed_) {
+    password_import_failed_ = false;
+    profile_import_->ReportImportItemFinished(import_item);
+    return;
+  }
 
   bridge_->NotifyItemEnded(import_item);
   profile_import_->ReportImportItemFinished(import_item);

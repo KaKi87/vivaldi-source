@@ -8,6 +8,7 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/functional/callback_helpers.h"
+#include "base/json/json_reader.h"
 #include "base/memory/raw_ptr.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
@@ -23,6 +24,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/chrome_content_verifier_delegate.h"
+#include "chrome/browser/extensions/chrome_test_extension_loader.h"
 #include "chrome/browser/extensions/component_loader.h"
 #include "chrome/browser/extensions/corrupted_extension_reinstaller.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
@@ -34,6 +36,7 @@
 #include "chrome/browser/extensions/shared_module_service_factory.h"
 #include "chrome/browser/extensions/sync/extension_sync_data.h"
 #include "chrome/browser/extensions/sync/extension_sync_service.h"
+#include "chrome/browser/extensions/updater/chrome_update_client_config.h"
 #include "chrome/browser/extensions/updater/extension_updater.h"
 #include "chrome/browser/policy/extension_policy_test_base.h"
 #include "chrome/browser/policy/policy_test_utils.h"
@@ -44,6 +47,7 @@
 #include "chrome/common/extensions/extension_test_util.h"
 #include "chrome/common/extensions/manifest_handlers/app_launch_info.h"
 #include "chrome/test/base/chrome_test_utils.h"
+#include "components/crx_file/crx_verifier.h"
 #include "components/policy/core/browser/browser_policy_connector.h"
 #include "components/policy/policy_constants.h"
 #include "components/sync/model/sync_change.h"
@@ -86,6 +90,8 @@
 #include "extensions/common/manifest_handlers/shared_module_info.h"
 #include "extensions/common/mojom/view_type.mojom.h"
 #include "extensions/common/permissions/permissions_data.h"
+#include "extensions/common/verifier_formats.h"
+#include "extensions/test/test_extension_dir.h"
 #include "net/test/embedded_test_server/http_request.h"
 #include "net/test/embedded_test_server/http_response.h"
 #include "third_party/blink/public/common/switches.h"
@@ -95,7 +101,7 @@
 #include "chrome/browser/extensions/scoped_test_mv2_enabler.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
-#include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
+#include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"  // nogncheck
 #include "chrome/browser/web_applications/test/web_app_test_observers.h"
 #include "chrome/browser/web_applications/test/web_app_test_utils.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
@@ -551,19 +557,23 @@ IN_PROC_BROWSER_TEST_F(ExtensionPolicyTest, ExtensionInstallBlocklistWildcard) {
 IN_PROC_BROWSER_TEST_F(ExtensionPolicyTest,
                        ExtensionInstallBlocklistSharedModules) {
   // Verifies that shared_modules are not affected by the blocklist.
+  auto disable_cup =
+      extensions::ChromeUpdateClientConfig::ScopedDisableCupSigningForTests();
+  auto disable_publisher_key =
+      extensions::DisablePublisherKeyVerificationForTests();
 
   base::FilePath base_path;
   GetTestDataDirectory(&base_path);
-  base::FilePath update_xml_template_path =
+  base::FilePath update_json_template_path =
       base_path.Append(kTestExtensionsDir)
           .AppendASCII("policy_shared_module")
-          .AppendASCII("update_template.xml");
+          .AppendASCII("update_template.json");
 
-  std::string update_xml_path =
+  std::string update_json_path =
       "/" + base::FilePath(kTestExtensionsDir).MaybeAsASCII() +
-      "/policy_shared_module/gen_update.xml";
-  RegisterURLReplacingHandler(embedded_test_server(), update_xml_path,
-                              update_xml_template_path);
+      "/policy_shared_module/gen_update.json";
+  RegisterURLReplacingHandler(embedded_test_server(), update_json_path,
+                              update_json_template_path);
   ASSERT_TRUE(embedded_test_server()->Start());
 
   const char kImporterId[] = "pchakhniekfaeoddkifplhnfbffomabh";
@@ -582,16 +592,16 @@ IN_PROC_BROWSER_TEST_F(ExtensionPolicyTest,
 
   // Mock the webstore update URL. This is where the shared module extension
   // will be installed from.
-  GURL update_xml_url = embedded_test_server()->GetURL(update_xml_path);
-  extension_test_util::SetGalleryUpdateURL(update_xml_url);
-  NavigateToURL(update_xml_url);
+  GURL update_json_url = embedded_test_server()->GetURL(update_json_path);
+  extension_test_util::SetGalleryUpdateURL(update_json_url);
+  NavigateToURL(update_json_url);
 
   // Blocklist "*" but force-install the importer extension. The shared module
   // should be automatically installed too.
   base::ListValue blocklist;
   blocklist.Append("*");
   PolicyMap policies;
-  AddExtensionToForceList(&policies, kImporterId, update_xml_url);
+  AddExtensionToForceList(&policies, kImporterId, update_json_url);
   policies.Set(key::kExtensionInstallBlocklist, POLICY_LEVEL_MANDATORY,
                POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
                base::Value(std::move(blocklist)), nullptr);
@@ -684,6 +694,13 @@ class ExtensionRequestInterceptor {
         params->url_request.url.GetPath() == "/service/update2/crx") {
       content::URLLoaderInterceptor::WriteResponse(
           "chrome/test/data/extensions/good2_update_manifest.xml",
+          params->client.get());
+      return true;
+    }
+
+    if (params->url_request.url.GetPath() == "/service/update2/json") {
+      content::URLLoaderInterceptor::WriteResponse(
+          "chrome/test/data/extensions/good2_update_manifest.json",
           params->client.get());
       return true;
     }
@@ -1526,8 +1543,17 @@ IN_PROC_BROWSER_TEST_F(ExtensionPolicyTest, UpdateManifestOrderedAppTags) {
 
 // Verifies that corrupted non-webstore policy-based extension is automatically
 // repaired (reinstalled).
+
+// TODO(crbug.com/511917153): Re-enable this test on Android.
+#if BUILDFLAG(IS_ANDROID)
+#define MAYBE_CorruptedNonWebstoreExtensionRepaired \
+  DISABLED_CorruptedNonWebstoreExtensionRepaired
+#else
+#define MAYBE_CorruptedNonWebstoreExtensionRepaired \
+  CorruptedNonWebstoreExtensionRepaired
+#endif
 IN_PROC_BROWSER_TEST_F(ExtensionPolicyTest,
-                       CorruptedNonWebstoreExtensionRepaired) {
+                       MAYBE_CorruptedNonWebstoreExtensionRepaired) {
   // Mark as enterprise managed.
   policy::ScopedDomainEnterpriseManagement scoped_domain;
   ignore_content_verifier_.reset();
@@ -1596,8 +1622,9 @@ IN_PROC_BROWSER_TEST_F(ExtensionPolicyTest,
 
 // Verifies that corrupted non-webstore policy-based extension is automatically
 // repaired (reinstalled) even if hashes file is damaged too.
-// crbug.com/1131634: flaky on win
-#if BUILDFLAG(IS_WIN)
+// crbug.com/40150293: flaky on win
+// crbug.com/512086953: flaky on android
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID)
 #define MAYBE_CorruptedNonWebstoreExtensionWithDamagedHashesRepaired \
   DISABLED_CorruptedNonWebstoreExtensionWithDamagedHashesRepaired
 #else
@@ -1678,11 +1705,20 @@ IN_PROC_BROWSER_TEST_F(
 // Verifies that corrupted non-webstore policy-based extension is not repaired
 // if there are no computed_hashes.json for it. Note that this behavior will
 // change in the future.
-// See https://crbug.com/40625642#c22 for details.
+// See https://crbug.com/40625642#comment23 for details.
 // TODO(crbug.com/40669814): Change this test so extension without hashes
 // will be also reinstalled.
-IN_PROC_BROWSER_TEST_F(ExtensionPolicyTest,
-                       CorruptedNonWebstoreExtensionWithoutHashesRemained) {
+// TODO(crbug.com/511917153): Re-enable this test on Android.
+#if BUILDFLAG(IS_ANDROID)
+#define MAYBE_CorruptedNonWebstoreExtensionWithoutHashesRemained \
+  DISABLED_CorruptedNonWebstoreExtensionWithoutHashesRemained
+#else
+#define MAYBE_CorruptedNonWebstoreExtensionWithoutHashesRemained \
+  CorruptedNonWebstoreExtensionWithoutHashesRemained
+#endif
+IN_PROC_BROWSER_TEST_F(
+    ExtensionPolicyTest,
+    MAYBE_CorruptedNonWebstoreExtensionWithoutHashesRemained) {
   // Mark as enterprise managed.
   policy::ScopedDomainEnterpriseManagement scoped_domain;
   ignore_content_verifier_.reset();
@@ -1847,7 +1883,10 @@ IN_PROC_BROWSER_TEST_F(ExtensionPolicyTest,
                        ExtensionInstallForcelist_DefaultedUpdateUrl) {
   // Verifies the ExtensionInstallForcelist policy with an empty (defaulted)
   // "update" URL.
-
+  auto disable_cup =
+      extensions::ChromeUpdateClientConfig::ScopedDisableCupSigningForTests();
+  auto disable_publisher_key =
+      extensions::DisablePublisherKeyVerificationForTests();
   ExtensionRequestInterceptor interceptor;
 
   extensions::ExtensionRegistry* registry = extension_registry();
@@ -1865,7 +1904,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionPolicyTest,
 
 // Verifies that the browser doesn't crash on shutdown. If the extensions are
 // being installed, and the browser is shutdown, it should not lead to a crash
-// as in (crbug/1114191).
+// as in (crbug.com/40710676).
 IN_PROC_BROWSER_TEST_F(ExtensionPolicyTest,
                        ExtensionInstallForcelistShutdownBeforeInstall) {
   ExtensionRequestInterceptor interceptor;
@@ -2341,6 +2380,43 @@ IN_PROC_BROWSER_TEST_F(ExtensionPolicyTest, ExtensionBlockedHostWhenDisabled) {
       extension->permissions_data()->CanAccessPage(test_url, tab_id, error));
 }
 
+// Regression test for https://crbug.com/513089253.
+// Verifies that intersecting an enterprise policy allowing an extension scheme
+// URL with an extension requesting <all_urls> (but lacking extension scheme
+// permissions) results in an empty intersection rather than a crash.
+IN_PROC_BROWSER_TEST_F(ExtensionPolicyTest, ValidSchemeAndPatternIntersection) {
+  std::string json = R"({
+    "*": {
+      "installation_mode": "allowed",
+      "runtime_allowed_hosts": [
+        "chrome-extension://abcdefghijklmnoabcdefghijklmno"
+      ]
+    }
+  })";
+  std::optional<base::Value> settings =
+      base::JSONReader::Read(json, base::JSON_PARSE_RFC);
+  ASSERT_TRUE(settings);
+
+  PolicyMap policies;
+  policies.Set(key::kExtensionSettings, POLICY_LEVEL_MANDATORY,
+               POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
+               std::move(settings.value()), nullptr);
+  UpdateProviderPolicy(policies);
+
+  extensions::TestExtensionDir test_dir;
+  test_dir.WriteManifest(R"({
+    "name": "All URLs Extension",
+    "version": "1.0",
+    "manifest_version": 3,
+    "host_permissions": ["<all_urls>"]
+  })");
+
+  extensions::ChromeTestExtensionLoader loader(profile());
+  scoped_refptr<const extensions::Extension> extension =
+      loader.LoadExtension(test_dir.UnpackedPath());
+  ASSERT_TRUE(extension);
+}
+
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 // Similar to ExtensionPolicyTest but sets the WebAppInstallForceList policy
 // before the browser is started.
@@ -2514,9 +2590,16 @@ class WebAppInstallForceListPolicyPlaceholderWithAppFallbackNameTest
       delete;
 };
 
+#if BUILDFLAG(IS_MAC)
+#define MAYBE_StartUpInstallationPlaceholderFallbackName \
+  DISABLED_StartUpInstallationPlaceholderFallbackName
+#else
+#define MAYBE_StartUpInstallationPlaceholderFallbackName \
+  StartUpInstallationPlaceholderFallbackName
+#endif
 IN_PROC_BROWSER_TEST_F(
     WebAppInstallForceListPolicyPlaceholderWithAppFallbackNameTest,
-    StartUpInstallationPlaceholderFallbackName) {
+    MAYBE_StartUpInstallationPlaceholderFallbackName) {
   const web_app::WebAppRegistrar& registrar =
       web_app::WebAppProvider::GetForTest(browser()->profile())
           ->registrar_unsafe();

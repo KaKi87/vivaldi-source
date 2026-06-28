@@ -295,6 +295,9 @@
 
 - (void)backupEncryptionKeyButtonPressed {
   NSString* filePath = [self.serviceDelegate createTempBackupEncryptionKeyFile];
+  if (!filePath) {
+    return;
+  }
 
   // Get the URL of your text file
   NSURL* fileURL = [NSURL fileURLWithPath:filePath];

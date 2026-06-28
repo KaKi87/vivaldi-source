@@ -393,6 +393,11 @@ class StubAccountSelectionViewDelegate : public AccountSelectionView::Delegate {
   gfx::NativeView GetNativeView() override { return gfx::NativeView(); }
 
   content::WebContents* GetWebContents() override { return web_contents_; }
+  content::IdentityRequestDialogController::PassiveDialogVolume
+  GetPassiveDialogVolume() const override {
+    return content::IdentityRequestDialogController::PassiveDialogVolume::
+        kDefault;
+  }
   std::optional<DismissReason> GetDismissReason() { return dismiss_reason_; }
 
   void SetOnDismissClosure(base::OnceClosure on_dismiss) {
@@ -2683,19 +2688,19 @@ TEST_F(FedCmAccountSelectionViewDesktopTest, DisclosureDialogResultMetric) {
   CheckForSampleAndReset(webid::DisclosureDialogResult::kDestroy);
 }
 
-TEST_F(FedCmAccountSelectionViewDesktopTest, CanShowWidget) {
+TEST_F(FedCmAccountSelectionViewDesktopTest, CanShowUi) {
   std::unique_ptr<TestFedCmAccountSelectionView> controller =
       CreateAndShow(accounts_);
   EXPECT_TRUE(controller->IsDialogWidgetVisible());
 
-  controller->SetCanShowWidget(false);
+  controller->SetCanShowUi(false);
   EXPECT_FALSE(controller->IsDialogWidgetVisible());
 
   // Resizing should not show it.
   controller->PrimaryMainFrameWasResized(/*width_changed=*/true);
   EXPECT_FALSE(controller->IsDialogWidgetVisible());
 
-  controller->SetCanShowWidget(true);
+  controller->SetCanShowUi(true);
   EXPECT_TRUE(controller->IsDialogWidgetVisible());
 }
 

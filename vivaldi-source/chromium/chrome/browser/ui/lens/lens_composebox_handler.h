@@ -44,10 +44,12 @@ class LensComposeboxHandler : public composebox::mojom::PageHandler,
                    bool alt_key,
                    bool ctrl_key,
                    bool meta_key,
-                   bool shift_key) override;
+                   bool shift_key,
+                   bool is_voice_search) override;
   void FocusChanged(bool focused) override;
   void HandleLensButtonClick() override;
   void HandleFileUpload(bool is_image) override;
+  void StartPlatformVoiceRecognition() override;
   void OnContextMenuOpened() override;
   void NavigateUrl(const GURL& url) override;
   void CloseLensOverlayFromWebUI(
@@ -55,6 +57,11 @@ class LensComposeboxHandler : public composebox::mojom::PageHandler,
   void SetSmartTabSharingActive(bool active) override;
   void GetSmartTabSharingActive(
       GetSmartTabSharingActiveCallback callback) override;
+  void NotifyComposeboxQuerySubmittedWithContext() override;
+  void CanShowNextboxAnimation(
+      CanShowNextboxAnimationCallback callback) override;
+  void RecordNextboxAnimationImpression() override;
+
   // searchbox::mojom::PageHandler:
   void DeleteAutocompleteMatch(uint8_t line, const GURL& url) override;
   void ExecuteAction(uint8_t line,

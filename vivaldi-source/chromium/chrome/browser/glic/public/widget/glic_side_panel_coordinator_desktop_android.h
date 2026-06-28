@@ -18,9 +18,13 @@ class SidePanelEntryScope;
 class SidePanelRegistry;
 class SidePanelUI;
 
-namespace glic {
+namespace context_sharing {
 class CoBrowseViewsBridge;
+}
+
+namespace glic {
 class GlicKeyedService;
+class GlicToast;
 
 // GlicSidePanelCoordinatorDesktopAndroid handles the creation and registration
 // of the glic SidePanelEntry for Android Desktop.
@@ -35,15 +39,18 @@ class GlicSidePanelCoordinatorDesktopAndroid : public GlicSidePanelCoordinator,
   // GlicSidePanelCoordinator:
   using GlicSidePanelCoordinator::Close;
   using GlicSidePanelCoordinator::Show;
-  void Show(bool suppress_animations) override;
+  void Show(const ShowOptions& options) override;
   void Close(const CloseOptions& options) override;
   bool IsShowing() const override;
   State state() override;
+  bool SupportsPeek() const override;
   base::CallbackListSubscription AddStateCallback(
       base::RepeatingCallback<void(State state)> callback) override;
   void SetWebContents(content::WebContents* web_contents) override;
   int GetPreferredWidth() override;
   bool IsGlicSidePanelActive() override;
+
+  SidePanelEntry* GetEntryForTesting() { return entry_.get(); }
 
   // Called when the Glic enabled status changes for `profile_`.
   void OnGlicEnabledChanged();
@@ -77,9 +84,11 @@ class GlicSidePanelCoordinatorDesktopAndroid : public GlicSidePanelCoordinator,
 
   State state_ = State::kClosed;
 
-  std::unique_ptr<CoBrowseViewsBridge> cobrowse_views_bridge_;
+  std::unique_ptr<context_sharing::CoBrowseViewsBridge> cobrowse_views_bridge_;
   raw_ptr<content::WebContents> web_contents_ = nullptr;
   raw_ptr<GlicKeyedService> glic_service_ = nullptr;
+
+  std::unique_ptr<GlicToast> resize_toast_;
 
   base::WeakPtrFactory<GlicSidePanelCoordinatorDesktopAndroid>
       weak_ptr_factory_{this};

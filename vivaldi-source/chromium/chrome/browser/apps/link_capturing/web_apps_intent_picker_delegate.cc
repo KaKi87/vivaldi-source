@@ -4,7 +4,6 @@
 
 #include "chrome/browser/apps/link_capturing/web_apps_intent_picker_delegate.h"
 
-#include <map>
 #include <string>
 
 #include "base/containers/flat_map.h"
@@ -18,8 +17,8 @@
 #include "chrome/browser/apps/link_capturing/intent_picker_info.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/web_applications/link_capturing_features.h"
+#include "chrome/browser/web_applications/model/web_app_icon_types.h"
 #include "chrome/browser/web_applications/web_app_icon_manager.h"
-#include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/browser/web_applications/web_app_ui_manager.h"
@@ -148,7 +147,7 @@ void WebAppsIntentPickerDelegate::LoadSingleAppIcon(
 
     // Else read the "closest" icon and resize accordingly.
     auto transform_bitmaps_to_icon_metadata = base::BindOnce(
-        [](std::map<web_app::SquareSizePx, SkBitmap> icons) -> ui::ImageModel {
+        [](web_app::OrderedSizeToBitmap icons) -> ui::ImageModel {
           bool is_valid_icon = !icons.empty();
           if (!is_valid_icon) {
             return ui::ImageModel();

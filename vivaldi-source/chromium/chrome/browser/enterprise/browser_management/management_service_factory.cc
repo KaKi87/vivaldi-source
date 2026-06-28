@@ -10,8 +10,15 @@
 #include "chrome/browser/enterprise/browser_management/browser_management_status_provider.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/policy/core/common/management/platform_management_service.h"
+#if BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/enterprise/browser_management/platform_management_status_provider_android.h"
+#endif
 #include "content/public/browser/browser_context.h"
 #include "extensions/buildflags/buildflags.h"
+
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#include "chrome/browser/policy/cloud/extension_install_policy_service_factory.h"
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 
 namespace policy {
 
@@ -43,6 +50,19 @@ ManagementService* ManagementServiceFactory::GetForPlatform() {
         std::make_unique<DeviceManagementStatusProvider>());
   }
 #endif
+
+  // This has to be done here since `AndroidManagementStatusProvider` cannot be
+  // defined in `components/policy/`, as it requires `AndroidEnterpriseInfo`.
+  // TODO(b/515740441): Move `AndroidEnterpriseInfo` and
+  // `AndroidManagementStatusProvider` to components/ because the former has no
+  // Chrome-specific dependencies. Therefore dependency injection via factory
+  // will not be needed.
+#if BUILDFLAG(IS_ANDROID)
+  if (!instance->has_android_status_provider()) {
+    instance->AddAndroidStatusProvider(
+        std::make_unique<AndroidManagementStatusProvider>());
+  }
+#endif
   return instance;
 }
 
@@ -63,7 +83,11 @@ ManagementServiceFactory::ManagementServiceFactory()
               // TODO(crbug.com/41488885): Check if this service is needed for
               // Ash Internals.
               .WithAshInternals(ProfileSelection::kOwnInstance)
-              .Build()) {}
+              .Build()) {
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+  DependsOn(ExtensionInstallPolicyServiceFactory::GetInstance());
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+}
 
 ManagementServiceFactory::~ManagementServiceFactory() = default;
 

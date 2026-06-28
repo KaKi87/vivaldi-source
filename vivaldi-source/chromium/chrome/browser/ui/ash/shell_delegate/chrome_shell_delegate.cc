@@ -71,9 +71,8 @@
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/scoped_tabbed_browser_displayer.h"
+#include "chrome/browser/ui/unload_controller.h"
 #include "chrome/browser/ui/webui/ash/diagnostics_dialog/diagnostics_dialog.h"
-#include "chrome/browser/ui/webui/tab_strip/tab_strip_ui_layout.h"
-#include "chrome/browser/ui/webui/tab_strip/tab_strip_ui_util.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
@@ -307,14 +306,6 @@ bool ChromeShellDelegate::ShouldWaitForTouchPressAck(gfx::NativeWindow window) {
   return !!render_widget_host_view->GetRenderWidgetHost();
 }
 
-bool ChromeShellDelegate::IsTabDrag(const ui::OSExchangeData& drop_data) {
-  return tab_strip_ui::IsDraggedTab(drop_data);
-}
-
-int ChromeShellDelegate::GetBrowserWebUITabStripHeight() {
-  return TabStripUILayout::GetContainerHeight();
-}
-
 void ChromeShellDelegate::BindFingerprint(
     mojo::PendingReceiver<device::mojom::Fingerprint> receiver) {
   content::GetDeviceService().BindFingerprint(std::move(receiver));
@@ -354,9 +345,12 @@ bool ChromeShellDelegate::IsSessionRestoreInProgress() const {
 
 void ChromeShellDelegate::SetUpEnvironmentForLockedFullscreen(
     const ash::WindowState& window_state) {
-  bool locked = window_state.IsPinned();
+  const bool locked = window_state.IsPinned();
   // Reset the clipboard and kill dev tools when entering or exiting locked
   // fullscreen (security concerns).
+  if (locked) {
+    ash::ClipboardImageModelFactory::Get()->CancelAllRequests();
+  }
   ui::Clipboard::GetForCurrentThread()->Clear(ui::ClipboardBuffer::kCopyPaste);
   content::DevToolsAgentHost::DetachAllClients();
 
@@ -530,7 +524,8 @@ void ChromeShellDelegate::ForceSkipWarningUserOnClose(
     ash::BrowserDelegate* browser =
         ash::BrowserController::GetInstance()->GetBrowserForWindow(window);
     if (browser) {
-      browser->GetBrowser().set_force_skip_warning_user_on_close(true);
+      UnloadController::From(&browser->GetBrowser())
+          ->set_force_skip_warning_user_on_close(true);
     }
   }
 }

@@ -8,6 +8,9 @@
 // Protocol for handling toolbar button actions.
 @protocol ToolbarMutator
 
+// Exits fullscreen mode.
+- (void)exitFullscreen;
+
 // Navigates back.
 - (void)goBack;
 
@@ -19,6 +22,15 @@
 
 // Stops loading the current page.
 - (void)stop;
+
+// Called when the tab group indicator visibility is updated.
+- (void)tabGroupIndicatorVisibilityUpdated:(BOOL)visible;
+
+// Called when the assistant button is tapped.
+- (void)assistantButtonTapped;
+
+// Records the different users action when the user taps the tools menu.
+- (void)recordUserActionsForToolsMenuTapped;
 
 @end
 

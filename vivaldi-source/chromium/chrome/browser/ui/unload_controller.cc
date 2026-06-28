@@ -42,11 +42,25 @@
 #include "app/vivaldi_apptools.h"
 #include "ui/vivaldi_browser_window.h"
 
+DEFINE_USER_DATA(UnloadController);
+
 ////////////////////////////////////////////////////////////////////////////////
 // UnloadController, public:
 
-UnloadController::UnloadController(Browser* browser)
-    : browser_(browser),
+// static
+UnloadController* UnloadController::From(BrowserWindowInterface* browser) {
+  return Get(browser->GetUnownedUserDataHost());
+}
+
+// static
+const UnloadController* UnloadController::From(
+    const BrowserWindowInterface* browser) {
+  return Get(browser->GetUnownedUserDataHost());
+}
+
+UnloadController::UnloadController(BrowserWindowInterface* browser)
+    : browser_(browser->GetBrowserForMigrationOnly()),
+      scoped_unowned_user_data_(browser->GetUnownedUserDataHost(), *this),
       web_contents_collection_(this),
       is_attempting_to_close_browser_(false) {
   browser_->tab_strip_model()->AddObserver(this);
@@ -54,6 +68,30 @@ UnloadController::UnloadController(Browser* browser)
 
 UnloadController::~UnloadController() {
   browser_->tab_strip_model()->RemoveObserver(this);
+}
+
+bool UnloadController::ShouldRunUnloadListenerBeforeClosing(
+    content::WebContents* web_contents) {
+  return !force_skip_warning_user_on_close_ &&
+         ShouldRunUnloadEventsHelper(web_contents);
+}
+
+bool UnloadController::RunUnloadListenerBeforeClosing(
+    content::WebContents* web_contents) {
+  return !force_skip_warning_user_on_close_ &&
+         RunUnloadEventsHelper(web_contents);
+}
+
+void UnloadController::BeforeUnloadFired(content::WebContents* web_contents,
+                                         bool proceed,
+                                         bool* proceed_to_fire_unload) {
+  if ((browser_->GetType() == BrowserWindowInterface::Type::TYPE_DEVTOOLS) &&
+      DevToolsWindow::HandleBeforeUnload(web_contents, proceed,
+                                         proceed_to_fire_unload)) {
+    return;
+  }
+
+  *proceed_to_fire_unload = BeforeUnloadFired(web_contents, proceed);
 }
 
 bool UnloadController::CanCloseContents(content::WebContents* contents) {

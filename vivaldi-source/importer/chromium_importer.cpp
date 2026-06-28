@@ -6,20 +6,17 @@
 #include <string>
 #include <vector>
 
-#include "base/base64.h"
-#include "base/command_line.h"
 #include "base/files/file_util.h"
-#include "base/no_destructor.h"
-#include "base/path_service.h"
+#include "base/logging.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "chrome/common/chrome_paths_internal.h"
+#include "chrome/grit/branded_strings.h"
 #include "chrome/common/importer/importer_bridge.h"
-#include "components/os_crypt/sync/os_crypt.h"
 #include "components/user_data_importer/common/importer_data_types.h"
+#include "importer/imported_raw_password_form.h"
 #include "importer/imported_tab_entry.h"
 #include "sql/statement.h"
 
@@ -29,19 +26,36 @@
 #include "importer/chromium_session_importer.h"
 #include "importer/import_error_utils.h"
 
-#if BUILDFLAG(IS_LINUX)
-#include "chrome/grit/branded_strings.h"
-#include "components/os_crypt/sync/key_storage_config_linux.h"
-#include "components/password_manager/core/browser/password_manager_switches.h"
-#endif  // IS_LINUX
-
 namespace {
-#if BUILDFLAG(IS_WIN)
-std::string* GetImportEncryptionKey() {
-  static base::NoDestructor<std::string> import_encryption_key;
-  return import_encryption_key.get();
+
+// Returns the product name used by the source browser for keyring lookups.
+std::string GetSourceProductName(user_data_importer::ImporterType type) {
+  switch (type) {
+    case user_data_importer::TYPE_CHROME:
+      return "Google Chrome";
+    case user_data_importer::TYPE_CHROMIUM:
+      return "Chromium";
+    case user_data_importer::TYPE_BRAVE:
+      return "Brave-Browser";
+    case user_data_importer::TYPE_EDGE_CHROMIUM:
+      return "Microsoft Edge";
+    case user_data_importer::TYPE_OPERA_OPIUM:
+    case user_data_importer::TYPE_OPERA_OPIUM_BETA:
+    case user_data_importer::TYPE_OPERA_OPIUM_DEV:
+      return "Opera";
+    case user_data_importer::TYPE_OPERA_GX:
+      return "Opera GX";
+    case user_data_importer::TYPE_VIVALDI:
+      return "Vivaldi";
+    case user_data_importer::TYPE_YANDEX:
+      return "Yandex";
+    case user_data_importer::TYPE_ARC:
+      return "Arc";
+    default:
+      return l10n_util::GetStringUTF8(IDS_PRODUCT_NAME);
+  }
 }
-#endif
+
 }  // namespace
 
 ChromiumImporter::ChromiumImporter() {}
@@ -110,111 +124,36 @@ void ChromiumImporter::StartImport(
 
 ImportResult ChromiumImporter::ImportPasswords(
     user_data_importer::ImporterType importer_type) {
-  // Initializes Chrome decryptor
-
-  std::vector<user_data_importer::ImportedPasswordForm> forms;
-  base::FilePath source_path = profile_dir_;
-
-#if BUILDFLAG(IS_WIN)
-  // Read encryption key from other browser local state
-  base::FilePath local_state_file =
-      profile_dir_.DirName().AppendASCII("Local State");
-
-  base::Value local_state;
-  auto result = ImportFileOperations::ParseJsonFile(
-      local_state_file, &local_state, IDS_IMPORT_ERROR_LOCAL_STATE_NOT_FOUND,
-      IDS_IMPORT_ERROR_LOCAL_STATE_READ_FAILED,
-      IDS_IMPORT_ERROR_LOCAL_STATE_PARSE_FAILED);
-  if (!result.has_value()) {
-    return result;
-  }
-
-  if (local_state.is_dict()) {
-    base::Value* os_crypt_dict = local_state.GetDict().Find("os_crypt");
-    if (!os_crypt_dict) {
-      return import_result::Error(IDS_IMPORT_ERROR_OS_CRYPT_NOT_FOUND);
-    }
-
-    const std::string* base64_encoded_key =
-        os_crypt_dict->GetDict().FindString("encrypted_key");
-    if (!base64_encoded_key) {
-      return import_result::Error(IDS_IMPORT_ERROR_ENCRYPTED_KEY_NOT_FOUND);
-    }
-
-    std::string encrypted_key_with_header;
-    base::Base64Decode(*base64_encoded_key, &encrypted_key_with_header);
-
-    // Key prefix for a key encrypted with DPAPI.
-    const char kDPAPIKeyPrefix[] = "DPAPI";
-    if (!base::StartsWith(encrypted_key_with_header, kDPAPIKeyPrefix,
-                          base::CompareCase::SENSITIVE)) {
-      return import_result::Error(IDS_IMPORT_ERROR_NOT_DPAPI_KEY);
-    }
-
-    std::string dpapi_encrypted_key =
-        encrypted_key_with_header.substr(sizeof(kDPAPIKeyPrefix) - 1);
-
-    // This DPAPI decryption can fail if the user's password has been reset
-    // by an Administrator.
-    if (!OSCrypt::DecryptString(dpapi_encrypted_key,
-                                GetImportEncryptionKey())) {
-      return import_result::Error(IDS_IMPORT_ERROR_DECRYPTION_KEY_INVALID);
-    }
-  }
-#endif  // IS_WIN
-
-  base::FilePath file = source_path.AppendASCII("Login Data");
+  base::FilePath file = profile_dir_.AppendASCII("Login Data");
   auto file_check = ImportFileOperations::CheckFileExists(
       file, IDS_IMPORT_ERROR_LOGIN_DATA_NOT_FOUND);
   if (!file_check.has_value()) {
     return file_check;
   }
 
-  bool failed_decrypt = false;
-
-  const auto read_result =
-      ReadAndParseSignons(file, &forms, importer_type, &failed_decrypt);
+  // Read raw (encrypted) forms and send via bridge for browser-process
+  // decryption. This avoids blocking on keyring/DPAPI/keychain calls in the
+  // importer (utility) process which has no message loop.
+  std::vector<ImportedRawPasswordForm> raw_forms;
+  auto read_result = ReadRawSignons(file, &raw_forms, importer_type);
   if (!read_result.has_value()) {
     return read_result;
   }
 
-  if (!cancelled()) {
-    for (size_t i = 0; i < forms.size(); ++i) {
-      if (!forms[i].username_value.empty() ||
-          !forms[i].password_value.empty()) {
-        bridge_->SetPasswordForm(forms[i]);
-      }
-    }
-  }
-
-  if (failed_decrypt) {
-    return import_result::Error(IDS_IMPORT_ERROR_PASSWORD_DECRYPTION_FAILED);
+  if (!cancelled() && !raw_forms.empty()) {
+    bridge_->AddRawPasswords(raw_forms);
   }
 
   return import_result::Success();
 }
 
-ImportResult ChromiumImporter::ReadAndParseSignons(
+// Reads raw (encrypted) sign-ons from Login Data and populates |forms| with
+// un-decrypted forms.  Decryption is deferred to the browser process via the
+// AddRawPasswords bridge.
+ImportResult ChromiumImporter::ReadRawSignons(
     const base::FilePath& sqlite_file,
-    std::vector<user_data_importer::ImportedPasswordForm>* forms,
-    user_data_importer::ImporterType importer_type,
-    bool* failed_decrypt) {
-#if BUILDFLAG(IS_LINUX)
-  // Flush the Config to be on the safe side
-  OSCryptImpl::GetInstance()->ClearCacheForTesting();
-  // Set up crypt config. Need to do this just once for each import
-  const base::CommandLine& command_line =
-      *base::CommandLine::ForCurrentProcess();
-  std::unique_ptr<os_crypt::Config> config(new os_crypt::Config());
-  config->store =
-      command_line.GetSwitchValueASCII(password_manager::kPasswordStore);
-  config->product_name = l10n_util::GetStringUTF8(IDS_PRODUCT_NAME);
-  config->should_use_preference =
-      command_line.HasSwitch(password_manager::kEnableEncryptionSelection);
-  chrome::GetDefaultUserDataDirectory(&config->user_data_path);
-  OSCryptImpl::GetInstance()->SetConfig(std::move(config));
-#endif  // IS_LINUX
-
+    std::vector<ImportedRawPasswordForm>* forms,
+    user_data_importer::ImporterType importer_type) {
   sql::Database db("Importer");
   auto db_result = ImportDatabaseOperations::OpenDatabase(
       sqlite_file, &db, IDS_IMPORT_ERROR_LOGIN_DATABASE_OPEN_FAILED);
@@ -232,93 +171,21 @@ ImportResult ChromiumImporter::ReadAndParseSignons(
     return import_result::Error(IDS_IMPORT_ERROR_LOGIN_DATABASE_READ_FAILED);
   }
 
-  *failed_decrypt = false;
+  const std::string product_name = GetSourceProductName(importer_type);
 
   while (s2.Step()) {
-    user_data_importer::ImportedPasswordForm form;
+    ImportedRawPasswordForm form;
     form.url = GURL(s2.ColumnString(0));
     form.action = GURL(s2.ColumnString(1));
     form.username_element = base::UTF8ToUTF16(s2.ColumnString(2));
     form.username_value = base::UTF8ToUTF16(s2.ColumnString(3));
     form.password_element = base::UTF8ToUTF16(s2.ColumnString(4));
-    const std::string& cipher_text = s2.ColumnString(5);
-    std::u16string plain_text;
-
-#if BUILDFLAG(IS_MAC)
-    std::string service_name = "Chrome Safe Storage";
-    std::string account_name = "Chrome";
-    if (importer_type == user_data_importer::TYPE_BRAVE) {
-      service_name = "Brave Safe Storage";
-      account_name = "Brave";
-    }
-    if (importer_type == user_data_importer::TYPE_EDGE_CHROMIUM) {
-      service_name = "Microsoft Edge Safe Storage";
-      account_name = "Microsoft Edge";
-    }
-    if (importer_type == user_data_importer::TYPE_OPERA_OPIUM) {
-      service_name = "Opera Safe Storage";
-      account_name = "Opera";
-    }
-    if (importer_type == user_data_importer::TYPE_VIVALDI) {
-      service_name = "Vivaldi Safe Storage";
-      account_name = "Vivaldi";
-    }
-    if (importer_type == user_data_importer::TYPE_YANDEX) {
-      service_name = "Yandex Safe Storage";
-      account_name = "Yandex";
-    }
-    if (importer_type == user_data_importer::TYPE_CHROMIUM) {
-      service_name = "Chromium Safe Storage";
-      account_name = "Chromium";
-    }
-    if (importer_type == user_data_importer::TYPE_ARC) {
-      service_name = "Arc Safe Storage";
-      account_name = "Arc";
-    }
-    if (importer_type == user_data_importer::TYPE_OPERA_GX) {
-      service_name = "Opera GX Safe Storage";
-      account_name = "Opera GX";
-    }
-
-    if (!OSCryptImpl::GetInstance()->DecryptImportedString16(
-            cipher_text, &plain_text, service_name, account_name)) {
-      *failed_decrypt = true;
-      continue;
-    }
-#else  // IS_MAC
-#if BUILDFLAG(IS_LINUX)
-    if (!OSCryptImpl::GetInstance()->DecryptString16(cipher_text,
-                                                     &plain_text)) {
-      *failed_decrypt = true;
-      continue;
-    }
-#endif  // IS_LINUX
-#if BUILDFLAG(IS_WIN)
-    if (!OSCryptImpl::GetInstance()->DecryptImportedString16(
-            cipher_text, &plain_text, *GetImportEncryptionKey())) {
-      *failed_decrypt = true;
-      continue;
-    }
-#endif  // IS_WIN
-#endif  // !IS_MAC
-
-    form.password_value = plain_text;
+    form.password_value_cipher = s2.ColumnBlobAsString(5);
     form.signon_realm = s2.ColumnString(6);
+    form.source_product_name = product_name;
 
-    forms->push_back(form);
-
-    // Clear the plaintext password from memory
-    std::fill(plain_text.begin(), plain_text.end(), u'\0');
+    forms->push_back(std::move(form));
   }
-#if BUILDFLAG(IS_MAC)
-  OSCryptImpl::GetInstance()->ResetImportCache();
-#endif
-
-#if BUILDFLAG(IS_WIN)
-  // Clear the encryption key from memory
-  std::fill(GetImportEncryptionKey()->begin(), GetImportEncryptionKey()->end(),
-            '\0');
-#endif
 
   return import_result::Success();
 }
@@ -376,7 +243,7 @@ ImportResult ChromiumImporter::ReadAndParseHistory(
 
     base::Time t = base::Time::FromInternalValue(s2.ColumnInt64(5));
     row.last_visit = t;
-    forms->push_back(row);
+    forms->push_back(std::move(row));
   }
   return import_result::Success();
 }

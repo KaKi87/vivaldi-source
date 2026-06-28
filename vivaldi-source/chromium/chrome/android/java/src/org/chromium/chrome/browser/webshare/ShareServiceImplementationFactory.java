@@ -16,6 +16,7 @@ import org.chromium.chrome.browser.share.ShareDelegateSupplier;
 import org.chromium.components.browser_ui.share.ShareParams;
 import org.chromium.components.browser_ui.webshare.ShareServiceImpl;
 import org.chromium.content_public.browser.PermissionsPolicyFeature;
+import org.chromium.content_public.browser.RenderFrameHost;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.services.service_manager.InterfaceFactory;
 import org.chromium.ui.base.WindowAndroid;
@@ -75,12 +76,20 @@ public class ShareServiceImplementationFactory implements InterfaceFactory<@Null
                         return mWindowAndroid;
                     }
 
+                    @Override
+                    public void terminateRendererDueToBadMessage(int reason) {
+                        RenderFrameHost mainFrame = mWebContents.getMainFrame();
+                        if (mainFrame != null) {
+                            mainFrame.terminateRendererDueToBadMessage(reason);
+                        }
+                    }
+
                     /**
                      * Returns the current {@link ShareDelegate}, and updates it when the {@link
                      * WindowAndroid} has changed.
                      *
                      * <p>The {@link WindowAndroid} changes when the theme changes, which
-                     * necessitates getting a new ShareDelegate. See https://crbug.com/1322778.
+                     * necessitates getting a new ShareDelegate. See https://crbug.com/40838216.
                      */
                     private @Nullable ShareDelegate getShareDelegate() {
                         if (mWindowAndroid != null

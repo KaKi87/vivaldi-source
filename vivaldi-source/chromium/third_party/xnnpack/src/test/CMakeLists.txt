@@ -340,9 +340,12 @@ FOREACH(TEST ${MICROKERNEL_VBINARY_UNIT_TESTS})
 ENDFOREACH()
 
 SET(MICROKERNEL_VCVT_TESTS
+    bf16-f32-vcvt
+    bf16-qs8-vcvt
     f16-f32-vcvt
     f16-qs8-vcvt
     f16-qu8-vcvt
+    f32-bf16-vcvt
     f32-f16-vcvt
     f32-qs8-vcvt
     f32-qu8-vcvt
@@ -380,7 +383,9 @@ SET(MICROKERNEL_VUNARY_TESTS
     f16-vabs
     f16-vapproxgelu
     f16-vclamp
+    f16-vcos
     f16-velu
+    f16-vexp
     f16-vgelu
     f16-vhswish
     f16-vlrelu
@@ -391,6 +396,7 @@ SET(MICROKERNEL_VUNARY_TESTS
     f16-vrndz
     f16-vrsqrt
     f16-vsigmoid
+    f16-vsin
     f16-vsqr
     f16-vsqrt
     f16-vtanh

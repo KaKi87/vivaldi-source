@@ -34,6 +34,7 @@ import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.RequiresRestart;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.prefetch.settings.PreloadPagesSettingsBridge;
 import org.chromium.chrome.browser.prefetch.settings.PreloadPagesState;
@@ -41,7 +42,6 @@ import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.tabmodel.TabClosureParams;
 import org.chromium.chrome.browser.ui.messages.infobar.SimpleConfirmInfoBarBuilder;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.page.WebPageStation;
@@ -201,7 +201,7 @@ public class InfoBarContainerTest {
         mActivityTestRule.loadUrl(mTestServer.getURL("/chrome/test/data/android/about.html"));
         List<InfoBar> infoBars = mActivityTestRule.getInfoBars();
         Assert.assertEquals(1, infoBars.size());
-        TextView message = (TextView) infoBars.get(0).getView().findViewById(R.id.infobar_message);
+        TextView message = infoBars.get(0).getView().findViewById(R.id.infobar_message);
         Assert.assertEquals(MESSAGE_TEXT, message.getText().toString());
 
         // Close the infobar.
@@ -230,6 +230,7 @@ public class InfoBarContainerTest {
     @Test
     @MediumTest
     @Feature({"Browser"})
+    @DisabledTest(message = "https://crbug.com/517944068")
     public void testInfoBarExpirationNoPrerender() throws Exception {
         // Save prediction preference.
         boolean networkPredictionEnabled =
@@ -338,7 +339,7 @@ public class InfoBarContainerTest {
     @Test
     @MediumTest
     @Feature({"Browser"})
-    @RequiresRestart("crbug.com/1242720")
+    @RequiresRestart("crbug.com/40195124")
     @DisabledTest(message = "https://crbug.com/430777988")
     public void testAddAndDismissSurfaceFlingerOverlays() throws Exception {
         final ViewGroup decorView =

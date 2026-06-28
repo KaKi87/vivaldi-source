@@ -12,31 +12,41 @@ template("sign_bundle") {
     args = [
       "code-sign-bundle",
       "-t=iphoneos",
-      "--identity", vivaldi_signing_id,
-      "--binary", rebase_path(invoker.binary),
+      "--identity",
+      vivaldi_signing_id,
+      "--binary",
+      rebase_path(invoker.binary),
       rebase_path(invoker.app),
     ]
-    if (defined(invoker.entitlements)){
-      args += [ "--entitlements", rebase_path(invoker.entitlements)]
+    if (defined(invoker.entitlements)) {
+      args += [
+        "--entitlements",
+        rebase_path(invoker.entitlements),
+      ]
     }
-    if (defined(invoker.plists)){
+    if (defined(invoker.plists)) {
       if (defined(invoker.plist_compiler)) {
-        args += [ "--plist-compiler-path", rebase_path(invoker.plist_compiler), ]
+        args += [
+          "--plist-compiler-path",
+          rebase_path(invoker.plist_compiler),
+        ]
       } else {
-        args += [ "--plist-compiler-path", rebase_path("//build/apple/plist_util.py"), ]
+        args += [
+          "--plist-compiler-path",
+          rebase_path("//build/apple/plist_util.py"),
+        ]
       }
       foreach(plist, invoker.plists) {
         args += [
-          "--partial-info-plist", rebase_path(plist),
+          "--partial-info-plist",
+          rebase_path(plist),
         ]
       }
     }
     if (defined(invoker.extra_args)) {
       args += invoker.extra_args
     }
-    outputs = [
-      "$target_gen_dir/$target_name.signed.stamp"
-    ]
+    outputs = [ "$target_gen_dir/$target_name.signed.stamp" ]
     deps = []
     if (defined(invoker.deps)) {
       deps += invoker.deps
@@ -48,7 +58,7 @@ sign_bundle("sign_EarlyMallocZoneRegistration") {
   bindir = "$root_out_dir/obj/ios/chrome/app"
 
   binary = "$bindir/EarlyMallocZoneRegistration"
-  extra_args = ["--disable-embedded-mobileprovision"]
+  extra_args = [ "--disable-embedded-mobileprovision" ]
   app = "${vivaldi_app}/Frameworks/EarlyMallocZoneRegistration.framework"
 }
 
@@ -59,7 +69,7 @@ sign_bundle("sign_open_extension") {
   binary = "$bindir/open_extension"
   entitlements = "$gendir/open_extension.appex.entitlements"
   app = "${vivaldi_profiles}/open_extension.appex"
-  plists =[
+  plists = [
     "$gendir/appex_generate_info_plist.plist",
     "$gendir/appex_partial_info.plist",
   ]
@@ -72,7 +82,7 @@ sign_bundle("sign_credential_provider_extension") {
   binary = "$bindir/credential_provider_extension"
   entitlements = "$gendir/credential_provider_extension.appex.entitlements"
   app = "${vivaldi_profiles}/credential_provider_extension.appex"
-  plists =[
+  plists = [
     "$gendir/appex_generate_info_plist.plist",
     "$gendir/appex_partial_info.plist",
   ]
@@ -85,7 +95,7 @@ sign_bundle("sign_intents_extension") {
   binary = "$bindir/intents_extension"
   entitlements = "$gendir/intents_extension.appex.entitlements"
   app = "${vivaldi_profiles}/intents_extension.appex"
-  plists =[
+  plists = [
     "$gendir/appex_generate_info_plist.plist",
     "$gendir/appex_partial_info.plist",
   ]
@@ -98,7 +108,7 @@ sign_bundle("sign_share_extension") {
   binary = "$bindir/share_extension"
   entitlements = "$gendir/share_extension.appex.entitlements"
   app = "${vivaldi_profiles}/share_extension.appex"
-  plists =[
+  plists = [
     "$gendir/appex_generate_info_plist.plist",
     "$gendir/appex_partial_info.plist",
   ]
@@ -111,7 +121,7 @@ sign_bundle("sign_widget_kit_extension") {
   binary = "$bindir/widget_kit_extension"
   entitlements = "$gendir/widget_kit_extension.appex.entitlements"
   app = "${vivaldi_profiles}/widget_kit_extension.appex"
-  plists =[
+  plists = [
     "$gendir/appex_generate_info_plist.plist",
     "$gendir/appex_partial_info.plist",
   ]
@@ -122,9 +132,10 @@ sign_bundle("sign_push_notification_service_extension") {
   gendir = "$root_out_dir/ios_clang_arm64_app_ext/gen/ios/chrome/push_notification_service_extension/appex"
 
   binary = "$bindir/push_notification_service_extension"
-  entitlements = "$gendir/push_notification_service_extension.appex.entitlements"
+  entitlements =
+      "$gendir/push_notification_service_extension.appex.entitlements"
   app = "${vivaldi_profiles}/push_notification_service_extension.appex"
-  plists =[
+  plists = [
     "$gendir/appex_generate_info_plist.plist",
     "$gendir/appex_partial_info.plist",
   ]
@@ -139,16 +150,13 @@ action("sign_Lottie") {
   args = [
     "code-sign-file",
     rebase_path(binary),
-    "--identity", vivaldi_signing_id,
+    "--identity",
+    vivaldi_signing_id,
   ]
 
-  outputs = [
-    "$target_gen_dir/$target_name.signed.stamp"
-  ]
+  outputs = [ "$target_gen_dir/$target_name.signed.stamp" ]
   if (!is_full_signer) {
-    deps = [
-      "//vivaldi/thirdparty:copy_lottie_framework",
-    ]
+    deps = [ "//vivaldi/thirdparty:copy_lottie_framework" ]
   }
 }
 
@@ -164,13 +172,13 @@ sign_bundle("sign_ios") {
     "$gendir/chrome_partial_info.plist",
   ]
   deps = [
-    ":sign_Lottie",
-    ":sign_open_extension",
-    ":sign_credential_provider_extension",
-    ":sign_widget_kit_extension",
-    ":sign_intents_extension",
-    ":sign_share_extension",
-    ":sign_push_notification_service_extension",
     ":sign_EarlyMallocZoneRegistration",
+    ":sign_Lottie",
+    ":sign_credential_provider_extension",
+    ":sign_intents_extension",
+    ":sign_open_extension",
+    ":sign_push_notification_service_extension",
+    ":sign_share_extension",
+    ":sign_widget_kit_extension",
   ]
 }

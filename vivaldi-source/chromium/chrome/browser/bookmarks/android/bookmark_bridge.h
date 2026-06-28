@@ -394,6 +394,11 @@ class BookmarkBridge : public ProfileObserver,
             const base::android::JavaRef<jobject>& obj,
             const jlong id);
 
+  bool IsSeparator(
+          JNIEnv* env,
+          const base::android::JavaRef<jobject>& obj,
+          const jlong id);
+
   // Vivaldi VAB-11595
   void OnBookmarksExported(bookmark_html_writer::Result result);
   void ExportBookmarks(JNIEnv* env,

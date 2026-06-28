@@ -12,9 +12,6 @@ import android.content.Intent;
 import android.os.Build;
 import android.os.Process;
 import android.text.format.DateUtils;
-import android.view.inputmethod.InputMethodInfo;
-import android.view.inputmethod.InputMethodManager;
-import android.view.inputmethod.InputMethodSubtype;
 
 import androidx.annotation.CallSuper;
 import androidx.annotation.WorkerThread;
@@ -68,8 +65,10 @@ import org.chromium.chrome.browser.crash.MinidumpUploadServiceImpl;
 import org.chromium.chrome.browser.download.DownloadManagerService;
 import org.chromium.chrome.browser.download.OfflineContentAvailabilityStatusProvider;
 import org.chromium.chrome.browser.enterprise.util.EnterpriseInfo;
+import org.chromium.chrome.browser.feedback.FeedbackPolicyManager;
 import org.chromium.chrome.browser.firstrun.TosDialogBehaviorSharedPrefInvalidator;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+//import org.chromium.chrome.browser.glic.GlicEnabling; Vivaldi
 import org.chromium.chrome.browser.history.HistoryDeletionBridge;
 import org.chromium.chrome.browser.homepage.HomepageManager;
 import org.chromium.chrome.browser.incognito.IncognitoTabLauncher;
@@ -82,6 +81,8 @@ import org.chromium.chrome.browser.metrics.PackageMetrics;
 import org.chromium.chrome.browser.metrics.StorageSystem;
 import org.chromium.chrome.browser.metrics.UmaSessionStats;
 import org.chromium.chrome.browser.metrics.UmaUtils;
+import org.chromium.chrome.browser.night_mode.GlobalNightModeStateProviderHolder;
+import org.chromium.chrome.browser.night_mode.NightModeStateProvider;
 import org.chromium.chrome.browser.notifications.TrampolineActivityTracker;
 import org.chromium.chrome.browser.notifications.channels.ChannelsUpdater;
 import org.chromium.chrome.browser.offlinepages.measurements.OfflineMeasurementsBackgroundTask;
@@ -107,6 +108,7 @@ import org.chromium.chrome.browser.tab.state.PersistedTabData;
 import org.chromium.chrome.browser.tab.state.ShoppingPersistedTabData;
 import org.chromium.chrome.browser.tabmodel.TabPersistentStoreImpl;
 import org.chromium.chrome.browser.ui.cars.DrivingRestrictionsManager;
+import org.chromium.chrome.browser.ui.color.ColorProviderBridgeImpl;
 import org.chromium.chrome.browser.ui.hats.SurveyClientFactory;
 import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityPreferencesManager;
 import org.chromium.chrome.browser.usb.UsbNotificationManager;
@@ -142,7 +144,9 @@ import org.chromium.ui.base.PhotoPickerDelegate;
 import org.chromium.ui.base.PhotoPickerListener;
 import org.chromium.ui.base.SelectFileDialog;
 import org.chromium.ui.base.WindowAndroid;
+import org.chromium.ui.color.ColorProviderBridgeFactory;
 import org.chromium.ui.edge_to_edge.EdgeToEdgeStateProvider;
+import org.chromium.ui.native_theme.OsSettingsProviderAndroidBridge;
 import org.chromium.url.GURL;
 
 import java.io.File;
@@ -187,7 +191,7 @@ public class ProcessInitializationHandler {
     private final ProfileKeyedMap<Boolean> mStartupProfileTasksCompleted =
             new ProfileKeyedMap<>(
                     ProfileSelection.REDIRECTED_TO_ORIGINAL,
-                    ProfileKeyedMap.NO_REQUIRED_CLEANUP_ACTION);
+                    ProfileKeyedMap.noRequiredCleanupAction());
 
     /**
      * @return The ProcessInitializationHandler for use during the lifetime of the browser process.
@@ -233,6 +237,10 @@ public class ProcessInitializationHandler {
     protected void handlePreNativeInitialization() {
         ChromeCachedFlags.getInstance().setFullListOfFlags();
         setProcessStateSummaryForAnrs();
+        ColorProviderBridgeFactory.setInstance(new ColorProviderBridgeImpl());
+
+        PostTask.setShutdownPostTaskPreNativeThreadPoolEnabled(
+                ChromeFeatureList.sShutdownPreNativeThreadPoolAfterStartup.isEnabled());
     }
 
     /**
@@ -286,12 +294,12 @@ public class ProcessInitializationHandler {
                         // When the app locale is overridden a change in system locale will not
                         // effect Chrome's UI language. There is race condition where the initial
                         // locale may not equal the overridden default locale
-                        // (https://crbug.com/1224756).
+                        // (https://crbug.com/40188103).
                         if (GlobalAppLocaleController.getInstance().isOverridden()) return;
                         // Android destroys Activities at some point after a locale change, but
                         // doesn't kill the process.  This can lead to a bug where Chrome is halfway
                         // RTL, where stale natively-loaded resources are not reloaded
-                        // (http://crbug.com/552618).
+                        // (http://crbug.com/41215786).
                         if (!mInitialLocale.equals(Locale.getDefault())) {
                             Log.e(TAG, "Killing process because of locale change.");
                             Process.killProcess(Process.myPid());
@@ -464,6 +472,20 @@ public class ProcessInitializationHandler {
 
         AccessibilityState.registerObservers();
 
+        boolean initialNightMode = GlobalNightModeStateProviderHolder.getInstance().isInNightMode();
+        OsSettingsProviderAndroidBridge.setPreferredColorScheme(initialNightMode);
+        GlobalNightModeStateProviderHolder.getInstance()
+                .addObserver(
+                        new NightModeStateProvider.Observer() {
+                            @Override
+                            public void onNightModeStateChanged() {
+                                boolean isDark =
+                                        GlobalNightModeStateProviderHolder.getInstance()
+                                                .isInNightMode();
+                                OsSettingsProviderAndroidBridge.setPreferredColorScheme(isDark);
+                            }
+                        });
+
         if (DeviceInfo.isAutomotive()) {
             DrivingRestrictionsManager.initialize();
         }
@@ -478,9 +500,10 @@ public class ProcessInitializationHandler {
         JavalessRenderersFeatureList.setRegisterSyntheticFieldTrialCallback(
                 UmaSessionStats::registerSyntheticFieldTrial);
 
-        if (ChromeFeatureList.sGlic.isEnabled()) {
+        /* Not needed in Vivaldi
+        if (GlicEnabling.isEnabledByFlags()) {
             ActorForegroundServiceManager.initialize();
-        }
+        }*/
     }
 
     /**
@@ -694,8 +717,6 @@ public class ProcessInitializationHandler {
                     UsbNotificationManager.clearUsbNotifications(UsbNotificationService.class);
 
                     startBindingManagementIfNeeded();
-
-                    recordKeyboardLocaleUma();
                 });
 
         tasks.add(() -> LocaleManager.getInstance().recordStartupMetrics());
@@ -773,6 +794,8 @@ public class ProcessInitializationHandler {
                         ShoppingPersistedTabData.onDeferredStartup();
                     }
                 });
+
+        tasks.add(() -> FeedbackPolicyManager.getInstance().onFinishNativeInitialization(profile));
     }
 
     private void initChannelsAsync() {
@@ -977,29 +1000,6 @@ public class ProcessInitializationHandler {
             return;
         }
         ChildProcessLauncherHelper.startBindingManagement(ContextUtils.getApplicationContext());
-    }
-
-    @SuppressWarnings("deprecation") // InputMethodSubtype.getLocale() deprecated in API 24
-    private void recordKeyboardLocaleUma() {
-        InputMethodManager imm =
-                (InputMethodManager)
-                        ContextUtils.getApplicationContext()
-                                .getSystemService(Context.INPUT_METHOD_SERVICE);
-        List<InputMethodInfo> ims = imm.getEnabledInputMethodList();
-        ArrayList<String> uniqueLanguages = new ArrayList<>();
-        for (InputMethodInfo method : ims) {
-            List<InputMethodSubtype> submethods =
-                    imm.getEnabledInputMethodSubtypeList(method, true);
-            for (InputMethodSubtype submethod : submethods) {
-                if (submethod.getMode().equals("keyboard")) {
-                    String language = submethod.getLocale().split("_")[0];
-                    if (!uniqueLanguages.contains(language)) {
-                        uniqueLanguages.add(language);
-                    }
-                }
-            }
-        }
-        RecordHistogram.recordCount1MHistogram("InputMethod.ActiveCount", uniqueLanguages.size());
     }
 
     private static boolean shouldDialogPadForContent(WindowAndroid windowAndroid) {

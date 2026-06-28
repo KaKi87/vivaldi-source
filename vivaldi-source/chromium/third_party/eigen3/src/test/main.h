@@ -7,6 +7,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include <cstdlib>
 #include <cerrno>
@@ -52,10 +53,13 @@
 #include <queue>
 #include <cassert>
 #include <list>
-#if __cplusplus >= 201103L || (defined(_MSVC_LANG) && _MSVC_LANG >= 201103L)
 #include <random>
 #include <chrono>
-#endif
+// libstdc++'s <unordered_map> uses std::numeric_limits<size_t>::max() internally
+// (in <bits/hashtable_policy.h>); pre-include here so the macro definitions of
+// min/max below don't break it on toolchains where it isn't pulled in by
+// another pre-included header (e.g. cuda-11.5 / gcc-10).
+#include <unordered_map>
 #if __cplusplus > 201703L
 // libstdc++ 9's <memory> indirectly uses max() via <bit>.
 // libstdc++ 10's <memory> indirectly uses max() via ranges headers.
@@ -76,9 +80,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
-#if CUDA_VERSION >= 7050
 #include <cuda_fp16.h>
-#endif
 #endif
 
 #if defined(EIGEN_CUDACC) || defined(EIGEN_HIPCC)
@@ -405,7 +407,7 @@ bool test_is_equal(const T& actual, const U& expected, bool expect_equal = true)
 namespace Eigen {
 
 template <typename T1, typename T2>
-std::enable_if_t<internal::is_same<T1, T2>::value, bool> is_same_type(const T1&, const T2&) {
+std::enable_if_t<std::is_same<T1, T2>::value, bool> is_same_type(const T1&, const T2&) {
   return true;
 }
 
@@ -949,6 +951,37 @@ inline void set_seed_from_time() {
   g_seed = static_cast<decltype(g_seed)>(ns);
 }
 
+#if defined(EIGEN_USE_GPU)
+inline int maybe_skip_gpu_tests() {
+#if defined(EIGEN_USE_HIP)
+  int device_count = 0;
+  hipError_t status = hipGetDeviceCount(&device_count);
+  if (status != hipSuccess) {
+    std::cout << "SKIP: HIP GPU tests require a visible ROCm device. hipGetDeviceCount failed with: "
+              << hipGetErrorString(status) << std::endl;
+    return 77;
+  }
+  if (device_count <= 0) {
+    std::cout << "SKIP: HIP GPU tests require a visible ROCm device." << std::endl;
+    return 77;
+  }
+#elif defined(EIGEN_CUDACC)
+  int device_count = 0;
+  cudaError_t status = cudaGetDeviceCount(&device_count);
+  if (status != cudaSuccess) {
+    std::cout << "SKIP: CUDA GPU tests require a visible CUDA device. cudaGetDeviceCount failed with: "
+              << cudaGetErrorString(status) << std::endl;
+    return 77;
+  }
+  if (device_count <= 0) {
+    std::cout << "SKIP: CUDA GPU tests require a visible CUDA device." << std::endl;
+    return 77;
+  }
+#endif
+  return 0;
+}
+#endif
+
 int main(int argc, char* argv[]) {
   g_has_set_repeat = false;
   g_has_set_seed = false;
@@ -996,6 +1029,13 @@ int main(int argc, char* argv[]) {
   g_test_stack.push_back(ss.str());
   srand(g_seed);
   std::cout << "Repeating each test " << g_repeat << " times" << std::endl;
+
+#if defined(EIGEN_USE_GPU)
+  {
+    const int skip_code = maybe_skip_gpu_tests();
+    if (skip_code != 0) return skip_code;
+  }
+#endif
 
   VERIFY(EigenTest::all().size() > 0);
 

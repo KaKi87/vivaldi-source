@@ -1,20 +1,14 @@
 # Copyright (c) 2015-2017 Vivaldi Technologies AS. All rights reserved
 
 update_target("//components/sync_sessions:sync_sessions") {
-  deps += [
-    "//vivaldi/prefs:prefs_files_generated",
-  ]
+  deps += [ "//vivaldi/prefs:prefs_files_generated" ]
 }
 
 update_target("//components/sync/base:base") {
-  configs += [
-     "//vivaldi/gn/config:release_kind"
-  ]
+  configs += [ "//vivaldi/gn/config:release_kind" ]
 }
 update_target("//components/sync/engine:engine") {
-  deps += [
-    "//vivaldi/sync/test:fake_server",
-  ]
+  deps += [ "//vivaldi/sync/test:fake_server" ]
   allow_circular_includes_from = [
     "//components/sync/base:base",
     "//vivaldi/sync/test:fake_server",
@@ -22,7 +16,5 @@ update_target("//components/sync/engine:engine") {
 }
 
 update_target("//components/sync/protocol:util") {
-  allow_circular_includes_from = [
-    "//components/sync/base:base",
-  ]
+  allow_circular_includes_from = [ "//components/sync/base:base" ]
 }

@@ -462,6 +462,10 @@ void RemoteFrameView::SetNaturalDimensions(const NaturalSizingInfo& size_info) {
   natural_sizing_info_ = size_info;
 }
 
+void RemoteFrameView::ClearNaturalDimensions() {
+  natural_sizing_info_ = std::nullopt;
+}
+
 uint32_t RemoteFrameView::Print(const gfx::Rect& rect,
                                 cc::PaintCanvas* canvas) const {
 #if BUILDFLAG(ENABLE_PRINTING)

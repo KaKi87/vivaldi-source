@@ -17,7 +17,7 @@
 
 namespace cc {
 
-FakeLayerTreeHost::FakeLayerTreeHost(FakeLayerTreeHostClient* client,
+FakeLayerTreeHost::FakeLayerTreeHost(FakeLayerTreeHostDelegate* client,
                                      LayerTreeHost::InitParams params,
                                      CompositorMode mode)
     : LayerTreeHost(std::move(params), mode),
@@ -41,7 +41,7 @@ void FakeLayerTreeHost::ClearPendingLayerCommitStates() {
 }
 
 std::unique_ptr<FakeLayerTreeHost> FakeLayerTreeHost::Create(
-    FakeLayerTreeHostClient* client,
+    FakeLayerTreeHostDelegate* client,
     TestTaskGraphRunner* task_graph_runner,
     MutatorHost* mutator_host) {
   LayerTreeSettings settings;
@@ -49,7 +49,7 @@ std::unique_ptr<FakeLayerTreeHost> FakeLayerTreeHost::Create(
 }
 
 std::unique_ptr<FakeLayerTreeHost> FakeLayerTreeHost::Create(
-    FakeLayerTreeHostClient* client,
+    FakeLayerTreeHostDelegate* client,
     TestTaskGraphRunner* task_graph_runner,
     MutatorHost* mutator_host,
     const LayerTreeSettings& settings) {
@@ -58,7 +58,7 @@ std::unique_ptr<FakeLayerTreeHost> FakeLayerTreeHost::Create(
 }
 
 std::unique_ptr<FakeLayerTreeHost> FakeLayerTreeHost::Create(
-    FakeLayerTreeHostClient* client,
+    FakeLayerTreeHostDelegate* client,
     TestTaskGraphRunner* task_graph_runner,
     MutatorHost* mutator_host,
     const LayerTreeSettings& settings,
@@ -78,9 +78,9 @@ FakeLayerTreeHost::~FakeLayerTreeHost() {
 
 void FakeLayerTreeHost::SetNeedsCommit() { needs_commit_ = true; }
 
-std::unique_ptr<LayerTreeHostImpl>
+std::unique_ptr<ClientLayerTreeHostImpl>
 FakeLayerTreeHost::CreateLayerTreeHostImplInternal(
-    LayerTreeHostImplClient*,
+    LayerTreeHostImplDelegate*,
     MutatorHost*,
     const LayerTreeSettings& settings,
     TaskRunnerProvider* task_runner_provider,
@@ -88,7 +88,7 @@ FakeLayerTreeHost::CreateLayerTreeHostImplInternal(
     int,
     raw_ptr<TaskGraphRunner>& task_graph_runner,
     scoped_refptr<base::SequencedTaskRunner>,
-    LayerTreeHostSchedulingClient*,
+    LayerTreeHostSchedulingDelegate*,
     RenderingStatsInstrumentation*,
     base::WeakPtr<CompositorDelegateForInput>&) {
   DCHECK(!host_impl_);
@@ -123,14 +123,10 @@ LayerImpl* FakeLayerTreeHost::CommitToTree(LayerTreeImpl* tree) {
   // pending_commit_state() is used in this function because this is a phony
   // commit that doesn't actually call WillCommit() or ActivateCommitState().
   tree->set_source_frame_number(SourceFrameNumber());
-  PropertyTreesChangeState change_state;
-  property_trees()->GetChangeState(change_state);
-  std::swap(change_state, pending_commit_state()->property_trees_change_state);
   pending_commit_state()->property_trees = *property_trees();
   host_impl_->FinishCommit(*pending_commit_state(),
                            thread_unsafe_commit_state());
   pending_commit_state()->picture_layer_ids_with_new_raster_source.clear();
-  std::swap(change_state, pending_commit_state()->property_trees_change_state);
   return tree->root_layer();
 }
 

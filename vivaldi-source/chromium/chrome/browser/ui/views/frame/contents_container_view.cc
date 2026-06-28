@@ -6,10 +6,11 @@
 
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include "chrome/browser/actor/ui/actor_overlay_web_view.h"
 #include "chrome/browser/devtools/devtools_contents_resizing_strategy.h"
-#include "chrome/browser/enterprise/watermark/watermark_view.h"
+#include "chrome/browser/enterprise/data_protection/data_protection_overlay_view.h"
 //#include "chrome/browser/glic/browser_ui/context_sharing_border_view.h"
 //#include "chrome/browser/glic/browser_ui/context_sharing_border_view_controller_impl.h"
 //#include "chrome/browser/glic/public/glic_enabling.h"
@@ -29,6 +30,7 @@
 #include "chrome/browser/ui/views/frame/scrim_view.h"
 #include "chrome/browser/ui/views/frame/tab_modal_dialog_host.h"
 #include "chrome/browser/ui/views/frame/top_container_view.h"
+#include "chrome/browser/ui/views/indigo/indigo_toolbar.h"
 #include "chrome/browser/ui/views/new_tab_footer/footer_web_view.h"
 #include "chrome/common/chrome_features.h"
 #include "components/search/ntp_features.h"
@@ -84,6 +86,9 @@ ContentsContainerView::ContentsContainerView(BrowserView* browser_view)
   contents_view_ = AddChildView(
       std::make_unique<ContentsWebView>(browser_view->GetProfile()));
   contents_view_->SetID(VIEW_ID_TAB_CONTAINER);
+  contents_view_->set_use_default_deadline_when_animating_bounds(
+      base::FeatureList::IsEnabled(
+          features::kUseDefaultDeadlineWhenAnimatingBounds));
 
   if (base::FeatureList::IsEnabled(ntp_features::kNtpFooter)) {
     new_tab_footer_view_separator_ =
@@ -98,8 +103,13 @@ ContentsContainerView::ContentsContainerView(BrowserView* browser_view)
     new_tab_footer_view_->SetVisible(false);
   }
 
-  watermark_view_ =
-      AddChildView(std::make_unique<enterprise_watermark::WatermarkView>());
+  data_protection_overlay_view_ =
+      AddChildView(std::make_unique<
+                   enterprise_data_protection::DataProtectionOverlayView>());
+
+  if (base::FeatureList::IsEnabled(features::kIndigo)) {
+    indigo_overlay_view_ = AddChildView(indigo::CreateIndigoOverlayView());
+  }
 
   if (base::FeatureList::IsEnabled(features::kAiOverlayDialog)) {
     auto ai_overlay_dialog_view =
@@ -131,16 +141,13 @@ ContentsContainerView::ContentsContainerView(BrowserView* browser_view)
   }
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-  if (base::FeatureList::IsEnabled(features::kGlicRegionSelectionNew)) {
-    auto glic_selection_overlay_view = std::make_unique<views::WebView>();
-    glic_selection_overlay_view->SetProperty(
-        views::kElementIdentifierKey, kGlicSelectionOverlayViewElementId);
-    glic_selection_overlay_view->SetVisible(false);
-    glic_selection_overlay_view->SetLayoutManager(
-        std::make_unique<views::FillLayout>());
-    glic_selection_overlay_view_ =
-        AddChildView(std::move(glic_selection_overlay_view));
-  }
+  glic_selection_overlay_view_ = AddChildView(std::make_unique<views::View>());
+  glic_selection_overlay_view_->SetProperty(views::kElementIdentifierKey,
+                                            kGlicSelectionOverlayViewElementId);
+  glic_selection_overlay_view_->SetVisible(false);
+  glic_selection_overlay_view_->SetLayoutManager(
+      std::make_unique<views::FillLayout>());
+  glic_selection_overlay_view_->SetPaintToLayer();
 
   if (glic::GlicEnabling::IsProfileEligible(browser_view->GetProfile())) {
     glic_border_ = AddChildView(
@@ -168,6 +175,7 @@ ContentsContainerView::ContentsContainerView(BrowserView* browser_view)
 }
 
 ContentsContainerView::~ContentsContainerView() {
+  indigo_overlay_view_ = nullptr;
   // read_anything_immersive_overlay_view_ holds a raw_ptr to
   // contents_view_. We need to make sure we destroy
   // read_anything_immersive_overlay_view_ first to avoid a dangling pointer.
@@ -295,7 +303,7 @@ void ContentsContainerView::UpdateBorderRoundedCorners() {
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (glic_selection_overlay_view_) {
-    glic_selection_overlay_view_->holder()->SetCornerRadii(radii);
+    glic_selection_overlay_view_->layer()->SetRoundedCornerRadius(radii);
   }
 
   if (glic_border_) {
@@ -329,7 +337,8 @@ void ContentsContainerView::ClearBorderRoundedCorners() {
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (glic_selection_overlay_view_) {
-    glic_selection_overlay_view_->holder()->SetCornerRadii(kNoRoundedCorners);
+    glic_selection_overlay_view_->layer()->SetRoundedCornerRadius(
+        kNoRoundedCorners);
   }
 
   if (glic_border_) {
@@ -386,8 +395,8 @@ void ContentsContainerView::ApplyWatermarkSettings(
     SkColor fill_color,
     SkColor outline_color,
     int font_size) {
-  watermark_view_->SetString(watermark_text, fill_color, outline_color,
-                             font_size);
+  data_protection_overlay_view_->SetWatermarkText(watermark_text, fill_color,
+                                                  outline_color, font_size);
 }
 
 void ContentsContainerView::UpdateDevToolsDockedPlacement() {
@@ -563,10 +572,10 @@ views::ProposedLayout ContentsContainerView::CalculateProposedLayout(
                                      contents_scrim_view_->GetVisible(),
                                      full_contents_bounds);
 
-  CHECK(watermark_view_);
-  layouts.child_layouts.emplace_back(watermark_view_.get(),
-                                     watermark_view_->GetVisible(),
-                                     full_contents_bounds);
+  CHECK(data_protection_overlay_view_);
+  layouts.child_layouts.emplace_back(
+      data_protection_overlay_view_.get(),
+      data_protection_overlay_view_->GetVisible(), full_contents_bounds);
 
   // Actor Overlay view bounds are the same as the contents view.
   if (actor_overlay_web_view_) {
@@ -614,6 +623,12 @@ views::ProposedLayout ContentsContainerView::CalculateProposedLayout(
         read_anything_immersive_overlay_view_.get(),
         read_anything_immersive_overlay_view_->GetVisible(),
         non_devtools_contents_bounds, size_bounds);
+  }
+
+  if (indigo_overlay_view_) {
+    layouts.child_layouts.emplace_back(indigo_overlay_view_.get(),
+                                       indigo_overlay_view_->GetVisible(),
+                                       non_devtools_contents_bounds);
   }
 
   if (mini_toolbar_) {

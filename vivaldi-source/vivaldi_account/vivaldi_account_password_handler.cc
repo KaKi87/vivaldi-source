@@ -3,8 +3,7 @@
 #include "vivaldi_account/vivaldi_account_password_handler.h"
 
 #include "base/strings/utf_string_conversions.h"
-#include "components/password_manager/core/browser/password_form.h"
-#include "components/password_manager/core/browser/password_store/password_store.h"
+#include "components/password_manager/core/browser/password_store/stored_credential.h"
 
 namespace {
 constexpr char kSyncSignonRealm[] = "vivaldi-sync-login";
@@ -41,46 +40,55 @@ void VivaldiAccountPasswordHandler::SetPassword(const std::string& password) {
 
   DCHECK(!password.empty());
 
-  password_manager::PasswordForm password_form = {};
-  password_form.scheme = password_manager::PasswordForm::Scheme::kOther;
-  password_form.signon_realm = kSyncSignonRealm;
-  password_form.url = GURL(kSyncOrigin);
-  password_form.username_value = base::UTF8ToUTF16(delegate_->GetUsername());
-  password_form.password_value = base::UTF8ToUTF16(password);
-  password_form.date_created = base::Time::Now();
+  password_manager::StoredCredential stored_credential = {};
+  stored_credential.scheme = password_manager::PasswordForm::Scheme::kOther;
+  stored_credential.signon_realm = kSyncSignonRealm;
+  stored_credential.url = GURL(kSyncOrigin);
+  stored_credential.username_value =
+      base::UTF8ToUTF16(delegate_->GetUsername());
+  stored_credential.password_value = base::UTF8ToUTF16(password);
+  stored_credential.date_created = base::Time::Now();
 
-  password_store_->AddLogin(password_form);
+  password_store_->AddLogin(std::move(stored_credential));
 }
 
 void VivaldiAccountPasswordHandler::ForgetPassword() {
   if (!password_store_)
     return;
 
-  password_manager::PasswordForm password_form = {};
-  password_form.scheme = password_manager::PasswordForm::Scheme::kOther;
-  password_form.signon_realm = kSyncSignonRealm;
-  password_form.url = GURL(kSyncOrigin);
-  password_form.username_value = base::UTF8ToUTF16(delegate_->GetUsername());
+  password_manager::StoredCredential stored_credential = {};
+  stored_credential.scheme = password_manager::PasswordForm::Scheme::kOther;
+  stored_credential.signon_realm = kSyncSignonRealm;
+  stored_credential.url = GURL(kSyncOrigin);
+  stored_credential.username_value =
+      base::UTF8ToUTF16(delegate_->GetUsername());
 
-  password_store_->RemoveLogin(FROM_HERE, password_form);
+  password_store_->RemoveLogin(FROM_HERE, stored_credential);
 }
 
-void VivaldiAccountPasswordHandler::OnGetPasswordStoreResults(
-    std::vector<std::unique_ptr<password_manager::PasswordForm>> results) {
-  for (const auto& result : results) {
-    const std::string username = base::UTF16ToUTF8(result->username_value);
-    if (username == delegate_->GetUsername())
-      PasswordReceived(base::UTF16ToUTF8(result->password_value));
+void VivaldiAccountPasswordHandler::OnGetPasswordStoreResultsOrErrorFrom(
+    password_manager::PasswordStoreInterface* store,
+    password_manager::LoginsResultOrError results_or_error) {
+  const std::vector<password_manager::StoredCredential>* results =
+      std::get_if<std::vector<password_manager::StoredCredential>>(
+          &results_or_error);
+  if (!results) {
+    return;
+  }
+  for (const auto& result : *results) {
+    if (base::UTF16ToUTF8(result.username_value) == delegate_->GetUsername()) {
+      PasswordReceived(base::UTF16ToUTF8(result.password_value));
+    }
   }
 }
 
 void VivaldiAccountPasswordHandler::OnLoginsChanged(
     password_manager::PasswordStoreInterface* store,
     const password_manager::PasswordStoreChangeList& changes) {
-  for (const auto& change : changes) {
-    if (change.form().signon_realm == kSyncSignonRealm &&
-        change.form().url == GURL(kSyncOrigin) &&
-        base::UTF16ToUTF8(change.form().username_value) ==
+  for (const password_manager::PasswordStoreChange& change : changes) {
+    if (change.credential().signon_realm == kSyncSignonRealm &&
+        change.credential().url == GURL(kSyncOrigin) &&
+        base::UTF16ToUTF8(change.credential().username_value) ==
             delegate_->GetUsername()) {
       if (change.type() == password_manager::PasswordStoreChange::REMOVE)
         PasswordReceived(std::string());
@@ -92,7 +100,8 @@ void VivaldiAccountPasswordHandler::OnLoginsChanged(
 
 void VivaldiAccountPasswordHandler::OnLoginsRetained(
     password_manager::PasswordStoreInterface* store,
-    const std::vector<password_manager::PasswordForm>& retained_passwords) {}
+    const std::vector<password_manager::StoredCredential>&
+        retained_credentials) {}
 
 void VivaldiAccountPasswordHandler::UpdatePassword() {
   if (!password_store_)

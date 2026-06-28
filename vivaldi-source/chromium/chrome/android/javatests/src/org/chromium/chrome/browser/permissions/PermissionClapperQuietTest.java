@@ -17,6 +17,7 @@ import static org.chromium.ui.test.util.ViewUtils.onViewWaiting;
 import androidx.test.filters.MediumTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -35,12 +36,13 @@ import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.base.test.util.RequiresRestart;
+import org.chromium.chrome.R;
+import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.omnibox.LocationBarCoordinator;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiTestHelper;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.components.content_settings.ContentSetting;
 import org.chromium.components.content_settings.ContentSettingsType;
@@ -70,11 +72,11 @@ public class PermissionClapperQuietTest {
             @PermissionTestRule.PromptAction int action, int times) {
         return HistogramWatcher.newBuilder()
                 .expectIntRecordTimes(
-                        "Permissions.Prompt.Notifications.LocationBarLeftClapperQuietIcon.Action",
+                        "Permissions.Prompt.Notifications.LocationBarLeftQuietIcon.Action",
                         action,
                         times)
                 .expectIntRecordTimes(
-                        "Permissions.Action.WithDisposition.LocationBarLeftClapperQuietIcon",
+                        "Permissions.Action.WithDisposition.LocationBarLeftQuietIcon",
                         action,
                         times)
                 .build();
@@ -86,10 +88,8 @@ public class PermissionClapperQuietTest {
 
     private HistogramWatcher expectNoClapperQuietRecords() {
         return HistogramWatcher.newBuilder()
-                .expectNoRecords(
-                        "Permissions.Prompt.Notifications.LocationBarLeftClapperQuietIcon.Action")
-                .expectNoRecords(
-                        "Permissions.Action.WithDisposition.LocationBarLeftClapperQuietIcon")
+                .expectNoRecords("Permissions.Prompt.Notifications.LocationBarLeftQuietIcon.Action")
+                .expectNoRecords("Permissions.Action.WithDisposition.LocationBarLeftQuietIcon")
                 .build();
     }
 
@@ -274,7 +274,7 @@ public class PermissionClapperQuietTest {
                         String result =
                                 mPermissionRule.runJavaScriptCodeInCurrentTab(
                                         "window.promiseResolved");
-                        Criteria.checkThat(result, org.hamcrest.Matchers.is("true"));
+                        Criteria.checkThat(result, Matchers.is("true"));
                     } catch (Exception e) {
                         throw new CriteriaNotSatisfiedException(e);
                     }
@@ -495,19 +495,17 @@ public class PermissionClapperQuietTest {
 
         // Enter Tab Switcher via UI.
 
-        TabUiTestHelper.enterTabSwitcher(
-                (org.chromium.chrome.browser.ChromeTabbedActivity) mPermissionRule.getActivity());
+        TabUiTestHelper.enterTabSwitcher((ChromeTabbedActivity) mPermissionRule.getActivity());
         ChromeTabUtils.newTabFromMenu(
                 InstrumentationRegistry.getInstrumentation(),
-                (org.chromium.chrome.browser.ChromeTabbedActivity) mPermissionRule.getActivity());
+                (ChromeTabbedActivity) mPermissionRule.getActivity());
 
         onTabSwitchCallback.waitForCallback(0);
 
         histogramWatcher.assertExpected();
 
         ChromeTabUtils.switchTabInCurrentTabModel(
-                (org.chromium.chrome.browser.ChromeTabbedActivity) mPermissionRule.getActivity(),
-                0);
+                (ChromeTabbedActivity) mPermissionRule.getActivity(), 0);
 
         // The icon should reappear when switching back.
         waitForQuietIcon();
@@ -532,12 +530,10 @@ public class PermissionClapperQuietTest {
         waitForQuietIcon();
 
         // Enter Tab Switcher via UI.
-        TabUiTestHelper.enterTabSwitcher(
-                (org.chromium.chrome.browser.ChromeTabbedActivity) mPermissionRule.getActivity());
+        TabUiTestHelper.enterTabSwitcher((ChromeTabbedActivity) mPermissionRule.getActivity());
         onTabSwitchCallback.waitForCallback(0);
 
-        TabUiTestHelper.leaveTabSwitcher(
-                (org.chromium.chrome.browser.ChromeTabbedActivity) mPermissionRule.getActivity());
+        TabUiTestHelper.leaveTabSwitcher((ChromeTabbedActivity) mPermissionRule.getActivity());
 
         // The icon should reappear when switching back.
         waitForQuietIcon();
@@ -656,7 +652,7 @@ public class PermissionClapperQuietTest {
 
         ChromeTabUtils.fullyLoadUrlInNewTab(
                 InstrumentationRegistry.getInstrumentation(),
-                (org.chromium.chrome.browser.ChromeTabbedActivity) mPermissionRule.getActivity(),
+                (ChromeTabbedActivity) mPermissionRule.getActivity(),
                 mPermissionRule.getURL(PAGE_URL),
                 /* incognito= */ false);
 
@@ -719,9 +715,9 @@ public class PermissionClapperQuietTest {
         onViewWaiting(withText(PermissionTestRule.CLAPPER_PAGE_INFO_SUBSCRIBE_BUTTON_TEXT_ID))
                 .perform(click());
 
-        // Verify that the permission was NOT granted (because the request was preempted).
+        // Verify that the permission was granted.
         mPermissionRule.checkPermissionSettingForOrigin(
-                ContentSettingsType.NOTIFICATIONS, ContentSetting.ASK, PAGE_URL);
+                ContentSettingsType.NOTIFICATIONS, ContentSetting.ALLOW, PAGE_URL);
 
         // Verify no crash.
         histogramWatcher.assertExpected();
@@ -729,11 +725,12 @@ public class PermissionClapperQuietTest {
         // Cleanup
         pressBack();
         mPermissionRule.waitForPageInfoClose();
+        // Close the microphone permission prompt.
         PermissionTestRule.replyToDialog(
                 PermissionTestRule.PromptDecision.DENY, mPermissionRule.getActivity());
 
         mPermissionRule.checkPermissionSettingForOrigin(
-                ContentSettingsType.NOTIFICATIONS, ContentSetting.ASK, PAGE_URL);
+                ContentSettingsType.NOTIFICATIONS, ContentSetting.ALLOW, PAGE_URL);
     }
 
     @Test

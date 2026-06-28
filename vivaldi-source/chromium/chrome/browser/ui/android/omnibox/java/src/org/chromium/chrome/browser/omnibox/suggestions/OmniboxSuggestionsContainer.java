@@ -16,8 +16,6 @@ import android.view.ViewOutlineProvider;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
@@ -26,12 +24,13 @@ import org.chromium.base.metrics.TimingMetric;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.omnibox.OmniboxMetrics;
 import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsDropdownEmbedder.OmniboxAlignment;
 import org.chromium.chrome.browser.omnibox.suggestions.base.BaseSuggestionViewBinder;
 import org.chromium.components.browser_ui.widget.RoundedCornerOutlineProvider;
-import org.chromium.components.omnibox.OmniboxFeatures;
+import org.chromium.components.omnibox.OmniboxCapabilities;
 import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.ViewUtils;
@@ -60,9 +59,10 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
 
     // Vivaldi
     private int mLastRecordedDropdownHeight;
-    public static @Nullable Callback mSearchEngineSuggestionCallback;
+    public static @Nullable Callback<SearchEngineSuggestionView.LayoutMargins>
+            mSearchEngineSuggestionCallback;
 
-    public OmniboxSuggestionsContainer(@NonNull Context context, @Nullable AttributeSet attrs) {
+    public OmniboxSuggestionsContainer(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
     }
 
@@ -96,6 +96,7 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
                             availableViewportHeight,
                             isTablet ? MeasureSpec.AT_MOST : heightParam /* Vivaldi */);
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+            if (!BuildConfig.IS_VIVALDI) // Vivaldi VAB-12615
             if (isTablet) {
                 setRoundingCorners(mShouldRoundTopCorners, shouldRoundBottomCorners());
             }
@@ -283,7 +284,7 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
             mEmbedder.removeAlignmentObserver(mOmniboxAlignmentObserver);
         }
 
-        if (!OmniboxFeatures.shouldPreWarmRecyclerViewPool()) {
+        if (!OmniboxCapabilities.shouldPreWarmRecyclerViewPool()) {
             mDropdown.getRecycledViewPool().clear();
         }
     }
@@ -351,6 +352,11 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
         mDropdown = dropdown;
     }
 
+    public OmniboxSuggestionsDropdown takeDropdownView() {
+        removeView(mDropdown);
+        return mDropdown;
+    }
+
     private void vivaldiOmniboxAlignmentCalculation(ViewGroup.LayoutParams layoutParams, int topMargin) {
         if (mEmbedder != null) {
             View controlView =
@@ -385,4 +391,5 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
             Callback<SearchEngineSuggestionView.LayoutMargins> callback) {
         mSearchEngineSuggestionCallback = callback;
     }
+    // End Vivaldi
 }

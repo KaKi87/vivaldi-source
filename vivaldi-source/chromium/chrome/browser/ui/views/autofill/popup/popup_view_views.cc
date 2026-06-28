@@ -38,13 +38,14 @@
 #include "chrome/browser/ui/autofill/autofill_popup_controller.h"
 #include "chrome/browser/ui/autofill/autofill_suggestion_controller_utils.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/passwords/ui_utils.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_base_view.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_bnpl_footnote_view.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_loading_view.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_no_suggestions_view.h"
+#include "chrome/browser/ui/views/autofill/popup/popup_personal_context_notice_view.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_row_factory_utils.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_row_view.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_search_bar_view.h"
@@ -73,6 +74,7 @@
 #include "components/strings/grit/components_strings.h"
 #include "components/sync/service/sync_service.h"
 #include "components/user_education/common/feature_promo/feature_promo_controller.h"
+#include "content/public/browser/browser_accessibility_state.h"
 #include "content/public/browser/web_contents.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 #include "ui/accessibility/ax_node_data.h"
@@ -111,7 +113,7 @@ namespace autofill {
 namespace {
 
 // The minimum width should exceed the maximum size of a cursor, which is 128
-// (see crbug.com/1434330).
+// (see crbug.com/40064089).
 constexpr int kAutofillPopupMinWidth = 156;
 static_assert(kAutofillPopupMinWidth > 128);
 
@@ -191,7 +193,8 @@ std::vector<views::BubbleArrowSide> GetPreferredPopupSides(
 }
 
 void DefaultA11yAnnouncer(const std::u16string& message, bool polite) {
-  BrowserWindowInterface* browser = chrome::FindLastActive();
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
   if (!browser) {
     return;
   }
@@ -267,7 +270,7 @@ void PopupViewViews::OnPaint(gfx::Canvas* canvas) {
 
 bool PopupViewViews::Show(
     AutoselectFirstSuggestion autoselect_first_suggestion) {
-  base::AutoReset show_in_progress_reset(&show_in_progress_, !!search_bar_);
+  base::AutoReset show_in_progress_reset(&show_in_progress_, search_bar_);
 
   UpdateAccessibleStates();
   if (!DoShow()) {
@@ -331,7 +334,9 @@ bool PopupViewViews::Show(
   MaybeAnnounceCurrentTabAndFootnote();
   MaybeAnnouncePasswordRecoveryPopup();
   MaybeAnnounceLoadingState();
-  MaybeA11yFocusInformationalSuggestion();
+  if (!MaybeA11yFocusInformationalSuggestion()) {
+    return false;
+  }
 
   return !CanActivate() || (GetWidget() && GetWidget()->IsActive());
 }
@@ -418,27 +423,8 @@ bool PopupViewViews::HandleKeyPressEvent(
       SelectNextRow(PopupCellSelectionSource::kKeyboard);
       return true;
     case ui::VKEY_LEFT:
-      // `base::i18n::IsRTL` is used here instead of the controller's method
-      // because the controller's `IsRTL` depends on the language of the focused
-      // field and not the overall UI language. However, the layout of the popup
-      // is determined by the overall UI language.
-      if (base::i18n::IsRTL()) {
-        return SelectNextHorizontalCell();
-      } else {
-        if (SelectParentPopupContentCell()) {
-          return true;
-        }
-        return SelectPreviousHorizontalCell();
-      }
     case ui::VKEY_RIGHT:
-      if (base::i18n::IsRTL()) {
-        if (SelectParentPopupContentCell()) {
-          return true;
-        }
-        return SelectPreviousHorizontalCell();
-      } else {
-        return SelectNextHorizontalCell();
-      }
+      return HandlePopupHorizontalNavigation(event);
     case ui::VKEY_PRIOR:  // Page up.
       // Set no line and then select the next line in case the first line is not
       // selectable.
@@ -469,8 +455,30 @@ bool PopupViewViews::HandleKeyPressEvent(
       // We do not want to handle Mod+TAB for other modifiers because this may
       // have other purposes (e.g., change the tab).
       if (!kHasNonShiftModifier) {
+        // If there is a BNPL footnote settings link, we want to focus it to
+        // make it accessible for keyboard and screenreader users, since the
+        // BNPL footnote suggestion itself is not selectable.
+        PopupBnplFootnoteView* bnpl_footnote = GetBnplFootnoteView();
+        if (bnpl_footnote) {
+          if (bnpl_footnote->IsSettingsLinkFocused()) {
+            return false;
+          }
+          bnpl_footnote->FocusSettingsLink();
+          SetSelectedCell(std::nullopt, PopupCellSelectionSource::kKeyboard);
+          return true;
+        }
+
         AcceptSelectedContentOrCreditCardCell(
             AutofillMetrics::SuggestionAcceptedMethod::kKeyboard);
+      }
+      return false;
+    case ui::VKEY_RETURN:
+      if (!GetSelectedCell()) {
+        PopupBnplFootnoteView* bnpl_footnote = GetBnplFootnoteView();
+        if (bnpl_footnote && bnpl_footnote->IsSettingsLinkFocused()) {
+          bnpl_footnote->ActivateSettingsLink();
+          return true;
+        }
       }
       return false;
     default:
@@ -500,27 +508,8 @@ bool PopupViewViews::HandleKeyPressEventForCompose(
       }
       return false;
     case ui::VKEY_LEFT:
-      // `base::i18n::IsRTL` is used here instead of the controller's method
-      // because the controller's `IsRTL` depends on the language of the focused
-      // field and not the overall UI language. However, the layout of the popup
-      // is determined by the overall UI language.
-      if (base::i18n::IsRTL()) {
-        return SelectNextHorizontalCell();
-      } else {
-        if (SelectParentPopupContentCell()) {
-          return true;
-        }
-        return SelectPreviousHorizontalCell();
-      }
     case ui::VKEY_RIGHT:
-      if (base::i18n::IsRTL()) {
-        if (SelectParentPopupContentCell()) {
-          return true;
-        }
-        return SelectPreviousHorizontalCell();
-      } else {
-        return SelectNextHorizontalCell();
-      }
+      return HandlePopupHorizontalNavigation(event);
     case ui::VKEY_TAB: {
       const bool is_root_popup = !parent_;
       // TAB should only be handled by the root popup. The subpopup only deals
@@ -623,9 +612,41 @@ bool PopupViewViews::HandleKeyPressEventForAtMemory(
         return true;
       }
       return false;
+    case ui::VKEY_LEFT:
+    case ui::VKEY_RIGHT:
+      return HandlePopupHorizontalNavigation(event);
     default:
       return false;
   }
+}
+
+bool PopupViewViews::HandlePopupHorizontalNavigation(
+    const input::NativeWebKeyboardEvent& event) {
+  if (event.windows_key_code == ui::VKEY_LEFT) {
+    // `base::i18n::IsRTL` is used here instead of the controller's method
+    // because the controller's `IsRTL` depends on the language of the focused
+    // field and not the overall UI language. However, the layout of the popup
+    // is determined by the overall UI language.
+    if (base::i18n::IsRTL()) {
+      return SelectNextHorizontalCell();
+    } else {
+      if (SelectParentPopupContentCell()) {
+        return true;
+      }
+      return SelectPreviousHorizontalCell();
+    }
+  }
+  if (event.windows_key_code == ui::VKEY_RIGHT) {
+    if (base::i18n::IsRTL()) {
+      if (SelectParentPopupContentCell()) {
+        return true;
+      }
+      return SelectPreviousHorizontalCell();
+    } else {
+      return SelectNextHorizontalCell();
+    }
+  }
+  return false;
 }
 
 void PopupViewViews::SelectPreviousRow() {
@@ -739,8 +760,7 @@ bool PopupViewViews::AcceptSelectedContentOrCreditCardCell(
     return false;
   }
 
-  controller_->AcceptSuggestion(index->first, accept_method);
-  return true;
+  return GetPopupRowViewAt(index->first).Accept(accept_method);
 }
 
 bool PopupViewViews::RemoveSelectedCell() {
@@ -767,6 +787,11 @@ void PopupViewViews::OnSuggestionsChanged(bool prefer_prev_arrow_side) {
   SetRowWithOpenSubPopup(std::nullopt);
 
   CreateSuggestionViews();
+
+  if (search_bar_) {
+    search_bar_->SetLoading(controller_ && controller_->IsSearching());
+  }
+
   // Updating bounds and redrawing popup can cause the popup to hide.
   if (!DoUpdateBoundsAndRedrawPopup(prefer_prev_arrow_side)) {
     return;
@@ -774,7 +799,9 @@ void PopupViewViews::OnSuggestionsChanged(bool prefer_prev_arrow_side) {
 
   MaybeAnnouncePasswordRecoveryPopup();
   MaybeAnnounceLoadingState();
-  MaybeA11yFocusInformationalSuggestion();
+  if (!MaybeA11yFocusInformationalSuggestion()) {
+    return;
+  }
   ShowIPHFeaturePromos();
 }
 
@@ -888,13 +915,26 @@ void PopupViewViews::SetSelectedCell(
   }
 
   if (old_index) {
-    GetPopupRowViewAt(old_index->first).SetSelectedCell(std::nullopt);
+    if (!TrackAndRun(this, [this, old_index]() {
+          GetPopupRowViewAt(old_index->first).SetSelectedCell(std::nullopt);
+        })) {
+      return;
+    }
   }
 
   // New selected cell invalidates this scheduling (if it's running), cancel it.
   open_sub_popup_timer_.Stop();
 
   if (cell_index && HasSelectablePopupRowViewAt(cell_index->first)) {
+    if (auto* footnote = GetBnplFootnoteView()) {
+      // Since cell selection is based on virtual focus and not real focus,
+      // we need to manually unfocus the settings link when updating virtual
+      // focus.
+      if (!TrackAndRun(this,
+                       [footnote]() { footnote->UnfocusSettingsLink(); })) {
+        return;
+      }
+    }
     has_keyboard_focus_ = true;
     // The sub-popup hiding is canceled because the newly selected cell will
     // rule the sub-pupop visibility from now.
@@ -902,7 +942,11 @@ void PopupViewViews::SetSelectedCell(
 
     row_with_selected_cell_ = cell_index->first;
     PopupRowView& new_selected_row = GetPopupRowViewAt(cell_index->first);
-    new_selected_row.SetSelectedCell(cell_index->second);
+    if (!TrackAndRun(&new_selected_row, [&new_selected_row, cell_index]() {
+          new_selected_row.SetSelectedCell(cell_index->second);
+        })) {
+      return;
+    }
     new_selected_row.ScrollViewToVisible();
 
     if (!controller_) {
@@ -936,7 +980,7 @@ void PopupViewViews::SetSelectedCell(
 }
 
 void PopupViewViews::ShowIPHFeaturePromos() {
-  Browser* browser = GetBrowser();
+  BrowserWindowInterface* browser = GetBrowser();
   if (!browser) {
     return;
   }
@@ -1005,11 +1049,8 @@ void PopupViewViews::MaybeAnnounceCurrentTabAndFootnote() {
   }
 
   std::u16string footnote_text;
-  for (const RowPointer& row : rows_) {
-    if (const auto* footnote = std::get_if<PopupBnplFootnoteView*>(&row)) {
-      footnote_text = (*footnote)->GetFullText();
-      break;
-    }
+  if (PopupBnplFootnoteView* bnpl_footnote = GetBnplFootnoteView()) {
+    footnote_text = bnpl_footnote->GetFullText();
   }
 
   if (!footnote_text.empty()) {
@@ -1043,6 +1084,15 @@ bool PopupViewViews::HasSelectablePopupRowViewAt(size_t index) const {
          GetPopupRowViewAt(index).IsSelectable();
 }
 
+PopupBnplFootnoteView* PopupViewViews::GetBnplFootnoteView() const {
+  for (const RowPointer& row : rows_) {
+    if (const auto* footnote = std::get_if<PopupBnplFootnoteView*>(&row)) {
+      return *footnote;
+    }
+  }
+  return nullptr;
+}
+
 void PopupViewViews::InitViews() {
   a11y_announcer_ = base::BindRepeating(&DefaultA11yAnnouncer);
 
@@ -1052,7 +1102,10 @@ void PopupViewViews::InitViews() {
 
   if (search_bar_config_) {
     search_bar_ = AddChildView(std::make_unique<PopupSearchBarView>(
-        search_bar_config_->placeholder, *this));
+        search_bar_config_->placeholder, *this,
+        controller_ &&
+            controller_->GetMainFillingProduct() == FillingProduct::kAtMemory,
+        controller_ && controller_->IsSearching()));
     search_bar_->SetProperty(views::kMarginsKey,
                              gfx::Insets::VH(GetContentsVerticalPadding(), 0));
     AddChildView(std::make_unique<PopupSeparatorView>(/*vertical_padding=*/0));
@@ -1067,8 +1120,8 @@ void PopupViewViews::InitViews() {
                        .SetOrientation(views::BoxLayout::Orientation::kVertical)
                        .Build());
 
-  Browser* browser = GetBrowser();
-  if (Profile* profile = browser ? browser->profile() : nullptr) {
+  BrowserWindowInterface* browser = GetBrowser();
+  if (Profile* profile = browser ? browser->GetProfile() : nullptr) {
     auto* favicon_service =
         LargeIconServiceFactory::GetForBrowserContext(profile);
     auto* image_fetcher =
@@ -1096,6 +1149,9 @@ void PopupViewViews::CreateSuggestionViews() {
 
   const int kInterItemsPadding = GetContentsVerticalPadding();
   const std::vector<Suggestion> suggestions = controller_->GetSuggestions();
+  const std::vector<
+      std::optional<AutofillPopupController::SuggestionFilterMatch>>&
+      filter_matches = controller_->GetSuggestionFilterMatches();
 
   SetBackground(views::CreateSolidBackground(ui::kColorDropdownBackground));
 
@@ -1149,10 +1205,8 @@ void PopupViewViews::CreateSuggestionViews() {
         default:
           std::optional<AutofillPopupController::SuggestionFilterMatch>
               filter_match =
-                  controller_->GetSuggestionFilterMatches().empty()
-                      ? std::nullopt
-                      : std::optional(controller_->GetSuggestionFilterMatches()
-                                          [current_line_number]);
+                  filter_matches.empty() ? std::nullopt
+                                         : filter_matches[current_line_number];
           PopupRowView* row_view =
               body_container->AddChildView(CreatePopupRowView(
                   controller(), /*a11y_selection_delegate=*/*this,
@@ -1170,7 +1224,9 @@ void PopupViewViews::CreateSuggestionViews() {
               feature == &feature_engagement::
                              kIPHAutofillDisabledVirtualCardSuggestionFeature ||
               feature == &feature_engagement::
-                             kIPHAutofillCardInfoRetrievalSuggestionFeature) {
+                             kIPHAutofillCardInfoRetrievalSuggestionFeature ||
+              feature == &feature_engagement::
+                             kIPHAutofillDownstreamCardAwarenessFeature) {
             row_view->SetProperty(views::kElementIdentifierKey,
                                   kAutofillCreditCardSuggestionEntryElementId);
           } else if (feature ==
@@ -1187,10 +1243,6 @@ void PopupViewViews::CreateSuggestionViews() {
                                     kIPHAutofillCreditCardBenefitFeature) {
             row_view->SetProperty(views::kElementIdentifierKey,
                                   kAutofillCreditCardBenefitElementId);
-          } else if (feature == &feature_engagement::
-                                    kIPHPlusAddressCreateSuggestionFeature) {
-            row_view->SetProperty(views::kElementIdentifierKey,
-                                  kPlusAddressCreateSuggestionElementId);
           } else if (feature ==
                      &feature_engagement::
                          kIPHAutofillBnplAffirmOrZipSuggestionFeature) {
@@ -1296,7 +1348,13 @@ void PopupViewViews::CreateSuggestionViews() {
     } else if (suggestions[current_line_number].type ==
                SuggestionType::kBnplFootnote) {
       rows_.push_back(footer_container_->AddChildView(
-          std::make_unique<PopupBnplFootnoteView>(controller())));
+          std::make_unique<PopupBnplFootnoteView>(
+              controller(), /*a11y_selection_delegate=*/*this,
+              base::BindRepeating(&DefaultA11yAnnouncer))));
+    } else if (suggestions[current_line_number].type ==
+               SuggestionType::kPersonalContextNotice) {
+      rows_.push_back(footer_container_->AddChildView(
+          std::make_unique<PopupPersonalContextNoticeView>()));
     } else {
       rows_.push_back(footer_container_->AddChildView(CreatePopupRowView(
           controller(), /*a11y_selection_delegate=*/*this,
@@ -1338,7 +1396,7 @@ gfx::Size PopupViewViews::CalculatePreferredSize(
 
   if (controller_ &&
       controller_->GetMainFillingProduct() == FillingProduct::kAtMemory) {
-    size.set_width(std::max(size.width(), kAutofillPopupMaxWidth));
+    size.set_width(kAtMemoryPopupWidth);
   }
 
   // This popup height limiting for popups with a search bar addresses a minor
@@ -1479,33 +1537,15 @@ bool PopupViewViews::DoUpdateBoundsAndRedrawPopup(bool prefer_prev_arrow_side) {
       element_bounds, visible_content_area_bounds, preferred_size,
       preferred_popup_sides);
 
-  if (BoundsOverlapWithAnyOpenPrompt(popup_bounds,
-                                     controller_->GetWebContents())) {
+  if (OverlapsWithAnotherPrompt(popup_bounds)) {
     controller_->Hide(SuggestionHidingReason::kOverlappingWithAnotherPrompt);
     return false;
-  }
-  // On Windows, due to platform-specific implementation details, the previous
-  // check isn't reliable, and fails to detect open prompts. Since the most
-  // critical bubble is the permission bubble, we check for that specifically.
-  if (BoundsOverlapWithOpenPermissionsPrompt(popup_bounds,
-                                             controller_->GetWebContents())) {
-    controller_->Hide(SuggestionHidingReason::kOverlappingWithAnotherPrompt);
-    return false;
-  }
-
-  if (base::FeatureList::IsEnabled(
-          features::kAutofillPopupCheckHtmlFormPopupOverlap)) {
-    if (BoundsOverlapWithHtmlFormPopup(popup_bounds,
-                                       controller_->GetWebContents())) {
-      controller_->Hide(SuggestionHidingReason::kOverlappingWithAnotherPrompt);
-      return false;
-    }
   }
 
   // The pip surface is given the most preference while rendering. So, the
   // autofill popup should not be shown when the picture in picture window
   // hides the autofill form behind it.
-  // For more details on how this can happen, see crbug.com/1358647.
+  // For more details on how this can happen, see crbug.com/40060742.
   if (BoundsOverlapWithPictureInPictureWindow(popup_bounds)) {
     controller_->Hide(
         SuggestionHidingReason::kOverlappingWithPictureInPictureWindow);
@@ -1636,17 +1676,23 @@ bool PopupViewViews::SelectParentPopupContentCell() {
   return true;
 }
 
-void PopupViewViews::MaybeA11yFocusInformationalSuggestion() {
+bool PopupViewViews::MaybeA11yFocusInformationalSuggestion() {
   if (rows_.size() != 1) {
-    return;
+    return true;
   }
 
   if (auto* warning_view = std::get_if<PopupWarningView*>(&rows_[0]);
       warning_view && *warning_view) {
-    NotifyAXSelection(**warning_view);
-    (*warning_view)
-        ->NotifyAccessibilityEventDeprecated(ax::mojom::Event::kFocus, true);
+    PopupWarningView* view_ptr = *warning_view;
+    return TrackAndRun(
+        view_ptr, [this, view_ptr]() { NotifyAXSelection(*view_ptr); },
+        [view_ptr]() {
+          view_ptr->NotifyAccessibilityEventDeprecated(ax::mojom::Event::kFocus,
+                                                       true);
+        });
   }
+
+  return true;
 }
 
 base::WeakPtr<AutofillPopupView> PopupViewViews::GetWeakPtr() {

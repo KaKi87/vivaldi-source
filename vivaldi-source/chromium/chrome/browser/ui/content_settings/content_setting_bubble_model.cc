@@ -65,6 +65,8 @@
 #include "components/permissions/permissions_client.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
+#include "components/subresource_filter/content/browser/content_subresource_filter_web_contents_helper.h"
+#include "components/subresource_filter/content/browser/subresource_filter_content_settings_manager.h"
 #include "components/subresource_filter/core/browser/subresource_filter_constants.h"
 #include "components/subresource_filter/core/browser/subresource_filter_features.h"
 #include "components/url_formatter/elide_url.h"
@@ -87,6 +89,7 @@
 #include "third_party/blink/public/common/permissions/permission_utils.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/base/window_open_disposition.h"
 #include "ui/base/window_open_disposition_utils.h"
 #include "ui/events/event.h"
@@ -136,7 +139,7 @@ const std::u16string& GetDefaultDisplayURLForTesting() {
 }
 
 // An override display URL in content setting bubble UI for testing.
-std::optional<bool> g_display_url_override_for_testing = std::nullopt;
+std::optional<bool> g_display_url_override_for_testing;
 
 // Returns a boolean indicating whether the setting should be managed by the
 // user (i.e. it is not controlled by policy). Also takes a (nullable) out-param
@@ -819,21 +822,20 @@ void ContentSettingSingleRadioGroup::SetNarrowestContentSetting(
 ContentSettingStorageAccessBubbleModel::ContentSettingStorageAccessBubbleModel(
     Delegate* delegate,
     WebContents* web_contents)
-    : ContentSettingBubbleModel(delegate, web_contents) {
+    : ContentSettingBubbleModel(delegate, web_contents),
+      page_url_(web_contents->GetURL()) {
   RecordActionHistogram(ContentSettingsType::STORAGE_ACCESS,
                         ContentSettingBubbleAction::kOpened);
   set_title(l10n_util::GetStringUTF16(IDS_SITE_SETTINGS_TYPE_STORAGE_ACCESS));
 
   // TODO(crbug.com/40064079): Consider to add subtitles to all permissions.
   set_subtitle(url_formatter::FormatUrlForSecurityDisplay(
-      web_contents->GetURL(),
-      url_formatter::SchemeDisplay::OMIT_CRYPTOGRAPHIC));
+      page_url_, url_formatter::SchemeDisplay::OMIT_CRYPTOGRAPHIC));
 
   set_message(l10n_util::GetStringFUTF16(
       IDS_STORAGE_ACCESS_PERMISSION_BUBBLE_MESSAGE,
       url_formatter::FormatUrlForSecurityDisplay(
-          web_contents->GetURL(),
-          url_formatter::SchemeDisplay::OMIT_CRYPTOGRAPHIC)));
+          page_url_, url_formatter::SchemeDisplay::OMIT_CRYPTOGRAPHIC)));
 
   auto* page_content_settings =
       PageSpecificContentSettings::GetForFrame(&GetPage().GetMainDocument());
@@ -856,7 +858,7 @@ void ContentSettingStorageAccessBubbleModel::CommitChanges() {
 
   for (const auto& entry : changed_permissions_) {
     GURL primary = entry.first.GetURL();
-    const GURL& secondary = web_contents()->GetURL();
+    const GURL& secondary = page_url_;
     ContentSetting setting =
         entry.second ? CONTENT_SETTING_ALLOW : CONTENT_SETTING_BLOCK;
     permissions::PermissionUmaUtil::ScopedRevocationReporter
@@ -1295,8 +1297,7 @@ void ContentSettingMediaStreamBubbleModel::SetRadioGroup() {
 
 void ContentSettingMediaStreamBubbleModel::UpdateSettings(
     ContentSetting setting) {
-  PageSpecificContentSettings* page_content_settings =
-      PageSpecificContentSettings::GetForFrame(&GetPage().GetMainDocument());
+  const GURL& url = bubble_content().radio_group.url;
   // The same urls must be used as in other places (e.g. the infobar) in
   // order to override the existing rule. Otherwise a new rule is created.
   // TODO(markusheintz): Extract to a helper so that there is only a single
@@ -1306,24 +1307,20 @@ void ContentSettingMediaStreamBubbleModel::UpdateSettings(
   if (MicrophoneAccessed()) {
     permissions::PermissionUmaUtil::ScopedRevocationReporter
         scoped_revocation_reporter(
-            GetProfile(), page_content_settings->media_stream_access_origin(),
-            GURL(), ContentSettingsType::MEDIASTREAM_MIC,
+            GetProfile(), url, GURL(), ContentSettingsType::MEDIASTREAM_MIC,
             permissions::PermissionSourceUI::PAGE_ACTION);
     map->SetContentSettingDefaultScope(
-        page_content_settings->media_stream_access_origin(), GURL(),
-        ContentSettingsType::MEDIASTREAM_MIC, setting,
+        url, GURL(), ContentSettingsType::MEDIASTREAM_MIC, setting,
         CreateConstraintsForAutoRevocation(ContentSettingsType::MEDIASTREAM_MIC,
                                            setting));
   }
   if (CameraAccessed()) {
     permissions::PermissionUmaUtil::ScopedRevocationReporter
         scoped_revocation_reporter(
-            GetProfile(), page_content_settings->media_stream_access_origin(),
-            GURL(), ContentSettingsType::MEDIASTREAM_CAMERA,
+            GetProfile(), url, GURL(), ContentSettingsType::MEDIASTREAM_CAMERA,
             permissions::PermissionSourceUI::PAGE_ACTION);
     map->SetContentSettingDefaultScope(
-        page_content_settings->media_stream_access_origin(), GURL(),
-        ContentSettingsType::MEDIASTREAM_CAMERA, setting,
+        url, GURL(), ContentSettingsType::MEDIASTREAM_CAMERA, setting,
         CreateConstraintsForAutoRevocation(
             ContentSettingsType::MEDIASTREAM_CAMERA, setting));
   }
@@ -1343,24 +1340,32 @@ void ContentSettingMediaStreamBubbleModel::
            system_permission_settings::SystemPermission::kDenied)) {
     title_id = IDS_CAMERA_MIC_TURNED_OFF_IN_MACOS;
     AddListItem(ContentSettingBubbleModel::ListItem(
-        &vector_icons::kVideocamIcon, l10n_util::GetStringUTF16(IDS_CAMERA),
+        &(features::IsRoundedIconsEnabled() ? vector_icons::kVideocamFilledIcon
+                                            : vector_icons::kVideocamOldIcon),
+        l10n_util::GetStringUTF16(IDS_CAMERA),
         l10n_util::GetStringUTF16(IDS_TURNED_OFF), false, true, 0));
     AddListItem(ContentSettingBubbleModel::ListItem(
-        &vector_icons::kMicIcon, l10n_util::GetStringUTF16(IDS_MIC),
+        &(features::IsRoundedIconsEnabled() ? vector_icons::kMicFilledIcon
+                                            : vector_icons::kMicOldIcon),
+        l10n_util::GetStringUTF16(IDS_MIC),
         l10n_util::GetStringUTF16(IDS_TURNED_OFF), false, true, 1));
   } else if (CameraAccessed() &&
              system_permission_settings::CheckSystemVideoCapturePermission() ==
                  system_permission_settings::SystemPermission::kDenied) {
     title_id = IDS_CAMERA_TURNED_OFF_IN_MACOS;
     AddListItem(ContentSettingBubbleModel::ListItem(
-        &vector_icons::kVideocamIcon, l10n_util::GetStringUTF16(IDS_CAMERA),
+        &(features::IsRoundedIconsEnabled() ? vector_icons::kVideocamFilledIcon
+                                            : vector_icons::kVideocamOldIcon),
+        l10n_util::GetStringUTF16(IDS_CAMERA),
         l10n_util::GetStringUTF16(IDS_TURNED_OFF), false, true, 0));
   } else if (MicrophoneAccessed() &&
              system_permission_settings::CheckSystemAudioCapturePermission() ==
                  system_permission_settings::SystemPermission::kDenied) {
     title_id = IDS_MIC_TURNED_OFF_IN_MACOS;
     AddListItem(ContentSettingBubbleModel::ListItem(
-        &vector_icons::kMicIcon, l10n_util::GetStringUTF16(IDS_MIC),
+        &(features::IsRoundedIconsEnabled() ? vector_icons::kMicFilledIcon
+                                            : vector_icons::kMicOldIcon),
+        l10n_util::GetStringUTF16(IDS_MIC),
         l10n_util::GetStringUTF16(IDS_TURNED_OFF), false, true, 1));
   }
 
@@ -1470,7 +1475,8 @@ void ContentSettingGeolocationBubbleModel::
 
   clear_message();
   AddListItem(ContentSettingBubbleModel::ListItem(
-      &vector_icons::kLocationOnIcon,
+      &(features::IsRoundedIconsEnabled() ? vector_icons::kLocationOnIcon
+                                          : vector_icons::kLocationOnOldIcon),
       l10n_util::GetStringUTF16(IDS_GEOLOCATION),
       l10n_util::GetStringUTF16(IDS_TURNED_OFF), false, true, 0));
   set_manage_text_style(ContentSettingBubbleModel::ManageTextStyle::kNone);
@@ -1503,7 +1509,9 @@ ContentSettingNotificationsBubbleModel::ContentSettingNotificationsBubbleModel(
                                       ContentSettingsType::NOTIFICATIONS) {
   set_title(l10n_util::GetStringUTF16(IDS_NOTIFICATIONS_TURNED_OFF_IN_MACOS));
   AddListItem(ContentSettingBubbleModel::ListItem(
-      &vector_icons::kNotificationsOffChromeRefreshIcon,
+      &(features::IsRoundedIconsEnabled()
+            ? vector_icons::kNotificationsOffIcon
+            : vector_icons::kNotificationsOffChromeRefreshOldIcon),
       l10n_util::GetStringUTF16(IDS_NOTIFICATIONS),
       l10n_util::GetStringUTF16(IDS_TURNED_OFF), /*has_link=*/false,
       /*has_blocked_badge=*/false, 0));
@@ -1532,7 +1540,11 @@ void ContentSettingNotificationsBubbleModel::OnDoneButtonClicked() {
 ContentSettingSubresourceFilterBubbleModel::
     ContentSettingSubresourceFilterBubbleModel(Delegate* delegate,
                                                WebContents* web_contents)
-    : ContentSettingBubbleModel(delegate, web_contents) {
+    : ContentSettingBubbleModel(delegate, web_contents),
+      page_(web_contents->GetPrimaryPage().GetWeakPtr()),
+      page_url_(web_contents->GetPrimaryPage()
+                    .GetMainDocument()
+                    .GetLastCommittedURL()) {
   SetTitle();
   SetMessage();
   SetManageText();
@@ -1574,9 +1586,15 @@ void ContentSettingSubresourceFilterBubbleModel::OnLearnMoreClicked() {
 
 void ContentSettingSubresourceFilterBubbleModel::CommitChanges() {
   if (is_checked_) {
-    subresource_filter::ContentSubresourceFilterThrottleManager::FromPage(
-        web_contents()->GetPrimaryPage())
-        ->OnReloadRequested();
+    if (page_ && page_->IsPrimary()) {
+      subresource_filter::ContentSubresourceFilterThrottleManager::FromPage(
+          *page_)
+          ->OnReloadRequested();
+    } else {
+      subresource_filter::SubresourceFilterContentSettingsManager(
+          HostContentSettingsMapFactory::GetForProfile(GetProfile()))
+          .AllowlistSite(page_url_);
+    }
   }
 }
 

@@ -18,12 +18,12 @@ bundle_data_xcassets("assets") {
 
 bundle_data("animation_files") {
   sources = [
-    "happy_animation_confetti_dark.json",
-    "happy_animation_confetti.json",
-    "happy_animation_dark.json",
     "happy_animation.json",
-    "sad_animation_dark.json",
+    "happy_animation_confetti.json",
+    "happy_animation_confetti_dark.json",
+    "happy_animation_dark.json",
     "sad_animation.json",
+    "sad_animation_dark.json",
   ]
   outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
 }

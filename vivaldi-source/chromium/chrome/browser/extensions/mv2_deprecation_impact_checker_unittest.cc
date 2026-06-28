@@ -6,13 +6,12 @@
 #include "base/strings/stringprintf.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/values_test_util.h"
-#include "chrome/browser/extensions/extension_management.h"
 #include "chrome/browser/extensions/extension_management_internal.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
-#include "chrome/browser/extensions/manifest_v2_experiment_manager.h"
-#include "chrome/browser/extensions/mv2_experiment_stage.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
+#include "extensions/browser/manifest_v2_experiment_manager.h"
+#include "extensions/browser/mv2_experiment_stage.h"
 #include "extensions/browser/pref_names.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/extension_features.h"
@@ -68,6 +67,9 @@ std::string DescribeTestVariant(const TestVariant& test_variant) {
   description += "And";
 
   switch (experiment_stage) {
+    case MV2ExperimentStage::kNone:
+      description += "ExperimentIsDisabled";
+      break;
     case MV2ExperimentStage::kWarning:
       description += "WarningExperiment";
       break;
@@ -123,8 +125,7 @@ class MV2DeprecationImpactCheckerUnitTest
                                    base::Value(static_cast<int>(*pref_value)));
     }
 
-    impact_checker_ = std::make_unique<MV2DeprecationImpactChecker>(
-        ExtensionManagementFactory::GetForBrowserContext(profile()));
+    impact_checker_ = std::make_unique<MV2DeprecationImpactChecker>(profile());
   }
 
   void TearDown() override {
@@ -165,6 +166,11 @@ class MV2DeprecationImpactCheckerUnitTest
       int manifest_version) {
     return AddPolicyInstalledExtension(name, location, manifest_version,
                                        "allowed");
+  }
+
+  // Returns true if the MV2 deprecation experiment is active in any stage.
+  bool ExperimentIsActive() const {
+    return experiment_stage_ != MV2ExperimentStage::kNone;
   }
 
   MV2DeprecationImpactChecker* impact_checker() {
@@ -235,7 +241,8 @@ INSTANTIATE_TEST_SUITE_P(
     ,
     MV2DeprecationImpactCheckerUnitTest,
     testing::Combine(
-        testing::Values(MV2ExperimentStage::kWarning,
+        testing::Values(MV2ExperimentStage::kNone,
+                        MV2ExperimentStage::kWarning,
                         MV2ExperimentStage::kDisableWithReEnable,
                         MV2ExperimentStage::kUnsupported),
         testing::Values(MV2PolicyLevel::kUnset,
@@ -250,7 +257,8 @@ INSTANTIATE_TEST_SUITE_P(
     ,
     MV2DeprecationImpactCheckerUnitTestWithAllowlist,
     testing::Combine(
-        testing::Values(MV2ExperimentStage::kWarning,
+        testing::Values(MV2ExperimentStage::kNone,
+                        MV2ExperimentStage::kWarning,
                         MV2ExperimentStage::kDisableWithReEnable,
                         MV2ExperimentStage::kUnsupported),
         testing::Values(MV2PolicyLevel::kUnset,
@@ -303,7 +311,8 @@ TEST_P(MV2DeprecationImpactCheckerUnitTest,
   // These user-facing MV2 extensions would be affected if the experiment is
   // active and the policy is anything other than set to "Allowed" (which
   // allows all MV2 extensions).
-  bool expected_affected = policy_level() != MV2PolicyLevel::kAllowed;
+  bool expected_affected =
+      ExperimentIsActive() && policy_level() != MV2PolicyLevel::kAllowed;
   EXPECT_EQ(expected_affected,
             impact_checker()->IsExtensionAffected(*user_installed));
   EXPECT_EQ(expected_affected,
@@ -338,7 +347,8 @@ TEST_P(MV2DeprecationImpactCheckerUnitTest,
 
   // These extensions should be affected if the experiment is enabled and the
   // policy isn't set to allow all MV2 extensions.
-  bool expected_affected = policy_level() != MV2PolicyLevel::kAllowed;
+  bool expected_affected =
+      ExperimentIsActive() && policy_level() != MV2PolicyLevel::kAllowed;
   EXPECT_EQ(expected_affected,
             impact_checker()->IsExtensionAffected(*default_installed));
   EXPECT_EQ(expected_affected,
@@ -420,7 +430,8 @@ TEST_P(MV2DeprecationImpactCheckerUnitTest,
 
   // Policy installs are affected if they are not exempt by policy and if the
   // experiment is active.
-  bool policy_installs_affected = !policy_installed_mv2_extensions_allowed;
+  bool policy_installs_affected =
+      ExperimentIsActive() && !policy_installed_mv2_extensions_allowed;
 
   EXPECT_EQ(policy_installs_affected,
             impact_checker()->IsExtensionAffected(*forced_policy));
@@ -447,7 +458,8 @@ TEST_P(MV2DeprecationImpactCheckerUnitTest,
   // installs) are affected if the experiment is on and the policy does not
   // allow *all* MV2 extensions.
   bool all_mv2_extensions_allowed = policy_level() == MV2PolicyLevel::kAllowed;
-  bool allowed_installs_affected = !all_mv2_extensions_allowed;
+  bool allowed_installs_affected =
+      ExperimentIsActive() && !all_mv2_extensions_allowed;
   EXPECT_EQ(allowed_installs_affected,
             impact_checker()->IsExtensionAffected(*allowed_policy));
   EXPECT_EQ(allowed_installs_affected,
@@ -513,6 +525,22 @@ TEST_P(MV2DeprecationImpactCheckerUnitTest, NonExtensionsAreNotAffected) {
   EXPECT_FALSE(impact_checker()->IsExtensionAffected(*hosted_app));
 }
 
+// Tests that user script MV2 extensions are properly considered affected by
+// the MV2 deprecation experiment.
+TEST_P(MV2DeprecationImpactCheckerUnitTest, UserScriptsAreAffected) {
+  scoped_refptr<const Extension> user_script =
+      ExtensionBuilder("user script")
+          .SetLocation(mojom::ManifestLocation::kInternal)
+          .SetManifestVersion(2)
+          .SetManifestKey("converted_from_user_script", true)
+          .Build();
+  ASSERT_EQ(Manifest::Type::kUserScript, user_script->GetType());
+
+  bool expected_affected = policy_level() != MV2PolicyLevel::kAllowed;
+  EXPECT_EQ(expected_affected,
+            impact_checker()->IsExtensionAffected(*user_script));
+}
+
 // Tests the allowlist is taken into account.
 TEST_P(MV2DeprecationImpactCheckerUnitTestWithAllowlist, AllowlistWorks) {
   scoped_refptr<const Extension> ext_a =
@@ -537,7 +565,8 @@ TEST_P(MV2DeprecationImpactCheckerUnitTestWithAllowlist, AllowlistWorks) {
   // User-facing MV2 extensions would be affected if the experiment is active
   // and the policy is anything other than set to "Allowed" (which allows all
   // MV2 extensions).
-  bool expected_affected = policy_level() != MV2PolicyLevel::kAllowed;
+  bool expected_affected =
+      ExperimentIsActive() && policy_level() != MV2PolicyLevel::kAllowed;
 
   // `ext_a` and `ext_b` are in the allowlist, so aren't affected.
   EXPECT_FALSE(impact_checker()->IsExtensionAffected(*ext_a));

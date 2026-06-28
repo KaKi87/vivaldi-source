@@ -31,7 +31,7 @@ export {LifetimeBrowserProxyImpl} from '/shared/settings/lifetime_browser_proxy.
 export type {ProfileInfo, ProfileInfoBrowserProxy} from '/shared/settings/people_page/profile_info_browser_proxy.js';
 export {ProfileInfoBrowserProxyImpl} from '/shared/settings/people_page/profile_info_browser_proxy.js';
 export type {ChromeSigninUserChoiceInfo, StoredAccount, SyncBrowserProxy, SyncPrefs, SyncStatus} from '/shared/settings/people_page/sync_browser_proxy.js';
-export {ChromeSigninAccessPoint, ChromeSigninUserChoice, PageStatus, SignedInState, StatusAction, SyncBrowserProxyImpl} from '/shared/settings/people_page/sync_browser_proxy.js';
+export {ChromeSigninAccessPoint, ChromeSigninUserChoice, PageStatus, SignedInState, StatusAction, SyncBrowserProxyImpl, UserSelectableType} from '/shared/settings/people_page/sync_browser_proxy.js';
 export {SettingsPrefsElement} from '/shared/settings/prefs/prefs.js';
 export {CrSettingsPrefs} from '/shared/settings/prefs/prefs_types.js';
 export type {MetricsReporting, PrivacyPageBrowserProxy} from '/shared/settings/privacy_page/privacy_page_browser_proxy.js';
@@ -85,7 +85,7 @@ export type {AppManagementPageState} from './common/app_management/store.js';
 export {AppManagementStore} from './common/app_management/store.js';
 export {AppManagementStoreMixin} from './common/app_management/store_mixin.js';
 export {resetGlobalScrollTargetForTesting, setGlobalScrollTarget as setGlobalScrollTargetForTesting} from './common/global_scroll_target_mixin.js';
-export type {PrefsState} from './common/types.js';
+export type {PrefsState, UserActionSettingPrefChangeEvent} from './common/types.js';
 export {ControlledButtonElement} from './controls/controlled_button.js';
 export {ControlledRadioButtonElement} from './controls/controlled_radio_button.js';
 export {ExtensionControlledIndicatorElement} from './controls/extension_controlled_indicator.js';

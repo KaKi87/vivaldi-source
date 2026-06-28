@@ -18,6 +18,7 @@ export interface SettingsRoutes {
   ADVANCED: Route;
   AI: Route;
   AI_MODE_SEARCH: Route;
+  AI_SUGGESTIONS: Route;
   APPEARANCE: Route;
   AUTOFILL: Route;
   AUTOFILL_AI: Route;
@@ -110,6 +111,7 @@ export interface SettingsRoutes {
   SITE_SETTINGS_WINDOW_MANAGEMENT: Route;
   SITE_SETTINGS_ZOOM_LEVELS: Route;
   SITE_SETTINGS_WEB_PRINTING: Route;
+  SKILLS: Route;
   SPELL_CHECK: Route;
   SYNC: Route;
   SYNC_ADVANCED: Route;
@@ -119,10 +121,11 @@ export interface SettingsRoutes {
   YOUR_SAVED_INFO_CONTACT_INFO: Route;
   YOUR_SAVED_INFO_IDENTITY_DOCS: Route;
   YOUR_SAVED_INFO_TRAVEL: Route;
-
-  // <if expr="not is_chromeos">
+  YOUR_SAVED_INFO_SHOPPING: Route;
   ACCOUNT: Route;
   GOOGLE_SERVICES: Route;
+
+  // <if expr="not is_chromeos">
   IMPORT_DATA: Route;
   SIGN_OUT: Route;
   // </if>

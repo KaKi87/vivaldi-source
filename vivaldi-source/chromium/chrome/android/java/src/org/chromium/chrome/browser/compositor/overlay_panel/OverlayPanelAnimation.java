@@ -17,10 +17,10 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BottomControlsStacker;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.compositor.layouts.LayoutUpdateHost;
-import org.chromium.chrome.browser.compositor.overlay_panel.OverlayPanel.PanelState;
 import org.chromium.chrome.browser.compositor.overlay_panel.OverlayPanel.StateChangeReason;
 import org.chromium.chrome.browser.layouts.animation.CompositorAnimationHandler;
 import org.chromium.chrome.browser.layouts.animation.CompositorAnimator;
+import org.chromium.chrome.browser.overlay_panel.PanelState;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
 import org.chromium.components.browser_ui.widget.animation.CancelAwareAnimatorListener;
 
@@ -159,7 +159,7 @@ public abstract class OverlayPanelAnimation extends OverlayPanelBase {
                                 && !wasFullWidthSizePanel
                                 && width == previousWidth);
 
-        // TODO(pedrosimonetti): See crbug.com/568351.
+        // TODO(pedrosimonetti): See crbug.com/40448570.
         // We can't keep the panel opened after a viewport size change when the panel's
         // ContentView needs to be resized to a non-default size. The panel provides
         // different desired MeasureSpecs when full-width vs narrow-width

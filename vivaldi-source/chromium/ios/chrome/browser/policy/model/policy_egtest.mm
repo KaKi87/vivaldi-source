@@ -98,18 +98,25 @@ void VerifyManagedSettingItem(NSString* accessibilityID,
       onElementWithMatcher:grey_accessibilityID(containerViewAccessibilityID)]
       assertWithMatcher:grey_notNil()];
 
+  // Create a specific matcher for the info button inside the target cell.
+  id<GREYMatcher> infoButtonMatcher =
+      grey_allOf(grey_accessibilityID(kTableViewCellInfoButtonViewId),
+                 grey_ancestor(grey_accessibilityID(accessibilityID)),
+                 grey_sufficientlyVisible(), nil);
+
   // Click the info button.
-  [ChromeEarlGreyUI tapSettingsMenuButton:grey_accessibilityID(
-                                              kTableViewCellInfoButtonViewId)];
+  [[[EarlGrey selectElementWithMatcher:infoButtonMatcher]
+         usingSearchAction:grey_scrollInDirection(kGREYDirectionDown, 200)
+      onElementWithMatcher:grey_accessibilityID(containerViewAccessibilityID)]
+      performAction:grey_tap()];
 
   // Check if the contextual bubble is shown.
   [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
                                           kEnterpriseInfoBubbleViewId)]
       assertWithMatcher:grey_sufficientlyVisible()];
 
-  // Tap outside of the bubble.
-  [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
-                                          kTableViewCellInfoButtonViewId)]
+  // Tap outside of the bubble (tapping the info button again toggles it off).
+  [[EarlGrey selectElementWithMatcher:infoButtonMatcher]
       performAction:grey_tap()];
 
   // Check if the contextual bubble is hidden.
@@ -856,6 +863,11 @@ const char kTestPageText[] = "pony";
 // enterprise selected No Protection as the choice of protection.
 - (void)testEnterpriseBubbleInEnhancedSafeBrowsingPage {
   SetPolicy(0, policy::key::kSafeBrowsingProtectionLevel);
+  // Under Chrome Next, the NTP's tools menu button may be scrolled offscreen.
+  // Load a standard page to ensure a visible tools menu button.
+  if ([ChromeEarlGrey isChromeNextEnabled]) {
+    [ChromeEarlGrey loadURL:GURL(kChromeUIVersionURL)];
+  }
   [ChromeEarlGreyUI openSettingsMenu];
   [ChromeEarlGreyUI
       tapSettingsMenuButton:chrome_test_util::SettingsMenuPrivacyButton()];

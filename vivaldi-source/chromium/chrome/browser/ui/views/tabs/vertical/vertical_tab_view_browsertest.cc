@@ -123,7 +123,9 @@ class VerticalTabViewTest
   }
 };
 
-IN_PROC_BROWSER_TEST_F(VerticalTabViewTest, IconDataChanged) {
+// TODO(crbug.com/512187713): Re-enable this test once flakiness issue is
+// resolved.
+IN_PROC_BROWSER_TEST_F(VerticalTabViewTest, DISABLED_IconDataChanged) {
   ASSERT_TRUE(embedded_test_server()->Start());
 
   auto* icon = BrowserElementsViews::From(browser())->GetViewAs<TabIcon>(
@@ -171,16 +173,9 @@ IN_PROC_BROWSER_TEST_F(VerticalTabViewTest, IconDataChanged) {
   EXPECT_TRUE(icon->GetShowingAttentionIndicator());
 
   // After discarding the tab, the icon should show the discard indicator.
-  std::unique_ptr<content::WebContents> replacement_web_contents =
-      content::WebContents::Create(
-          content::WebContents::CreateParams(browser()->profile()));
-  replacement_web_contents->SetWasDiscarded(true);
-  performance_manager::user_tuning::UserPerformanceTuningManager::
-      PreDiscardResourceUsage::CreateForWebContents(
-          replacement_web_contents.get(), base::KiBU(0),
-          ::mojom::LifecycleUnitDiscardReason::PROACTIVE);
-  tab_strip_model()->DiscardWebContentsAt(0,
-                                          std::move(replacement_web_contents));
+  tabs::TabInterface* tab = tab_strip_model()->GetTabAtIndex(0);
+  performance_manager::user_tuning::UserPerformanceTuningManager::GetInstance()
+      ->DiscardPageForTesting(tab->GetContents());
   EXPECT_TRUE(icon->GetShowingDiscardIndicator());
 }
 
@@ -714,9 +709,8 @@ IN_PROC_BROWSER_TEST_F(VerticalTabViewTest, LogsTabCloseMetrics_SplitView) {
   EXPECT_EQ(user_action_tester.GetActionCount("CloseTab_EndTabInSplit"), 1);
 }
 
-// Mouse over split tab. Check the content matches the hover card.
 IN_PROC_BROWSER_TEST_F(VerticalTabViewTest,
-                       HoverCardAnchorToSplitViewParentContainer) {
+                       SplitTabsAnchorHoverCardToParentSplitViewContainer) {
   AppendSplitTab();
 
   // Get the view for both tabs in the split.
@@ -732,11 +726,11 @@ IN_PROC_BROWSER_TEST_F(VerticalTabViewTest,
 
   VerticalTabView* tab_1_view = views::AsViewClass<VerticalTabView>(
       split_tab_node->GetNodeForHandle(tab_1->GetHandle())->view());
-  ASSERT_EQ(tab_1_view->GetAnchorView(), split_tab_view);
+  ASSERT_EQ(tab_1_view->GetAnchor().GetIfView(), split_tab_view);
 
   VerticalTabView* tab_2_view = views::AsViewClass<VerticalTabView>(
       split_tab_node->GetNodeForHandle(tab_2->GetHandle())->view());
-  ASSERT_EQ(tab_2_view->GetAnchorView(), split_tab_view);
+  ASSERT_EQ(tab_2_view->GetAnchor().GetIfView(), split_tab_view);
 }
 
 IN_PROC_BROWSER_TEST_F(VerticalTabViewTest,

@@ -9,11 +9,15 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/test/simple_test_clock.h"
 #include "chrome/browser/ash/login/reporting/login_logout_reporter_test_delegate.h"
+#include "chrome/browser/ash/login/session/user_session_manager.h"
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
 #include "chrome/browser/ash/policy/reporting/user_event_reporter_helper_testing.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
+#include "chrome/browser/ash/settings/scoped_testing_cros_settings.h"
+#include "chrome/browser/global_features.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
+#include "chromeos/ash/components/install_attributes/stub_install_attributes.h"
 #include "chromeos/ash/components/login/auth/public/auth_failure.h"
 #include "chromeos/ash/components/login/session/session_termination_manager.h"
 #include "chromeos/ash/components/policy/device_local_account/device_local_account_type.h"
@@ -22,6 +26,8 @@
 #include "components/user_manager/scoped_user_manager.h"
 #include "components/user_manager/user_names.h"
 #include "content/public/test/browser_task_environment.h"
+#include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
+#include "services/network/test/test_url_loader_factory.h"
 
 using testing::_;
 using testing::Eq;
@@ -45,14 +51,28 @@ class LoginLogoutTestHelper {
 
   void Init() {
     chromeos::PowerManagerClient::InitializeFake();
+    TestingBrowserProcess::GetGlobal()->SetSharedURLLoaderFactory(
+        test_url_loader_factory_.GetSafeWeakWrapper());
     session_termination_manager_ =
         std::make_unique<SessionTerminationManager>();
     fake_user_manager_.Reset(std::make_unique<ash::FakeChromeUserManager>());
+    user_session_manager_ = std::make_unique<ash::UserSessionManager>(
+        TestingBrowserProcess::GetGlobal()->local_state(),
+        TestingBrowserProcess::GetGlobal()
+            ->GetFeatures()
+            ->application_locale_storage(),
+        TestingBrowserProcess::GetGlobal()->shared_url_loader_factory(),
+        TestingBrowserProcess::GetGlobal()
+            ->platform_part()
+            ->browser_policy_connector_ash());
   }
 
   void Shutdown() {
+    user_session_manager_->Shutdown();
+    user_session_manager_.reset();
     fake_user_manager_.Reset();
     session_termination_manager_.reset();
+    TestingBrowserProcess::GetGlobal()->SetSharedURLLoaderFactory(nullptr);
     chromeos::PowerManagerClient::Shutdown();
   }
 
@@ -154,8 +174,18 @@ class LoginLogoutTestHelper {
   int GetReportCount() { return report_count_; }
 
  private:
+  network::TestURLLoaderFactory test_url_loader_factory_;
+
+  // NOTE: InstallAttributes is required to construct BrowserPolicyConnectorAsh.
+  // CrosSettings is needed because otherwise TestingProfile automatically
+  // creates ScopedCrosSettingsTestHelper, which conflicts with
+  // ScopedStubInstallAttributes.
+  ScopedTestingCrosSettings scoped_testing_cros_settings_;
+  ScopedStubInstallAttributes scoped_stub_install_attributes_;
+
   user_manager::TypedScopedUserManager<ash::FakeChromeUserManager>
       fake_user_manager_;
+  std::unique_ptr<ash::UserSessionManager> user_session_manager_;
   content::BrowserTaskEnvironment task_environment_;
   std::unique_ptr<SessionTerminationManager> session_termination_manager_;
 
@@ -187,6 +217,7 @@ TEST_F(LoginLogoutReporterTest, ReportAffiliatedLogin) {
       /*should_report_user=*/true);
 
   auto reporter = LoginLogoutReporter::CreateForTest(
+      TestingBrowserProcess::GetGlobal()->local_state(),
       std::move(reporter_helper),
       std::make_unique<LoginLogoutReporterTestDelegate>(),
       &managed_session_service);
@@ -222,6 +253,7 @@ TEST_P(LoginLogoutReporterTest, ReportUnaffiliatedLogin) {
       /*should_report_user=*/false);
 
   auto reporter = LoginLogoutReporter::CreateForTest(
+      TestingBrowserProcess::GetGlobal()->local_state(),
       std::move(reporter_helper),
       std::make_unique<LoginLogoutReporterTestDelegate>(),
       &managed_session_service);
@@ -254,6 +286,7 @@ TEST_F(LoginLogoutReporterTest, ReportAffiliatedLogout) {
       /*should_report_user=*/true);
 
   auto reporter = LoginLogoutReporter::CreateForTest(
+      TestingBrowserProcess::GetGlobal()->local_state(),
       std::move(reporter_helper),
       std::make_unique<LoginLogoutReporterTestDelegate>(),
       &managed_session_service);
@@ -287,6 +320,7 @@ TEST_P(LoginLogoutReporterTest, ReportUnaffiliatedLogout) {
       /*should_report_user=*/false);
 
   auto reporter = LoginLogoutReporter::CreateForTest(
+      TestingBrowserProcess::GetGlobal()->local_state(),
       std::move(reporter_helper),
       std::make_unique<LoginLogoutReporterTestDelegate>(),
       &managed_session_service);
@@ -318,6 +352,7 @@ TEST_P(LoginLogoutReporterTest, ReportLoginLogoutDisabled) {
       /*should_report_user=*/false);
 
   auto reporter = LoginLogoutReporter::CreateForTest(
+      TestingBrowserProcess::GetGlobal()->local_state(),
       std::move(reporter_helper),
       std::make_unique<LoginLogoutReporterTestDelegate>(),
       &managed_session_service);
@@ -363,9 +398,10 @@ TEST_F(LoginFailureReporterTest, ReportAffiliatedLoginFailure_OwnerRequired) {
       /*reporting_enabled=*/true,
       /*should_report_user=*/true);
 
-  auto reporter = LoginLogoutReporter::CreateForTest(std::move(reporter_helper),
-                                                     std::move(delegate),
-                                                     &managed_session_service);
+  auto reporter = LoginLogoutReporter::CreateForTest(
+      TestingBrowserProcess::GetGlobal()->local_state(),
+      std::move(reporter_helper), std::move(delegate),
+      &managed_session_service);
 
   managed_session_service.OnAuthFailure(
       AuthFailure(AuthFailure::OWNER_REQUIRED));
@@ -396,9 +432,10 @@ TEST_F(LoginFailureReporterTest,
       /*reporting_enabled=*/true,
       /*should_report_user=*/true);
 
-  auto reporter = LoginLogoutReporter::CreateForTest(std::move(reporter_helper),
-                                                     std::move(delegate),
-                                                     &managed_session_service);
+  auto reporter = LoginLogoutReporter::CreateForTest(
+      TestingBrowserProcess::GetGlobal()->local_state(),
+      std::move(reporter_helper), std::move(delegate),
+      &managed_session_service);
 
   managed_session_service.OnAuthFailure(
       AuthFailure(AuthFailure::UNRECOVERABLE_CRYPTOHOME));
@@ -428,9 +465,10 @@ TEST_F(LoginFailureReporterTest, ReportUnaffiliatedLoginFailure_TpmError) {
       /*reporting_enabled=*/true,
       /*should_report_user=*/false);
 
-  auto reporter = LoginLogoutReporter::CreateForTest(std::move(reporter_helper),
-                                                     std::move(delegate),
-                                                     &managed_session_service);
+  auto reporter = LoginLogoutReporter::CreateForTest(
+      TestingBrowserProcess::GetGlobal()->local_state(),
+      std::move(reporter_helper), std::move(delegate),
+      &managed_session_service);
 
   managed_session_service.OnAuthFailure(AuthFailure(AuthFailure::TPM_ERROR));
   const LoginLogoutRecord& record = test_helper_.GetRecord();
@@ -462,9 +500,10 @@ TEST_F(LoginFailureReporterTest,
       /*reporting_enabled=*/true,
       /*should_report_user=*/false);
 
-  auto reporter = LoginLogoutReporter::CreateForTest(std::move(reporter_helper),
-                                                     std::move(delegate),
-                                                     &managed_session_service);
+  auto reporter = LoginLogoutReporter::CreateForTest(
+      TestingBrowserProcess::GetGlobal()->local_state(),
+      std::move(reporter_helper), std::move(delegate),
+      &managed_session_service);
 
   managed_session_service.OnAuthFailure(
       AuthFailure(AuthFailure::TPM_UPDATE_REQUIRED));
@@ -495,9 +534,10 @@ TEST_F(LoginFailureReporterTest,
       /*reporting_enabled=*/true,
       /*should_report_user=*/false);
 
-  auto reporter = LoginLogoutReporter::CreateForTest(std::move(reporter_helper),
-                                                     std::move(delegate),
-                                                     &managed_session_service);
+  auto reporter = LoginLogoutReporter::CreateForTest(
+      TestingBrowserProcess::GetGlobal()->local_state(),
+      std::move(reporter_helper), std::move(delegate),
+      &managed_session_service);
 
   managed_session_service.OnAuthFailure(
       AuthFailure(AuthFailure::COULD_NOT_MOUNT_TMPFS));
@@ -525,9 +565,10 @@ TEST_F(LoginFailureReporterTest, ReportGuestLoginFailure_MissingCryptohome) {
       /*reporting_enabled=*/true,
       /*should_report_user=*/false);
 
-  auto reporter = LoginLogoutReporter::CreateForTest(std::move(reporter_helper),
-                                                     std::move(delegate),
-                                                     &managed_session_service);
+  auto reporter = LoginLogoutReporter::CreateForTest(
+      TestingBrowserProcess::GetGlobal()->local_state(),
+      std::move(reporter_helper), std::move(delegate),
+      &managed_session_service);
 
   managed_session_service.OnAuthFailure(
       AuthFailure(AuthFailure::MISSING_CRYPTOHOME));
@@ -554,9 +595,10 @@ TEST_F(LoginFailureReporterTest, ReportLoginLogoutDisabled) {
       /*reporting_enabled=*/false,
       /*should_report_user=*/true);
 
-  auto reporter = LoginLogoutReporter::CreateForTest(std::move(reporter_helper),
-                                                     std::move(delegate),
-                                                     &managed_session_service);
+  auto reporter = LoginLogoutReporter::CreateForTest(
+      TestingBrowserProcess::GetGlobal()->local_state(),
+      std::move(reporter_helper), std::move(delegate),
+      &managed_session_service);
 
   managed_session_service.OnAuthFailure(
       AuthFailure(AuthFailure::MISSING_CRYPTOHOME));
@@ -576,6 +618,7 @@ TEST_F(LoginFailureReporterTest, ReportKioskLoginFailure) {
         /*should_report_user=*/false);
 
     auto reporter = LoginLogoutReporter::CreateForTest(
+        TestingBrowserProcess::GetGlobal()->local_state(),
         std::move(reporter_helper),
         std::make_unique<LoginLogoutReporterTestDelegate>(),
         &managed_session_service, &test_clock);
@@ -597,6 +640,7 @@ TEST_F(LoginFailureReporterTest, ReportKioskLoginFailure) {
         /*should_report_user=*/false);
 
     auto reporter = LoginLogoutReporter::CreateForTest(
+        TestingBrowserProcess::GetGlobal()->local_state(),
         std::move(reporter_helper),
         std::make_unique<LoginLogoutReporterTestDelegate>(),
         &managed_session_service, &test_clock);
@@ -627,6 +671,7 @@ TEST_F(LoginFailureReporterTest, ReportKioskLoginFailure) {
         /*should_report_user=*/false);
 
     auto reporter = LoginLogoutReporter::CreateForTest(
+        TestingBrowserProcess::GetGlobal()->local_state(),
         std::move(reporter_helper),
         std::make_unique<LoginLogoutReporterTestDelegate>(),
         &managed_session_service, &test_clock);
@@ -648,6 +693,7 @@ TEST_F(LoginFailureReporterTest, ReportKioskLoginFailure_ReportingError) {
         /*should_report_user=*/false);
 
     auto reporter = LoginLogoutReporter::CreateForTest(
+        TestingBrowserProcess::GetGlobal()->local_state(),
         std::move(reporter_helper),
         std::make_unique<LoginLogoutReporterTestDelegate>(),
         &managed_session_service, &test_clock);
@@ -671,6 +717,7 @@ TEST_F(LoginFailureReporterTest, ReportKioskLoginFailure_ReportingError) {
         ::reporting::Status(::reporting::error::INTERNAL, ""));
 
     auto reporter = LoginLogoutReporter::CreateForTest(
+        TestingBrowserProcess::GetGlobal()->local_state(),
         std::move(reporter_helper),
         std::make_unique<LoginLogoutReporterTestDelegate>(),
         &managed_session_service, &test_clock);
@@ -690,6 +737,7 @@ TEST_F(LoginFailureReporterTest, ReportKioskLoginFailure_ReportingError) {
         /*should_report_user=*/false);
 
     auto reporter = LoginLogoutReporter::CreateForTest(
+        TestingBrowserProcess::GetGlobal()->local_state(),
         std::move(reporter_helper),
         std::make_unique<LoginLogoutReporterTestDelegate>(),
         &managed_session_service, &test_clock);
@@ -723,6 +771,7 @@ TEST_F(LoginFailureReporterTest, ReportKioskLoginFailure_ReportingDisabled) {
         /*should_report_user=*/false);
 
     auto reporter = LoginLogoutReporter::CreateForTest(
+        TestingBrowserProcess::GetGlobal()->local_state(),
         std::move(reporter_helper),
         std::make_unique<LoginLogoutReporterTestDelegate>(),
         &managed_session_service, &test_clock);
@@ -744,6 +793,7 @@ TEST_F(LoginFailureReporterTest, ReportKioskLoginFailure_ReportingDisabled) {
         /*should_report_user=*/false);
 
     auto reporter = LoginLogoutReporter::CreateForTest(
+        TestingBrowserProcess::GetGlobal()->local_state(),
         std::move(reporter_helper),
         std::make_unique<LoginLogoutReporterTestDelegate>(),
         &managed_session_service, &test_clock);
@@ -762,9 +812,10 @@ TEST_P(LoginFailureReporterTest,
       /*reporting_enabled=*/true,
       /*should_report_user=*/false);
 
-  auto reporter = LoginLogoutReporter::CreateForTest(std::move(reporter_helper),
-                                                     std::move(delegate),
-                                                     &managed_session_service);
+  auto reporter = LoginLogoutReporter::CreateForTest(
+      TestingBrowserProcess::GetGlobal()->local_state(),
+      std::move(reporter_helper), std::move(delegate),
+      &managed_session_service);
 
   managed_session_service.OnAuthFailure(GetParam());
   const LoginLogoutRecord& record = test_helper_.GetRecord();
@@ -796,9 +847,10 @@ TEST_P(LoginFailureReporterTest,
       /*reporting_enabled=*/true,
       /*should_report_user=*/false);
 
-  auto reporter = LoginLogoutReporter::CreateForTest(std::move(reporter_helper),
-                                                     std::move(delegate),
-                                                     &managed_session_service);
+  auto reporter = LoginLogoutReporter::CreateForTest(
+      TestingBrowserProcess::GetGlobal()->local_state(),
+      std::move(reporter_helper), std::move(delegate),
+      &managed_session_service);
 
   managed_session_service.OnAuthFailure(GetParam());
   const LoginLogoutRecord& record = test_helper_.GetRecord();
@@ -825,9 +877,10 @@ TEST_P(LoginFailureReporterTest, ReportGuestLoginFailure_InternalLoginFailure) {
       /*reporting_enabled=*/true,
       /*should_report_user=*/false);
 
-  auto reporter = LoginLogoutReporter::CreateForTest(std::move(reporter_helper),
-                                                     std::move(delegate),
-                                                     &managed_session_service);
+  auto reporter = LoginLogoutReporter::CreateForTest(
+      TestingBrowserProcess::GetGlobal()->local_state(),
+      std::move(reporter_helper), std::move(delegate),
+      &managed_session_service);
 
   managed_session_service.OnAuthFailure(GetParam());
   const LoginLogoutRecord& record = test_helper_.GetRecord();

@@ -117,6 +117,18 @@ update_target(
   ]
 }
 
+update_target(
+    "//ios/chrome/browser/sharing/ui_bundled/activity_services/activities:activities") {
+  sources += [
+    "//vivaldi/ios/ui/activity_services/copy_sanitized_link_activity.h",
+    "//vivaldi/ios/ui/activity_services/copy_sanitized_link_activity.mm",
+  ]
+  deps += [
+    "//vivaldi/app:vivaldi_ios_native_strings",
+    "//vivaldi/components/omnibox:vivaldi_url_utils",
+  ]
+}
+
 update_target("//ios/chrome/browser/sharing/ui_bundled:ui_bundled") {
   sources += [
     "//vivaldi/ios/chrome/browser/sharing/ui_bundled/vivaldi_sharing_utils.h",
@@ -125,9 +137,7 @@ update_target("//ios/chrome/browser/sharing/ui_bundled:ui_bundled") {
 }
 
 update_target("//ios/chrome/browser/settings/ui_bundled:ui_bundled") {
-  configs += [
-    "//vivaldi/gn/config:release_kind"
-  ]
+  configs += [ "//vivaldi/gn/config:release_kind" ]
 }
 
 update_target("//ios/chrome/browser/popup_menu/overflow_menu/ui:ui_swift") {
@@ -219,10 +229,13 @@ update_template_instance(
 update_template_instance(
     "//ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/grid/resources:resources") {
   sources -= [
-    "Assets.xcassets/tab_grid_incognito_tabs_empty.imageset/Contents.json",
-    "Assets.xcassets/tab_grid_incognito_tabs_empty.imageset/tab_grid_incognito_tabs_empty.pdf",
+    "Assets.xcassets/tab_grid_incognito_tabs_empty_legacy.imageset/Contents.json",
+    "Assets.xcassets/tab_grid_incognito_tabs_empty_legacy.imageset/tab_grid_incognito_tabs_empty.pdf",
     "Assets.xcassets/tab_grid_regular_tabs_empty.imageset/Contents.json",
-    "Assets.xcassets/tab_grid_regular_tabs_empty.imageset/tab_grid_regular_tabs_empty.pdf",
+    "Assets.xcassets/tab_grid_regular_tabs_empty.imageset/tabs@2x.png",
+    "Assets.xcassets/tab_grid_regular_tabs_empty.imageset/tabs@3x.png",
+    "Assets.xcassets/tab_grid_regular_tabs_empty_legacy.imageset/Contents.json",
+    "Assets.xcassets/tab_grid_regular_tabs_empty_legacy.imageset/tab_grid_regular_tabs_empty.pdf",
   ]
 }
 

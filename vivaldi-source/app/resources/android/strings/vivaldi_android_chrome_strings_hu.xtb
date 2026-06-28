@@ -1,22 +1,35 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="hu">
+<translation id="1062777154504442433">Új lapcsoport</translation>
 <translation id="1204037785786432551">Hivatkozás letöltése</translation>
 <translation id="1206892813135768548">Hivatkozás szövegének másolása</translation>
+<translation id="1223158186497001208"><ph name="GROUP_TITLE" /> megosztott lapcsoport új aktivitással</translation>
+<translation id="1328749518742029305"><ph name="TAB_GROUP_TITLE" /> lapcsoport bezárva és elmentve</translation>
 <translation id="1397811292916898096">Keresés a(z) <ph name="PRODUCT_NAME" /> keresőmotorral</translation>
 <translation id="1435593198351412143">PDF-fájlok automatikus megnyitása</translation>
 <translation id="1456207338570705181">Az "Érintéses keresés" egy olyan funkció, mely csak akkor érhető el, ha a Vivaldi alakértelmezett keresőmotorja a Google. Elküldi a kiválasztott szót és az aktuális oldalt a Google keresőnek. A <ph name="BEGIN_LINK" />Beállítások<ph name="END_LINK" /> alatt kikapcsolható.</translation>
 <translation id="1598449788754183301">Normál/privát lap váltása</translation>
+<translation id="1626105448931436644">Tudnivalók a megosztott lapcsoportokról</translation>
 <translation id="1644574205037202324">Előzmények</translation>
 <translation id="1829244130665387512">Keresés az oldalon</translation>
-<translation id="1910514478706885609">Megnyitás új lapcsoportban</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+          =1 {<ph name="TABS_COUNT_ONE" /> lap aktivitással a megosztott lapcsoportokban}
+          other {<ph name="TABS_COUNT_MANY" /> lap aktivitással a megosztott lapcsoportokban}
+        }</translation>
 <translation id="1925021887439448749">Írd be az egyéni internetcímet</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+          =1 {<ph name="OWNER_FIRST_NAME" /> és további <ph name="NUMBER_OF_OTHER_MEMBERS" /> személy csatlakozása a lapcsoporthoz}
+          other {<ph name="OWNER_FIRST_NAME" /> és <ph name="NUMBER_OF_OTHER_MEMBERS" /> személy csatlakozása a lapcsoporthoz}
+        }</translation>
 <translation id="2038563949887743358">Bekapcsolja az Asztali webhely kérése funkciót</translation>
+<translation id="2067565353468675023"><ph name="OWNER_FIRST_NAME" /> csatlakozása a lapcsoporthoz</translation>
 <translation id="208033313373016095">Olvasó nézet weboldalakhoz</translation>
 <translation id="2149973817440762519">Könyvjelző szerkesztése</translation>
 <translation id="2306442503286132111">Könyvjelző mentve ( <ph name="FOLDER_NAME" /> mappa)</translation>
 <translation id="2433507940547922241">Megjelenés</translation>
-<translation id="2501278716633472235">Visszalépés</translation>
+<translation id="2495373685671077949">Lapjaid és csoportjaid keresése</translation>
+<translation id="2500281581698062897">Mindenki azonnal elveszíti a(z) “<ph name="GROUP_NAME" />” lapcsoport hozzáférését, és <ph name="BLOCKED_MEMBER_FULL_NAME" /> (<ph name="BLOCKED_MEMBER_EMAIL" />) már nem lesz képes kapcsolatba lépni veled a Google szolgáltatásain keresztül.</translation>
 <translation id="2546283357679194313">Cookie-k és webhelyadatok</translation>
 <translation id="2633278372998075009">Privát lapok</translation>
 <translation id="2650751991977523696">A fájl újbóli letöltése?</translation>
@@ -26,6 +39,7 @@
 <translation id="2871733351037274014">Oldalak előtöltése</translation>
 <translation id="2904300462646366554">A letöltött PDF-fájlok automatikusan megnyílnak az eszközön használt PDF-megtekintők egyikével</translation>
 <translation id="2951071800649516099">Oldalak felvétele az olvasólistára, későbbi elolvasáshoz</translation>
+<translation id="3020023775880428664">Lap csoportba helyezése</translation>
 <translation id="3029276696788198026">Nincs előtöltés</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> könyvjelző}
@@ -35,7 +49,13 @@
 <translation id="3232293466644486101">Böngészési adatok törlése…</translation>
 <translation id="3234355010754616171">Új privát lap</translation>
 <translation id="3237087289225714896">Normál előtöltés:</translation>
+<translation id="3298614730029636660">Csoport elhagyása</translation>
+<translation id="3359462099791810823">A csoport megtartása, később további lapok hozzáadásához, vagy törlés, ha már nincs rá szükség.</translation>
 <translation id="3478414204555961127">Olvasó nézet</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+          =1 {Lapcsoport visszaállítása <ph name="TAB_COUNT_ONE" /> lappal, színe <ph name="COLOR_NAME" />, mint új háttérbeli lapcsoport.}
+          other {Lapcsoport visszaállítása <ph name="TAB_COUNT_MANY" /> lappal, színe <ph name="COLOR_NAME" />, mint új háttérbeli lapcsoport.}
+        }</translation>
 <translation id="3504699618187058974">Lapok csoportosítása</translation>
 <translation id="3518985090088779359">Elfogadás és tovább</translation>
 <translation id="3571177741182643350">Olvasatlan cikkek - Offline elérhető:</translation>
@@ -43,9 +63,11 @@
 <translation id="3700829948786686853">Üdvözöl a Vivaldi</translation>
 <translation id="3719826155360621982">Kezdőlap</translation>
 <translation id="3738139272394829648">Kereséshez koppintás</translation>
-<translation id="385051799172605136">Vissza</translation>
+<translation id="3900825170941000696"><ph name="TITLE_OF_GROUP" /> lapcsoport visszaállítása, színe <ph name="COLOR_NAME" />, mint új háttérbeli -lapcsoport.</translation>
+<translation id="395421286877117532">Lapcsoport beállítása, majd "Kész" gomb</translation>
 <translation id="3987993985790029246">Hivatkozás másolása</translation>
 <translation id="399014816462153200">Olvasott cikkek:</translation>
+<translation id="4048089913902125176"><ph name="TITLE_OF_GROUP" /> lapcsoport megnyitása, <ph name="COLOR_NAME" /> színű, <ph name="URL_LIST" /> weboldalakkal.</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> lap}
           other {<ph name="TAB_COUNT_MANY" /> lap, <ph name="TAB_COUNT_INCOGNITO" /> privát}}</translation>
@@ -54,25 +76,41 @@
 <translation id="4137746084635924146">Aktuális eszköz nyelve</translation>
 <translation id="4167670741834902166">Új privát lap</translation>
 <translation id="4195643157523330669">Megnyitás új lapon</translation>
+<translation id="4219031106525503429">"<ph name="GROUP_NAME" />” lapcsoport megosztása</translation>
 <translation id="4225895483398857530">Eszköztár parancsikon</translation>
 <translation id="4243710787042215766">Megnyitás privát lapon</translation>
 <translation id="4269820728363426813">Hivatkozási cím másolása</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Képernyőzár bekapcsolása az Android beállításai között<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Jelszókezelő</translation>
-<translation id="441100617989818073">Nem használt vagy duplikált lapok és csoportok</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {<ph name="TABS_COUNT_ONE" /> szabványos lap új aktivitással a megosztott lapcsoportokban}
+          other {<ph name="TABS_COUNT_MANY" /> szabványos lap új aktivitással a megosztott lapcsoportokban}
+        }</translation>
+<translation id="4445802392779002787">Lap csoporthoz adása</translation>
 <translation id="451872707440238414">Keresés a könyvjelzők közt</translation>
 <translation id="4526803704855831732">Privát lapok</translation>
 <translation id="4532845899244822526">Mappa választása</translation>
+<translation id="454284936014822050"><ph name="GROUP_TITLE" /> lapcsoport</translation>
+<translation id="4614713783237504866">Használaton kívüli vagy duplikált lapok és csoportok</translation>
+<translation id="463284870544181537">A csoport megtartása, később további lapok hozzáadásához, vagy elhagyás, ha már nem szükség az elérhetősége</translation>
+<translation id="4638726726741656531">Itt egyszerűen csoportokhoz adhatsz lapokat</translation>
 <translation id="4699172675775169585">Képek és fájlok a gyorsítótárban</translation>
 <translation id="4719086422742491124">Az oldal elhagyása nélkül tudj meg többet a weboldalak témáiról. Válassz ki egy vagy több szót az oldalon a keresésükhöz.
 
 Az "Érintéses keresés" csak akkor érhető el, ha a Vivaldi alapértelmezett keresőmotorja a Google.</translation>
 <translation id="4759238208242260848">Letöltések</translation>
-<translation id="4777866634702576038">Lapcsoport törlése?</translation>
+<translation id="4771820744342013314">Lapcsoport törlése?</translation>
 <translation id="4850886885716139402">Nézet</translation>
 <translation id="4883379392681899581">Privát mód elhagyása</translation>
+<translation id="4883812026489706387">“<ph name="TAB_GROUP_TITLE" />” lapcsoport új aktivitással</translation>
+<translation id="4887248255051238988">Lapcsoport elhagyása?</translation>
 <translation id="4943872375798546930">Nincs találat</translation>
 <translation id="49576331685473090">Tartalom blokkolása</translation>
+<translation id="4964059453543967592">Bezárt csoport újranyitása</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" /> lapcsoport}
+          other {<ph name="TAB_GROUPS_MANY" /> lapcsoport}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> privát lap}
           other {<ph name="TAB_COUNT_NORMAL" /> privát lap}}</translation>
@@ -83,19 +121,26 @@ Az "Érintéses keresés" csak akkor érhető el, ha a Vivaldi alapértelmezett 
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {Fájl letöltése...}
             other {# fájl letöltése…}}</translation>
+<translation id="5210689723585747462"><ph name="TAB_GROUP_TITLE" /> lapcsoport bezárva</translation>
 <translation id="5233638681132016545">Új lap</translation>
 <translation id="5375131951310889874">Az oldal elhagyása nélkül tudj meg többet a weboldalak témáiról. Az "Érintéses keresés" csak akkor érhető el, ha a Vivaldi alapértelmezett keresőmotorja a Google. Egy szót és annak szövegkörnyezetét elküldi a Google keresőnek, mely fogalmakat, képeket, keresési eredményeket és egyéb részleteket ad vissza.
 
 A keresési kifejezés módosításához tarts hosszan nyomva. A keresés finomításához teljesen húzd fel a panelt, és koppintson a keresőmezőre.</translation>
+<translation id="5570837353202786816">Mindenki azonnal elveszíti a lapcsoport hozzáférését, és minden meghívó megszüntetésre kerül: "<ph name="GROUP_NAME" />"</translation>
+<translation id="5614794348925178470"><ph name="GROUP_TITLE" /> megosztott lapcsoport</translation>
 <translation id="572328651809341494">Nemrég megnyitott lapok</translation>
 <translation id="5833984609253377421">Hivatkozás megosztása</translation>
+<translation id="6129507335719227488">Lapok csoportban</translation>
 <translation id="6150320133806434356">Könyvjelző mentve</translation>
 <translation id="6193448654517602979">Lapok kiválasztása</translation>
+<translation id="6221225660285238685">Csoport áthelyezése másik ablakba</translation>
+<translation id="6277377952699614191">Lapcsoport</translation>
 <translation id="6336451774241870485">Új privát lap</translation>
 <translation id="6337323516034698937">Hogy másik eszközre küldhesd a lapot, mindkét eszközön jelentkezz be a Vivaldi szinkronizálásba. Ha szükséges, add meg a titkosítási jelszót.</translation>
 <translation id="6341580099087024258">Rákérdezés a fájlok mentésének helyére</translation>
 <translation id="6364438453358674297">Javaslat eltávolítása az előzményekből?</translation>
 <translation id="6404511346730675251">Könyvjelző szerkesztése</translation>
+<translation id="6453011654157908292">Lapcsoport részletei</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
           =1 {Fájl letöltve}
           other {# letöltés befejeződött}}</translation>
@@ -104,11 +149,13 @@ A keresési kifejezés módosításához tarts hosszan nyomva. A keresés finom�
 <translation id="6593061639179217415">Asztali webhely</translation>
 <translation id="6610147964972079463">Privát lapok bezárása</translation>
 <translation id="6627583120233659107">Mappa szerkesztése</translation>
+<translation id="6785740335511995065">Lapcsoport megtartása?</translation>
 <translation id="6865313869410766144">Űrlapok automatikus kitöltésű adatai</translation>
 <translation id="6909589135458168665">Oldalak előtöltése</translation>
 <translation id="7029995644714925509">Mikor egy weboldal a hivatkozásokat privát módon kívánja előtölteni, a Vivaldi titkosítja és előtölti az oldalakat a Google szerverein keresztül. Ezzel elrejthető a személyazonosságod az előre betöltött weboldal elől.</translation>
 <translation id="706339621163631076">Vivaldi - Adatvédelmi szabályzat</translation>
 <translation id="7100573672995171864">A Vivaldi testreszabása és vezérlése</translation>
+<translation id="7133879160432070247">Csoport blokkolása és elhagyása?</translation>
 <translation id="732145680195464316">Könyvjelző mentve (<ph name="PRODUCT_NAME" />)</translation>
 <translation id="7324354302972299151">"Do Not Track" kérés küldése</translation>
 <translation id="7359002509206457351">Hozzáférés a fizetési módokhoz</translation>
@@ -117,24 +164,33 @@ A keresési kifejezés módosításához tarts hosszan nyomva. A keresés finom�
 <translation id="7456774706094330779">Kiterjesztett előtöltés</translation>
 <translation id="7465104139234185284">Minden privát lap bezárása</translation>
 <translation id="7481312909269577407">Előre</translation>
+<translation id="759273611317559136"><ph name="TAB_GROUP_TITLE" /> lapcsoport törölve</translation>
+<translation id="7630413501995820846">Csoport megtartása</translation>
+<translation id="7640137753339219124">Csoport törlése</translation>
 <translation id="7764225426217299476">Cím hozzáadása</translation>
+<translation id="7910753230807645596">A duplikált lapok és csoportok, vagy amelyek <ph name="DAYS_INACTIVE" /> napja nem használtak, átkerültek ide: <ph name="AUTODELETE_SECTION" />. Ez bármikor módosítható a <ph name="DECLUTTER_SETTINGS_TITLE" /> alatt.</translation>
 <translation id="7968014550143838305">Hozzáadva az Olvasási listához</translation>
 <translation id="804786196054284061">Általános Szerződési Feltételek</translation>
 <translation id="8062594758852531064">Kiterjesztett előtöltés:</translation>
 <translation id="8073388330009372546">Kép megnyitása új lapon</translation>
 <translation id="8127542551745560481">Kezdőlap szerkesztése</translation>
+<translation id="8149776854955817519">Itt megnézheted az inaktív lapjaid és csoportjaid</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
           =1 {(1) inaktív elem}
           other {(#) inaktív elem}}</translation>
 <translation id="8266862848225348053">Letöltési hely</translation>
 <translation id="8348430946834215779">HTTPS használata, amikor csak lehetséges, és figyelmeztetés megjelenítése a protokollt nem támogató webhelyek betöltése előtt</translation>
+<translation id="8480628728881718381">Megnyitás a csoport új lapján</translation>
+<translation id="8543049482641423692">Lap új csoporthoz adása</translation>
 <translation id="8560602726703398413">Olvasási lista keresése a Könyvjelzőkben</translation>
 <translation id="85991616550051997">Kezdőlapra ugrás</translation>
+<translation id="8680308397617585416">Azonnal elveszíted a(z) “<ph name="GROUP_NAME" />” lapcsoport hozzáférését, és törlődni fog minden eszközödről</translation>
 <translation id="8738163682604285902">Megtekintés Olvasó módban?</translation>
 <translation id="8820817407110198400">Könyvjelzők</translation>
 <translation id="9042893549633094279">Adatvédelem és biztonság</translation>
 <translation id="9063523880881406963">Kikapcsolja az Asztali webhely kérése funkciót</translation>
 <translation id="9080642952018487277">Privát módba váltás</translation>
+<translation id="9099398755190923267">Mindenki azonnal elveszíti a lapcsoport hozzáférését, és törlésre kerül minden eszközről: "<ph name="GROUP_NAME" />"</translation>
 <translation id="930124987204876019">Előzmények, cookie-k, webhelyadatok, gyorsítótár törlése…</translation>
 <translation id="961856697154696964">Böngészési adatok törlése</translation>
 </translationbundle>

@@ -629,17 +629,16 @@ void PinnedToolbarActionsContainer::RemoveButton(
 }
 
 bool PinnedToolbarActionsContainer::IsOverflowed(actions::ActionId id) {
-  const auto* const pinned_button = GetPinnedButtonFor(id);
-  // TODO(pengchaocai): Support popped out buttons overflow.
+  const auto* const button = GetButtonFor(id);
   // TODO(crbug.com/40949386): If this container is not visible treat the
   // elements inside as overflowed.
 
   // Need to use the target layout in case the animation has not yet shown the
   // button but is in the process of revealing it.
   const auto* const layout =
-      GetAnimatingLayoutManager()->target_layout().GetLayoutFor(pinned_button);
+      GetAnimatingLayoutManager()->target_layout().GetLayoutFor(button);
   return GetAnimatingLayoutManager()->target_layout_manager()->CanBeVisible(
-             pinned_button) &&
+             button) &&
          layout && (!GetVisible() || !layout->visible);
 }
 
@@ -657,17 +656,20 @@ bool PinnedToolbarActionsContainer::ShouldAnyButtonsOverflow(
         GetAnimatingLayoutManager()->target_layout_manager()->GetProposedLayout(
             available_size);
   }
-  for (PinnedActionToolbarButton* pinned_button : pinned_buttons_) {
+
+  auto is_button_overflowing = [&](PinnedActionToolbarButton* button) {
     if (views::ChildLayout* child_layout =
-            proposed_layout.GetLayoutFor(pinned_button)) {
+            proposed_layout.GetLayoutFor(button)) {
       if (GetAnimatingLayoutManager()->target_layout_manager()->CanBeVisible(
-              pinned_button) &&
+              button) &&
           !child_layout->visible) {
         return true;
       }
     }
-  }
-  return false;
+    return false;
+  };
+  return std::ranges::any_of(pinned_buttons_, is_button_overflowing) ||
+         std::ranges::any_of(popped_out_buttons_, is_button_overflowing);
 }
 
 bool PinnedToolbarActionsContainer::IsActionPinned(actions::ActionId id) {
@@ -849,10 +851,20 @@ PinnedToolbarActionsContainer::CreateOrGetButtonForAction(
     return button;
   }
 
-  auto button = std::make_unique<PinnedActionToolbarButton>(
-      browser_view_->browser(), id, weak_ptr_factory_.GetWeakPtr());
+  std::unique_ptr<PinnedActionToolbarButton> button;
+  actions::ActionItem* action_item = GetActionItemFor(id);
+  auto* custom_factory =
+      action_item->GetProperty(kCustomPinnedActionToolbarButtonFactoryKey);
+
+  if (custom_factory && !custom_factory->is_null()) {
+    button = custom_factory->Run(browser_view_->browser(), id,
+                                 weak_ptr_factory_.GetWeakPtr());
+  } else {
+    button = std::make_unique<PinnedActionToolbarButton>(
+        browser_view_->browser(), id, weak_ptr_factory_.GetWeakPtr());
+  }
   action_view_controller_->CreateActionViewRelationship(
-      button.get(), GetActionItemFor(id)->GetAsWeakPtr());
+      button.get(), action_item->GetAsWeakPtr());
 
   button->SetPaintToLayer();
   button->layer()->SetFillsBoundsOpaquely(false);
@@ -868,21 +880,21 @@ ToolbarButton* PinnedToolbarActionsContainer::GetDownloadButton() {
   return GetButtonFor(kActionShowDownloads);
 }
 
-ToolbarButton* PinnedToolbarActionsContainer::GetCastButton() {
-  return GetButtonFor(kActionRouteMedia);
-}
-
 views::BubbleAnchor PinnedToolbarActionsContainer::GetBubbleAnchor(
     actions::ActionId action_id) {
   return views::BubbleAnchor(GetButtonFor(action_id));
 }
 
-void PinnedToolbarActionsContainer::SetActionElementIdentifier(
+void PinnedToolbarActionsContainer::GetBubbleAnchorAsync(
     actions::ActionId action_id,
-    ui::ElementIdentifier element_id) {
-  auto* button = GetButtonFor(action_id);
-  CHECK(button);
-  button->SetProperty(views::kElementIdentifierKey, element_id);
+    base::OnceCallback<void(BubbleAnchorResult)> callback) {
+  auto anchor = GetBubbleAnchor(action_id);
+  if (anchor.IsNull()) {
+    std::move(callback).Run(
+        base::unexpected(GetAnchorFailureReason::kAnchorNotFound));
+  } else {
+    std::move(callback).Run(anchor);
+  }
 }
 
 PinnedActionToolbarButton*

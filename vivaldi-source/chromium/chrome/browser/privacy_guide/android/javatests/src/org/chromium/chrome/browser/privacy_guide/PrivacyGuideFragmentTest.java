@@ -54,6 +54,7 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
@@ -82,20 +83,19 @@ import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.signin.test.util.TestAccounts;
 import org.chromium.components.sync.UserSelectableType;
 import org.chromium.components.user_prefs.UserPrefs;
+import org.chromium.ui.base.DeviceFormFactor;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /** Tests {@link PrivacyGuideFragment} */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@EnableFeatures({
-    ChromeFeatureList.PRIVACY_SANDBOX_AD_TOPICS_CONTENT_PARITY,
+@DisableFeatures({
+    ChromeFeatureList.SETTINGS_MULTI_COLUMN,
+    ChromeFeatureList.PRIVACY_SANDBOX_AD_PRIVACY_UX_DEPRECATION
 })
-@DisableFeatures({ChromeFeatureList.SETTINGS_MULTI_COLUMN})
 @DoNotBatch(reason = "Manages sign-in state, which is global.")
 public class PrivacyGuideFragmentTest {
     private static final String SETTINGS_STATES_HISTOGRAM = "Settings.PrivacyGuide.SettingsStates";
@@ -220,17 +220,10 @@ public class PrivacyGuideFragmentTest {
     }
 
     private void setHistorySyncState(boolean isHistorySyncOn) {
-        Set<Integer> selectedTypes = new HashSet<>();
-        if (isHistorySyncOn) {
-            selectedTypes.add(UserSelectableType.HISTORY);
-        } else {
-            selectedTypes.remove(UserSelectableType.HISTORY);
-        }
-
         runOnUiThreadBlocking(
                 () ->
                         SyncTestUtil.getSyncServiceForLastUsedProfile()
-                                .setSelectedTypes(false, selectedTypes));
+                                .setSelectedType(UserSelectableType.HISTORY, isHistorySyncOn));
     }
 
     private void setSafeBrowsingState(@SafeBrowsingState int safeBrowsingState) {
@@ -335,6 +328,7 @@ public class PrivacyGuideFragmentTest {
     @LargeTest
     @Feature({"RenderTest"})
     @DisableFeatures(ChromeFeatureList.SETTINGS_MULTI_COLUMN)
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511289221
     public void testRenderSBCard() throws IOException {
         launchPrivacyGuide();
         goToCard(FragmentType.SAFE_BROWSING);
@@ -345,6 +339,7 @@ public class PrivacyGuideFragmentTest {
     @LargeTest
     @Feature({"RenderTest"})
     @DisableFeatures(ChromeFeatureList.SETTINGS_MULTI_COLUMN)
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511289221
     public void testRenderSBEnhancedBottomSheet() throws IOException {
         launchPrivacyGuide();
         goToCard(FragmentType.SAFE_BROWSING);
@@ -665,6 +660,7 @@ public class PrivacyGuideFragmentTest {
     @Test
     @LargeTest
     @Feature({"PrivacyGuide"})
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511289221
     public void testMSBBCard_offToOnSettingsStatesHistogram() {
         setMSBBState(false);
         launchPrivacyGuide();
@@ -893,6 +889,7 @@ public class PrivacyGuideFragmentTest {
     @Test
     @LargeTest
     @Feature({"PrivacyGuide"})
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511289221
     public void testHistorySyncCard_nextButtonInitialSyncStateIsSet() {
         launchPrivacyGuide();
         mPrivacyGuideTestRule
@@ -908,6 +905,7 @@ public class PrivacyGuideFragmentTest {
     @Test
     @LargeTest
     @Feature({"PrivacyGuide"})
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511289221
     public void testHistorySyncCard_backButtonInitialSyncStateIsSet() {
         launchPrivacyGuide();
         mPrivacyGuideTestRule
@@ -1140,6 +1138,7 @@ public class PrivacyGuideFragmentTest {
     @Test
     @LargeTest
     @Feature({"PrivacyGuide"})
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511289221
     public void testCookiesCard_block3PIncognitoTo3PSettingsStatesHistogram() {
         setCookieControlsMode(CookieControlsMode.INCOGNITO_ONLY);
         launchPrivacyGuide();
@@ -1280,5 +1279,24 @@ public class PrivacyGuideFragmentTest {
         mPrivacyGuideTestRule.recreateActivity();
         clickOnArrowNextToRadioButtonWithText(R.string.privacy_guide_safe_browsing_enhanced_title);
         onViewWaiting(withId(R.id.sb_enhanced_sheet)).check(matches(isDisplayed()));
+    }
+
+    @Test
+    @LargeTest
+    @Feature({"PrivacyGuide"})
+    @EnableFeatures(ChromeFeatureList.PRIVACY_SANDBOX_AD_PRIVACY_UX_DEPRECATION)
+    public void testAdTopicsCardSkippedWhenDeprecationEnabled() {
+        setCookieControlsMode(CookieControlsMode.INCOGNITO_ONLY);
+        launchPrivacyGuide();
+        goToCard(FragmentType.COOKIES);
+        // Verify that the Ad Topics card is not displayed after the cookies card when the
+        // deprecation feature is enabled, so we should be able to click the finish button to get to
+        // the DoneFragment.
+        onViewWaiting(withText(R.string.privacy_guide_finish_button)).perform(click());
+        onViewWaiting(withText(R.string.privacy_guide_done_title)).check(matches(isDisplayed()));
+        // Verify the Ad Topics settings entry point is not displayed on the DoneFragment.
+        onView(withId(R.id.ps_button)).check(matches(not(isDisplayed())));
+        onView(withId(R.id.ps_heading)).check(matches(not(isDisplayed())));
+        onView(withId(R.id.ps_explanation)).check(matches(not(isDisplayed())));
     }
 }

@@ -4,18 +4,14 @@ import("//build/config/apple/swift_source_set.gni")
 
 swift_source_set("vivaldi_custom_navigation_bar_swift") {
   bridge_header = "vivaldi_custom_navigation_bar_swift_bridge.h"
-  sources = [
-    "vivaldi_custom_navigation_bar_view.swift",
-  ]
+  sources = [ "vivaldi_custom_navigation_bar_view.swift" ]
 
   deps = [
-    "//ios/chrome/common/ui/colors:colors",
+    "//ios/chrome/common/ui/colors",
     "//vivaldi/app:vivaldi_ios_native_strings",
-    "//vivaldi/ios/ui/helpers:helpers_swift",
     "//vivaldi/ios/ui/helpers",
+    "//vivaldi/ios/ui/helpers:helpers_swift",
   ]
 
-  frameworks = [
-    "UIKit.framework",
-  ]
+  frameworks = [ "UIKit.framework" ]
 }

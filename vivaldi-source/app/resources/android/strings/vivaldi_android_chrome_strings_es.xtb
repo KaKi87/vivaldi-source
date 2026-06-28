@@ -1,22 +1,25 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="es">
+<translation id="1062777154504442433">Nueva pila de pestañas</translation>
 <translation id="1204037785786432551">Enlace de descarga</translation>
 <translation id="1206892813135768548">Copiar texto del enlace</translation>
+<translation id="1223158186497001208">Pila de pestañas <ph name="GROUP_TITLE" /> compartida con nueva actividad</translation>
+<translation id="1328749518742029305">Pila de pestañas <ph name="TAB_GROUP_TITLE" /> cerrada y guardada</translation>
 <translation id="1397811292916898096">Buscar con <ph name="PRODUCT_NAME" /></translation>
 <translation id="1435593198351412143">Abrir PDFs automáticamente</translation>
 <translation id="1456207338570705181">La función tocar para buscar solo está disponible cuando Google es el buscador predeterminado en Vivaldi. Envía la palabra seleccionada y la página actual como contexto al buscador Google. Puedes desactivarla en los <ph name="BEGIN_LINK" />ajustes<ph name="END_LINK" />.</translation>
 <translation id="1598449788754183301">Alternar entre pestañas normales o privadas</translation>
+<translation id="1626105448931436644">Más información sobre pilas de pestañas compartidas</translation>
 <translation id="1644574205037202324">Historial</translation>
 <translation id="1829244130665387512">Buscar en la página</translation>
-<translation id="1910514478706885609">Abrir en pila de pestañas</translation>
 <translation id="1925021887439448749">Introduce una dirección personalizada</translation>
 <translation id="2038563949887743358">Activar la petición para el modo escritorio</translation>
 <translation id="208033313373016095">Modo lectura de páginas web</translation>
 <translation id="2149973817440762519">Editar marcador</translation>
 <translation id="2306442503286132111">Marcador guardado en la carpeta <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Apariencia</translation>
-<translation id="2501278716633472235">Atrás</translation>
+<translation id="2495373685671077949">Buscar en pestañas y pilas</translation>
 <translation id="2546283357679194313">Cookies y datos del sitio</translation>
 <translation id="2633278372998075009">Pestañas privadas</translation>
 <translation id="2650751991977523696">¿Quieres descargar el archivo de nuevo?</translation>
@@ -26,6 +29,7 @@
 <translation id="2871733351037274014">Precargar páginas</translation>
 <translation id="2904300462646366554">Los PDFs descargados se abren automáticamente con uno de los visores de PDFs instalados en el dispositivo</translation>
 <translation id="2951071800649516099">Añade páginas a la lista de lectura para leerlas más tarde</translation>
+<translation id="3020023775880428664">Mover pestaña a la pila</translation>
 <translation id="3029276696788198026">No precargar</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> marcador}
@@ -35,6 +39,7 @@
 <translation id="3232293466644486101">Eliminar datos de navegación…</translation>
 <translation id="3234355010754616171">Nueva pestaña privada</translation>
 <translation id="3237087289225714896">Precarga estándar:</translation>
+<translation id="3298614730029636660">Abandonar pila</translation>
 <translation id="3478414204555961127">Modo lectura</translation>
 <translation id="3504699618187058974">Apilar pestañas</translation>
 <translation id="3518985090088779359">Aceptar y continuar</translation>
@@ -43,7 +48,7 @@
 <translation id="3700829948786686853">Bienvenido a Vivaldi</translation>
 <translation id="3719826155360621982">Página principal</translation>
 <translation id="3738139272394829648">Tocar para buscar</translation>
-<translation id="385051799172605136">Atrás</translation>
+<translation id="395421286877117532">Personaliza la pila de pestañas y toca en hecho</translation>
 <translation id="3987993985790029246">Copiar enlace</translation>
 <translation id="399014816462153200">Páginas leídas:</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
@@ -54,25 +59,29 @@
 <translation id="4137746084635924146">Idioma actual del dispositivo</translation>
 <translation id="4167670741834902166">Nueva pestaña privada</translation>
 <translation id="4195643157523330669">Abrir en pestaña nueva</translation>
+<translation id="4219031106525503429">Compartir pila de pestañas «<ph name="GROUP_NAME" />»</translation>
 <translation id="4225895483398857530">Acceso directo en la barra de herramientas</translation>
 <translation id="4243710787042215766">Abrir en pestaña privada</translation>
 <translation id="4269820728363426813">Copiar dirección del enlace</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Activa el bloqueo de pantalla en los ajustes de Android<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Gestor de contraseñas</translation>
-<translation id="441100617989818073">Pestañas y grupos sin utilizar o duplicadas</translation>
+<translation id="4445802392779002787">Añadir pestaña a la pila</translation>
 <translation id="451872707440238414">Buscar en los marcadores</translation>
 <translation id="4526803704855831732">Pestañas privadas</translation>
 <translation id="4532845899244822526">Seleccionar carpeta</translation>
+<translation id="454284936014822050">Pila de pestañas <ph name="GROUP_TITLE" /></translation>
 <translation id="4699172675775169585">Archivos e imágenes en caché</translation>
 <translation id="4719086422742491124">Obtén información sobre los temas tratados en los sitios web sin salir de la página. Selecciona una o más palabras para buscarlas.
 
 La función tocar para buscar solo está disponible si Google es el buscador predeterminado en Vivaldi.</translation>
 <translation id="4759238208242260848">Descargas</translation>
-<translation id="4777866634702576038">¿Eliminar grupo de pestañas?</translation>
+<translation id="4771820744342013314">¿Eliminar pila de pestañas?</translation>
 <translation id="4850886885716139402">Ver</translation>
 <translation id="4883379392681899581">Salir del modo privado</translation>
+<translation id="4887248255051238988">¿Abandonar pila de pestañas?</translation>
 <translation id="4943872375798546930">Sin resultados</translation>
 <translation id="49576331685473090">Bloqueador de contenidos</translation>
+<translation id="4964059453543967592">Reabrir la pila cerrada</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> pestaña privada}
           other {<ph name="TAB_COUNT_NORMAL" /> pestañas privadas}}</translation>
@@ -83,14 +92,19 @@ La función tocar para buscar solo está disponible si Google es el buscador pre
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {Descargando archivo…}
             other {Descargando # archivos…}}</translation>
+<translation id="5210689723585747462">Pila de pestañas <ph name="TAB_GROUP_TITLE" /> cerrada</translation>
 <translation id="5233638681132016545">Nueva pestaña</translation>
 <translation id="5375131951310889874">La función «Tocar para buscar» sólo está disponible si Google es el buscador predeterminado en Vivaldi. Envía una palabra y su contexto al buscador Google para mostrarte definiciones, imágenes, resultados de búsqueda y otra información.
 
 Para cambiar el término de la búsqueda, mantén pulsado cualquier texto para seleccionarlo. Para afinar la búsqueda, desliza el panel hacia arriba y después toca el cuadro de búsqueda.</translation>
+<translation id="5614794348925178470">Pila de pestañas <ph name="GROUP_TITLE" /> compartida</translation>
 <translation id="572328651809341494">Pestañas recientes</translation>
 <translation id="5833984609253377421">Compartir enlace</translation>
+<translation id="6129507335719227488">Pestañas en la pila</translation>
 <translation id="6150320133806434356">Marcador guardado</translation>
 <translation id="6193448654517602979">Selecciona pestañas</translation>
+<translation id="6221225660285238685">Mover pila a otra ventana</translation>
+<translation id="6277377952699614191">Pila de pestañas</translation>
 <translation id="6336451774241870485">Nueva pestaña privada</translation>
 <translation id="6337323516034698937">Para enviar esta pestaña a otro dispositivo, inicia sesión en Vivaldi Sync en ambos dispositivos. Si fuese necesario, introduce la contraseña de cifrado.</translation>
 <translation id="6341580099087024258">Preguntar dónde guardar los archivos</translation>
@@ -104,11 +118,13 @@ Para cambiar el término de la búsqueda, mantén pulsado cualquier texto para s
 <translation id="6593061639179217415">Modo escritorio</translation>
 <translation id="6610147964972079463">Cerrar todas</translation>
 <translation id="6627583120233659107">Editar carpeta</translation>
+<translation id="6785740335511995065">¿Mantener pila de pestañas?</translation>
 <translation id="6865313869410766144">Datos de autocompletado de formularios</translation>
 <translation id="6909589135458168665">Precargar páginas</translation>
 <translation id="7029995644714925509">Cuando un sitio solicita precargar privadamente enlaces en su página, Vivaldi encripta y precarga las páginas a través de los servidores de Google sin usar cookies. Esto permite ocultar tu identidad del sitio precargado.</translation>
 <translation id="706339621163631076">Política de privacidad del navegador</translation>
 <translation id="7100573672995171864">Personaliza y controla Vivaldi</translation>
+<translation id="7133879160432070247">¿Bloquear y abandonar pila?</translation>
 <translation id="732145680195464316">Marcador guardado en <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Enviar una solicitud "Do Not Track"</translation>
 <translation id="7359002509206457351">Acceder a métodos de pago</translation>
@@ -117,17 +133,24 @@ Para cambiar el término de la búsqueda, mantén pulsado cualquier texto para s
 <translation id="7456774706094330779">Precarga ampliada</translation>
 <translation id="7465104139234185284">Cerrar todas las pestañas privadas</translation>
 <translation id="7481312909269577407">Avanzar</translation>
+<translation id="759273611317559136">Pila de pestañas <ph name="TAB_GROUP_TITLE" /> eliminada</translation>
+<translation id="7630413501995820846">Mantener pila</translation>
+<translation id="7640137753339219124">Eliminar pila</translation>
 <translation id="7764225426217299476">Añadir dirección</translation>
+<translation id="7910753230807645596">Las pestañas y pilas duplicadas o aquellas que no se usan desde hace <ph name="DAYS_INACTIVE" /> días se mueven aquí <ph name="AUTODELETE_SECTION" />. Puedes cambiar esto en cualquier momento en <ph name="DECLUTTER_SETTINGS_TITLE" />.</translation>
 <translation id="7968014550143838305">Añadido a la lista de lectura</translation>
 <translation id="804786196054284061">Condiciones de servicio</translation>
 <translation id="8062594758852531064">Precarga ampliada:</translation>
 <translation id="8073388330009372546">Abrir imagen en pestaña nueva</translation>
 <translation id="8127542551745560481">Editar página principal</translation>
+<translation id="8149776854955817519">Revisa aquí tus pestañas y pilas inactivas</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
           =1 {(1) elemento inactivo}
           other {(#) elementos inactivos}}</translation>
 <translation id="8266862848225348053">Ubicación de las descargas</translation>
 <translation id="8348430946834215779">Usa HTTPS siempre que sea posible y recibe advertencias antes de cargar sitios que no sean compatibles con este protocolo</translation>
+<translation id="8480628728881718381">Abrir en una pestaña nueva en la pila</translation>
+<translation id="8543049482641423692">Añadir pestaña a la nueva pila</translation>
 <translation id="8560602726703398413">Encuentra tu lista de lectura en marcadores</translation>
 <translation id="85991616550051997">Ir a la página principal</translation>
 <translation id="8738163682604285902">¿Ver en modo lectura?</translation>

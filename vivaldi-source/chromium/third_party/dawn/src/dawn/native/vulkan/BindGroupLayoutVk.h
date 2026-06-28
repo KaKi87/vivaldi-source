@@ -32,13 +32,13 @@
 #include <utility>
 #include <vector>
 
-#include "dawn/common/MutexProtected.h"
-#include "dawn/common/NonCopyable.h"
-#include "dawn/common/SlabAllocator.h"
-#include "dawn/common/vulkan_platform.h"
-#include "dawn/native/BindGroupLayoutInternal.h"
-#include "dawn/native/vulkan/BindGroupVk.h"
-#include "dawn/native/vulkan/SamplerVk.h"
+#include "src/dawn/common/MutexProtected.h"
+#include "src/dawn/common/SlabAllocator.h"
+#include "src/dawn/common/vulkan_platform.h"
+#include "src/dawn/native/BindGroupLayoutInternal.h"
+#include "src/dawn/native/vulkan/BindGroupVk.h"
+#include "src/dawn/native/vulkan/SamplerVk.h"
+#include "src/utils/non_copyable.h"
 
 namespace dawn::native {
 class CacheKey;
@@ -117,7 +117,7 @@ class BindGroupLayout : public BindGroupLayoutInternalBase {
     // Caches VkDescriptorSetLayouts for specializations so that the lifetime guarantees are the
     // same as for mHandle. Note that the noop specialization has mHandle cached directly, but
     // mHandle is also kept separate for efficiency when creating BindGroups.
-    absl::flat_hash_map<Specialization, VkDescriptorSetLayout> mSpecializations;
+    MutexProtected<absl::flat_hash_map<Specialization, VkDescriptorSetLayout>> mSpecializations;
 
     // Maps from indices of texture entries that are paired with static samplers
     // to indices of the entries of their respective samplers.

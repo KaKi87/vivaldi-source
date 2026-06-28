@@ -352,7 +352,7 @@ void FakeSkiaOutputSurface::SwapBuffersAck() {
   gpu::SwapBuffersCompleteParams params;
   params.swap_response.timings = {now, now};
   params.swap_response.result = gfx::SwapResult::SWAP_ACK;
-  client_->DidReceiveSwapBuffersAck(params,
+  client_->DidReceiveSwapBuffersAck(std::move(params),
                                     /*release_fence=*/gfx::GpuFenceHandle());
   client_->DidReceivePresentationFeedback({now, base::TimeDelta(), 0});
 }
@@ -395,6 +395,10 @@ gpu::Mailbox FakeSkiaOutputSurface::CreateSolidColorSharedImage(
     const SkColor4f& color,
     const gfx::ColorSpace& color_space) {
   return gpu::Mailbox::Generate();
+}
+
+void FakeSkiaOutputSurface::DestroySharedImage(const gpu::Mailbox& mailbox) {
+  destroyed_mailboxes_.push_back(mailbox);
 }
 
 void FakeSkiaOutputSurface::SetSharedImagePurgeable(const gpu::Mailbox& mailbox,

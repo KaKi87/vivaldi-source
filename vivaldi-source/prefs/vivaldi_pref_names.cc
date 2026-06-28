@@ -7,8 +7,6 @@ namespace vivaldiprefs {
 // Profile prefs go here.
 
 const char kAutoUpdateEnabled[] = "vivaldi.autoupdate_enabled";
-const char kVivaldiAccountPendingRegistration[] =
-    "vivaldi.vivaldi_account.pending_registration";
 const char kVivaldiLastTopSitesVacuumDate[] =
     "vivaldi.last_topsites_vacuum_date";
 const char kVivaldiSearchEnginesKagiToken[] =

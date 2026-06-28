@@ -21,6 +21,7 @@ import androidx.core.app.ActivityCompat;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.Log;
+import org.chromium.base.SplitCompatService;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
@@ -28,7 +29,6 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.app.tabwindow.TabWindowManagerSingleton;
-import org.chromium.chrome.browser.base.SplitCompatService;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.notifications.NotificationUmaTracker;
 import org.chromium.chrome.browser.notifications.NotificationWrapperBuilderFactory;
@@ -204,6 +204,31 @@ public class MediaCaptureNotificationServiceImpl extends SplitCompatService.Impl
     }
 
     /**
+     * Attempts to stop the media capture overlay for a given tab.
+     *
+     * @param tabId Id of the tab to stop media capture for.
+     */
+    private void tryStopMediaCapture(int tabId) {
+        // Closing a window that is actively screen sharing can cause the tab's WebContents or its
+        // TopLevelNativeWindow to be destroyed or detached before the tab is fully removed from
+        // TabWindowManager.
+        Tab tab = TabWindowManagerSingleton.getInstance().getTabById(tabId);
+        if (tab == null) return;
+
+        WebContents webContents = tab.getWebContents();
+        if (webContents == null) return;
+
+        WindowAndroid window = webContents.getTopLevelNativeWindow();
+        if (window == null) return;
+
+        MediaCaptureOverlayController overlayController =
+                MediaCaptureOverlayController.from(window);
+        if (overlayController == null) return;
+
+        overlayController.stopCapture(tab);
+    }
+
+    /**
      * Destroys the notification for the id notificationId.
      *
      * @param notificationId Unique id of the notification.
@@ -213,16 +238,7 @@ public class MediaCaptureNotificationServiceImpl extends SplitCompatService.Impl
             final var oldMediaTypes = mNotificationsType.get(notificationId);
             if (hasCapturingMediaType(oldMediaTypes)) {
                 final int tabId = getTabIdFromNotificationId(notificationId);
-                final Tab tab = TabWindowManagerSingleton.getInstance().getTabById(tabId);
-                if (tab != null) {
-                    WindowAndroid window =
-                            assumeNonNull(tab.getWebContents()).getTopLevelNativeWindow();
-                    MediaCaptureOverlayController overlayController =
-                            MediaCaptureOverlayController.from(window);
-                    if (overlayController != null) {
-                        overlayController.stopCapture(tab);
-                    }
-                }
+                tryStopMediaCapture(tabId);
             }
             mNotificationsType.remove(notificationId);
             if (isBackgroundMediaCapturingEnabled()) {

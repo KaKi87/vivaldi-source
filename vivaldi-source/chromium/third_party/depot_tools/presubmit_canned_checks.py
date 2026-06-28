@@ -69,15 +69,10 @@ OFF_UNLESS_MANUALLY_ENABLED_LINT_FILTERS = [
     '-whitespace/tab',
 ]
 
-_CORP_LINK_KEYWORD = '.corp.google'
 
 # Git Tree Mode for a "gitlink" (submodule).
 # See https://git-scm.com/docs/git-ls-tree#_output_format
 _GIT_MODE_SUBMODULE = b'160000'
-
-# Windows command line character limit. See
-# https://learn.microsoft.com/en-us/troubleshoot/windows-client/shell-experience/command-line-string-limitation
-_WIN_COMMAND_LINE_CHAR_LIMIT = 8191
 
 
 ### Description checks
@@ -141,17 +136,6 @@ def CheckDoNotSubmitInDescription(input_api, output_api):
         return [
             output_api.PresubmitError(
                 keyword + ' is present in the changelist description.')
-        ]
-
-    return []
-
-
-def CheckCorpLinksInDescription(input_api, output_api):
-    """Checks that the description doesn't contain corp links."""
-    if _CORP_LINK_KEYWORD in input_api.change.DescriptionText():
-        return [
-            output_api.PresubmitPromptWarning(
-                'Corp link is present in the changelist description.')
         ]
 
     return []
@@ -269,20 +253,19 @@ def CheckDoNotSubmitInFiles(input_api, output_api):
     return []
 
 
-def CheckCorpLinksInFiles(input_api, output_api, source_file_filter=None):
-    """Checks that files do not contain a corp link."""
-    errors = _FindNewViolationsOfRule(
-        lambda _, line: _CORP_LINK_KEYWORD not in line, input_api,
-        source_file_filter)
-    text = '\n'.join('Found corp link in %s' % loc for loc in errors)
-    if text:
-        return [output_api.PresubmitPromptWarning(text)]
-    return []
-
-
 def CheckLargeScaleChange(input_api, output_api):
     """Checks if the change should go through the LSC process."""
-    size = len(input_api.AffectedFiles())
+    exclusion_globs = [
+        'infra/config/generated/*',
+    ]
+
+    def file_filter(affected_file):
+        local_path = affected_file.UnixLocalPath()
+        return not any(
+            input_api.fnmatch.fnmatch(local_path, glob)
+            for glob in exclusion_globs)
+
+    size = len(input_api.AffectedFiles(file_filter=file_filter))
     if size <= 100:
         return []
     return [
@@ -624,7 +607,7 @@ def CheckLongLines(input_api, output_api, maxlen, source_file_filter=None):
     JS_EXCEPTIONS = ("GEN('#include", 'import ',
                      '// ' + LINT_THEN_CHANGE_EXCEPTION)
     TS_FILE_EXTS = ('ts', )
-    TS_EXCEPTIONS = ('import ', 'export {', 'export type {'
+    TS_EXCEPTIONS = ('import ', 'export {', 'export type {',
                      '// ' + LINT_THEN_CHANGE_EXCEPTION)
     OBJC_FILE_EXTS = ('h', 'm', 'mm')
     OBJC_EXCEPTIONS = ('#define', '#endif', '#if', '#import', '#include',
@@ -641,6 +624,9 @@ def CheckLongLines(input_api, output_api, maxlen, source_file_filter=None):
     STAR_FILE_EXTS = ('star', )
     STAR_EXCEPTIONS = ('', )
 
+    MOJOM_FILE_EXTS = ('mojom', )
+    MOJOM_EXCEPTIONS = ('// ' + LINT_THEN_CHANGE_EXCEPTION, )
+
     LANGUAGE_EXCEPTIONS = [
         (CPP_FILE_EXTS, CPP_EXCEPTIONS),
         (HTML_FILE_EXTS, HTML_EXCEPTIONS),
@@ -651,6 +637,7 @@ def CheckLongLines(input_api, output_api, maxlen, source_file_filter=None):
         (PY_FILE_EXTS, PY_EXCEPTIONS),
         (STAR_FILE_EXTS, STAR_EXCEPTIONS),
         (RUST_FILE_EXTS, RUST_EXCEPTIONS),
+        (MOJOM_FILE_EXTS, MOJOM_EXCEPTIONS),
     ]
 
     def no_long_lines(file_extension, line):
@@ -728,6 +715,40 @@ def CheckLongLines(input_api, output_api, maxlen, source_file_filter=None):
 
         return errors
 
+    def check_java_long_lines(affected_files, error_formatter):
+        """Check long lines in Java files, ignoring lines within text blocks."""
+        errors = []
+        for f in affected_files:
+            file_path = f.LocalPath()
+            in_text_block = False
+            for idx, line in enumerate(f.NewContents()):
+                line_num = idx + 1
+
+                # Strip single-line comments before counting triple quotes
+                # to avoid getting confused by comments like `// Delimiter is """`.
+                # But do not strip them if we are already inside a text block,
+                # where `//` is valid string content.
+                if not in_text_block:
+                    clean_line = line.split('//')[0]
+                else:
+                    clean_line = line
+
+                # Remove escaped characters to avoid counting escaped quotes.
+                clean_line = input_api.re.sub(r'\\.', '', clean_line)
+
+                count = clean_line.count('"""')
+
+                # Check the line if we are not in a text block.
+                # Ignore closing lines to avoid flagging lines that are long
+                # due to text block content, assuming users don't add much after
+                # the closing delimiter.
+                if not in_text_block and not no_long_lines('java', line):
+                    errors.append(error_formatter(file_path, line_num, line))
+
+                if count % 2 == 1:
+                    in_text_block = not in_text_block
+        return errors
+
     def format_error(filename, line_num, line):
         return '%s, line %s, %s chars' % (filename, line_num, len(line))
 
@@ -736,21 +757,25 @@ def CheckLongLines(input_api, output_api, maxlen, source_file_filter=None):
 
     errors = []
 
-    # For non-Python files, a simple line-based rule check is enough.
-    non_py_file_ext_list = [
-        x for x in file_ext_list if x[1] not in PY_FILE_EXTS
+    # For non-Python and non-Java files, a simple line-based rule check is enough.
+    non_special_file_ext_list = [
+        x for x in file_ext_list
+        if x[1] not in PY_FILE_EXTS and x[1] not in JAVA_FILE_EXTS
     ]
-    if non_py_file_ext_list:
+    if non_special_file_ext_list:
         errors += _FindNewViolationsOfRuleForList(no_long_lines,
-                                                  non_py_file_ext_list,
+                                                  non_special_file_ext_list,
                                                   error_formatter=format_error)
 
-    # However, Python files need more sophisticated checks that need parsing
-    # the whole source file.
     py_file_list = [x[0] for x in file_ext_list if x[1] in PY_FILE_EXTS]
     if py_file_list:
         errors += check_python_long_lines(py_file_list,
                                           error_formatter=format_error)
+
+    java_file_list = [x[0] for x in file_ext_list if x[1] in JAVA_FILE_EXTS]
+    if java_file_list:
+        errors += check_java_long_lines(java_file_list,
+                                        error_formatter=format_error)
 
     if errors:
         msg = 'Found %d lines longer than %s characters (first 5 shown).' % (
@@ -860,7 +885,8 @@ def CheckLicense(input_api,
                 # sure the year is correct.
                 # skip the new year check in January to give some slag
                 # where submitting year N-1 is allowed.
-                if issue := input_api.change.issue:
+                issue = input_api.change.issue
+                if issue and input_api.gerrit:
                     info = input_api.gerrit.GetChangeInfo(issue)
                     created_time = datetime.datetime.fromisoformat(info["created"] + 'Z')
                     cl_creation_year = int(created_time.strftime('%Y'))
@@ -1823,10 +1849,6 @@ def PanProjectChecks(input_api,
                                              license_header,
                                              project_name,
                                              source_file_filter=sources))
-    snapshot("checking corp links in files")
-    results.extend(
-        input_api.canned_checks.CheckCorpLinksInFiles(
-            input_api, output_api, source_file_filter=sources))
     snapshot("checking large scale change")
     results.extend(
         input_api.canned_checks.CheckLargeScaleChange(input_api, output_api))
@@ -1844,9 +1866,6 @@ def PanProjectChecks(input_api,
                     input_api, output_api))
             results.extend(
                 input_api.canned_checks.CheckDoNotSubmitInDescription(
-                    input_api, output_api))
-            results.extend(
-                input_api.canned_checks.CheckCorpLinksInDescription(
                     input_api, output_api))
         snapshot("checking do not submit in files")
         results.extend(
@@ -1876,10 +1895,12 @@ def CheckPatchFormatted(input_api,
                         check_clang_format=True,
                         check_js=False,
                         check_python=None,
-                        result_factory=None):
+                        result_factory=None,
+                        file_filter=None):
     result_factory = result_factory or output_api.PresubmitPromptWarning
     import git_cl
-    affected_files = input_api.AffectedFiles(include_deletes=False)
+    affected_files = input_api.AffectedFiles(include_deletes=False,
+                                             file_filter=file_filter)
     with input_api.CreateTemporaryFile() as diff_file:
         for f in affected_files:
             diff_file.write(f.GenerateScmDiff().encode('utf-8'))
@@ -2103,31 +2124,43 @@ def CheckForCommitObjects(input_api, output_api):
 
     # If the number of affected files is small, we can avoid scanning the entire
     # tree.
-    affected_files = list(input_api.AffectedFiles())
+    affected_files = list(input_api.AffectedFiles()) + list(
+        input_api.change.AffectedSubmodules())
 
     # We must scan the full tree if DEPS is modified to ensure that any change
     # in DEPS is reflected in the gitlinks.
     deps_modified = any(f.LocalPath() == 'DEPS' for f in affected_files)
 
-    cmd = ['git', 'ls-tree', '-z', '--full-tree', 'HEAD']
+    import git_common
+    cmd = [git_common.GIT_EXE, 'ls-tree', '-z', '--full-tree', 'HEAD']
     if len(affected_files) < 1000 and not deps_modified:
         # We need to pass the paths relative to the repository root.
         repo_root = input_api.change.RepositoryRoot()
+
+        # Git uses forward slashes on all platforms.
         files_to_check = [
-            input_api.os_path.relpath(f.AbsoluteLocalPath(), repo_root)
-            for f in affected_files
+            input_api.os_path.relpath(f.AbsoluteLocalPath(), repo_root).replace(
+                input_api.os_path.sep, '/') for f in affected_files
         ]
-        # On Windows, the command line is limited to 8191 characters.
+        if deps['git_dependencies'] == 'SYNC':
+            files_to_check.extend([
+                p.replace(input_api.os_path.sep, '/')
+                for p in input_api.change.AllLocalSubmodules()
+            ])
+
+        # On Windows, the command line is limited to 8191 characters when
+        # shell=True. But if we use shell=False, the limit is 32767 characters.
         cmd_len = len(' '.join(cmd + ['--'] + files_to_check))
-        if (input_api.is_windows and cmd_len > _WIN_COMMAND_LINE_CHAR_LIMIT):
+        if input_api.is_windows and cmd_len > 32_000:
             cmd.extend(['-r'])
         else:
             cmd.extend(['--'] + files_to_check)
     else:
         cmd.extend(['-r'])
 
+    # Use shell=False for Windows to allow longer command lines (32k vs 8k).
     tree_data = input_api.subprocess.check_output(
-        cmd, cwd=input_api.PresubmitLocalPath())
+        cmd, cwd=input_api.PresubmitLocalPath(), shell=False)
 
     if _GIT_MODE_SUBMODULE not in tree_data:
         return []

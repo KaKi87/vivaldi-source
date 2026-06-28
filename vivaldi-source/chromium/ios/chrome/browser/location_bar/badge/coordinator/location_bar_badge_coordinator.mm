@@ -14,6 +14,7 @@
 #import "ios/chrome/browser/fullscreen/ui_bundled/animated_scoped_fullscreen_disabler.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_ui_updater.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/scoped_fullscreen_disabler.h"
+#import "ios/chrome/browser/intelligence/bwg/model/gemini_browser_agent.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_service_factory.h"
 #import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
 #import "ios/chrome/browser/location_bar/badge/coordinator/location_bar_badge_coordinator_delegate.h"
@@ -64,8 +65,12 @@
   _viewController = [[LocationBarBadgeViewController alloc] init];
   _viewController.layoutGuideCenter = LayoutGuideCenterForBrowser(self.browser);
   _dispatcher = self.browser->GetCommandDispatcher();
-  _locationBarBadgeFullscreenUIUpdater = std::make_unique<FullscreenUIUpdater>(
-      FullscreenController::FromBrowser(self.browser), self.viewController);
+  if (!IsFullscreenRefactoringEnabled()) {
+    _locationBarBadgeFullscreenUIUpdater =
+        std::make_unique<FullscreenUIUpdater>(
+            FullscreenController::FromBrowser(self.browser),
+            self.viewController);
+  }
   feature_engagement::Tracker* tracker =
       feature_engagement::TrackerFactory::GetForProfile(self.profile);
   _prefService = self.browser->GetProfile()->GetPrefs();
@@ -73,7 +78,8 @@
       initWithWebStateList:self.browser->GetWebStateList()
                    tracker:tracker
                prefService:_prefService
-             geminiService:GeminiServiceFactory::GetForProfile(self.profile)];
+             geminiService:GeminiServiceFactory::GetForProfile(self.profile)
+        geminiBrowserAgent:GeminiBrowserAgent::FromBrowser(self.browser)];
   _mediator.consumer = _viewController;
   _mediator.delegate = self;
   _viewController.mutator = _mediator;
@@ -104,11 +110,16 @@
   _mediator = nil;
   _locationBarBadgeFullscreenUIUpdater = nullptr;
   _fullscreenDisabler = nullptr;
+  _legacyAnimatedFullscreenDisabler = nullptr;
 }
 
 - (void)addIncognitoBadgeViewController:
     (IncognitoBadgeViewController*)incognitoViewController {
   self.viewController.incognitoBadgeViewController = incognitoViewController;
+}
+
+- (void)setActive:(BOOL)active {
+  _mediator.active = active;
 }
 
 // TODO(crbug.com/454351425): Remove Contextual Panel pragma when
@@ -217,9 +228,11 @@
 - (void)createContextualPanelEntryPointMediator {
   WebStateList* webStateList = self.browser->GetWebStateList();
 
-  [_dispatcher
-      startDispatchingToTarget:self
-                   forProtocol:@protocol(ContextualPanelEntrypointCommands)];
+  if (!IsChromeNextIaEnabled()) {
+    [_dispatcher
+        startDispatchingToTarget:self
+                     forProtocol:@protocol(ContextualPanelEntrypointCommands)];
+  }
 
   id<ContextualSheetCommands> contextualSheetHandler =
       HandlerForProtocol(_dispatcher, ContextualSheetCommands);

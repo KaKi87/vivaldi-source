@@ -25,7 +25,7 @@ std::shared_ptr<ShaderTranslateTask> ShaderVk::compile(const gl::Context *contex
 {
     ContextVk *contextVk = vk::GetImpl(context);
 
-    if (context->isWebGL())
+    if (context->isWebGL() || context->isHardenedContext())
     {
         // Only WebGL requires initialization of local variables, others don't.
         // Extra initialization in spirv shader may affect performance.
@@ -95,15 +95,6 @@ std::shared_ptr<ShaderTranslateTask> ShaderVk::compile(const gl::Context *contex
         options->addVulkanXfbEmulationSupportCode = true;
     }
 
-    if (contextVk->getFeatures().emulateDithering.enabled)
-    {
-        options->emulateDithering = true;
-    }
-
-    if (contextVk->getFeatures().roundOutputAfterDithering.enabled)
-    {
-        options->roundOutputAfterDithering = true;
-    }
 
     if (contextVk->getFeatures().appendAliasedMemoryDecorations.enabled)
     {

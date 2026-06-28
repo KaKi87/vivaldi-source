@@ -14,18 +14,18 @@ source_set("vivaldi_sync_error_dialog") {
   deps = [
     ":vivaldi_sync_error_dialog_swift",
     "//base",
-    "//ui/base",
     "//components/prefs",
     "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
     "//ios/chrome/browser/shared/model/browser",
     "//ios/chrome/browser/shared/model/prefs",
     "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/utils",
+    "//ui/base",
   ]
 
   frameworks = [
     "Foundation.framework",
-    "UIKit.framework"
+    "UIKit.framework",
   ]
 }
 
@@ -34,14 +34,14 @@ swift_source_set("vivaldi_sync_error_dialog_swift") {
   sources = [
     "vivaldi_sync_error_dialog_constants.swift",
     "vivaldi_sync_error_dialog_state.swift",
-    "vivaldi_sync_error_dialog_view_provider.swift",
     "vivaldi_sync_error_dialog_view.swift",
+    "vivaldi_sync_error_dialog_view_provider.swift",
   ]
 
   deps = [
     "//base",
-    "//ui/base",
     "//ios/chrome/common/ui/colors:swift",
+    "//ui/base",
     "//vivaldi/app:vivaldi_ios_native_strings",
     "//vivaldi/ios/ui/helpers:helpers_swift",
   ]

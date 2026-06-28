@@ -23,6 +23,14 @@ const char kDoubleClickMenuDescription[] =
     "Use a double click anywhere in the page to show its context menu. "
     "Requires a restart of Vivaldi to take effect.";
 
+const char kHorizontalPinnedTabsInternalName[] =
+    "vivaldi-horizontal-pinned-tabs";
+const char kHorizontalPinnedTabsName[] =
+    "Horizontal pinned tabs in vertical tab bars";
+const char kHorizontalPinnedTabsDescription[] =
+    "Makes pinned tabs smaller and ordered in a grid when the tab bars are to "
+    "the left or right.";
+
 extern const char kInternalPageReaderModeInternalName[] =
     "vivaldi-internal-page-reader-mode";
 extern const char kInternalPageReaderModeName[] =
@@ -31,34 +39,10 @@ extern const char kInternalPageReaderModeDescription[] =
     "Should give better results on most pages but is lacking in translation "
     "features.";
 
-const char kLayoutsInternalName[] = "vivaldi-layouts";
-const char kLayoutsName[] = "Vivaldi Layouts";
-const char kLayoutsDescription[] =
-    "Select one of several predefined browser layouts";
-
-const char kShowNewDeviceChooserInternalName[] =
-    "vivaldi-show-new-device-chooser";
-const char kShowNewDeviceChooserName[] = "Show new device chooser dialog";
-const char kShowNewDeviceChooserDescription[] =
-    "Replaces chromium builtin device chooser dialogs with new unified "
-    "permission bubbles";
-
-const char kShowUnifiedSiteDialogInternalName[] =
-    "vivaldi-show-unified-site-dialog";
-const char kShowUnifiedSiteDialogName[] = "Show unified site dialog";
-const char kShowUnifiedSiteDialogDescription[] =
-    "Consolidates separate Chrome and Vivaldi site dialogs into a single "
-    "unified interface";
-
 const char kNoteEditorName[] = "vivaldi-note-editor";
 const char kNoteEditorOption[] = "Use the new note editor";
 const char kNoteEditorDescription[] =
     "Give access to a new note editor with more features.";
-
-const char kPanelOnboardingInternalName[] = "vivaldi-panel-onboarding";
-const char kPanelOnboardingName[] = "Onboarding Panel Step";
-const char kPanelOnboardingDescription[] =
-    "Add 2 steps in onboarding to select internal and web panels";
 
 const char kRelatedTabsInternalName[] = "vivaldi-related-tabs";
 const char kRelatedTabsName[] = "Show related tabs sort option.";
@@ -68,11 +52,6 @@ const char kRelatedTabsDescription[] =
 const char kSettings20InternalName[] = "vivaldi-settings20";
 const char kSettings20Name[] = "Settings 2.0";
 const char kSettings20Description[] = "New layout and features for Settings";
-
-const char kThemeUnifiedInternalName[] = "vivaldi-theme-unified";
-const char kThemeUnifiedName[] = "Enable Theme Unified Color";
-const char kThemeUnifiedDescription[] =
-    "Allow the Unified color position for Themes.";
 
 #if BUILDFLAG(IS_IOS)
 // iOS specific feature flags should be delcared within this block.
@@ -85,6 +64,13 @@ const char kBankIDDigIDLatencyWorkaroundDescription[] =
     "Delays automatic POST form submission on affected BankID/DigID flows to "
     "avoid a WKWebView navigation timing issue.";
 
+const char kVivaldiIOSCopySanitizedLinkInternalName[] =
+    "vivaldi-ios-copy-sanitized-link";
+const char kVivaldiIOSCopySanitizedLinkName[] = "Copy sanitized link";
+const char kVivaldiIOSCopySanitizedLinkDescription[] =
+    "When enabled it shows Copy sanitized link menu"
+    "on address bar and share sheet and which copies link without trackers";
+
 const char kVivaldiIOSShowRefactoredStartPageInternalName[] =
     "vivaldi-ios-refactored-startpage";
 const char kVivaldiIOSShowRefactoredStartPageName[] =
@@ -94,6 +80,20 @@ const char kVivaldiIOSShowRefactoredStartPageDescription[] =
     "version.";
 
 #endif  // BUILDFLAG(IS_IOS)
+
+const char kVivaldiUseNewUrlSanitizerInternalName[] =
+    "vivaldi-use-new-url-sanitizer";
+const char kVivaldiUseNewUrlSanitizerName[] =
+    "Use new url sanitizer for copy-link operations.";
+const char kVivaldiUseNewUrlSanitizerDescription[] =
+    "When enabled, a new url sanitizer for clean url copy will be used.";
+
+const char kMailSavingAttachmentsInternalName[] =
+    "vivaldi-use-new-save-mail-attachments";
+const char kMailSavingAttachmentsName[] =
+    "Configure directory for mail attachments.";
+const char kMailSavingAttachmentsDescription[] =
+    "Allow users to select directory for saving mail attachments.";
 
 #if defined(OEM_AUTOMOTIVE_BUILD)
 const char kCinemaModeInternalName[] = "vivaldi-cinema-mode";

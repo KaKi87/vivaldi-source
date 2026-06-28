@@ -168,7 +168,7 @@ ChildStatusCollector::ChildStatusCollector(
   DCHECK(pref_service_->GetInitializationStatus() !=
          PrefService::INITIALIZATION_STATUS_WAITING);
   activity_storage_ = std::make_unique<ChildActivityStorage>(
-      pref_service_, prefs::kUserActivityTimes, activity_day_start);
+      pref_service_, ash::prefs::kUserActivityTimes, activity_day_start);
 }
 
 ChildStatusCollector::~ChildStatusCollector() {
@@ -236,8 +236,9 @@ void ChildStatusCollector::UpdateChildUsageTime() {
   if (reset_time > now)
     reset_time -= base::Days(1);
   // Reset screen time if it has not been reset today.
-  if (reset_time > pref_service_->GetTime(prefs::kLastChildScreenTimeReset)) {
-    pref_service_->SetTime(prefs::kLastChildScreenTimeReset, now);
+  if (reset_time >
+      pref_service_->GetTime(ash::prefs::kLastChildScreenTimeReset)) {
+    pref_service_->SetTime(ash::prefs::kLastChildScreenTimeReset, now);
     pref_service_->SetInteger(ash::prefs::kChildScreenTimeMilliseconds, 0);
     pref_service_->CommitPendingWrite();
   }

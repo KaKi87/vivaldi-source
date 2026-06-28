@@ -268,9 +268,10 @@ class KeyboardAccessoryMediator
             case SuggestionType.GENERATE_PASSWORD_ENTRY:
             case SuggestionType.MANAGE_ADDRESS:
             case SuggestionType.MANAGE_AUTOFILL_AI:
+            case SuggestionType.MANAGE_AUTOFILL_AI_IDENTITY_DOCS:
+            case SuggestionType.MANAGE_AUTOFILL_AI_TRAVEL:
             case SuggestionType.MANAGE_CREDIT_CARD:
             case SuggestionType.MANAGE_IBAN:
-            case SuggestionType.MANAGE_PLUS_ADDRESS:
             case SuggestionType.MANAGE_LOYALTY_CARD:
                 return false;
             case SuggestionType.AUTOCOMPLETE_ENTRY:
@@ -586,11 +587,7 @@ class KeyboardAccessoryMediator
     }
 
     private boolean shouldLimitSuggestionWidth() {
-        return !showFloatingKeyboardAccessory()
-                && ChromeFeatureList.isEnabled(
-                        ChromeFeatureList.AUTOFILL_ENABLE_KEYBOARD_ACCESSORY_CHIP_REDESIGN)
-                && ChromeFeatureList.isEnabled(
-                        ChromeFeatureList.AUTOFILL_ENABLE_KEYBOARD_ACCESSORY_CHIP_WIDTH_ADJUSTMENT);
+        return !showFloatingKeyboardAccessory();
     }
 
     void addObserver(KeyboardAccessoryVisualStateProvider.Observer observer) {

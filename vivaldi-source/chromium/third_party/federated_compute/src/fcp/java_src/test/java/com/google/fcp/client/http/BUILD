@@ -1,5 +1,3 @@
-load("@rules_java//java:defs.bzl", "java_test")
-
 # Copyright 2022 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,8 +11,12 @@ load("@rules_java//java:defs.bzl", "java_test")
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+load("@rules_java//java:defs.bzl", "java_test")
+
 package(
-    licenses = ["notice"],  # Apache 2.0
+    default_applicable_licenses = ["//fcp:license"],
+    licenses = ["notice"],
 )
 
 java_test(
@@ -26,7 +28,7 @@ java_test(
         "//fcp/java_src/main/java/com/google/fcp/client",
         "//fcp/java_src/main/java/com/google/fcp/client/http",
         "@com_google_googleapis//google/rpc:rpc_java_proto",
-        "@com_google_protobuf//:protobuf_java",
+        "@com_google_protobuf//:protobuf_javalite",
         "@fcp_maven//:com_google_guava_guava",
         "@fcp_maven//:com_google_truth_truth",
         "@fcp_maven//:junit_junit",

@@ -115,6 +115,7 @@
 #include "chrome/browser/ash/login/login_screen_extensions_storage_cleaner.h"
 #include "chrome/browser/ash/login/login_wizard.h"
 #include "chrome/browser/ash/login/osauth/chrome_auth_parts.h"
+#include "chrome/browser/ash/login/quick_unlock/pin_backend.h"
 #include "chrome/browser/ash/login/session/chrome_session_manager.h"
 #include "chrome/browser/ash/login/session/user_session_manager.h"
 #include "chrome/browser/ash/login/signin/token_handle_store_factory.h"
@@ -174,6 +175,7 @@
 #include "chrome/browser/global_features.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/lifetime/termination_notification.h"
+#include "chrome/browser/memory/oom_kills_monitor.h"
 #include "chrome/browser/metrics/chrome_feature_list_creator.h"
 #include "chrome/browser/metrics/structured/chrome_structured_metrics_delegate.h"
 #include "chrome/browser/net/chrome_network_delegate.h"
@@ -194,7 +196,6 @@
 #include "chromeos/ash/components/attestation/attestation_features.h"
 #include "chromeos/ash/components/audio/audio_devices_pref_handler_impl.h"
 #include "chromeos/ash/components/audio/cras_audio_handler.h"
-#include "chromeos/ash/components/audio/public/cpp/sounds/sounds_manager.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_flusher.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
 #include "chromeos/ash/components/carrier_lock/carrier_lock_manager.h"
@@ -287,6 +288,7 @@
 #include "net/base/network_change_notifier.h"
 #include "net/base/network_change_notifier_passive.h"
 #include "printing/backend/print_backend.h"
+#include "services/audio/public/cpp/sounds/global_sounds_manager.h"
 #include "third_party/cros_system_api/dbus/service_constants.h"
 #include "third_party/cros_system_api/dbus/vm_launch/dbus-constants.h"
 #include "third_party/cros_system_api/dbus/vm_wl/dbus-constants.h"
@@ -944,6 +946,14 @@ void ChromeBrowserMainPartsAsh::PreProfileInit() {
 
   g_browser_process->platform_part()->InitializeUserManager();
 
+  user_session_manager_ = std::make_unique<UserSessionManager>(
+      g_browser_process->local_state(),
+      g_browser_process->GetFeatures()->application_locale_storage(),
+      g_browser_process->shared_url_loader_factory(),
+      g_browser_process->platform_part()->browser_policy_connector_ash());
+
+  quick_unlock::PinBackend::Initialize(g_browser_process->local_state());
+
   bluetooth_log_controller_ = std::make_unique<ash::BluetoothLogController>(
       user_manager::UserManager::Get());
 
@@ -971,6 +981,8 @@ void ChromeBrowserMainPartsAsh::PreProfileInit() {
   lock_to_single_user_manager_ =
       std::make_unique<policy::LockToSingleUserManager>();
 
+  // TODO(crbug.com/40203434): Remove this object once
+  // kDeviceI18nShortcutsEnabled policy is deprecated.
   shortcut_mapping_pref_service_ = std::make_unique<ShortcutMappingPrefService>(
       *g_browser_process->local_state());
 
@@ -1009,7 +1021,8 @@ void ChromeBrowserMainPartsAsh::PreProfileInit() {
             true /* async */);
   }
 
-  audio::SoundsManager::Create(content::GetAudioServiceStreamFactoryBinder());
+  audio::GlobalSoundsManager::Create(
+      content::GetAudioServiceStreamFactoryBinder());
 
   // |arc_service_launcher_| must be initialized before NoteTakingHelper.
   NoteTakingHelper::Initialize();
@@ -1075,7 +1088,7 @@ void ChromeBrowserMainPartsAsh::PreProfileInit() {
 
   // Instantiate TImeZoneResolverManager here, so it subscribes to
   // SessionManager and profile creation notification is properly propagated.
-  g_browser_process->platform_part()->GetTimezoneResolverManager();
+  g_browser_process->platform_part()->InitializeTimezoneResolverManager();
 
   // On Chrome OS, Chrome does not exit when all browser windows are closed.
   // UnregisterKeepAlive is called from chrome::HandleAppExitingForPlatform.
@@ -1148,7 +1161,7 @@ void ChromeBrowserMainPartsAsh::PreProfileInit() {
       // completely unavailable. Exit the session in that case, rather than
       // allowing it to continue without policy. Allow the initialization flow
       // to finish before exiting to avoid dead-lock issues on D-Bus, as
-      // encountered on crbug/836388.
+      // encountered on crbug.com/40091196.
       base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
           FROM_HERE, base::BindOnce([]() {
             session_manager::SessionManager::Get()->RequestSignOut();
@@ -1193,7 +1206,8 @@ void ChromeBrowserMainPartsAsh::PreProfileInit() {
   }
 
 #if BUILDFLAG(USE_CUPS)
-  local_printer_ = std::make_unique<LocalPrinterImpl>();
+  local_printer_ = std::make_unique<LocalPrinterImpl>(
+      g_browser_process->GetFeatures()->application_locale_storage());
 #endif
 }
 
@@ -1322,13 +1336,9 @@ void ChromeBrowserMainPartsAsh::PostProfileInit(Profile* profile,
     // Initialize input methods.
     input_method::InputMethodManager* manager =
         input_method::InputMethodManager::Get();
-    // TODO(crbug.com/40203434): Remove this object once
-    // kDeviceI18nShortcutsEnabled policy is deprecated.
-    UserSessionManager* session_manager = UserSessionManager::GetInstance();
-    DCHECK(manager);
-    DCHECK(session_manager);
-
-    manager->SetState(session_manager->GetDefaultIMEState(profile));
+    CHECK(manager);
+    CHECK(user_session_manager_);
+    manager->SetState(user_session_manager_->GetDefaultIMEState(profile));
 
     misconfigured_user_cleaner_ = std::make_unique<MisconfiguredUserCleaner>(
         g_browser_process->local_state(), ash::SessionController::Get());
@@ -1506,7 +1516,8 @@ void ChromeBrowserMainPartsAsh::PostBrowserStart() {
   Shell::Get()->rapid_key_sequence_recorder()->Initialize();
 
   // Enable the KeyboardDrivenEventRewriter if the OEM manifest flag is on.
-  if (system::InputDeviceSettings::Get()->ForceKeyboardDrivenUINavigation()) {
+  if (system::InputDeviceSettings::ForceKeyboardDrivenUINavigation(
+          CHECK_DEREF(g_browser_process->local_state()))) {
     event_rewriter_controller->SetKeyboardDrivenEventRewriterEnabled(true);
   }
 
@@ -1703,7 +1714,7 @@ void ChromeBrowserMainPartsAsh::PostMainMessageLoopRun() {
 
   if (pre_profile_init_called_) {
     MagnificationManager::Shutdown();
-    audio::SoundsManager::Shutdown();
+    audio::GlobalSoundsManager::Shutdown();
   }
   system::StatisticsProvider::GetInstance()->Shutdown();
 
@@ -1745,8 +1756,8 @@ void ChromeBrowserMainPartsAsh::PostMainMessageLoopRun() {
   ambient_client_.reset();
 
   // Make sure that there is no pending URLRequests.
-  if (pre_profile_init_called_) {
-    UserSessionManager::GetInstance()->Shutdown();
+  if (user_session_manager_) {
+    user_session_manager_->Shutdown();
   }
 
   // Give BrowserPolicyConnectorAsh a chance to unregister any observers
@@ -1768,7 +1779,7 @@ void ChromeBrowserMainPartsAsh::PostMainMessageLoopRun() {
     auto* primary_user = user_manager::UserManager::Get()->GetPrimaryUser();
     if (primary_user) {
       // During a login restart-to-apply-flags the primary profile may not be
-      // loaded yet. See http://crbug.com/1432237
+      // loaded yet. See http://crbug.com/40263838
       auto* primary_profile = Profile::FromBrowserContext(
           BrowserContextHelper::Get()->GetBrowserContextByUser(primary_user));
       if (primary_profile) {
@@ -1798,8 +1809,17 @@ void ChromeBrowserMainPartsAsh::PostMainMessageLoopRun() {
   // chromeos::PowerManagerClient is destroyed).
   doze_mode_power_status_scheduler_.reset();
 
+  // Shut down OOMKillsMonitor before local_state() is destroyed in
+  // ChromeBrowserMainPartsLinux::PostMainMessageLoopRun(). The singleton
+  // holds a raw_ptr to PrefService that would otherwise dangle.
+  memory::OOMKillsMonitor::GetInstance().Shutdown();
+
   // NOTE: Closes ash and destroys `Shell`.
   ChromeBrowserMainPartsLinux::PostMainMessageLoopRun();
+
+#if BUILDFLAG(USE_CUPS)
+  local_printer_.reset();
+#endif
 
   parent_access_service_.reset();
 
@@ -1851,6 +1871,8 @@ void ChromeBrowserMainPartsAsh::PostMainMessageLoopRun() {
 
   bluetooth_log_controller_.reset();
 
+  user_session_manager_.reset();
+
   g_browser_process->platform_part()->ShutdownSessionManager();
   // Ash needs to be closed before UserManager is destroyed.
   g_browser_process->platform_part()->DestroyUserManager();
@@ -1888,6 +1910,10 @@ void ChromeBrowserMainPartsAsh::PostDestroyThreads() {
   // Destroy the SystemTokenCertDbStorage global instance which should outlive
   // NetworkCertLoader and |system_token_certdb_initializer_|.
   SystemTokenCertDbStorage::Shutdown();
+
+  // TODO(crbug.com/498416395): Refactor PinBackend, destroy the singleton
+  // object, and remove the Shutdown() method.
+  quick_unlock::PinBackend::Shutdown();
 
   ChromeBrowserMainPartsLinux::PostDestroyThreads();
 

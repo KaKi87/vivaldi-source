@@ -50,7 +50,7 @@ void PassageEmbedderDelegate::CreatePassageEmbeddingsFromRenderedText(
   VLOG(1) << "[PermissionsAIv4] "
              "PassageEmbedderDelegate::CreatePassageEmbeddingsFromRenderedText";
   if (text.empty() || passage_count < 1) {
-    std::move(fallback_callback_).Run();
+    std::move(fallback_callback).Run();
     return;
   }
 
@@ -74,19 +74,19 @@ void PassageEmbedderDelegate::CreatePassageEmbeddingsFromRenderedText(
 
   if (Embedder* passage_embedder = GetPassageEmbedder()) {
     bool previous_task_needs_canceling =
-        (passage_embeddings_task_id_ != std::nullopt);
+        (passage_embeddings_job_ != std::nullopt);
     PermissionUmaUtil::RecordTryCancelPreviousEmbeddingsModelExecution(
         PredictionModelType::kOnDeviceAiV4Model, previous_task_needs_canceling);
 
     if (previous_task_needs_canceling) {
       VLOG(1) << "[PermissionsAIv4]: The embedding task did not return yet.";
       // Try to cancel the embedding task for the previous query, if any.
-      passage_embedder->TryCancel(*passage_embeddings_task_id_);
+      passage_embeddings_job_.reset();
     }
 
     VLOG(1)
         << "[PermissionsAIv4]: Starting Embedder::ComputePassagesEmbeddings";
-    passage_embeddings_task_id_ = passage_embedder->ComputePassagesEmbeddings(
+    passage_embeddings_job_ = passage_embedder->ComputePassagesEmbeddings(
         passage_embeddings::PassagePriority::kUserInitiated,
         std::move(passages),
         base::BindOnce(&PassageEmbedderDelegate::OnPassageEmbeddingsComputed,
@@ -112,12 +112,7 @@ void PassageEmbedderDelegate::CreatePassageEmbeddingsFromRenderedText(
 
 void PassageEmbedderDelegate::Reset() {
   timeout_timer_.Stop();
-  if (passage_embeddings_task_id_.has_value()) {
-    if (Embedder* passage_embedder = GetPassageEmbedder()) {
-      passage_embedder->TryCancel(*passage_embeddings_task_id_);
-    }
-  }
-  passage_embeddings_task_id_ = std::nullopt;
+  passage_embeddings_job_.reset();
   on_passage_embeddings_computed_.Reset();
   fallback_callback_.Reset();
 }
@@ -151,22 +146,23 @@ void PassageEmbedderDelegate::OnPassageEmbeddingsComputed(
           << (succeeded ? "" : "no ") << "success.";
 
   if (!succeeded || passages.empty()) {
-    if (passage_embeddings_task_id_ == task_id) {
-      passage_embeddings_task_id_ = std::nullopt;
+    if (passage_embeddings_job_ &&
+        passage_embeddings_job_->task_id() == task_id) {
+      passage_embeddings_job_.reset();
     }
     return std::move(fallback_callback_).Run();
   }
 
-  bool is_outdated_task = passage_embeddings_task_id_ != task_id;
+  bool is_outdated_task =
+      !passage_embeddings_job_ || passage_embeddings_job_->task_id() != task_id;
   PermissionUmaUtil::RecordFinishedPassageEmbeddingsTaskOutdated(
       PredictionModelType::kOnDeviceAiV4Model, is_outdated_task);
   if (is_outdated_task) {
     // If the task id is different, a new permission request has started
     // in the meantime and the request that started this call is stale.
     return;
-  } else {
-    passage_embeddings_task_id_ = std::nullopt;
   }
+  passage_embeddings_job_.reset();
 
   if (embeddings.empty()) {
     std::move(fallback_callback_).Run();
@@ -174,7 +170,7 @@ void PassageEmbedderDelegate::OnPassageEmbeddingsComputed(
   }
 
   if (embeddings.size() == 1) {
-    std::move(on_passage_embeddings_computed_).Run(std::move(embeddings[0]));
+    std::move(on_passage_embeddings_computed_).Run(embeddings[0].GetData());
     return;
   }
 
@@ -182,25 +178,20 @@ void PassageEmbedderDelegate::OnPassageEmbeddingsComputed(
   // as the AIv4 model expects only one vector as input. We do this by
   // computing the mathematical mean of the embedding vectors.
   // This matches how the model is trained by the AI researchers.
-  size_t dimensions = embeddings[0].Dimensions();
-  std::vector<float> averaged_data(dimensions, 0.0f);
+  std::vector<float> averaged_data(embeddings[0].GetData().size(), 0.0f);
   for (const auto& embedding : embeddings) {
-    if (embedding.Dimensions() != dimensions) {
-      std::move(fallback_callback_).Run();
-      return;
-    }
     const auto& data = embedding.GetData();
-    for (size_t i = 0; i < dimensions; ++i) {
+    DCHECK_EQ(data.size(), averaged_data.size());
+    for (size_t i = 0; i < averaged_data.size(); ++i) {
       averaged_data[i] += data[i];
     }
   }
 
-  for (size_t i = 0; i < dimensions; ++i) {
-    averaged_data[i] /= embeddings.size();
+  for (float& val : averaged_data) {
+    val /= embeddings.size();
   }
 
-  std::move(on_passage_embeddings_computed_)
-      .Run(passage_embeddings::Embedding(std::move(averaged_data)));
+  std::move(on_passage_embeddings_computed_).Run(std::move(averaged_data));
 }
 
 }  // namespace permissions

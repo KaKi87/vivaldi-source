@@ -11,6 +11,7 @@ import static org.junit.Assert.assertTrue;
 import static org.chromium.chrome.browser.tasks.tab_management.TabUiThemeUtil.FOLIO_FOOT_LENGTH_DP;
 
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Rect;
 import android.view.ContextThemeWrapper;
 
@@ -26,6 +27,7 @@ import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.actor.ui.TabIndicatorStatus;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutTabDelegate.VisualState;
 import org.chromium.chrome.browser.tab.MediaState;
 import org.chromium.chrome.browser.ui.theme.ChromeSemanticColorUtils;
@@ -267,6 +269,53 @@ public class StripLayoutTabTest {
         Rect rect = new Rect();
         mNormalTab.getAnchorRect(rect);
         assertEquals(new Rect(folioFootLengthPx, 0, widthWithoutFolio, height), rect);
+    }
+
+    @Test
+    public void testTabIndicatorPriorityHierarchy() {
+        // Case 1: Actuation vs. Recording Media (Recording Media should win)
+        StripLayoutTab tabWithRecording =
+                new StripLayoutTab(
+                        mContext, 0, null, null, null, null, false, false, MediaState.RECORDING);
+        tabWithRecording.setTabIndicatorStatus(TabIndicatorStatus.DYNAMIC);
+
+        assertTrue(
+                "Indicator should be shown when recording is active",
+                tabWithRecording.shouldShowIndicator());
+        assertEquals(
+                "Should return recording dot icon res",
+                R.drawable.radio_button_checked_24dp,
+                tabWithRecording.getIndicatorRes());
+        assertEquals(
+                "Should return null overlay res when recording",
+                Resources.ID_NULL,
+                tabWithRecording.getIndicatorOverlayRes());
+        assertEquals(
+                "Should return recording media color for tint",
+                mContext.getColor(R.color.tab_recording_media_color),
+                tabWithRecording.getIndicatorTint());
+
+        // Case 2: Actuation vs. Audible Media (Actuation should win)
+        StripLayoutTab tabWithAudio =
+                new StripLayoutTab(
+                        mContext, 0, null, null, null, null, false, false, MediaState.AUDIBLE);
+        tabWithAudio.setTabIndicatorStatus(TabIndicatorStatus.DYNAMIC);
+
+        assertTrue(
+                "Indicator should be shown when actuation is active",
+                tabWithAudio.shouldShowIndicator());
+        assertEquals(
+                "Should return actuation icon res",
+                R.drawable.ic_arrow_selector_spark_14dp,
+                tabWithAudio.getIndicatorRes());
+        assertEquals(
+                "Should return spinner overlay res when actuating",
+                R.drawable.tab_indicator_spinner,
+                tabWithAudio.getIndicatorOverlayRes());
+        assertEquals(
+                "Should return primary color for actuation tint",
+                SemanticColorUtils.getColorPrimary(mContext),
+                tabWithAudio.getIndicatorTint());
     }
 
     private StripLayoutTab createStripLayoutTab(boolean incognito) {

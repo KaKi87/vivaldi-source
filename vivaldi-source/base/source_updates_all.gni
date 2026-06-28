@@ -4,9 +4,7 @@ update_template_instance("//base:base") {
   if (!defined(sources)) {
     sources = []
   }
-  sources += [
-    "//vivaldi/base/vivaldi_running.cpp",
-  ]
+  sources += [ "//vivaldi/base/vivaldi_running.cpp" ]
 }
 
 update_target("//base:base_static") {

@@ -6,11 +6,9 @@
 <translation id="1598449788754183301">Alternar entre lapelas normais ou privadas</translation>
 <translation id="1644574205037202324">Historial</translation>
 <translation id="1829244130665387512">Buscar na páxina</translation>
-<translation id="1910514478706885609">Abrir nun novo grupo de lapelas</translation>
 <translation id="2038563949887743358">Activar a petición para o modo escritorio</translation>
 <translation id="2306442503286132111">O marcador foi gardado no cartafol <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Apariencia</translation>
-<translation id="2501278716633472235">Volver</translation>
 <translation id="2633278372998075009">Lapelas privadas</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> marcador}
@@ -22,7 +20,6 @@
 <translation id="3571177741182643350">Artigos non lidos - Dispoñible sen estar en liña:</translation>
 <translation id="3700829948786686853">Benvido ao Vivaldi</translation>
 <translation id="3719826155360621982">Páxina de inicio</translation>
-<translation id="385051799172605136">Volver</translation>
 <translation id="399014816462153200">Ler artigos:</translation>
 <translation id="4121750346708795461">Ao usar esta aplicación, aceptas o <ph name="BEGIN_LINK1" />contrato de licenza para o usuario final<ph name="END_LINK1" /> e a <ph name="BEGIN_LINK2" />política de privacidade<ph name="END_LINK2" /> do Vivaldi.</translation>
 <translation id="4137746084635924146">Idioma actual do dispositivo</translation>

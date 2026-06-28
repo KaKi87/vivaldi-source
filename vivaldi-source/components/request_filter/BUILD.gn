@@ -6,16 +6,16 @@ source_set("request_filter_registry") {
   sources = [
     "filtered_request_info.cc",
     "filtered_request_info.h",
-    "request_filter_registry.cc",
-    "request_filter_registry.h",
     "request_filter.cc",
     "request_filter.h",
+    "request_filter_registry.cc",
+    "request_filter_registry.h",
   ]
 
   deps = [
-    "//base:base",
-    "//content/public/browser",
+    "//base",
     "//components/web_cache/browser",
+    "//content/public/browser",
   ]
 }
 
@@ -32,7 +32,7 @@ source_set("request_filter") {
   ]
 
   deps = [
-    "//base:base",
+    "//base",
     "//components/keyed_service/content",
     "//content/public/browser",
     "//content/public/common",

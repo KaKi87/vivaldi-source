@@ -19,27 +19,27 @@
 #include "components/custom_handlers/register_protocol_handler_permission_request.h"
 #include "components/permissions/chooser_controller.h"
 
+#include "base/functional/bind.h"
+#include "base/location.h"
+#include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
-#include "base/functional/bind.h"
-#include "base/memory/weak_ptr.h"
-#include "base/location.h"
 
 #include "app/vivaldi_apptools.h"
 
 // Device chooser context and factory headers for getting granted devices.
-#include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/usb/usb_chooser_context.h"
-#include "chrome/browser/usb/usb_chooser_context_factory.h"
-#include "chrome/browser/serial/serial_chooser_context.h"
-#include "chrome/browser/serial/serial_chooser_context_factory.h"
+#include "chrome/browser/bluetooth/bluetooth_chooser_context_factory.h"
 #include "chrome/browser/hid/hid_chooser_context.h"
 #include "chrome/browser/hid/hid_chooser_context_factory.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/serial/serial_chooser_context.h"
+#include "chrome/browser/serial/serial_chooser_context_factory.h"
+#include "chrome/browser/usb/usb_chooser_context.h"
+#include "chrome/browser/usb/usb_chooser_context_factory.h"
 #include "components/permissions/contexts/bluetooth_chooser_context.h"
-#include "chrome/browser/bluetooth/bluetooth_chooser_context_factory.h"
 
 #include <typeinfo>
 
@@ -162,14 +162,23 @@ class DeviceEnumerationView : public ::permissions::ChooserController::View {
   base::WeakPtrFactory<DeviceEnumerationView> weak_ptr_factory_{this};
 };
 
-
 WEB_CONTENTS_USER_DATA_KEY_IMPL(PermissionNavigationObserver);
+
+// Map RequestType to ContentSettingsType, handling kMultipleDownloads which
+// the core ::permissions::RequestTypeToContentSettingsType does not cover.
+std::optional<ContentSettingsType> ConvertRequestTypeToContentSettingsType(
+    ::permissions::RequestType request_type) {
+  if (request_type == ::permissions::RequestType::kMultipleDownloads) {
+    return ContentSettingsType::AUTOMATIC_DOWNLOADS;
+  }
+  return ::permissions::RequestTypeToContentSettingsType(request_type);
+}
 
 PermissionNavigationObserver::PermissionNavigationObserver(
     content::WebContents* web_contents)
     : content::WebContentsObserver(web_contents),
-      content::WebContentsUserData<PermissionNavigationObserver>(*web_contents) {
-}
+      content::WebContentsUserData<PermissionNavigationObserver>(
+          *web_contents) {}
 
 void PermissionNavigationObserver::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
@@ -182,8 +191,8 @@ void PermissionNavigationObserver::DidFinishNavigation(
   }
 
   // Get tab ID and cleanup permission state.
-  int tab_id = VivaldiBrowserComponentWrapper::GetInstance()
-      ->GetTabId(web_contents());
+  int tab_id =
+      VivaldiBrowserComponentWrapper::GetInstance()->GetTabId(web_contents());
   if (tab_id < 0) {
     return;
   }
@@ -205,17 +214,19 @@ void PermissionNavigationObserver::DidFinishNavigation(
 }
 
 // Extract granted device names for a given permission type and origin.
-std::vector<std::string> ExtractGrantedDeviceNames(
-    Profile* profile,
-    ContentSettingsType type,
-    const url::Origin& origin) {
+std::vector<std::string> ExtractGrantedDeviceNames(Profile* profile,
+                                                   ContentSettingsType type,
+                                                   const url::Origin& origin) {
   std::vector<std::string> names;
   auto get_devices = [&](auto* ctx, const char* field) {
-    if (!ctx) return;
+    if (!ctx)
+      return;
     for (const auto& obj : ctx->GetGrantedObjects(origin)) {
-      if (!obj) continue;
+      if (!obj)
+        continue;
       auto val = obj->value.FindString(field);
-      if (val && !val->empty()) names.push_back(*val);
+      if (val && !val->empty())
+        names.push_back(*val);
     }
   };
 
@@ -224,13 +235,15 @@ std::vector<std::string> ExtractGrantedDeviceNames(
       get_devices(UsbChooserContextFactory::GetForProfile(profile), "name");
       break;
     case ContentSettingsType::SERIAL_CHOOSER_DATA:
-      get_devices(SerialChooserContextFactory::GetForProfile(profile), "display_name");
+      get_devices(SerialChooserContextFactory::GetForProfile(profile),
+                  "display_name");
       break;
     case ContentSettingsType::HID_CHOOSER_DATA:
       get_devices(HidChooserContextFactory::GetForProfile(profile), "name");
       break;
     case ContentSettingsType::BLUETOOTH_CHOOSER_DATA:
-      get_devices(BluetoothChooserContextFactory::GetForProfile(profile), "name");
+      get_devices(BluetoothChooserContextFactory::GetForProfile(profile),
+                  "name");
       break;
     default:
       break;
@@ -253,39 +266,40 @@ void VivaldiPermissionHandlerImpl::NotifyPermissionSet(
 
   auto frame_id = id.global_render_frame_host_id();
   auto* render_frame_host = content::RenderFrameHost::FromID(frame_id);
-  if (!render_frame_host) return;
+  if (!render_frame_host)
+    return;
 
-  auto* web_contents = content::WebContents::FromRenderFrameHost(render_frame_host);
-  if (!web_contents) return;
+  auto* web_contents =
+      content::WebContents::FromRenderFrameHost(render_frame_host);
+  if (!web_contents)
+    return;
 
   // Ensure navigation observer is attached so reload cleanup works correctly.
   PermissionNavigationObserver::CreateForWebContents(web_contents);
 
-  if (type == ContentSettingsType::CLIPBOARD_SANITIZED_WRITE) return;
+  if (type == ContentSettingsType::CLIPBOARD_SANITIZED_WRITE)
+    return;
 
-  int tab_id = VivaldiBrowserComponentWrapper::GetInstance()->GetTabId(web_contents);
-  if (tab_id < 0) return;
+  int tab_id =
+      VivaldiBrowserComponentWrapper::GetInstance()->GetTabId(web_contents);
+  if (tab_id < 0)
+    return;
 
   url::Origin origin = render_frame_host->GetLastCommittedOrigin();
-  Profile* profile = Profile::FromBrowserContext(web_contents->GetBrowserContext());
+  Profile* profile =
+      Profile::FromBrowserContext(web_contents->GetBrowserContext());
   auto device_names = setting == CONTENT_SETTING_ALLOW && profile
                           ? ExtractGrantedDeviceNames(profile, type, origin)
                           : std::vector<std::string>();
 
   extensions::SitePermissionsAPI::FirePermissionAccessedEvent(
-      web_contents->GetBrowserContext(),
-      tab_id,
-      type,
-      origin.GetURL().spec(),
-      setting,
-      device_names);
+      web_contents->GetBrowserContext(), tab_id, type, origin.GetURL().spec(),
+      setting, device_names);
 }
 
 bool VivaldiPermissionHandlerImpl::HandlePermissionRequest(
     const content::GlobalRenderFrameHostId& source_frame_id,
     std::unique_ptr<::permissions::PermissionRequest>& request) {
-
-
   if (!::vivaldi::IsVivaldiRunning()) {
     return false;
   }
@@ -315,22 +329,20 @@ bool VivaldiPermissionHandlerImpl::HandlePermissionRequest(
   // Ensure navigation observer is attached to this WebContents.
   PermissionNavigationObserver::CreateForWebContents(web_contents);
 
-  int tab_id = VivaldiBrowserComponentWrapper::GetInstance()->GetTabId(web_contents);
+  int tab_id =
+      VivaldiBrowserComponentWrapper::GetInstance()->GetTabId(web_contents);
 
-  // Handle protocol handlers and other permission types
+  // Resolve content settings type via the anonymous-namespace helper.
   std::optional<ContentSettingsType> content_settings_type;
   std::string protocol_name;
   std::string protocol_url;
 
-  if (request->request_type() == ::permissions::RequestType::kRegisterProtocolHandler) {
-    // Extract protocol handler data
-    if (ExtractProtocolHandlerData(request.get(), &protocol_name, &protocol_url)) {
-      content_settings_type = ContentSettingsType::PROTOCOL_HANDLERS;
-    }
-  } else {
-    // Convert RequestType to ContentSettingsType for other permission types
-    content_settings_type =
-        ::permissions::RequestTypeToContentSettingsType(request->request_type());
+  content_settings_type = ConvertRequestTypeToContentSettingsType(
+      request->request_type());
+
+  // Extract protocol handler data after conversion if needed.
+  if (content_settings_type == ContentSettingsType::PROTOCOL_HANDLERS) {
+    ExtractProtocolHandlerData(request.get(), &protocol_name, &protocol_url);
   }
 
   // Verify we got a valid content settings type
@@ -361,14 +373,9 @@ bool VivaldiPermissionHandlerImpl::HandlePermissionRequest(
         source_rfh->GetMainFrame()->GetLastCommittedOrigin().GetURL().spec();
   }
 
-  api->FirePermissionRequestEvent(
-      tab_id,
-      std::move(request),
-      *content_settings_type,
-      origin,
-      protocol_name,
-      protocol_url,
-      embedding_origin);
+  api->FirePermissionRequestEvent(tab_id, std::move(request),
+                                  *content_settings_type, origin, protocol_name,
+                                  protocol_url, embedding_origin);
 
   return true;
 }
@@ -377,13 +384,16 @@ bool VivaldiPermissionHandlerImpl::ExtractProtocolHandlerData(
     const ::permissions::PermissionRequest* request,
     std::string* protocol_name_out,
     std::string* protocol_url_out) {
-  if (request->request_type() != ::permissions::RequestType::kRegisterProtocolHandler) {
+  if (request->request_type() !=
+      ::permissions::RequestType::kRegisterProtocolHandler) {
     return false;
   }
 
   // Cast to access handler_ via friend declaration.
-  const custom_handlers::RegisterProtocolHandlerPermissionRequest* protocol_request =
-      static_cast<const custom_handlers::RegisterProtocolHandlerPermissionRequest*>(request);
+  const custom_handlers::RegisterProtocolHandlerPermissionRequest*
+      protocol_request = static_cast<
+          const custom_handlers::RegisterProtocolHandlerPermissionRequest*>(
+          request);
 
   // Access handler_ directly via friend access.
   const custom_handlers::ProtocolHandler& handler = protocol_request->handler_;
@@ -478,8 +488,9 @@ bool VivaldiPermissionHandlerImpl::BridgeDeviceChooser(
   // VB-114658: Safety catch-up. If discovery finished synchronously during
   // constructor, we missed the signal. Probe the state in the next task loop.
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(&DeviceEnumerationView::ProbeInitialState,
-                                pending_choosers_[request_id].view->GetWeakPtr()));
+      FROM_HERE,
+      base::BindOnce(&DeviceEnumerationView::ProbeInitialState,
+                     pending_choosers_[request_id].view->GetWeakPtr()));
 
   return true;  // Chooser was bridged, prevent default Chromium UI.
 }
@@ -500,10 +511,12 @@ void VivaldiPermissionHandlerImpl::RespondToDeviceChooser(
     // Convert int indices to size_t for Select().
     std::vector<size_t> select_indices;
     for (int index : device_indices) {
-      if (index >= 0 && index < static_cast<int>(chooser.controller->NumOptions())) {
+      if (index >= 0 &&
+          index < static_cast<int>(chooser.controller->NumOptions())) {
         select_indices.push_back(static_cast<size_t>(index));
         // Extract device name for permission event.
-        device_names.push_back(base::UTF16ToUTF8(chooser.controller->GetOption(index)));
+        device_names.push_back(
+            base::UTF16ToUTF8(chooser.controller->GetOption(index)));
       }
     }
 
@@ -513,12 +526,8 @@ void VivaldiPermissionHandlerImpl::RespondToDeviceChooser(
       chooser.controller->Select(select_indices);
       // Fire permission accessed event with device names and chooser type.
       extensions::SitePermissionsAPI::FirePermissionAccessedEvent(
-          chooser.browser_context,
-          chooser.tab_id,
-          chooser.chooser_type,
-          chooser.origin,
-          CONTENT_SETTING_ALLOW,
-          device_names);
+          chooser.browser_context, chooser.tab_id, chooser.chooser_type,
+          chooser.origin, CONTENT_SETTING_ALLOW, device_names);
     } else {
       chooser.controller->Cancel();
     }
@@ -547,7 +556,7 @@ void VivaldiPermissionHandlerImpl::OnDeviceAdded(
 
   // Send update with one device, not complete yet.
   api->FirePermissionDeviceChooserUpdate(tab_id, request_id, devices,
-                                          /*is_complete=*/false);
+                                         /*is_complete=*/false);
 }
 
 void VivaldiPermissionHandlerImpl::OnEnumerationComplete(
@@ -576,7 +585,7 @@ void VivaldiPermissionHandlerImpl::OnEnumerationComplete(
   // Fire device chooser update with complete device list and isComplete=true.
   if (api) {
     api->FirePermissionDeviceChooserUpdate(tab_id, request_id, devices,
-                                            /*is_complete=*/true);
+                                           /*is_complete=*/true);
   }
 
   // Don't erase pending_choosers_ here. Keep the controller and view

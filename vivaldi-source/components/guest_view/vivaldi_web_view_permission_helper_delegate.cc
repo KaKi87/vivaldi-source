@@ -25,8 +25,7 @@ void WebViewPermissionHelper::RegisterProtocolHandler(
     content::RenderFrameHost* requesting_frame,
     const std::string& protocol,
     const GURL& url,
-    bool user_gesture) {
-}
+    bool user_gesture) {}
 
 void WebViewPermissionHelper::OnProtocolPermissionResponse(
     bool allow,

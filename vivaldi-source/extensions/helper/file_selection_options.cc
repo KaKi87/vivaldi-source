@@ -2,10 +2,10 @@
 
 #include "extensions/helper/file_selection_options.h"
 
+#include "base/logging.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "extensions/vivaldi_browser_component_wrapper.h"
 #include "ui/shell_dialogs/select_file_policy.h"

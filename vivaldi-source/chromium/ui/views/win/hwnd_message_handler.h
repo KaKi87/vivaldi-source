@@ -167,6 +167,9 @@ class VIEWS_EXPORT HWNDMessageHandler : public gfx::WindowImpl,
                            bool hide_on_escape);
   virtual void EndMoveLoop();
 
+  // Returns true if any HWndMessageHandler is in a native move/resize loop.
+  static bool IsInNativeMoveResizeLoop();
+
   // Tells the HWND its client area has changed.
   virtual void SendFrameChanged();
 
@@ -271,6 +274,11 @@ class VIEWS_EXPORT HWNDMessageHandler : public gfx::WindowImpl,
 
   // Returns true if IsFrameSystemDrawn() and there's actually a frame to draw.
   bool HasSystemFrame() const;
+
+  // Allow WeakPtr use in subclasses.
+  base::WeakPtr<HWNDMessageHandler> GetWeakPtr() {
+    return msg_handler_weak_factory_.GetWeakPtr();
+  }
 
  private:
   friend class ::views::test::DesktopWindowTreeHostWinTestApi;
@@ -897,7 +905,8 @@ class VIEWS_EXPORT HWNDMessageHandler : public gfx::WindowImpl,
   // This is a map of the HMONITOR to full screeen window instance. It is safe
   // to keep a raw pointer to the HWNDMessageHandler instance as we track the
   // window destruction and ensure that the map is cleaned up.
-  using FullscreenWindowMonitorMap = std::map<HMONITOR, HWNDMessageHandler*>;
+  using FullscreenWindowMonitorMap =
+      std::map<HMONITOR, raw_ptr<HWNDMessageHandler>>;
   static base::LazyInstance<FullscreenWindowMonitorMap>::DestructorAtExit
       fullscreen_monitor_map_;
 

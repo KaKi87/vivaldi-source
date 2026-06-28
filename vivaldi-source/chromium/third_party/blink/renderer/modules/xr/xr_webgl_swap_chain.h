@@ -5,6 +5,7 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_XR_XR_WEBGL_SWAP_CHAIN_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_XR_XR_WEBGL_SWAP_CHAIN_H_
 
+#include "gpu/command_buffer/common/sync_token.h"
 #include "third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.h"
 #include "third_party/blink/renderer/modules/webgl/webgl_unowned_texture.h"
 #include "third_party/blink/renderer/modules/xr/xr_swap_chain.h"
@@ -12,6 +13,7 @@
 #include "third_party/blink/renderer/platform/graphics/static_bitmap_image.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/heap/member.h"
+#include "third_party/blink/renderer/platform/heap/prefinalizer.h"
 
 namespace blink {
 
@@ -49,6 +51,7 @@ class XRWebGLSwapChain : public XRSwapChain<WebGLUnownedTexture> {
     return nullptr;
   }
   virtual bool IsCube() const { return false; }
+  virtual gpu::SyncToken GetSyncToken() const { return gpu::SyncToken(); }
 
  protected:
   void OnTextureQueried() override;
@@ -65,11 +68,15 @@ class XRWebGLSwapChain : public XRSwapChain<WebGLUnownedTexture> {
 // A texture swap chain that is not communicated back to the compositor, used
 // for things like depth/stencil attachments that don't assist reprojection.
 class XRWebGLStaticSwapChain final : public XRWebGLSwapChain {
+  USING_PRE_FINALIZER(XRWebGLStaticSwapChain, Dispose);
+
  public:
   XRWebGLStaticSwapChain(WebGLRenderingContextBase*,
                          const XRWebGLSwapChain::Descriptor&,
                          bool webgl2);
-  ~XRWebGLStaticSwapChain() override;
+  ~XRWebGLStaticSwapChain() override = default;
+
+  void Dispose();
 
   WebGLUnownedTexture* ProduceTexture() override;
 
@@ -91,10 +98,13 @@ class XRWebGLSharedImageSwapChain final : public XRWebGLSwapChain {
 
   void OnFrameEnd() override;
 
+  gpu::SyncToken GetSyncToken() const override { return sync_token_; }
+
  private:
   std::unique_ptr<gpu::SharedImageTexture> shared_image_texture_;
   std::unique_ptr<gpu::SharedImageTexture::ScopedAccess>
       shared_image_scoped_access_;
+  gpu::SyncToken sync_token_;
 };
 
 }  // namespace blink

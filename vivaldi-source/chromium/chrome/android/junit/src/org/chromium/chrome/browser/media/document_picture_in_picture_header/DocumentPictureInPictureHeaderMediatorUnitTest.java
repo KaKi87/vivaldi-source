@@ -19,11 +19,12 @@ import static org.mockito.Mockito.withSettings;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.graphics.Rect;
+import android.text.TextUtils;
 import android.view.View;
 import android.widget.FrameLayout;
 
-import androidx.core.content.ContextCompat;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.SmallTest;
 
@@ -31,14 +32,16 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
+import org.chromium.base.DeviceInfo;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.theme.ThemeUtils;
+import org.chromium.chrome.browser.theme.ThemeColorProvider;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.components.browser_ui.desktop_windowing.AppHeaderState;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
@@ -47,6 +50,9 @@ import org.chromium.components.security_state.ConnectionMaliciousContentStatus;
 import org.chromium.components.security_state.ConnectionSecurityLevel;
 import org.chromium.components.security_state.SecurityStateModel;
 import org.chromium.components.security_state.SecurityStateModelJni;
+import org.chromium.components.url_formatter.SchemeDisplay;
+import org.chromium.components.url_formatter.UrlFormatter;
+import org.chromium.components.url_formatter.UrlFormatterJni;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
 import org.chromium.ui.display.DisplayAndroid;
@@ -63,15 +69,22 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
 
     @Mock private DesktopWindowStateManager mDesktopWindowStateManager;
     @Mock private AppHeaderState mAppHeaderState;
+    @Mock private ThemeColorProvider mThemeColorProvider;
     @Mock private DocumentPictureInPictureHeaderDelegate mDelegate;
     @Mock private SecurityStateModel.Natives mSecurityStateModelNatives;
     @Mock private DisplayAndroid mDisplayAndroid;
+    @Mock private UrlFormatter.Natives mUrlFormatterJniMock;
 
     private WebContents mOpenerWebContents;
     private WebContents mWebContents;
 
+    private static final int DEFAULT_THEME_COLOR = Color.BLUE;
+    private static final ColorStateList DEFAULT_FOCUS_TINT = ColorStateList.valueOf(Color.RED);
+    private static final @BrandedColorScheme int DEFAULT_BRANDED_COLOR_SCHEME =
+            BrandedColorScheme.LIGHT_BRANDED_THEME;
     private static final GURL HTTPS_URL = JUnitTestGURLs.EXAMPLE_URL;
     private static final GURL LOCAL_FILE_URL = new GURL("file:///android_asset/index.html");
+    private static final GURL CONTENT_URL = new GURL("content://media/external/images/media/1");
 
     private Context mContext;
     private PropertyModel mModel;
@@ -85,7 +98,22 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
                         new PropertyModel.Builder(DocumentPictureInPictureHeaderProperties.ALL_KEYS)
                                 .build());
         when(mDesktopWindowStateManager.getAppHeaderState()).thenReturn(null);
+        when(mThemeColorProvider.getThemeColor()).thenReturn(DEFAULT_THEME_COLOR);
+        when(mThemeColorProvider.getActivityFocusTint()).thenReturn(DEFAULT_FOCUS_TINT);
+        when(mThemeColorProvider.getBrandedColorScheme()).thenReturn(DEFAULT_BRANDED_COLOR_SCHEME);
         SecurityStateModelJni.setInstanceForTesting(mSecurityStateModelNatives);
+        UrlFormatterJni.setInstanceForTesting(mUrlFormatterJniMock);
+        Mockito.lenient()
+                .when(mUrlFormatterJniMock.formatUrlForSecurityDisplay(any(), anyInt()))
+                .thenAnswer(
+                        invocation -> {
+                            GURL url = invocation.getArgument(0);
+                            String scheme = url.getScheme();
+                            if (scheme.equals("http") || scheme.equals("https")) {
+                                return url.getHost();
+                            }
+                            return url.getSpec();
+                        });
         mOpenerWebContents =
                 Mockito.mock(
                         WebContents.class,
@@ -110,6 +138,7 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
                 new DocumentPictureInPictureHeaderMediator(
                         mModel,
                         mDesktopWindowStateManager,
+                        mThemeColorProvider,
                         mContext,
                         mDelegate,
                         isBackToTabShown,
@@ -123,22 +152,19 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
         createMediator();
         verify(mDesktopWindowStateManager).addObserver(mMediator);
         verify(mDesktopWindowStateManager).getAppHeaderState();
+        verify(mThemeColorProvider).addThemeColorObserver(mMediator);
+        verify(mThemeColorProvider).addTintObserver(mMediator);
 
         // Verify that the color is set during creation.
-        int expectedBackgroundColor =
-                ContextCompat.getColor(mContext, R.color.default_bg_color_dark);
-        ColorStateList expectedTint =
-                ThemeUtils.getThemedToolbarIconTint(
-                        mContext, BrandedColorScheme.DARK_BRANDED_THEME);
-
-        verify(mDesktopWindowStateManager).updateForegroundColor(expectedBackgroundColor);
+        verify(mDesktopWindowStateManager).updateForegroundColor(DEFAULT_THEME_COLOR);
         assertEquals(
-                expectedBackgroundColor,
+                DEFAULT_THEME_COLOR,
                 (int) mModel.get(DocumentPictureInPictureHeaderProperties.BACKGROUND_COLOR));
         assertEquals(
-                expectedTint, mModel.get(DocumentPictureInPictureHeaderProperties.TINT_COLOR_LIST));
+                DEFAULT_FOCUS_TINT,
+                mModel.get(DocumentPictureInPictureHeaderProperties.TINT_COLOR_LIST));
         assertEquals(
-                BrandedColorScheme.DARK_BRANDED_THEME,
+                DEFAULT_BRANDED_COLOR_SCHEME,
                 (int) mModel.get(DocumentPictureInPictureHeaderProperties.BRANDED_COLOR_SCHEME));
         assertNotNull(
                 mModel.get(DocumentPictureInPictureHeaderProperties.ON_BACK_TO_TAB_CLICK_LISTENER));
@@ -151,6 +177,20 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
         assertEquals(
                 HTTPS_URL.getHost(),
                 mModel.get(DocumentPictureInPictureHeaderProperties.URL_STRING));
+        assertEquals(
+                TextUtils.TruncateAt.START,
+                mModel.get(DocumentPictureInPictureHeaderProperties.URL_ELLIPSIZE_BEHAVIOR));
+        int expectedComponentSize =
+                mContext.getResources()
+                        .getDimensionPixelSize(
+                                DeviceInfo.isDesktop()
+                                        ? R.dimen
+                                                .document_picture_in_picture_header_component_size_desktop
+                                        : R.dimen
+                                                .document_picture_in_picture_header_component_size);
+        assertEquals(
+                expectedComponentSize,
+                (int) mModel.get(DocumentPictureInPictureHeaderProperties.COMPONENT_SIZE));
     }
 
     @Test
@@ -224,6 +264,8 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
         createMediator();
         mMediator.destroy();
         verify(mDesktopWindowStateManager).removeObserver(mMediator);
+        verify(mThemeColorProvider).removeThemeColorObserver(mMediator);
+        verify(mThemeColorProvider).removeTintObserver(mMediator);
     }
 
     @Test
@@ -249,7 +291,11 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
         int minWidthPx =
                 mContext.getResources()
                         .getDimensionPixelSize(
-                                R.dimen.document_picture_in_picture_header_min_unoccluded_width);
+                                DeviceInfo.isDesktop()
+                                        ? R.dimen
+                                                .document_picture_in_picture_header_min_unoccluded_width_desktop
+                                        : R.dimen
+                                                .document_picture_in_picture_header_min_unoccluded_width);
 
         int unoccludedWidthPx = minWidthPx - 20;
         when(mAppHeaderState.getUnoccludedRectWidth()).thenReturn(unoccludedWidthPx);
@@ -270,7 +316,11 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
         int minWidthPx =
                 mContext.getResources()
                         .getDimensionPixelSize(
-                                R.dimen.document_picture_in_picture_header_min_unoccluded_width);
+                                DeviceInfo.isDesktop()
+                                        ? R.dimen
+                                                .document_picture_in_picture_header_min_unoccluded_width_desktop
+                                        : R.dimen
+                                                .document_picture_in_picture_header_min_unoccluded_width);
 
         int unoccludedWidthPx = minWidthPx + 20;
         when(mAppHeaderState.getUnoccludedRectWidth()).thenReturn(unoccludedWidthPx);
@@ -290,7 +340,11 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
         int minWidthPx =
                 mContext.getResources()
                         .getDimensionPixelSize(
-                                R.dimen.document_picture_in_picture_header_min_unoccluded_width);
+                                DeviceInfo.isDesktop()
+                                        ? R.dimen
+                                                .document_picture_in_picture_header_min_unoccluded_width_desktop
+                                        : R.dimen
+                                                .document_picture_in_picture_header_min_unoccluded_width);
 
         int unoccludedWidthPx = minWidthPx - 20;
         when(mAppHeaderState.getUnoccludedRectWidth()).thenReturn(unoccludedWidthPx);
@@ -345,11 +399,18 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
         var minHeaderHeight =
                 mContext.getResources()
                         .getDimensionPixelSize(
-                                R.dimen.document_picture_in_picture_header_min_height);
+                                DeviceInfo.isDesktop()
+                                        ? R.dimen
+                                                .document_picture_in_picture_header_min_height_desktop
+                                        : R.dimen.document_picture_in_picture_header_min_height);
         var componentSize =
                 mContext.getResources()
                         .getDimensionPixelSize(
-                                R.dimen.document_picture_in_picture_header_component_size);
+                                DeviceInfo.isDesktop()
+                                        ? R.dimen
+                                                .document_picture_in_picture_header_component_size_desktop
+                                        : R.dimen
+                                                .document_picture_in_picture_header_component_size);
         var headerHeight = minHeaderHeight - 10;
         var expectedPaddingBottom = minHeaderHeight - componentSize;
 
@@ -364,6 +425,33 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
         assertEquals(
                 expectedPaddingBottom,
                 mModel.get(DocumentPictureInPictureHeaderProperties.HEADER_SPACING).bottom);
+    }
+
+    @Test
+    @SmallTest
+    public void testThemeColorChanged() {
+        createMediator();
+        int color = Color.RED;
+        mMediator.onThemeColorChanged(color, /* shouldAnimate= */ false);
+
+        assertEquals(
+                color, (int) mModel.get(DocumentPictureInPictureHeaderProperties.BACKGROUND_COLOR));
+        verify(mDesktopWindowStateManager).updateForegroundColor(color);
+    }
+
+    @Test
+    @SmallTest
+    public void testTintChanged() {
+        createMediator();
+        ColorStateList focusTint = ColorStateList.valueOf(Color.GREEN);
+        @BrandedColorScheme int brandedColorScheme = BrandedColorScheme.DARK_BRANDED_THEME;
+        mMediator.onTintChanged(/* tint= */ null, focusTint, brandedColorScheme);
+
+        assertEquals(
+                focusTint, mModel.get(DocumentPictureInPictureHeaderProperties.TINT_COLOR_LIST));
+        assertEquals(
+                brandedColorScheme,
+                (int) mModel.get(DocumentPictureInPictureHeaderProperties.BRANDED_COLOR_SCHEME));
     }
 
     @Test
@@ -402,7 +490,8 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
                         () -> maliciousContentStatus,
                         /* isSmallDevice= */ false,
                         /* skipIconForNeutralState= */ false,
-                        /* useLockIconForSecureState= */ false);
+                        /* useLockIconForSecureState= */ false,
+                        /* isShowingHttpsFirstWarning= */ false);
 
         assertEquals(
                 expectedIcon,
@@ -417,6 +506,22 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
         assertEquals(
                 LOCAL_FILE_URL.getPath(),
                 mModel.get(DocumentPictureInPictureHeaderProperties.URL_STRING));
+        assertEquals(
+                TextUtils.TruncateAt.END,
+                mModel.get(DocumentPictureInPictureHeaderProperties.URL_ELLIPSIZE_BEHAVIOR));
+    }
+
+    @Test
+    @SmallTest
+    public void testContentUrl() {
+        createMediator(/* isBackToTabShown= */ true, CONTENT_URL);
+
+        assertEquals(
+                CONTENT_URL.getSpec(),
+                mModel.get(DocumentPictureInPictureHeaderProperties.URL_STRING));
+        assertEquals(
+                TextUtils.TruncateAt.END,
+                mModel.get(DocumentPictureInPictureHeaderProperties.URL_ELLIPSIZE_BEHAVIOR));
     }
 
     @Test
@@ -427,7 +532,7 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
         // Capture the WebContentsObserver created by the mediator.
         // The mediator creates a new WebContentsObserver, which registers itself to the
         // WebContents.
-        var captor = org.mockito.ArgumentCaptor.forClass(WebContentsObserver.class);
+        var captor = ArgumentCaptor.forClass(WebContentsObserver.class);
         verify((WebContentsObserver.Observable) mWebContents).addObserver(captor.capture());
         var observer = captor.getValue();
 
@@ -447,9 +552,23 @@ public class DocumentPictureInPictureHeaderMediatorUnitTest {
                         () -> maliciousContentStatus,
                         /* isSmallDevice= */ false,
                         /* skipIconForNeutralState= */ false,
-                        /* useLockIconForSecureState= */ false);
+                        /* useLockIconForSecureState= */ false,
+                        /* isShowingHttpsFirstWarning= */ false);
         assertEquals(
                 expectedIcon,
                 (int) mModel.get(DocumentPictureInPictureHeaderProperties.SECURITY_ICON));
+    }
+
+    @Test
+    @SmallTest
+    public void testUrlFormattedForSecurityDisplay() {
+        GURL url = new GURL("https://accounts.google.com.attacker.com");
+        when(mUrlFormatterJniMock.formatUrlForSecurityDisplay(
+                        url, SchemeDisplay.OMIT_HTTP_AND_HTTPS))
+                .thenReturn("accounts.google.com.attacker.com");
+        createMediator(/* isBackToTabShown= */ true, url);
+        assertEquals(
+                "accounts.google.com.attacker.com",
+                mModel.get(DocumentPictureInPictureHeaderProperties.URL_STRING));
     }
 }

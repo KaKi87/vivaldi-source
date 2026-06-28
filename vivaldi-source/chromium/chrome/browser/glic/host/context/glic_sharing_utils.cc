@@ -22,20 +22,13 @@
 
 namespace glic {
 
-bool IsBrowserValidForSharingInProfile(
-    BrowserWindowInterface* browser_interface,
-    Profile* profile) {
-  return browser_interface && profile &&
-         browser_interface->GetProfile() == profile &&
-         !profile->IsOffTheRecord();
-}
+namespace {
 
-bool IsTabValidForSharing(content::WebContents* web_contents) {
-  // We allow blank pages to avoid flicker during transitions.
+const std::vector<GURL>& GetUrlAllowList() {
   static const base::NoDestructor<std::vector<GURL>> kUrlAllowList{
       {GURL(), GURL(url::kAboutBlankURL),
        GURL(chrome::kChromeUINewTabPageThirdPartyURL),
-       GURL(chrome::kChromeUINewTabPageURL), GURL(chrome::kChromeUINewTabURL),
+       chrome::ChromeUINewTabPageURLAsGURL(), chrome::ChromeUINewTabURLAsGURL(),
 #if BUILDFLAG(IS_ANDROID)
        GURL(chrome::kChromeUINativeNewTabURL),
 #endif
@@ -45,12 +38,40 @@ bool IsTabValidForSharing(content::WebContents* web_contents) {
        GURL(chrome::kChromeUIWhatsNewURL)
 #endif
       }};
+  return *kUrlAllowList;
+}
+
+}  // namespace
+
+bool IsBrowserValidForSharingInProfile(
+    BrowserWindowInterface* browser_interface,
+    Profile* profile) {
+  return browser_interface && profile &&
+         browser_interface->GetProfile() == profile &&
+         !profile->IsOffTheRecord();
+}
+
+bool IsTabValidForPinningInProfile(tabs::TabInterface* tab, Profile* profile) {
+  return tab && profile && tab->GetProfile() == profile &&
+         !profile->IsOffTheRecord();
+}
+
+bool IsTabValidForSharing(content::WebContents* web_contents) {
   if (!web_contents) {
     return false;
   }
   const GURL& url = web_contents->GetLastCommittedURL();
   return url.SchemeIsHTTPOrHTTPS() || url.SchemeIsFile() ||
-         std::ranges::contains(*kUrlAllowList, url);
+         std::ranges::contains(GetUrlAllowList(), url);
+}
+
+bool IsTabValidForSharing(tabs::TabInterface* tab) {
+  if (!tab) {
+    return false;
+  }
+  const GURL url = tab->GetURL();
+  return url.SchemeIsHTTPOrHTTPS() || url.SchemeIsFile() ||
+         std::ranges::contains(GetUrlAllowList(), url);
 }
 
 GlicPinEvent GetEmptyPinEvent() {

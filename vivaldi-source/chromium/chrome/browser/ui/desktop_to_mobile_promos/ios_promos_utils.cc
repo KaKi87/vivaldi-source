@@ -7,7 +7,7 @@
 #include "base/json/values_util.h"
 #include "base/time/time.h"
 #include "chrome/browser/desktop_to_mobile_promos/promos_utils.h"
-#include "chrome/browser/feature_engagement/tracker_factory.h"
+#include "chrome/browser/feature_engagement/non_iph_promo.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/segmentation_platform/segmentation_platform_service_factory.h"
 #include "chrome/browser/sync/device_info_sync_service_factory.h"
@@ -23,10 +23,9 @@
 #include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 #include "chrome/browser/ui/views/promos/ios_promo_bubble.h"
 #include "chrome/browser/ui/views/side_panel/side_panel.h"
-#include "chrome/browser/ui/views/toolbar/browser_app_menu_button.h"
+#include "chrome/browser/ui/views/toolbar/app_menu_control.h"
+#include "chrome/browser/ui/views/toolbar/avatar_toolbar_button_interface.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
-#include "components/feature_engagement/public/feature_constants.h"
-#include "components/feature_engagement/public/tracker.h"
 #include "components/segmentation_platform/embedder/default_model/device_switcher_model.h"
 #include "components/segmentation_platform/public/constants.h"
 #include "components/segmentation_platform/public/segmentation_platform_service.h"
@@ -101,12 +100,12 @@ void ShowIOSDesktopPromoBubble(PromoType promo_type,
       break;
     case PromoType::kEnhancedBrowsing:
       IOSPromoBubble::ShowPromoBubble(
-          {views::BubbleAnchor(browser_view->toolbar()->app_menu_button())},
+          {toolbar_button_provider->GetAppMenuControl()->GetAnchor()},
           /*highlighted_button=*/nullptr, /*highlighted_element=*/std::nullopt,
           profile, PromoType::kEnhancedBrowsing, bubble_type);
       break;
     case PromoType::kLens: {
-      SidePanel* side_panel = browser_view->contents_height_side_panel();
+      SidePanel* side_panel = browser_view->side_panel();
       IOSPromoBubble::Anchor anchor = {views::BubbleAnchor(side_panel)};
       if (side_panel) {
         anchor.arrow = side_panel->IsRightAligned()
@@ -114,7 +113,7 @@ void ShowIOSDesktopPromoBubble(PromoType promo_type,
                            : views::BubbleBorder::RIGHT_CENTER;
       } else {
         anchor.anchor_base =
-            views::BubbleAnchor(browser_view->toolbar()->app_menu_button());
+            toolbar_button_provider->GetAppMenuControl()->GetAnchor();
       }
       IOSPromoBubble::ShowPromoBubble(anchor,
                                       /*highlighted_button=*/nullptr,
@@ -124,16 +123,16 @@ void ShowIOSDesktopPromoBubble(PromoType promo_type,
     }
     case PromoType::kTabGroups: {
       IOSPromoBubble::ShowPromoBubble(
-          {views::BubbleAnchor(
-              toolbar_button_provider->GetAvatarToolbarButton())},
+          {toolbar_button_provider->GetAvatarToolbarButtonInterface()
+               ->GetBubbleAnchor(*browser_view->browser())},
           /*highlighted_button=*/nullptr, /*highlighted_element=*/std::nullopt,
           profile, PromoType::kTabGroups, bubble_type);
       break;
     }
     case PromoType::kPriceTracking: {
       IOSPromoBubble::ShowPromoBubble(
-          {views::BubbleAnchor(
-              toolbar_button_provider->GetAvatarToolbarButton())},
+          {toolbar_button_provider->GetAvatarToolbarButtonInterface()
+               ->GetBubbleAnchor(*browser_view->browser())},
           /*highlighted_button=*/nullptr, /*highlighted_element=*/std::nullopt,
           profile, PromoType::kPriceTracking, bubble_type);
       break;
@@ -163,12 +162,12 @@ void OnIOSPromoClassificationResult(
     return;
   }
 
-  feature_engagement::Tracker* tracker =
-      feature_engagement::TrackerFactory::GetForBrowserContext(
-          browser->profile());
-
+  // TODO(https://crbug.com/511194274): Convert this to a scoped handle that
+  // prevents other promos until the promo dialog is closed. This was originally
+  // released in `IOSPromoBubble::IOSPromoBubbleDelegate::OnDismissal()`.
   if (promos_utils::UserNotClassifiedAsMobileDeviceSwitcher(result) &&
-      tracker->ShouldTriggerHelpUI(
+      feature_engagement::NonIphPromo::RequestPermissionToShow(
+          browser->profile(),
           promos_utils::GetIOSDesktopPromoFeatureEngagement(promo_type))) {
     RunCallback(std::move(promo_will_be_shown_callback));
     promos_utils::IOSDesktopPromoShown(browser->profile(), promo_type);

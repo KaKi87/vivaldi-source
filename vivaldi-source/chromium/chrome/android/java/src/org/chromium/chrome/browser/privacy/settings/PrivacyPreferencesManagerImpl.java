@@ -9,6 +9,7 @@ import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 
+import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.CommandLine;
@@ -25,6 +26,7 @@ import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.policy.PolicyServiceFactory;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
+import org.chromium.components.metrics.MetricsReportingLevel;
 import org.chromium.components.minidump_uploader.util.NetworkPermissionUtil;
 import org.chromium.components.policy.PolicyMap;
 import org.chromium.components.policy.PolicyService;
@@ -48,7 +50,7 @@ public class PrivacyPreferencesManagerImpl implements PrivacyPreferencesManager 
     // Supplier for other class to observe. Null until the supplier is requested.
     private @Nullable SettableNonNullObservableSupplier<Boolean> mCrashUploadPermittedSupplier;
 
-    private boolean mNativeInitialized;
+    private volatile boolean mNativeInitialized;
 
     PrivacyPreferencesManagerImpl(Context context) {
         mContext = context;
@@ -74,6 +76,12 @@ public class PrivacyPreferencesManagerImpl implements PrivacyPreferencesManager 
 
         mNativeInitialized = true;
 
+        // Cache the metrics restructurization state in SharedPreferences immediately when
+        // native is initialized so that it is safe to access pre-native in future sessions.
+        mPrefs.writeBoolean(
+                ChromePreferenceKeys.PRIVACY_SHOULD_USE_METRICS_CHOICE_RESTRUCTURE,
+                PrivacyPreferencesManagerImplJni.get().shouldUseMetricsChoiceRestructure());
+
         createPolicyServiceObserver();
     }
 
@@ -89,18 +97,20 @@ public class PrivacyPreferencesManagerImpl implements PrivacyPreferencesManager 
                     @Override
                     public void onPolicyServiceInitialized() {
                         syncUsageAndCrashReportingPermittedByPolicy();
+                        syncMetricsReportingDisabledByPolicy();
                     }
 
                     @Override
                     public void onPolicyUpdated(PolicyMap previous, PolicyMap current) {
                         syncUsageAndCrashReportingPermittedByPolicy();
+                        syncMetricsReportingDisabledByPolicy();
                     }
                 };
 
         if (mPolicyService.isInitializationComplete()) {
             syncUsageAndCrashReportingPermittedByPolicy();
+            syncMetricsReportingDisabledByPolicy();
         }
-
         mPolicyService.addObserver(mPolicyServiceObserver);
     }
 
@@ -116,7 +126,7 @@ public class PrivacyPreferencesManagerImpl implements PrivacyPreferencesManager 
                 (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
         // Android telephony team said it is OK to continue using getNetworkInfo() for our purposes.
         // We cannot use ConnectivityManager#getAllNetworks() because that one only reports enabled
-        // networks. See crbug.com/532455.
+        // networks. See crbug.com/40435982.
         @SuppressWarnings("deprecation")
         NetworkInfo networkInfo =
                 connectivityManager.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
@@ -137,12 +147,21 @@ public class PrivacyPreferencesManagerImpl implements PrivacyPreferencesManager 
     }
 
     public void syncUsageAndCrashReportingPermittedByPolicy() {
-        // Skip if native browser process is not yet fully initialized.
-        if (!mNativeInitialized) return;
+        assert mNativeInitialized;
 
         mPrefs.writeBoolean(
                 ChromePreferenceKeys.PRIVACY_METRICS_REPORTING_PERMITTED_BY_POLICY,
                 !PrivacyPreferencesManagerImplJni.get().isMetricsReportingDisabledByPolicy());
+    }
+
+    public void syncMetricsReportingDisabledByPolicy() {
+        assert mNativeInitialized;
+
+        mPrefs.writeBoolean(
+                ChromePreferenceKeys.PRIVACY_METRICS_REPORTING_DISABLED_BY_POLICY,
+                PrivacyPreferencesManagerImplJni.get().isMetricsReportingDisabledByPolicy());
+
+        getCrashUploadPermittedSupplier().set(isMetricsReportingEnabled());
     }
 
     @Override
@@ -150,6 +169,13 @@ public class PrivacyPreferencesManagerImpl implements PrivacyPreferencesManager 
         mPrefs.writeBoolean(
                 ChromePreferenceKeys.PRIVACY_METRICS_REPORTING_PERMITTED_BY_USER, enabled);
         syncUsageAndCrashReportingPrefs();
+    }
+
+    @Override
+    public void setMetricsReportingLevel(@MetricsReportingLevel int level) {
+        mPrefs.writeInt(ChromePreferenceKeys.PRIVACY_METRICS_REPORTING_LEVEL, level);
+        PrivacyPreferencesManagerImplJni.get().setMetricsReportingLevelInLocalState(level);
+        getCrashUploadPermittedSupplier().set(isMetricsReportingEnabled());
     }
 
     @Override
@@ -194,6 +220,10 @@ public class PrivacyPreferencesManagerImpl implements PrivacyPreferencesManager 
 
     @Override
     public boolean isUsageAndCrashReportingPermittedByPolicy() {
+        if (shouldUseMetricsChoiceRestructure()) {
+            return !mPrefs.readBoolean(
+                    ChromePreferenceKeys.PRIVACY_METRICS_REPORTING_DISABLED_BY_POLICY, false);
+        }
         return mPrefs.readBoolean(
                 ChromePreferenceKeys.PRIVACY_METRICS_REPORTING_PERMITTED_BY_POLICY, true);
     }
@@ -201,6 +231,23 @@ public class PrivacyPreferencesManagerImpl implements PrivacyPreferencesManager 
     @Override
     public boolean isUsageAndCrashReportingPermittedByUser() {
         if (!VivaldiUtils.isInstalledFromPlayStore()) return false;
+
+        if (shouldUseMetricsChoiceRestructure()) {
+            @MetricsReportingLevel
+            int level =
+                    mPrefs.readInt(
+                            ChromePreferenceKeys.PRIVACY_METRICS_REPORTING_LEVEL,
+                            MetricsReportingLevel.NONE);
+            switch (level) {
+                case MetricsReportingLevel.NONE:
+                    return false;
+                case MetricsReportingLevel.BASIC:
+                case MetricsReportingLevel.ADVANCED:
+                    return true;
+                default:
+                    return false;
+            }
+        }
         return mPrefs.readBoolean(
                 ChromePreferenceKeys.PRIVACY_METRICS_REPORTING_PERMITTED_BY_USER, false);
     }
@@ -219,7 +266,7 @@ public class PrivacyPreferencesManagerImpl implements PrivacyPreferencesManager 
 
     @Override
     public boolean isMetricsReportingEnabled() {
-        return PrivacyPreferencesManagerImplJni.get().isMetricsReportingEnabled();
+        return PrivacyPreferencesManagerImplJni.get().isBasicMetricsReportingEnabled();
     }
 
     @Override
@@ -234,12 +281,26 @@ public class PrivacyPreferencesManagerImpl implements PrivacyPreferencesManager 
         return getCrashUploadPermittedSupplier();
     }
 
+    public boolean shouldUseMetricsChoiceRestructure() {
+        // This method can be called before the native library is loaded/initialized (e.g.,
+        // in background services or binder threads checking crash uploading permission).
+        // To avoid UnsatisfiedLinkError, we read the value cached in SharedPreferences.
+        // The cache is populated in onNativeInitialized() using the latest C++ state.
+        return mPrefs.readBoolean(
+                ChromePreferenceKeys.PRIVACY_SHOULD_USE_METRICS_CHOICE_RESTRUCTURE, false);
+    }
+
     @NativeMethods
     public interface Natives {
-        boolean isMetricsReportingEnabled();
+        boolean isBasicMetricsReportingEnabled();
 
         void setMetricsReportingEnabled(boolean enabled);
 
         boolean isMetricsReportingDisabledByPolicy();
+
+        void setMetricsReportingLevelInLocalState(
+                @JniType("metrics::MetricsReportingLevel") int level);
+
+        boolean shouldUseMetricsChoiceRestructure();
     }
 }

@@ -8,8 +8,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -47,12 +45,12 @@ import org.chromium.chrome.browser.ui.signin.BottomSheetSigninAndHistorySyncConf
 import org.chromium.chrome.browser.ui.signin.BottomSheetSigninAndHistorySyncConfig.NoAccountSigninMode;
 import org.chromium.chrome.browser.ui.signin.BottomSheetSigninAndHistorySyncConfig.WithAccountSigninMode;
 import org.chromium.chrome.browser.ui.signin.FullscreenSigninAndHistorySyncConfig;
+import org.chromium.chrome.browser.ui.signin.SigninAndHistorySyncCoordinator.SigninFlow;
 import org.chromium.chrome.browser.ui.signin.account_picker.AccountPickerBottomSheetStrings;
 import org.chromium.chrome.browser.ui.signin.history_sync.HistorySyncConfig;
 import org.chromium.chrome.browser.ui.signin.history_sync.HistorySyncHelper;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.signin.SigninFeatures;
-import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
 import org.chromium.components.signin.test.util.TestAccounts;
@@ -84,6 +82,16 @@ public class SigninAndHistorySyncActivityLauncherImplTest {
                             "dismiss",
                             "history sync title",
                             "history sync subtitle")
+                    .build();
+    private static final FullscreenSigninAndHistorySyncConfig FULLSCREEN_SWITCH_ACCOUNT_CONFIG =
+            new FullscreenSigninAndHistorySyncConfig.Builder(
+                            "title",
+                            "subtitle",
+                            "dismiss",
+                            "history sync title",
+                            "history sync subtitle")
+                    .selectedAccountEmail(TestAccounts.ACCOUNT1.getEmail())
+                    .signinFlow(SigninFlow.SWITCH_ACCOUNT)
                     .build();
     private static final BottomSheetSigninAndHistorySyncConfig BOTTOM_SHEET_CONFIG =
             new BottomSheetSigninAndHistorySyncConfig.Builder(
@@ -172,7 +180,7 @@ public class SigninAndHistorySyncActivityLauncherImplTest {
     public void testCreateBottomSheetSigninIntentOrShowError_signedInHistorySyncAllowed() {
         when(IdentityServicesProvider.get().getIdentityManager(any()))
                 .thenReturn(mIdentityManagerMock);
-        when(mIdentityManagerMock.hasPrimaryAccount(eq(ConsentLevel.SIGNIN))).thenReturn(true);
+        when(mIdentityManagerMock.hasPrimaryAccount()).thenReturn(true);
         when(mSigninManagerMock.isSigninAllowed()).thenReturn(false);
         when(mHistorySyncHelperMock.shouldDisplayHistorySync()).thenReturn(true);
 
@@ -197,7 +205,7 @@ public class SigninAndHistorySyncActivityLauncherImplTest {
                 .thenReturn(mIdentityManagerMock);
         when(mSigninManagerMock.isSigninAllowed()).thenReturn(false);
         when(mPrefService.isManagedPreference(Pref.SIGNIN_ALLOWED)).thenReturn(false);
-        when(mIdentityManagerMock.hasPrimaryAccount(anyInt())).thenReturn(false);
+        when(mIdentityManagerMock.hasPrimaryAccount()).thenReturn(false);
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
@@ -244,7 +252,7 @@ public class SigninAndHistorySyncActivityLauncherImplTest {
     public void testCreateBottomSheetSigninIntentOrShowError_signedInAndHistorySyncSuppressed() {
         when(IdentityServicesProvider.get().getIdentityManager(any()))
                 .thenReturn(mIdentityManagerMock);
-        when(mIdentityManagerMock.hasPrimaryAccount(eq(ConsentLevel.SIGNIN))).thenReturn(true);
+        when(mIdentityManagerMock.hasPrimaryAccount()).thenReturn(true);
         when(mHistorySyncHelperMock.shouldDisplayHistorySync()).thenReturn(false);
 
         ThreadUtils.runOnUiThreadBlocking(
@@ -267,7 +275,7 @@ public class SigninAndHistorySyncActivityLauncherImplTest {
     public void testCreateBottomSheetSigninIntentOrShowError_signedInAndNoHistorySync() {
         when(IdentityServicesProvider.get().getIdentityManager(any()))
                 .thenReturn(mIdentityManagerMock);
-        when(mIdentityManagerMock.hasPrimaryAccount(eq(ConsentLevel.SIGNIN))).thenReturn(true);
+        when(mIdentityManagerMock.hasPrimaryAccount()).thenReturn(true);
         when(mSigninManagerMock.isSigninAllowed()).thenReturn(false);
 
         ThreadUtils.runOnUiThreadBlocking(
@@ -319,7 +327,7 @@ public class SigninAndHistorySyncActivityLauncherImplTest {
     public void testCreateFullscreenSigninIntent_signinNotAllowed() {
         when(IdentityServicesProvider.get().getIdentityManager(any()))
                 .thenReturn(mIdentityManagerMock);
-        when(mIdentityManagerMock.hasPrimaryAccount(eq(ConsentLevel.SIGNIN))).thenReturn(false);
+        when(mIdentityManagerMock.hasPrimaryAccount()).thenReturn(false);
         when(IdentityServicesProvider.get().getSigninManager(any())).thenReturn(mSigninManagerMock);
         when(mSigninManagerMock.isSigninAllowed()).thenReturn(false);
 
@@ -342,7 +350,7 @@ public class SigninAndHistorySyncActivityLauncherImplTest {
     public void testCreateFullscreenSigninIntent_alreadySignedIn() {
         when(IdentityServicesProvider.get().getIdentityManager(any()))
                 .thenReturn(mIdentityManagerMock);
-        when(mIdentityManagerMock.hasPrimaryAccount(eq(ConsentLevel.SIGNIN))).thenReturn(true);
+        when(mIdentityManagerMock.hasPrimaryAccount()).thenReturn(true);
         when(IdentityServicesProvider.get().getSigninManager(any())).thenReturn(mSigninManagerMock);
         when(mSigninManagerMock.isSigninAllowed()).thenReturn(false);
         when(mHistorySyncHelperMock.shouldDisplayHistorySync()).thenReturn(true);
@@ -364,10 +372,54 @@ public class SigninAndHistorySyncActivityLauncherImplTest {
 
     @Test
     @MediumTest
+    public void testCreateFullscreenSigninIntent_switchAccountFlowAllowed() {
+        when(IdentityServicesProvider.get().getIdentityManager(any()))
+                .thenReturn(mIdentityManagerMock);
+        when(mSigninManagerMock.isSwitchAccountAllowed()).thenReturn(true);
+
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    @Nullable
+                    Intent intent =
+                            SigninAndHistorySyncActivityLauncherImpl.get()
+                                    .createFullscreenSigninIntent(
+                                            mContext,
+                                            mProfileMock,
+                                            FULLSCREEN_SWITCH_ACCOUNT_CONFIG,
+                                            SigninAccessPoint.FULLSCREEN_SIGNIN_PROMO);
+                    assertNotNull(intent);
+                });
+    }
+
+    @Test
+    @MediumTest
+    public void testCreateFullscreenSigninIntentOrShowError_switchAccountFlowNotAllowed() {
+        when(IdentityServicesProvider.get().getIdentityManager(any()))
+                .thenReturn(mIdentityManagerMock);
+        when(mSigninManagerMock.isSwitchAccountAllowed()).thenReturn(false);
+
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    @Nullable
+                    Intent intent =
+                            SigninAndHistorySyncActivityLauncherImpl.get()
+                                    .createFullscreenSigninIntentOrShowError(
+                                            mContext,
+                                            mProfileMock,
+                                            FULLSCREEN_SWITCH_ACCOUNT_CONFIG,
+                                            SigninAccessPoint.FULLSCREEN_SIGNIN_PROMO);
+                    assertNull(intent);
+                });
+
+        verifyToastShown(R.string.signin_account_picker_bottom_sheet_error_title);
+    }
+
+    @Test
+    @MediumTest
     public void testCreateFullscreenSigninIntent_signedInAndHistorySyncNotAllowed() {
         when(IdentityServicesProvider.get().getIdentityManager(any()))
                 .thenReturn(mIdentityManagerMock);
-        when(mIdentityManagerMock.hasPrimaryAccount(eq(ConsentLevel.SIGNIN))).thenReturn(true);
+        when(mIdentityManagerMock.hasPrimaryAccount()).thenReturn(true);
         when(IdentityServicesProvider.get().getSigninManager(any())).thenReturn(mSigninManagerMock);
         when(mSigninManagerMock.isSigninAllowed()).thenReturn(false);
         when(mHistorySyncHelperMock.shouldDisplayHistorySync()).thenReturn(false);
@@ -391,7 +443,7 @@ public class SigninAndHistorySyncActivityLauncherImplTest {
     public void testCreateFullscreenSigninIntent_signedInAndHistorySyncDeclinedOften() {
         when(IdentityServicesProvider.get().getIdentityManager(any()))
                 .thenReturn(mIdentityManagerMock);
-        when(mIdentityManagerMock.hasPrimaryAccount(eq(ConsentLevel.SIGNIN))).thenReturn(true);
+        when(mIdentityManagerMock.hasPrimaryAccount()).thenReturn(true);
         when(IdentityServicesProvider.get().getSigninManager(any())).thenReturn(mSigninManagerMock);
         when(mSigninManagerMock.isSigninAllowed()).thenReturn(false);
         when(mHistorySyncHelperMock.isDeclinedOften()).thenReturn(true);
@@ -436,7 +488,7 @@ public class SigninAndHistorySyncActivityLauncherImplTest {
     public void testCreateFullscreenSigninIntentOrShowError_signinNotAllowed() {
         when(IdentityServicesProvider.get().getIdentityManager(any()))
                 .thenReturn(mIdentityManagerMock);
-        when(mIdentityManagerMock.hasPrimaryAccount(eq(ConsentLevel.SIGNIN))).thenReturn(false);
+        when(mIdentityManagerMock.hasPrimaryAccount()).thenReturn(false);
         when(IdentityServicesProvider.get().getSigninManager(any())).thenReturn(mSigninManagerMock);
         when(mSigninManagerMock.isSigninAllowed()).thenReturn(false);
 
@@ -460,7 +512,7 @@ public class SigninAndHistorySyncActivityLauncherImplTest {
     public void testCreateFullscreenSigninIntentOrShowError_alreadySignedIn() {
         when(IdentityServicesProvider.get().getIdentityManager(any()))
                 .thenReturn(mIdentityManagerMock);
-        when(mIdentityManagerMock.hasPrimaryAccount(eq(ConsentLevel.SIGNIN))).thenReturn(true);
+        when(mIdentityManagerMock.hasPrimaryAccount()).thenReturn(true);
         when(IdentityServicesProvider.get().getSigninManager(any())).thenReturn(mSigninManagerMock);
         when(mSigninManagerMock.isSigninAllowed()).thenReturn(false);
         when(mHistorySyncHelperMock.shouldDisplayHistorySync()).thenReturn(true);
@@ -485,7 +537,7 @@ public class SigninAndHistorySyncActivityLauncherImplTest {
     public void testCreateFullscreenSigninIntentOrShowError_signedInAndHistorySyncNotAllowed() {
         when(IdentityServicesProvider.get().getIdentityManager(any()))
                 .thenReturn(mIdentityManagerMock);
-        when(mIdentityManagerMock.hasPrimaryAccount(eq(ConsentLevel.SIGNIN))).thenReturn(true);
+        when(mIdentityManagerMock.hasPrimaryAccount()).thenReturn(true);
         when(IdentityServicesProvider.get().getSigninManager(any())).thenReturn(mSigninManagerMock);
         when(mSigninManagerMock.isSigninAllowed()).thenReturn(false);
         when(mHistorySyncHelperMock.shouldDisplayHistorySync()).thenReturn(false);
@@ -510,7 +562,7 @@ public class SigninAndHistorySyncActivityLauncherImplTest {
     public void testCreateFullscreenSigninIntentOrShowError_signedInAndHistorySyncDeclinedOften() {
         when(IdentityServicesProvider.get().getIdentityManager(any()))
                 .thenReturn(mIdentityManagerMock);
-        when(mIdentityManagerMock.hasPrimaryAccount(eq(ConsentLevel.SIGNIN))).thenReturn(true);
+        when(mIdentityManagerMock.hasPrimaryAccount()).thenReturn(true);
         when(IdentityServicesProvider.get().getSigninManager(any())).thenReturn(mSigninManagerMock);
         when(mSigninManagerMock.isSigninAllowed()).thenReturn(false);
         when(mHistorySyncHelperMock.isDeclinedOften()).thenReturn(true);

@@ -27,11 +27,12 @@
 
 #include <vector>
 
-#include "dawn/common/Assert.h"
-#include "dawn/tests/DawnTest.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/WGPUHelpers.h"
 #include "partition_alloc/pointers/raw_ptr.h"
+#include "src/dawn/common/Assert.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/compiler.h"
 
 namespace dawn {
 namespace {
@@ -439,8 +440,12 @@ TEST_P(DepthStencilStateTest, DepthStencilDisabled) {
     for (uint32_t last = 0; last < 3; ++last) {
         uint32_t i = (last + 1) % 3;
         uint32_t j = (last + 2) % 3;
-        DoTest({specs[i], specs[j], specs[last]}, specs[last].color);
-        DoTest({specs[j], specs[i], specs[last]}, specs[last].color);
+        DoTest(
+            {DAWN_UNSAFE_TODO(specs[i]), DAWN_UNSAFE_TODO(specs[j]), DAWN_UNSAFE_TODO(specs[last])},
+            DAWN_UNSAFE_TODO(specs[last]).color);
+        DoTest(
+            {DAWN_UNSAFE_TODO(specs[j]), DAWN_UNSAFE_TODO(specs[i]), DAWN_UNSAFE_TODO(specs[last])},
+            DAWN_UNSAFE_TODO(specs[last]).color);
     }
 }
 

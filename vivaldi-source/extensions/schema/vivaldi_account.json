@@ -165,34 +165,6 @@
             }
           ]
         }
-      },
-      {
-        "name": "setPendingRegistration",
-        "type": "function",
-        "description": "Stores credentials for an account in the process of registering. Call without parameter to discard the currently stored credentials",
-        "parameters":[
-          {
-            "name": "registration",
-            "optional": true,
-            "$ref": "PendingRegistration"
-          }
-        ]
-      },
-      {
-        "name": "getPendingRegistration",
-        "type": "function",
-        "description": "Retrieves the last stored credentials for a registration in progress.",
-        "parameters":[],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "registration",
-              "optional": true,
-              "$ref": "PendingRegistration"
-            }
-          ]
-        }
       }
     ],
     "events": [

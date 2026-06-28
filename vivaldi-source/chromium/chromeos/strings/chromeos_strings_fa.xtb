@@ -403,6 +403,7 @@
 <translation id="2618015542787108131">تپه شنی</translation>
 <translation id="2619761439309613843">بازآوری روزانه</translation>
 <translation id="2620436844016719705">سیستم</translation>
+<translation id="2626848494898563581">‏دسترسی به سرویس‌های Google ممکن نیست</translation>
 <translation id="2637303424821734920">خاموش - برای نمایش آب‌وهوای محلی، <ph name="BEGIN_LINK" />دسترسی مکان سیستم را روشن کنید<ph name="END_LINK" /></translation>
 <translation id="2638662041295312666">تصویر ورود به سیستم</translation>
 <translation id="2640549051766135490">آلبوم <ph name="TITLE" /> <ph name="DESC" /> انتخاب شد</translation>
@@ -644,7 +645,7 @@
 <translation id="387301095347517405">تعداد دفعاتی که باتری‌تان یک دوره شارژ کامل را گذرانده است</translation>
 <translation id="3877066159641251281">گوش دادن به ترجمه</translation>
 <translation id="3880601782712134623">شناسایی خودکار صداهای متمایز و اختصاص برچسب عمومی به آن‌ها، مثل «گوینده ۱» و «گوینده ۲»</translation>
-<translation id="38811596981744338">مشکل حقوقی</translation>
+<translation id="38811596981744338">مسئله حقوقی</translation>
 <translation id="3885327323343477505">تغییر محافظ صفحه‌نمایش</translation>
 <translation id="3889914174935857450">بازنشانی تاریخ</translation>
 <translation id="3889954687526985291">موتورسیکلت آینده‌نگری با چراغ‌های نئونی که از کاغذ سیاه ساخته شد است در پس‌زمینه تاریک</translation>
@@ -1121,7 +1122,7 @@
 <translation id="594989847980441553">برای ایجاد تصویر با هوش مصنوعی، «ایجاد» را انتخاب کنید.
         همه تصاویر ایجادشده به‌طور خودکار اینجا نشان داده خواهند شد.</translation>
 <translation id="5972388717451707488">به‌روزرسانی موتور</translation>
-<translation id="5972801171078377748">دوباره نشان داده نشود</translation>
+<translation id="5972801171078377748">دیگر نشان ندادن</translation>
 <translation id="5975130252842127517">مرجانی</translation>
 <translation id="5982621672636444458">گزینه‌های مرتب‌سازی</translation>
 <translation id="5984145644188835034">کاغذدیواری پیش‌فرض</translation>
@@ -1183,6 +1184,7 @@
 <translation id="6234024205316847054">نمایش رئوس مطالب</translation>
 <translation id="6243280677745499710">درحال حاضر تنظیم‌ شده است</translation>
 <translation id="6250316632541035980">گوشت و تخم‌مرغ</translation>
+<translation id="6262413940100821797">گیرنده ناشناس</translation>
 <translation id="6265268291107409527">کلید انتخاب‌شده <ph name="KEYS" /> است. <ph name="ASSIGN_INSTRUCTION" /></translation>
 <translation id="6275224645089671689">جهت‌نمای راست</translation>
 <translation id="6278428485366576908">زمینه</translation>
@@ -1201,7 +1203,7 @@
 <translation id="6319207335391420837">به‌روزرسانی سفت‌افزار در <ph name="DEVICE_NAME" /></translation>
 <translation id="6321407676395378991">روشن کردن محافظ صفحه</translation>
 <translation id="6324916366299863871">ویرایش میان‌بر</translation>
-<translation id="6325525973963619867">ناموفق بود</translation>
+<translation id="6325525973963619867">ناموفق</translation>
 <translation id="6327262166342360252">این کاغذدیواری ازطریق هوش مصنوعی بااستفاده از نوشتار زیر ایجاد شده است: «<ph name="PROMPT" />».</translation>
 <translation id="6331191339300272798">زمینه تاریک خودکار</translation>
 <translation id="6340526405444716530">شخصی‌سازی</translation>
@@ -1807,7 +1809,7 @@
 <translation id="8998289560386111590">در دستگاهتان دردسترس نیست</translation>
 <translation id="9000871120886759611">برای اینکه مطمئن شوید می‌توانید به زبان ترجیحی‌تان به اطلاعات دسترسی پیدا کنید، بازنشانی کنید. بررسی کنید که فقط از زبان‌های ترجیحی استفاده شده باشد.</translation>
 <translation id="9003499805101629690">پیتزا</translation>
-<translation id="9003704114456258138">فرکانس</translation>
+<translation id="9003704114456258138">بسامد</translation>
 <translation id="9017411601860840405">نورهای نئونی</translation>
 <translation id="901834265349196618">ایمیل</translation>
 <translation id="9022897536196898720">گل</translation>

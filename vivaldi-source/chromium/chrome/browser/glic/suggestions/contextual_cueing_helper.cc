@@ -4,14 +4,18 @@
 
 #include "chrome/browser/glic/suggestions/contextual_cueing_helper.h"
 
+#include <memory>
+
 #include "base/feature_list.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/strcat.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/actor/actor_keyed_service_factory.h"
+#include "chrome/browser/contextual_cueing/features.h"
 //#include "chrome/browser/glic/browser_ui/glic_nudge_controller.h"
 //#include "chrome/browser/glic/public/features.h"
 //#include "chrome/browser/glic/public/glic_enabling.h"
+//#include "chrome/browser/glic/public/glic_instance.h"
 //#include "chrome/browser/glic/public/glic_invoke_options.h"
 //#include "chrome/browser/glic/public/glic_keyed_service.h"
 //#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
@@ -24,14 +28,12 @@
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/side_panel/side_panel_enums.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui_provider.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
-#include "chrome/browser/ui/user_education/browser_user_education_interface.h"
 #include "chrome/common/pref_names.h"
 #include "components/feature_engagement/public/feature_constants.h"
 #include "components/history/core/browser/features.h"
@@ -51,17 +53,23 @@
 #include "url/gurl.h"
 #include "url/origin.h"
 
-#if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h"
+#if BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/glic/browser_ui/glic_nudge_controller_android.h"
+#include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
+#else
+#include "chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h"  // nogncheck crbug.com/40147906
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/views/glic/glic_button_interface.h"
-#include "ui/views/controls/button/label_button.h"
-#endif
+#include "chrome/browser/ui/user_education/browser_user_education_interface.h"
+#include "chrome/browser/ui/views/glic/glic_button_interface.h"  // nogncheck crbug.com/40147906
+#include "ui/views/controls/button/label_button.h"  // nogncheck crbug.com/40147906
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)   // Vivaldi keep disabled
 #include "chrome/browser/glic/public/glic_side_panel_coordinator.h"
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
+#endif
 
 namespace glic {
 
@@ -125,17 +133,29 @@ ContextualCueingHelper::ContextualCueingHelper(
 ContextualCueingHelper::~ContextualCueingHelper() = default;
 
 glic::GlicNudgeController* ContextualCueingHelper::GetGlicNudgeController() {
-#if !BUILDFLAG(IS_ANDROID) && BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+#if !BUILDFLAG(IS_ANDROID)
   if (!IsContextualCueingEnabled()) {
     return nullptr;
   }
 
-  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents());
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          web_contents());
   if (!browser) {
     return nullptr;
   }
   return browser->GetFeatures().glic_nudge_controller();
-#else  // NEEDS_ANDROID_IMPL
+#else
+  if (!glic_nudge_controller_) {
+    TabListInterface* tab_list =
+        TabModelList::GetTabModelForWebContents(web_contents());
+    glic_nudge_controller_ =
+        std::make_unique<glic::GlicNudgeControllerAndroid>(tab_list);
+  }
+  return glic_nudge_controller_.get();
+#endif
+#else // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   return nullptr;
 #endif // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 }
@@ -336,13 +356,13 @@ bool ContextualCueingHelper::IsBrowserBlockingNudges(
     return false;
   }
 
+#if !BUILDFLAG(IS_ANDROID)  // NEEDS_ANDROID_IMPL
   auto* user_education_interface =
       BrowserUserEducationInterface::From(browser_window_interface);
   if (!user_education_interface) {
     return false;
   }
 
-#if !BUILDFLAG(IS_ANDROID)  // NEEDS_ANDROID_IMPL
   if (user_education_interface->IsFeaturePromoActive(
           feature_engagement::kIPHGlicPromoFeature)) {
     recorder->set_nudge_decision(NudgeDecision::kNudgeNotShownIPH);
@@ -438,11 +458,22 @@ void ContextualCueingHelper::OnCueingDecision(
     }
   }
 
+  if (base::FeatureList::IsEnabled(::contextual_cueing::kContextualCueingV2)) {
+    decision_recorder->set_nudge_decision(
+        NudgeDecision::kNudgeNotShownContextualCueingV2);
+    return;
+  }
+
   if (can_show_decision != NudgeDecision::kSuccess) {
     return;
   }
 
-  GetGlicNudgeController()->UpdateNudgeLabel(
+  auto* glic_nudge_controller = GetGlicNudgeController();
+  if (!glic_nudge_controller) {
+    return;
+  }
+
+  glic_nudge_controller->UpdateNudgeLabel(
       web_contents(), decision_result->cue_label,
       decision_result->prompt_suggestion.empty()
           ? std::nullopt
@@ -451,7 +482,7 @@ void ContextualCueingHelper::OnCueingDecision(
       /*activity=*/std::nullopt,
       base::BindRepeating(&ContextualCueingService::OnNudgeActivity,
                           contextual_cueing_service_->GetWeakPtr(),
-                          web_contents(), document_available_time,
+                          web_contents()->GetWeakPtr(), document_available_time,
                           decision_result->is_dynamic));
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 }
@@ -466,9 +497,7 @@ ContextualCueingHelper::AutoOpenGlicSidePanel(
       tab_interface ? tab_interface->GetBrowserWindowInterface() : nullptr;
   auto* side_panel_ui = bwi ? SidePanelUIProvider::From(bwi) : nullptr;
 
-  if (side_panel_ui &&
-      (side_panel_ui->IsSidePanelShowing(SidePanelEntry::PanelType::kContent) ||
-       side_panel_ui->IsSidePanelShowing(SidePanelEntry::PanelType::kToolbar))) {
+  if (side_panel_ui && side_panel_ui->IsSidePanelShowing()) {
     return RecordAutoOpenResult(
         GlicAutoOpenResult::kPreventedFromExistingSidePanelOpen);
   }
@@ -515,18 +544,27 @@ ContextualCueingHelper::AutoOpenGlicSidePanel(
   auto* glic_service =
       glic::GlicKeyedServiceFactory::GetGlicKeyedService(profile);
   if (glic_service && tab_interface) {
+    // Check if enough time has passed since last prompt submission.
+    auto* glic_instance = glic_service->GetInstanceForTab(tab_interface);
+    if (glic_instance && glic_instance->GetTimeSinceLastPromptSubmission() <
+                             features::kAutoOpenGlicCooldown.Get()) {
+      return RecordAutoOpenResult(GlicAutoOpenResult::kPreventedFromCooldown);
+    }
+
     glic::mojom::InvocationSource invocation_source =
         glic::mojom::InvocationSource::kAutoOpenedByContextualCue;
     if (is_pdf_candidate) {
       invocation_source = glic::mojom::InvocationSource::kAutoOpenedForPdf;
     }
 
-    glic::GlicInvokeOptions options(invocation_source);
+    glic::GlicInvokeOptions options(glic::Target(tab_interface),
+                                    invocation_source);
     options.fre_override = glic::mojom::FreOverride::kTrustFirstInline;
     if (!decision_result.prompt_suggestion.empty()) {
       options.prompts.push_back(decision_result.prompt_suggestion);
     }
-    glic_service->Invoke(tab_interface, std::move(options));
+    options.target.conversation = glic::NewConversation();
+    glic_service->Invoke(std::move(options));
     return RecordAutoOpenResult(GlicAutoOpenResult::kSuccess);
   }
 

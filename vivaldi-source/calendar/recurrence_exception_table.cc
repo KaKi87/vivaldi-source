@@ -16,7 +16,7 @@
 
 namespace calendar {
 
-bool RecurrrenceExceptionTable ::CreateRecurringExceptionTable() {
+bool RecurrrenceExceptionTable::CreateRecurringExceptionTable() {
   const char* name = "recurring_exceptions";
   if (GetDB().DoesTableExist(name))
     return true;
@@ -38,7 +38,7 @@ bool RecurrrenceExceptionTable ::CreateRecurringExceptionTable() {
   return GetDB().Execute(sql);
 }
 
-RecurrenceExceptionID RecurrrenceExceptionTable ::CreateRecurrenceException(
+RecurrenceExceptionID RecurrrenceExceptionTable::CreateRecurrenceException(
     RecurrenceExceptionRow row) {
   sql::Statement statement(GetDB().GetCachedStatement(
       SQL_FROM_HERE,
@@ -61,7 +61,7 @@ RecurrenceExceptionID RecurrrenceExceptionTable ::CreateRecurrenceException(
   return GetDB().GetLastInsertRowId();
 }
 
-bool RecurrrenceExceptionTable ::GetAllRecurrenceExceptions(
+bool RecurrrenceExceptionTable::GetAllRecurrenceExceptions(
     RecurrenceExceptionRows* recurrences) {
   recurrences->clear();
   sql::Statement s(GetDB().GetCachedStatement(
@@ -77,7 +77,7 @@ bool RecurrrenceExceptionTable ::GetAllRecurrenceExceptions(
   return true;
 }
 
-bool RecurrrenceExceptionTable ::GetAllRecurrenceExceptionsForEvent(
+bool RecurrrenceExceptionTable::GetAllRecurrenceExceptionsForEvent(
     EventID event_id,
     RecurrenceExceptionRows* recurrences) {
   recurrences->clear();
@@ -97,7 +97,7 @@ bool RecurrrenceExceptionTable ::GetAllRecurrenceExceptionsForEvent(
   return true;
 }
 
-bool RecurrrenceExceptionTable ::GetRecurrenceException(
+bool RecurrrenceExceptionTable::GetRecurrenceException(
     RecurrenceExceptionID exception_id,
     RecurrenceExceptionRow* recurrence_exception) {
   sql::Statement s(GetDB().GetCachedStatement(
@@ -115,7 +115,7 @@ bool RecurrrenceExceptionTable ::GetRecurrenceException(
   return true;
 }
 
-bool RecurrrenceExceptionTable ::UpdateRecurrenceExceptionRow(
+bool RecurrrenceExceptionTable::UpdateRecurrenceExceptionRow(
     const RecurrenceExceptionRow& rec_ex) {
   sql::Statement statement(
       GetDB().GetCachedStatement(SQL_FROM_HERE,
@@ -150,7 +150,7 @@ void RecurrrenceExceptionTable::FillRecurrenceExceptionRow(
   recurrenceRow->cancelled = cancelled;
 }
 
-bool RecurrrenceExceptionTable ::DeleteRecurrenceException(
+bool RecurrrenceExceptionTable::DeleteRecurrenceException(
     RecurrenceExceptionID exception_id) {
   sql::Statement statement(GetDB().GetCachedStatement(
       SQL_FROM_HERE, "DELETE from recurring_exceptions WHERE id=?"));

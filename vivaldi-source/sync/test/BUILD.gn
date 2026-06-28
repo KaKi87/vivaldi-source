@@ -1,6 +1,6 @@
 # Copyright (c) 2015-2017 Vivaldi Technologies AS. All rights reserved
 
-source_set("sync_integration_testsupport"){
+source_set("sync_integration_testsupport") {
   testonly = true
   sources = [
     "integration/notes_helper.cpp",
@@ -10,8 +10,8 @@ source_set("sync_integration_testsupport"){
   ]
   deps = [
     "//chrome/browser",
-    "//components/sync/protocol",
     "//components/sync:test_support",
+    "//components/sync/protocol",
     "//skia",
     "//testing/gmock",
     "//testing/gtest",
@@ -21,7 +21,7 @@ source_set("sync_integration_testsupport"){
   ]
 }
 
-source_set("fake_server"){
+source_set("fake_server") {
   sources = [
     "fake_server/notes_entity.cpp",
     "fake_server/notes_entity.h",

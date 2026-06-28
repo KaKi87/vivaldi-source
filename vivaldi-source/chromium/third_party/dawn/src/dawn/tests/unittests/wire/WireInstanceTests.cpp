@@ -29,14 +29,15 @@
 #include <unordered_set>
 #include <vector>
 
-#include "dawn/common/Constants.h"
-#include "dawn/common/StringViewUtils.h"
-#include "dawn/tests/MockCallback.h"
-#include "dawn/tests/StringViewMatchers.h"
-#include "dawn/tests/unittests/wire/WireFutureTest.h"
-#include "dawn/tests/unittests/wire/WireTest.h"
 #include "dawn/wire/WireClient.h"
 #include "dawn/wire/WireServer.h"
+#include "src/dawn/common/Constants.h"
+#include "src/dawn/common/StringViewUtils.h"
+#include "src/dawn/tests/MockCallback.h"
+#include "src/dawn/tests/StringViewMatchers.h"
+#include "src/dawn/tests/unittests/wire/WireFutureTest.h"
+#include "src/dawn/tests/unittests/wire/WireTest.h"
+#include "src/utils/compiler.h"
 #include "webgpu/webgpu_cpp.h"
 
 namespace dawn::wire {
@@ -50,7 +51,6 @@ using testing::NonEmptySizedString;
 using testing::NotNull;
 using testing::Return;
 using testing::SizedString;
-using testing::StrEq;
 using testing::WithArg;
 
 class WireInstanceBasicTest : public WireTest {};
@@ -198,7 +198,7 @@ TEST_P(WireInstanceTests, RequestAdapterSuccess) {
                 adapter.GetFeatures(reinterpret_cast<wgpu::SupportedFeatures*>(&features));
 
                 std::vector<WGPUFeatureName> featuresList(
-                    features.features, features.features + features.featureCount);
+                    features.features, DAWN_UNSAFE_TODO(features.features + features.featureCount));
                 ASSERT_EQ(featuresList.size(), fakeFeaturesList.size());
                 std::unordered_set<WGPUFeatureName> featureSet(fakeFeaturesList);
                 for (WGPUFeatureName feature : featuresList) {
@@ -249,19 +249,11 @@ TEST_P(WireInstanceTests, RequestAdapterPassesChainedProperties) {
     fakePowerProperties.chain.sType = WGPUSType_DawnAdapterPropertiesPowerPreference;
     fakePowerProperties.powerPreference = WGPUPowerPreference::WGPUPowerPreference_LowPower;
 
-    WGPUAdapterPropertiesExplicitComputeSubgroupSizeConfigs fakeExplicitComputeSubgroupSizeConfigs =
-        {};
-    fakeExplicitComputeSubgroupSizeConfigs.chain.sType =
-        WGPUSType_AdapterPropertiesExplicitComputeSubgroupSizeConfigs;
-    fakeExplicitComputeSubgroupSizeConfigs.minExplicitComputeSubgroupSize = 8;
-    fakeExplicitComputeSubgroupSizeConfigs.maxExplicitComputeSubgroupSize = 32;
-
     std::initializer_list<WGPUFeatureName> fakeFeaturesList = {
         WGPUFeatureName_AdapterPropertiesMemoryHeaps,
         WGPUFeatureName_AdapterPropertiesD3D,
         WGPUFeatureName_AdapterPropertiesVk,
         WGPUFeatureName_ChromiumExperimentalSubgroupMatrix,
-        WGPUFeatureName_ChromiumExperimentalSubgroupSizeControl,
     };
     WGPUSupportedFeatures fakeFeatures = {fakeFeaturesList.size(), std::data(fakeFeaturesList)};
 
@@ -303,11 +295,6 @@ TEST_P(WireInstanceTests, RequestAdapterPassesChainedProperties) {
                                 *reinterpret_cast<WGPUDawnAdapterPropertiesPowerPreference*>(
                                     chain) = fakePowerProperties;
                                 break;
-                            case WGPUSType_AdapterPropertiesExplicitComputeSubgroupSizeConfigs:
-                                *reinterpret_cast<
-                                    WGPUAdapterPropertiesExplicitComputeSubgroupSizeConfigs*>(
-                                    chain) = fakeExplicitComputeSubgroupSizeConfigs;
-                                break;
                             default:
                                 ADD_FAILURE() << "Unexpected chain";
                                 return WGPUStatus_Error;
@@ -347,10 +334,10 @@ TEST_P(WireInstanceTests, RequestAdapterPassesChainedProperties) {
                 // Expect everything matches the fake properties returned by the server.
                 EXPECT_EQ(memoryHeapProperties.heapCount, fakeMemoryHeapProperties.heapCount);
                 for (size_t i = 0; i < fakeMemoryHeapProperties.heapCount; ++i) {
-                    EXPECT_EQ(memoryHeapProperties.heapInfo[i].properties,
-                              fakeMemoryHeapProperties.heapInfo[i].properties);
-                    EXPECT_EQ(memoryHeapProperties.heapInfo[i].size,
-                              fakeMemoryHeapProperties.heapInfo[i].size);
+                    DAWN_UNSAFE_TODO(EXPECT_EQ(memoryHeapProperties.heapInfo[i].properties,
+                                               fakeMemoryHeapProperties.heapInfo[i].properties));
+                    DAWN_UNSAFE_TODO(EXPECT_EQ(memoryHeapProperties.heapInfo[i].size,
+                                               fakeMemoryHeapProperties.heapInfo[i].size));
                 }
 
                 // Get the D3D properties.
@@ -379,16 +366,17 @@ TEST_P(WireInstanceTests, RequestAdapterPassesChainedProperties) {
                 // Expect everything matches the fake properties returned by the server.
                 EXPECT_EQ(subgroupMatrixConfigs.configCount, fakeSubgroupMatrixConfigs.configCount);
                 for (size_t i = 0; i < fakeSubgroupMatrixConfigs.configCount; ++i) {
-                    EXPECT_EQ(subgroupMatrixConfigs.configs[i].componentType,
-                              fakeSubgroupMatrixConfigs.configs[i].componentType);
-                    EXPECT_EQ(subgroupMatrixConfigs.configs[i].resultComponentType,
-                              fakeSubgroupMatrixConfigs.configs[i].resultComponentType);
-                    EXPECT_EQ(subgroupMatrixConfigs.configs[i].M,
-                              fakeSubgroupMatrixConfigs.configs[i].M);
-                    EXPECT_EQ(subgroupMatrixConfigs.configs[i].N,
-                              fakeSubgroupMatrixConfigs.configs[i].N);
-                    EXPECT_EQ(subgroupMatrixConfigs.configs[i].K,
-                              fakeSubgroupMatrixConfigs.configs[i].K);
+                    DAWN_UNSAFE_TODO(EXPECT_EQ(subgroupMatrixConfigs.configs[i].componentType,
+                                               fakeSubgroupMatrixConfigs.configs[i].componentType));
+                    DAWN_UNSAFE_TODO(
+                        EXPECT_EQ(subgroupMatrixConfigs.configs[i].resultComponentType,
+                                  fakeSubgroupMatrixConfigs.configs[i].resultComponentType));
+                    DAWN_UNSAFE_TODO(EXPECT_EQ(subgroupMatrixConfigs.configs[i].M,
+                                               fakeSubgroupMatrixConfigs.configs[i].M));
+                    DAWN_UNSAFE_TODO(EXPECT_EQ(subgroupMatrixConfigs.configs[i].N,
+                                               fakeSubgroupMatrixConfigs.configs[i].N));
+                    DAWN_UNSAFE_TODO(EXPECT_EQ(subgroupMatrixConfigs.configs[i].K,
+                                               fakeSubgroupMatrixConfigs.configs[i].K));
                 }
 
                 // Get the power properties.
@@ -398,18 +386,6 @@ TEST_P(WireInstanceTests, RequestAdapterPassesChainedProperties) {
                 adapter.GetInfo(reinterpret_cast<wgpu::AdapterInfo*>(&info));
                 // Expect them to match.
                 EXPECT_EQ(powerProperties.powerPreference, fakePowerProperties.powerPreference);
-
-                // Get the explicit compute subgroup size properties
-                WGPUAdapterPropertiesExplicitComputeSubgroupSizeConfigs subgroupSizeConfigs = {};
-                subgroupSizeConfigs.chain.sType =
-                    WGPUSType_AdapterPropertiesExplicitComputeSubgroupSizeConfigs;
-                info.nextInChain = &subgroupSizeConfigs.chain;
-                adapter.GetInfo(reinterpret_cast<wgpu::AdapterInfo*>(&info));
-                // Expect them to match
-                EXPECT_EQ(subgroupSizeConfigs.minExplicitComputeSubgroupSize,
-                          fakeExplicitComputeSubgroupSizeConfigs.minExplicitComputeSubgroupSize);
-                EXPECT_EQ(subgroupSizeConfigs.maxExplicitComputeSubgroupSize,
-                          fakeExplicitComputeSubgroupSizeConfigs.maxExplicitComputeSubgroupSize);
             }));
 
         FlushCallbacks();

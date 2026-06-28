@@ -3,6 +3,7 @@
 #include "browser/menus/vivaldi_bookmark_context_menu.h"
 
 #include "app/vivaldi_resources.h"
+#include "base/logging.h"
 #include "base/no_destructor.h"
 #include "browser/menus/vivaldi_menu_enums.h"
 #include "chrome/app/chrome_command_ids.h"

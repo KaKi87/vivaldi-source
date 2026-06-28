@@ -118,6 +118,8 @@ using InstallFaceGazeAssetsCallback = base::OnceCallback<void(
     std::optional<::extensions::api::accessibility_private::FaceGazeAssets>)>;
 using InstallPumpkinCallback = base::OnceCallback<void(
     std::optional<::extensions::api::accessibility_private::PumpkinData>)>;
+using InstallTenjiCallback = base::OnceCallback<void(
+    std::optional<::extensions::api::accessibility_private::TenjiData>)>;
 
 class AccessibilityPanelWidgetObserver;
 
@@ -364,6 +366,14 @@ class AccessibilityManager
   // Notify accessibility when locale changes occur.
   void OnLocaleChanged();
 
+  // Called when we first detect two fingers are held down, which can be
+  // used to toggle spoken feedback on some touch-only devices.
+  void OnTwoFingerTouchStart();
+
+  // Called when the user is no longer holding down two fingers (including
+  // releasing one, holding down three, or moving them).
+  void OnTwoFingerTouchStop();
+
   // Whether or not to enable toggling spoken feedback via holding down
   // two fingers on the screen.
   bool ShouldToggleSpokenFeedbackViaTouch();
@@ -536,6 +546,11 @@ class AccessibilityManager
   // object otherwise.
   void InstallPumpkinForDictation(InstallPumpkinCallback callback);
 
+  // Triggers a request to install Tenji DLC. Runs `callback` with the file
+  // bytes if the DLC was successfully downloaded. Runs `callback` with an empty
+  // object otherwise.
+  void InstallTenji(InstallTenjiCallback callback);
+
   // Reads the contents of a DLC file and runs `callback` with the results.
   void GetTtsDlcContents(
       ::extensions::api::accessibility_private::DlcType dlc,
@@ -692,6 +707,13 @@ class AccessibilityManager
       std::optional<::extensions::api::accessibility_private::PumpkinData>
           data);
 
+  // Tenji-related methods.
+  void OnTenjiInstalled(bool success, const std::string& root_path);
+  void OnTenjiError(std::string_view error);
+  void OnTenjiDataCreated(
+      std::optional<::extensions::api::accessibility_private::TenjiData>
+          assets);
+
   void MaybeLogBrailleDisplayConnectedTime();
 
   bool spoken_feedback_enabled() const { return bool(screen_reader_mode_); }
@@ -803,6 +825,8 @@ class AccessibilityManager
 
   InstallPumpkinCallback install_pumpkin_callback_;
   bool is_pumpkin_installed_for_testing_ = false;
+
+  InstallTenjiCallback install_tenji_callback_;
 
   base::FilePath dlc_path_for_test_;
 

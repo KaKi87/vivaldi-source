@@ -7,7 +7,7 @@ import 'chrome://settings/lazy_load.js';
 import 'chrome://settings/settings.js';
 
 import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-import type {AccountManagerBrowserProxy, SettingsPeoplePageElement} from 'chrome://settings/settings.js';
+import type {AccountManagerBrowserProxy, CrLinkRowElement, SettingsPeoplePageElement} from 'chrome://settings/settings.js';
 import {AccountManagerBrowserProxyImpl, loadTimeData, ProfileInfoBrowserProxyImpl, Router, SignedInState, StatusAction, SyncBrowserProxyImpl} from 'chrome://settings/settings.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {TestBrowserProxy} from 'chrome://webui-test/test_browser_proxy.js';
@@ -128,9 +128,9 @@ suite('Chrome OS', function() {
           'To use and save Chromium data in your Google Account, enter your passphrase',
     });
 
-    const syncSetupRow = peoplePage.shadowRoot!.querySelector('#sync-setup')!;
-    assertEquals(
-        peoplePage.syncStatus!.statusText, (syncSetupRow as any).subLabel);
+    const syncSetupRow =
+        peoplePage.shadowRoot!.querySelector<CrLinkRowElement>('#sync-setup')!;
+    assertEquals(peoplePage.syncStatus!.statusText, syncSetupRow.subLabel);
   });
 });
 
@@ -186,5 +186,52 @@ suite('Chrome OS with account manager disabled', function() {
     const oldRoute = Router.getInstance().getCurrentRoute();
     profileIcon.click();
     assertEquals(oldRoute, Router.getInstance().getCurrentRoute());
+  });
+});
+
+suite('Chrome OS with replaceSyncPromosWithSignInPromos enabled', function() {
+  suiteSetup(function() {
+    loadTimeData.overrideValues({
+      isAccountManagerEnabled: true,
+      replaceSyncPromosWithSignInPromos: true,
+    });
+  });
+
+  setup(async function() {
+    syncBrowserProxy = new TestSyncBrowserProxy();
+    SyncBrowserProxyImpl.setInstance(syncBrowserProxy);
+
+    profileInfoBrowserProxy = new TestProfileInfoBrowserProxy();
+    ProfileInfoBrowserProxyImpl.setInstance(profileInfoBrowserProxy);
+
+    accountManagerBrowserProxy = new TestAccountManagerBrowserProxy();
+    AccountManagerBrowserProxyImpl.setInstance(accountManagerBrowserProxy);
+
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    peoplePage = document.createElement('settings-people-page');
+    peoplePage.prefs = DEFAULT_PREFS;
+    document.body.appendChild(peoplePage);
+
+    await accountManagerBrowserProxy.whenCalled('getAccounts');
+    await syncBrowserProxy.whenCalled('getSyncStatus');
+    flush();
+  });
+
+  teardown(function() {
+    peoplePage.remove();
+  });
+
+  test('SyncSetupRowSublabel_PassphraseError', () => {
+    simulateSyncStatus({
+      signedInState: SignedInState.SYNCING,
+      hasError: true,
+      statusAction: StatusAction.ENTER_PASSPHRASE,
+      statusText:
+          'To use and save Chromium data in your Google Account, enter your passphrase',
+    });
+
+    const syncSetupRow =
+        peoplePage.shadowRoot!.querySelector<CrLinkRowElement>('#sync-setup')!;
+    assertEquals(peoplePage.syncStatus!.statusText, syncSetupRow.subLabel);
   });
 });

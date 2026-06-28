@@ -1,22 +1,35 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="ja">
+<translation id="1062777154504442433">新しいタブスタック</translation>
 <translation id="1204037785786432551">リンクをダウンロード</translation>
 <translation id="1206892813135768548">リンクテキストをコピー</translation>
+<translation id="1223158186497001208">新しいアクティビティがある共有タブスタック <ph name="GROUP_TITLE" /></translation>
+<translation id="1328749518742029305"><ph name="TAB_GROUP_TITLE" /> タブスタックを閉じて保存しました</translation>
 <translation id="1397811292916898096"><ph name="PRODUCT_NAME" /> で検索</translation>
 <translation id="1435593198351412143">PDF を自動的に開く</translation>
 <translation id="1456207338570705181">Touch to Search は、Google が Vivaldi のデフォルトの検索エンジンとして設定されている場合にのみ利用できる機能です。選択した単語と現在のページをコンテキストとして Google 検索に送信します。 <ph name="BEGIN_LINK" /> 設定 <ph name="END_LINK" /> よりオンオフの切り替えが可能です。</translation>
 <translation id="1598449788754183301">通常タブとプライベートタブの切替</translation>
+<translation id="1626105448931436644">共有タブスタックについて詳しく見る</translation>
 <translation id="1644574205037202324">履歴</translation>
 <translation id="1829244130665387512">ページ内検索</translation>
-<translation id="1910514478706885609">新しいタブをタブスタック内で開く</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+=1 {共有タブスタックで新しいアクティビティがある <ph name="TABS_COUNT_ONE" /> 件のタブを確認}
+other {共有タブスタックで新しいアクティビティがある <ph name="TABS_COUNT_MANY" /> 件のタブを確認}
+}</translation>
 <translation id="1925021887439448749">カスタムウェブアドレスを入力</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+=1 {<ph name="OWNER_FIRST_NAME" /> さんと他 <ph name="NUMBER_OF_OTHER_MEMBERS" /> 名のタブスタックに参加}
+other {<ph name="OWNER_FIRST_NAME" /> さんと他 <ph name="NUMBER_OF_OTHER_MEMBERS" /> 名のタブスタックに参加}
+}</translation>
 <translation id="2038563949887743358">[デスクトップ版サイトを見る] をオンにします</translation>
+<translation id="2067565353468675023"><ph name="OWNER_FIRST_NAME" /> のタブスタックに参加</translation>
 <translation id="208033313373016095">ウェブページのリーダービュー</translation>
 <translation id="2149973817440762519">ブックマークを編集</translation>
 <translation id="2306442503286132111">ブックマークを <ph name="FOLDER_NAME" /> フォルダーに保存しました</translation>
 <translation id="2433507940547922241">外観</translation>
-<translation id="2501278716633472235">戻る</translation>
+<translation id="2495373685671077949">タブやスタックを検索</translation>
+<translation id="2500281581698062897">「<ph name="GROUP_NAME" />」タブスタックへのアクセスは即時に失われ、<ph name="BLOCKED_MEMBER_FULL_NAME" />（<ph name="BLOCKED_MEMBER_EMAIL" />）は各サービス上でやり取りができなくなります。</translation>
 <translation id="2546283357679194313">Cookies とサイトデータ</translation>
 <translation id="2633278372998075009">プライベートタブ</translation>
 <translation id="2650751991977523696">ファイルをもう一度ダウンロードしますか？</translation>
@@ -26,6 +39,7 @@
 <translation id="2871733351037274014">ページをプリロードする</translation>
 <translation id="2904300462646366554">ダウンロードした PDF は、自動的にデバイス上のいずれかの PDF ビューアで開きます</translation>
 <translation id="2951071800649516099">ページをリーディングリストに追加</translation>
+<translation id="3020023775880428664">タブをスタックへ移動</translation>
 <translation id="3029276696788198026">プリロードなし</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> 個のブックマーク}
@@ -35,7 +49,13 @@
 <translation id="3232293466644486101">閲覧履歴データを削除…</translation>
 <translation id="3234355010754616171">新しいプライベートタブ</translation>
 <translation id="3237087289225714896">標準プリロード：</translation>
+<translation id="3298614730029636660">スタックから離れる</translation>
+<translation id="3359462099791810823">このスタックは保持して後でタブを追加することも、不要であれば削除することもできます。</translation>
 <translation id="3478414204555961127">リーダービュー</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+=1 {タブ <ph name="TAB_COUNT_ONE" /> 件のタブスタック（色: <ph name="COLOR_NAME" />）を、新しいバックグラウンドタブスタックとして復元}
+other {タブ <ph name="TAB_COUNT_MANY" /> 件のタブスタック（色: <ph name="COLOR_NAME" />）を、新しいバックグラウンドタブスタックとして復元}
+}</translation>
 <translation id="3504699618187058974">タブをスタックする</translation>
 <translation id="3518985090088779359">同意して続行</translation>
 <translation id="3571177741182643350">未読記事 - オフラインで利用可能：</translation>
@@ -43,9 +63,11 @@
 <translation id="3700829948786686853">Vivaldi へようこそ</translation>
 <translation id="3719826155360621982">ホームページ</translation>
 <translation id="3738139272394829648">タップして検索</translation>
-<translation id="385051799172605136">戻る</translation>
+<translation id="3900825170941000696"><ph name="TITLE_OF_GROUP" />（色: <ph name="COLOR_NAME" />）のタブスタックを、新しいバックグラウンドタブスタックとして復元</translation>
+<translation id="395421286877117532">タブスタックをカスタマイズして「完了」をタップしてください</translation>
 <translation id="3987993985790029246">リンクをコピー</translation>
 <translation id="399014816462153200">既読記事：</translation>
+<translation id="4048089913902125176"><ph name="TITLE_OF_GROUP" /> タブスタック（色: <ph name="COLOR_NAME" />、サイト: <ph name="URL_LIST" />）を開く</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> のタブ}
           other {<ph name="TAB_COUNT_MANY" /> のタブ, <ph name="TAB_COUNT_INCOGNITO" /> のプライベートタブ}}</translation>
@@ -54,25 +76,41 @@
 <translation id="4137746084635924146">現在のデバイスの言語</translation>
 <translation id="4167670741834902166">新しいプライベートタブ</translation>
 <translation id="4195643157523330669">新しいタブで開く</translation>
+<translation id="4219031106525503429">「<ph name="GROUP_NAME" />」タブスタックを共有</translation>
 <translation id="4225895483398857530">ツールバーショートカット</translation>
 <translation id="4243710787042215766">プライベートタブで開く</translation>
 <translation id="4269820728363426813">リンクアドレスをコピー</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Android の設定で画面ロックをオンにする<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">パスワードマネージャー</translation>
-<translation id="441100617989818073">未使用または重複しているタブ／グループ</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+=1 {共有タブスタックで新しいアクティビティがある標準タブが <ph name="TABS_COUNT_ONE" /> 件あります}
+other {共有タブスタックで新しいアクティビティがある標準タブが <ph name="TABS_COUNT_MANY" /> 件あります}
+}</translation>
+<translation id="4445802392779002787">スタックにタブを追加</translation>
 <translation id="451872707440238414">ブックマークを検索</translation>
 <translation id="4526803704855831732">プライベートタブ</translation>
 <translation id="4532845899244822526">フォルダーの選択</translation>
+<translation id="454284936014822050"><ph name="GROUP_TITLE" />タブスタック</translation>
+<translation id="4614713783237504866">未使用または重複しているタブとスタック</translation>
+<translation id="463284870544181537">このスタックは保持して後でタブを追加することも、不要であれば削除することもできます</translation>
+<translation id="4638726726741656531">ここから簡単にタブをスタックに追加できます</translation>
 <translation id="4699172675775169585">キャッシュされた画像とファイル</translation>
 <translation id="4719086422742491124">ページを離れることなく、ウェブサイトのブラウジングが可能に。ページ上の１つ以上の単語を選択し、検索することが可能です。
 
 Touch to Search は、Google が Vivaldi のデフォルトの検索エンジンとして設定されている場合にのみ利用できる機能です。</translation>
 <translation id="4759238208242260848">ダウンロード</translation>
-<translation id="4777866634702576038">タブグループを削除しますか？</translation>
+<translation id="4771820744342013314">タブスタックを削除しますか？</translation>
 <translation id="4850886885716139402">表示</translation>
 <translation id="4883379392681899581">プライベートモードを離れる</translation>
+<translation id="4883812026489706387">「<ph name="TAB_GROUP_TITLE" />」タブスタックに新しいアクティビティがあります</translation>
+<translation id="4887248255051238988">タブスタックから離れますか？</translation>
 <translation id="4943872375798546930">見つかりません</translation>
 <translation id="49576331685473090">コンテンツブロッカー</translation>
+<translation id="4964059453543967592">閉じたスタックを再度開く</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+=1 {<ph name="TAB_GROUPS_ONE" /> 件のタブスタック}
+other {<ph name="TAB_GROUPS_MANY" /> 件のタブスタック}
+}</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> のプライベートタブ}
           other {<ph name="TAB_COUNT_NORMAL" /> のプライベートタブ}}</translation>
@@ -83,19 +121,26 @@ Touch to Search は、Google が Vivaldi のデフォルトの検索エンジン
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {ファイルをダウンロードしています…}
             other {# 件のファイルをダウンロードしています…}}</translation>
+<translation id="5210689723585747462"><ph name="TAB_GROUP_TITLE" /> タブスタックを閉じました</translation>
 <translation id="5233638681132016545">新しいタブ</translation>
 <translation id="5375131951310889874">ページを離れることなく、ウェブサイトのブラウジングが可能に。Touch to Search は、Google が Vivaldi のデフォルトの検索エンジンとして設定されている場合にのみ利用できる機能です。単語とその周囲のコンテキストを Google 検索に送信し、画像、検索結果などのその他の詳細を返します。
 
 検索語句を調整するには、長押しして選択します。検索を絞り込むには、パネルをスライドさせて、検索ボックスをタップします。</translation>
+<translation id="5570837353202786816">すべてのユーザーは「<ph name="GROUP_NAME" />」タブスタックへのアクセスを即時に失い、すべての招待リンクは無効になります</translation>
+<translation id="5614794348925178470">共有された <ph name="GROUP_TITLE" /> タブスタック</translation>
 <translation id="572328651809341494">最近閉じたタブ</translation>
 <translation id="5833984609253377421">リンクを共有</translation>
+<translation id="6129507335719227488">スタック内のタブ</translation>
 <translation id="6150320133806434356">ブックマークが保存されました</translation>
 <translation id="6193448654517602979">タブを選択</translation>
+<translation id="6221225660285238685">スタックを別のウィンドウへ移動</translation>
+<translation id="6277377952699614191">タブスタック</translation>
 <translation id="6336451774241870485">新しいプライベートタブ</translation>
 <translation id="6337323516034698937">このタブを別のデバイスに送信するには、両方のデバイスで Vivaldi 同期にサインインしてください。必要に応じて、暗号化パスワードを入力することを忘れないでください。</translation>
 <translation id="6341580099087024258">ファイルの保存場所を確認する</translation>
 <translation id="6364438453358674297">履歴からこの候補を削除しますか？</translation>
 <translation id="6404511346730675251">ブックマークを編集</translation>
+<translation id="6453011654157908292">タブスタックの詳細</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
           =1 {ファイルをダウンロードしました}
           other {# 件のダウンロードが完了しました}}</translation>
@@ -104,11 +149,13 @@ Touch to Search は、Google が Vivaldi のデフォルトの検索エンジン
 <translation id="6593061639179217415">デスクトップ用サイト</translation>
 <translation id="6610147964972079463">プライベートタブを閉じる</translation>
 <translation id="6627583120233659107">フォルダーを編集</translation>
+<translation id="6785740335511995065">スタックを保持しますか？</translation>
 <translation id="6865313869410766144">自動入力フォームのデータ</translation>
 <translation id="6909589135458168665">ページをプリロードする</translation>
 <translation id="7029995644714925509">サイトがページ上のリンクを非公開でプリロードするように要求すると、Vivaldi は Cookies なしで Google サーバーを介してページを暗号化してプリロードします。これにより、プリロードされたサイトから ID が非表示になります。</translation>
 <translation id="706339621163631076">ブラウザ プライバシーポリシー</translation>
 <translation id="7100573672995171864">Vivaldi をカスタマイズしてコントロール</translation>
+<translation id="7133879160432070247">ブロックしてスタックを離れますか？</translation>
 <translation id="732145680195464316">ブックマークを <ph name="PRODUCT_NAME" /> に保存しました</translation>
 <translation id="7324354302972299151">「Do Not Track」リクエストを送信する</translation>
 <translation id="7359002509206457351">お支払い方法へのアクセス</translation>
@@ -117,24 +164,33 @@ Touch to Search は、Google が Vivaldi のデフォルトの検索エンジン
 <translation id="7456774706094330779">拡張プリロード</translation>
 <translation id="7465104139234185284">プライベートタブをすべて閉じる</translation>
 <translation id="7481312909269577407">進む</translation>
+<translation id="759273611317559136"><ph name="TAB_GROUP_TITLE" /> タブスタックが削除されました</translation>
+<translation id="7630413501995820846">スタックを保持する</translation>
+<translation id="7640137753339219124">スタックを削除</translation>
 <translation id="7764225426217299476">住所を追加</translation>
+<translation id="7910753230807645596">重複したタブやスタック、または <ph name="DAYS_INACTIVE" /> 日間使用されていないものは、ここ（<ph name="AUTODELETE_SECTION" />）に移動されます。この設定はいつでも <ph name="DECLUTTER_SETTINGS_TITLE" /> で変更できます。</translation>
 <translation id="7968014550143838305">リーディングリストに追加しました</translation>
 <translation id="804786196054284061">Vivaldi 利用規約</translation>
 <translation id="8062594758852531064">拡張プリロード：</translation>
 <translation id="8073388330009372546">新しいタブで画像を開く</translation>
 <translation id="8127542551745560481">ホームページを編集</translation>
+<translation id="8149776854955817519">ここで非アクティブなタブやスタックを確認できます</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
           =1 {（1）個のインアクティブアイテム}
           other {（#）個のインアクティブアイテム}}</translation>
 <translation id="8266862848225348053">ダウンロード先</translation>
 <translation id="8348430946834215779">可能な限り HTTPS を使用し、HTTPS をサポートしていないサイトは読み込む前に警告を表示します</translation>
+<translation id="8480628728881718381">スタック内で新しいタブとして開く</translation>
+<translation id="8543049482641423692">タブを新しいスタックに追加</translation>
 <translation id="8560602726703398413">リーディングリストはブックマークからアクセス可能です</translation>
 <translation id="85991616550051997">ホームに行く</translation>
+<translation id="8680308397617585416">「<ph name="GROUP_NAME" />」タブスタックへのアクセスは即時に失われ、すべてのデバイスから削除されます</translation>
 <translation id="8738163682604285902">リーディングモードで表示しますか？</translation>
 <translation id="8820817407110198400">ブックマーク</translation>
 <translation id="9042893549633094279">プライバシーとセキュリティ</translation>
 <translation id="9063523880881406963">[デスクトップ版サイトを見る] をオフにします</translation>
 <translation id="9080642952018487277">プライベートモードにする</translation>
+<translation id="9099398755190923267">すべてのユーザーは「<ph name="GROUP_NAME" />」タブスタックへのアクセスを即時に失い、すべてのデバイスから削除されます</translation>
 <translation id="930124987204876019">履歴、Cookie、サイトデータ、キャッシュを削除します…</translation>
 <translation id="961856697154696964">閲覧履歴データを削除</translation>
 </translationbundle>

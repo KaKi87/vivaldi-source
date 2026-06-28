@@ -18,6 +18,7 @@ import static org.mockito.Mockito.verify;
 import android.app.Activity;
 import android.content.Context;
 import android.net.Uri;
+import android.os.Build;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -42,7 +43,6 @@ import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.data_sharing.DataSharingTabManager;
 import org.chromium.chrome.browser.enterprise.util.DataProtectionBridge;
-import org.chromium.chrome.browser.enterprise.util.DataProtectionBridgeJni;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
@@ -165,7 +165,7 @@ public class ShareDelegateImplUnitTest {
         LargeIconBridgeJni.setInstanceForTesting(mLargeIconBridgeJni);
         TrackerFactory.setTrackerForTests(mTracker);
         Mockito.doReturn(new WeakReference<>(mActivity)).when(mWindowAndroid).getActivity();
-        DataProtectionBridgeJni.setInstanceForTesting(mDataProtectionBridgeMock);
+        DataProtectionBridge.setInstanceForTesting(mDataProtectionBridgeMock);
 
         // TODO(crbug.com/406591712): Update to stubbing share methods when those are added.
         doAnswer(sShareIsAllowedByPolicy)
@@ -508,8 +508,7 @@ public class ShareDelegateImplUnitTest {
 
     @Test
     public void androidShareSheetDisableNonU() {
-        Assert.assertEquals(
-                android.os.Build.VERSION.SDK_INT < 34, mShareDelegate.isSharingHubEnabled());
+        Assert.assertEquals(Build.VERSION.SDK_INT < 34, mShareDelegate.isSharingHubEnabled());
     }
 
     @Test

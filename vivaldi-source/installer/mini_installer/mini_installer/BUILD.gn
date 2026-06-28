@@ -29,7 +29,8 @@ declare_args() {
   # are not supported due to size constraints.
   fast_archive_compression = !is_official_build || is_component_build
 
-  # Enables the //vivaldi/installer/mini_installer/mini_installer:mini_installer_uncompressed
+  # Enables the
+  # //vivaldi/installer/mini_installer/mini_installer:mini_installer_uncompressed
   # target, which is a variant of the installer containing an uncompressed
   # Chrome archive and setup.exe. The Chrome archive is compressed by default in
   # official builds. This archive will then be used to produce both compressed
@@ -73,13 +74,9 @@ source_set("lib") {
     "write_to_disk.h",
   ]
 
-  deps = [
-    "//build:branding_buildflags",
-  ]
-  if(!is_full_signer) {
-    deps += [
-      "//vivaldi/app:vivaldi_icon",
-    ]
+  deps = [ "//build:branding_buildflags" ]
+  if (!is_full_signer) {
+    deps += [ "//vivaldi/app:vivaldi_icon" ]
   }
 
   # Initialization may insert unexpected memset calls.
@@ -119,7 +116,7 @@ packed_files_rc_file = "$target_gen_dir/mini_installer/packed_files.rc"
 # mini_installer, and therefore must be compressed.
 # The `enable_uncompressed_archive` arg is only intended for uncompressed
 # targets, so we assert that this flag is only set when not building for debug:
-# https://crbug.com/1408213.
+# https://crbug.com/40253437.
 assert(!is_debug || !enable_uncompressed_archive)
 
 if (enable_uncompressed_archive) {
@@ -186,16 +183,22 @@ action("mini_installer_archive") {
   if (sign_executables) {
     args += [
       "--sign-executables",
-      "--vivaldi-sign-key", vivaldi_signing_key,
-      "--vivaldi-sign-cmd", "$windows_sdk_path/bin/$vivaldi_win_sdk_version/x64/signtool.exe",
+      "--vivaldi-sign-key",
+      vivaldi_signing_key,
+      "--vivaldi-sign-cmd",
+      "$windows_sdk_path/bin/$vivaldi_win_sdk_version/x64/signtool.exe",
     ]
   }
   if (enable_widevine_signing) {
     args += [
-      "--vivaldi-widevine-sign-cmd", rebase_path(widevine_signing_script),
-      "--vivaldi-widevine-verify-cmd", rebase_path(widevine_verify_script),
-      "--vivaldi-widevine-private-key", rebase_path(widevine_private_key),
-      "--vivaldi-widevine-cert", rebase_path(widevine_signing_cert),
+      "--vivaldi-widevine-sign-cmd",
+      rebase_path(widevine_signing_script),
+      "--vivaldi-widevine-verify-cmd",
+      rebase_path(widevine_verify_script),
+      "--vivaldi-widevine-private-key",
+      rebase_path(widevine_private_key),
+      "--vivaldi-widevine-cert",
+      rebase_path(widevine_signing_cert),
     ]
   }
 

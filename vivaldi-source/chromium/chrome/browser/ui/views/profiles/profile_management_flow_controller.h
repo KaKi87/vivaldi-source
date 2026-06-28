@@ -65,7 +65,10 @@ class ProfileManagementFlowController
 
     kFinishFlow = 9,
 
-    kMaxValue = kFinishFlow,
+    // Renders the feature showcase single page app.
+    kFeatureShowcase = 10,
+
+    kMaxValue = kFeatureShowcase,
   };
   // LINT.ThenChange(//tools/metrics/histograms/metadata/profile/enums.xml:ProfileManagementFlowStep)
 
@@ -205,7 +208,7 @@ class ProfileManagementFlowController
   // Called after a browser is open. Clears the host and then runs the callback.
   void CloseHostAndRunCallback(
       PostHostClearedCallback post_host_cleared_callback,
-      Browser* browser);
+      BrowserWindowInterface* browser);
 
   // The signed out flow web contents are used in some steps inside
   // `initialized_steps_`. They have to be destroyed after `initialized_steps_`.

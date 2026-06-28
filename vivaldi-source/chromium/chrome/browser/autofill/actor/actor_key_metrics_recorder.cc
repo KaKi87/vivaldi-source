@@ -24,7 +24,7 @@ namespace autofill {
 namespace {
 
 bool IsFieldOfProduct(const AutofillField& field, FillingProduct product) {
-  auto filling_products = DenseSet<FillingProduct>(
+  auto filling_products = FillingProductSet(
       field.Type().GetGroups(), &GetFillingProductFromFieldTypeGroup);
   return filling_products.contains(product);
 }
@@ -86,6 +86,7 @@ void ActorKeyMetricsRecorder::OnAfterFormSubmitted(AutofillManager& manager,
 void ActorKeyMetricsRecorder::OnFillOrPreviewForm(
     AutofillManager& manager,
     FormGlobalId form_id,
+    FieldGlobalId trigger_field_id,
     mojom::ActionPersistence action_persistence,
     const base::flat_set<FieldGlobalId>& filled_field_ids,
     const FillingPayload& filling_payload) {

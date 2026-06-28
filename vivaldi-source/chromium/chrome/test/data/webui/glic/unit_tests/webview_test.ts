@@ -2,27 +2,29 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {BrowserProxy} from 'chrome://glic/browser_proxy.js';
-import {ZoomAction} from 'chrome://glic/glic.mojom-webui.js';
-import type {PageHandlerInterface} from 'chrome://glic/glic.mojom-webui.js';
-import type {ApiHostEmbedder} from 'chrome://glic/glic_api_impl/host/glic_api_host.js';
-import {matcherForOrigin, urlMatchesAllowedOrigin, WebviewController, WebviewPersistentState} from 'chrome://glic/webview.js';
-import type {PageType, WebviewDelegate} from 'chrome://glic/webview.js';
+import {matcherForOrigin, urlMatchesAllowedOrigin, urlMatchesApiAllowedOrigin, WebviewController, WebviewPersistentState, ZoomAction} from 'chrome://glic/glic.js';
+import type {CrA11yAnnouncerMessagesSentEvent} from 'chrome://resources/cr_elements/cr_a11y_announcer/cr_a11y_announcer.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
-import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {assertDeepEquals, assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {eventToPromise} from 'chrome://webui-test/test_util.js';
 
-suite('WebviewTest', () => {
+// Mock the `zoomchange` event defined in the chrome webviewTag API.
+interface WebViewZoomChangeEvent extends Event {
+  newZoomFactor: number;
+  oldZoomFactor?: number;
+}
+
+import {configureLoadTimeData, FakeApiHostEmbedder, FakeBrowserProxy, FakeWebviewDelegate} from './test_helpers.js';
+
+suite('urlMatchesAllowedOriginTest', () => {
   setup(() => {
-    loadTimeData.resetForTesting({
-      glicAllowedOrigins: '',
-      glicGuestURL: 'https://cat.fun/',
-      devMode: false,
-    });
+    configureLoadTimeData();
   });
 
   function assertUrlMatchesAllowedOrigin(expectMatches: boolean, url: string) {
+    const urlObj = new URL(url);
     assertEquals(
-        expectMatches, urlMatchesAllowedOrigin(url),
+        expectMatches, urlMatchesAllowedOrigin(urlObj),
         `urlMatchesAllowedOrigin("${url}")`);
   }
 
@@ -59,7 +61,7 @@ suite('WebviewTest', () => {
     assertEquals('http', result?.protocol);
   });
 
-  test('urlMatchesAllowedOrigin allows the primary url', () => {
+  test('allows the primary url', () => {
     loadTimeData.overrideValues({
       glicAllowedOrigins: '',
       glicGuestURL: 'https://cat.fun/party',
@@ -71,7 +73,7 @@ suite('WebviewTest', () => {
     assertUrlMatchesAllowedOrigin(false, 'http://cat.fun/');
   });
 
-  test('urlMatchesAllowedOrigin allows allowed origins', () => {
+  test('allows allowed origins', () => {
     loadTimeData.overrideValues({
       glicAllowedOrigins: 'https://*.mouse.org https://dog.com',
       glicGuestURL: 'https://cat.fun/party',
@@ -87,7 +89,17 @@ suite('WebviewTest', () => {
     assertUrlMatchesAllowedOrigin(false, 'http://dog.com/party');
   });
 
-  test('urlMatchesAllowedOrigin allows http', () => {
+  test('allows api allowed origins', () => {
+    loadTimeData.overrideValues({
+      glicAllowedOrigins: 'https://dog.com',
+      glicApiAllowedOrigins: 'https://*.mouse.org',
+      glicGuestURL: 'https://cat.fun/party',
+    });
+
+    assertUrlMatchesAllowedOrigin(true, 'https://sub.mouse.org/party');
+  });
+
+  test('allows http', () => {
     loadTimeData.overrideValues({
       glicAllowedOrigins: '',
       glicGuestURL: 'http://test.com',
@@ -99,51 +111,75 @@ suite('WebviewTest', () => {
   });
 });
 
+suite('urlMatchesApiAllowedOriginTest', () => {
+  setup(() => {
+    configureLoadTimeData();
+  });
+
+  function assertUrlMatchesApiAllowedOrigin(
+      expectMatches: boolean, url: string) {
+    assertEquals(
+        expectMatches, urlMatchesApiAllowedOrigin(new URL(url)),
+        `urlMatchesApiAllowedOrigin("${url}")`);
+  }
+
+  test('allows guest origin', () => {
+    loadTimeData.overrideValues({
+      glicGuestURL: 'https://cat.fun/party',
+      glicApiAllowedOrigins: '',
+      devMode: false,
+    });
+    assertUrlMatchesApiAllowedOrigin(true, 'https://cat.fun/party');
+    assertUrlMatchesApiAllowedOrigin(true, 'https://cat.fun/disaster');
+    assertUrlMatchesApiAllowedOrigin(true, 'https://cat.fun/');
+    assertUrlMatchesApiAllowedOrigin(false, 'https://dog.fun/');
+  });
+
+  test('allows api allowed origins', () => {
+    loadTimeData.overrideValues({
+      glicGuestURL: 'https://cat.fun/party',
+      glicApiAllowedOrigins: 'https://*.mouse.org https://dog.com',
+      devMode: false,
+    });
+    assertUrlMatchesApiAllowedOrigin(true, 'https://sub.mouse.org/party');
+    assertUrlMatchesApiAllowedOrigin(true, 'https://inner.sub.mouse.org/party');
+    assertUrlMatchesApiAllowedOrigin(false, 'https://mouse.org');
+    assertUrlMatchesApiAllowedOrigin(true, 'https://dog.com/party');
+    assertUrlMatchesApiAllowedOrigin(false, 'http://dog.com/party');
+  });
+
+  test('devMode bypasses checks', () => {
+    loadTimeData.overrideValues({
+      glicGuestURL: 'https://cat.fun/party',
+      glicApiAllowedOrigins: '',
+      devMode: true,
+    });
+    assertUrlMatchesApiAllowedOrigin(true, 'https://cat.fun/party');
+    assertUrlMatchesApiAllowedOrigin(true, 'https://dog.fun/');
+  });
+
+  test('handles null origin', () => {
+    loadTimeData.overrideValues({
+      glicGuestURL: 'https://cat.fun/party',
+      glicApiAllowedOrigins: 'https://dog.com',
+      devMode: true,
+    });
+    // A URL with 'null' origin should not be allowed even in devMode
+    const nullOriginUrl = new URL('data:text/html,hello');
+    assertFalse(urlMatchesApiAllowedOrigin(nullOriginUrl));
+  });
+});
+
+
 suite('WebviewZoomTest', () => {
   let controller: WebviewController;
 
   setup(() => {
-    loadTimeData.resetForTesting({
-      glicAllowedOrigins: '',
-      glicGuestURL: 'https://cat.fun/',
-      devMode: false,
-      chromeVersion: '123.0.0.0',
-      chromeChannel: 'stable',
-      glicHeaderRequestTypes: '',
-    });
+    configureLoadTimeData();
 
     // Set up mock interfaces to enable creating a WebviewController for test
     // use.
     const container = document.createElement('div');
-
-    class FakePageHandler implements Partial<PageHandlerInterface> {
-      webviewCommitted(_url: string) {}
-      onZoomLevelChange(_zoomFactor: number) {}
-      prepareForClient() {
-        return Promise.resolve({result: 0});
-      }
-    }
-
-    class FakeBrowserProxy implements BrowserProxy {
-      pageHandler = new FakePageHandler() as PageHandlerInterface;
-    }
-
-    class FakeWebviewDelegate implements WebviewDelegate {
-      webviewError(_reason: string) {}
-      webviewUnresponsive() {}
-      webviewPageCommit(_pageType: PageType) {}
-      webviewDeniedByAdmin() {}
-    }
-
-    class FakeApiHostEmbedder implements ApiHostEmbedder {
-      onGuestResizeRequest(_size: {width: number, height: number}) {}
-      enableDragResize(_enabled: boolean) {}
-      webClientReady() {}
-      webClientWarmed() {}
-      getZoom() {
-        return Promise.resolve(1.0);
-      }
-    }
 
     controller = new WebviewController(
         container,
@@ -156,7 +192,7 @@ suite('WebviewZoomTest', () => {
 
   test('ZoomInReturnsNextZoomFactor', () => {
     let lastSetZoom = 1.0;
-    const webview = controller.webview as any;
+    const webview = controller.webview;
     webview.getZoom = (cb: (z: number) => void) => cb(lastSetZoom);
     webview.setZoom = (z: number) => {
       lastSetZoom = z;
@@ -171,7 +207,7 @@ suite('WebviewZoomTest', () => {
 
   test('ZoomOutReturnsPreviousZoomFactor', () => {
     let lastSetZoom = 1.25;
-    const webview = controller.webview as any;
+    const webview = controller.webview;
     webview.getZoom = (cb: (z: number) => void) => cb(lastSetZoom);
     webview.setZoom = (currentZoom: number) => {
       lastSetZoom = currentZoom;
@@ -186,7 +222,7 @@ suite('WebviewZoomTest', () => {
 
   test('ZoomResetReturnsOne', () => {
     let lastSetZoom = 1.5;
-    const webview = controller.webview as any;
+    const webview = controller.webview;
     webview.setZoom = (currentZoom: number) => {
       lastSetZoom = currentZoom;
     };
@@ -198,7 +234,7 @@ suite('WebviewZoomTest', () => {
   test('ZoomBoundaryConditions', () => {
     let lastSetZoom = 2.0;
     let setZoomCalled = false;
-    const webview = controller.webview as any;
+    const webview = controller.webview;
     webview.getZoom = (cb: (z: number) => void) => cb(lastSetZoom);
     webview.setZoom = (currentZoom: number) => {
       lastSetZoom = currentZoom;
@@ -214,5 +250,19 @@ suite('WebviewZoomTest', () => {
     setZoomCalled = false;
     controller.zoom(ZoomAction.kZoomOut);
     assertFalse(setZoomCalled);
+  });
+
+  test('ZoomAnnouncementMade', async () => {
+    const announcementPromise =
+        eventToPromise<CrA11yAnnouncerMessagesSentEvent>(
+            'cr-a11y-announcer-messages-sent', document.body);
+
+    // Simulate a zoom change to 125%
+    const zoomEvent = new Event('zoomchange') as WebViewZoomChangeEvent;
+    zoomEvent.newZoomFactor = 1.25;
+    controller.webview.dispatchEvent(zoomEvent);
+
+    const event = await announcementPromise;
+    assertDeepEquals(event.detail.messages, ['Zoom: 125%']);
   });
 });

@@ -13,10 +13,10 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
@@ -116,7 +116,7 @@ bool BrowserDelegateImpl::IsAttemptingToClose() const {
 }
 
 bool BrowserDelegateImpl::IsClosing() const {
-  return browser_->is_delete_scheduled();
+  return browser_->IsDeleteScheduled();
 }
 
 bool BrowserDelegateImpl::IsActive() const {
@@ -166,8 +166,10 @@ void BrowserDelegateImpl::CloseWebContentsAt(size_t index,
                  : TabCloseTypes::CLOSE_NONE);
 }
 
-content::WebContents* BrowserDelegateImpl::NavigateWebApp(const GURL& url,
-                                                          TabPinning pin_tab) {
+content::WebContents* BrowserDelegateImpl::NavigateWebApp(
+    const GURL& url,
+    TabPinning pin_tab,
+    std::optional<webapps::LaunchParams> launch_params) {
   CHECK(GetType() == BrowserType::kApp || GetType() == BrowserType::kAppPopup)
       << "Unexpected browser type " << static_cast<int>(GetType()) << "("
       << browser_->type() << ")";
@@ -176,6 +178,9 @@ content::WebContents* BrowserDelegateImpl::NavigateWebApp(const GURL& url,
                             ui::PAGE_TRANSITION_AUTO_BOOKMARK);
   if (pin_tab == TabPinning::kYes) {
     nav_params.tabstrip_add_types |= AddTabTypes::ADD_PINNED;
+  }
+  if (launch_params) {
+    nav_params.launch_params = std::move(launch_params);
   }
 
   return web_app::NavigateWebAppUsingParams(nav_params);

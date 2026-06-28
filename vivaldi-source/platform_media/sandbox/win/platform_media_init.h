@@ -12,8 +12,8 @@
 #error Should only be built with USE_SYSTEM_PROPRIETARY_CODECS
 #endif
 
-#include "base/base_export.h"
 #include "base/win/windows_types.h"
+#include "media/base/media_export.h"
 
 namespace base {
 class CommandLine;
@@ -29,21 +29,21 @@ namespace platform_media_init {
 // This uses BASE_EXPORT and is placed in the base component, not media, so the
 // functions here can be used during early process initialization.
 
-BASE_EXPORT void InitForGPUProcess();
+MEDIA_EXPORT void InitForGPUProcess();
 
-BASE_EXPORT void InitForRendererProcess();
+MEDIA_EXPORT void InitForRendererProcess();
 
 // Preload necessary media libraries for the utility process with the given
 // command line so media works inside the sandbox.
-BASE_EXPORT void InitForUtilityProcess(const base::CommandLine& command_line);
+MEDIA_EXPORT void InitForUtilityProcess(const base::CommandLine& command_line);
 
 // Get WMF AAC library. Unless in unit tests this must be called after  calling
 // one of |InitFor*()| functions.
-BASE_EXPORT HMODULE GetWMFLibraryForAAC();
+MEDIA_EXPORT HMODULE GetWMFLibraryForAAC();
 
 // Get WMF h264 library. Unless in unit tests this must be called after calling
 // one of |InitFor*()| functions.
-BASE_EXPORT HMODULE GetWMFLibraryForH264();
+MEDIA_EXPORT HMODULE GetWMFLibraryForH264();
 
 }  // namespace platform_media_init
 

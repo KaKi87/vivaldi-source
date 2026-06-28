@@ -140,10 +140,8 @@ class WebAppRegistrarTest : public WebAppTest {
   }
 
   base::flat_set<webapps::AppId> PopulateRegistry(const Registry& registry) {
-    base::flat_set<webapps::AppId> app_ids;
-    for (auto& kv : registry) {
-      app_ids.insert(kv.second->app_id());
-    }
+    auto app_ids = base::MakeFlatSet<webapps::AppId>(
+        registry, /*comp=*/{}, [&](auto& kv) { return kv.second->app_id(); });
 
     database_factory().WriteRegistry(registry);
 
@@ -1096,7 +1094,7 @@ TEST_F(WebAppRegistrarTest,
 }
 
 TEST_F(WebAppRegistrarTest,
-       IsolatedWebAppsGetDisplayModeBorderlessRegardlessOfUserSettings) {
+       IsolatedWebAppsGetDisplayModeUnframedRegardlessOfUserSettings) {
   base::test::ScopedFeatureList scoped_feature_list(features::kIsolatedWebApps);
   StartWebAppProvider();
 
@@ -1388,8 +1386,8 @@ TEST_F(WebAppRegistrarTest_TabStrip, TabbedAppAutoNewTabUrl) {
 }
 
 TEST_F(WebAppRegistrarTest, VerifyPlaceholderFinderBehavior) {
-  // Please note, this is a bad state done to test crbug.com/1427340.
-  // This should not occur once crbug.com/1434692 is implemented.
+  // Please note, this is a bad state done to test crbug.com/40261748.
+  // This should not occur once crbug.com/40264854 is implemented.
   StartWebAppProvider();
 
   // Add first app with install_url in the registry as a non-placeholder app,
@@ -1419,7 +1417,7 @@ TEST_F(WebAppRegistrarTest, VerifyPlaceholderFinderBehavior) {
   auto placeholder_id = registrar().LookupPlaceholderAppId(
       install_url, WebAppManagement::kPolicy);
 
-  // This will fail if the fix for crbug.com/1427340 is reverted.
+  // This will fail if the fix for crbug.com/40261748 is reverted.
   EXPECT_TRUE(placeholder_id.has_value());
   EXPECT_EQ(placeholder_id.value(), app_id2);
 }
@@ -2042,7 +2040,7 @@ INSTANTIATE_TEST_SUITE_P(All,
                              case DisplayMode::kFullscreen:
                                return "Fullscreen";
                              case DisplayMode::kUnframed:
-                               return "Borderless";
+                               return "Unframed";
                              case DisplayMode::kPictureInPicture:
                                return "PictureInPicture";
                              case DisplayMode::kWindowControlsOverlay:
@@ -2211,8 +2209,7 @@ INSTANTIATE_TEST_SUITE_P(
     ,
     WebAppRegistrarParameterizedTest,
 #if BUILDFLAG(IS_CHROMEOS)
-    testing::Values(apps::test::LinkCapturingFeatureVersion::kV1DefaultOff,
-                    apps::test::LinkCapturingFeatureVersion::kV2DefaultOff)
+    testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff)
 #else
     testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
                     apps::test::LinkCapturingFeatureVersion::kV2DefaultOn)

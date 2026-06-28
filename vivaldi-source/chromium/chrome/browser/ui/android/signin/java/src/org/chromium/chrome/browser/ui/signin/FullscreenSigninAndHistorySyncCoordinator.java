@@ -38,9 +38,8 @@ import org.chromium.chrome.browser.ui.signin.history_sync.HistorySyncView;
 import org.chromium.components.browser_ui.device_lock.DeviceLockActivityLauncher;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler.BackPressResult;
-import org.chromium.components.signin.SigninFeatureMap;
-import org.chromium.components.signin.SigninFeatures;
-import org.chromium.components.signin.identitymanager.ConsentLevel;
+import org.chromium.components.signin.base.AccountInfo;
+import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.metrics.AccountConsistencyPromoAction;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
@@ -58,8 +57,16 @@ public final class FullscreenSigninAndHistorySyncCoordinator extends SigninAndHi
         implements HistorySyncCoordinator.HistorySyncDelegate,
                 FullscreenSigninCoordinator.Delegate {
     public interface Delegate {
-        /** Notifies when the user clicked the "add account" button. */
+        /**
+         * Notifies when the user clicked the "add account" button.
+         *
+         * @deprecated Use {@link #addAccount(String)} instead.
+         */
+        @Deprecated
         void addAccount();
+
+        /** Notifies when the user clicked the "add account" button with a specified email. */
+        void addAccount(@Nullable String accountEmail);
 
         /**
          * The supplier that supplies whether reading policy value is necessary. See {@link
@@ -187,7 +194,10 @@ public final class FullscreenSigninAndHistorySyncCoordinator extends SigninAndHi
 
     /** Implements {@link SigninAndHistorySyncCoordinator}. */
     @Override
-    public void onAddAccountCanceled() {}
+    public void onAddAccountCanceled() {
+        assertNonNull(mSigninCoordinator);
+        mSigninCoordinator.onAddAccountCanceled();
+    }
 
     /** Implements {@link SigninAndHistorySyncCoordinator}. */
     @Override
@@ -212,8 +222,8 @@ public final class FullscreenSigninAndHistorySyncCoordinator extends SigninAndHi
     public @BackPressResult int handleBackPress() {
         switch (mCurrentView) {
             case ChildView.SIGNIN:
-                if (isSigninForced()) {
-                    return BackPressResult.IGNORED;
+                if (ForcedSigninController.isForcedSigninPolicyEnabled()) {
+                    break;
                 }
                 if (isSignedIn()) {
                     mSigninManager.signOut(SignoutReason.ABORT_SIGNIN);
@@ -234,6 +244,17 @@ public final class FullscreenSigninAndHistorySyncCoordinator extends SigninAndHi
 
     /** Implements {@link FullscreenSigninCoordinator.Delegate} */
     @Override
+    public void addAccount(@Nullable String accountEmail) {
+        mDelegate.addAccount(accountEmail);
+    }
+
+    /**
+     * Implements {@link FullscreenSigninCoordinator.Delegate}
+     *
+     * @deprecated Use {@link #addAccount(String)} instead.
+     */
+    @Override
+    @Deprecated
     public void addAccount() {
         mDelegate.addAccount();
     }
@@ -256,6 +277,12 @@ public final class FullscreenSigninAndHistorySyncCoordinator extends SigninAndHi
             return;
         }
         showChildView(ChildView.HISTORY_SYNC);
+    }
+
+    /** Implements {@link FullscreenSigninCoordinator.Delegate} */
+    @Override
+    public void abortFlow() {
+        mDelegate.onFlowComplete(SigninAndHistorySyncCoordinator.Result.aborted());
     }
 
     @Override
@@ -310,7 +337,7 @@ public final class FullscreenSigninAndHistorySyncCoordinator extends SigninAndHi
     public boolean shouldDisplayManagementNoticeOnManagedDevices() {
         // Management notice shouldn't be shown in the Upgrade promo flow, even on managed devices,
         // unless the policy is forcing sign-in.
-        return isSigninForced();
+        return ForcedSigninController.isForcedSigninPolicyEnabled();
     }
 
     /** Implements {@link FullscreenSigninCoordinator.Delegate} */
@@ -372,15 +399,17 @@ public final class FullscreenSigninAndHistorySyncCoordinator extends SigninAndHi
         Profile profile = assumeNonNull(mProfileSupplier.get()).getOriginalProfile();
         IdentityManager identityManager =
                 IdentityServicesProvider.get().getIdentityManager(profile);
-        assumeNonNull(identityManager);
-        return identityManager.hasPrimaryAccount(ConsentLevel.SIGNIN);
-    }
+        CoreAccountInfo primaryAccount = assumeNonNull(identityManager).getPrimaryAccountInfo();
+        if (primaryAccount == null) return false;
 
-    private boolean isSigninForced() {
-        if (!SigninFeatureMap.isEnabled(SigninFeatures.SUPPORT_FORCED_SIGNIN_POLICY)) {
-            return false;
+        // If switching account, being 'signed in' refers specifically to the target account.
+        if (mConfig.signinConfig.signinFlow == SigninFlow.SWITCH_ACCOUNT) {
+            AccountInfo targetAccount =
+                    identityManager.findExtendedAccountInfoByEmailAddress(
+                            assumeNonNull(mConfig.signinConfig.selectedAccountEmail));
+            return targetAccount != null && targetAccount.getId().equals(primaryAccount.getId());
         }
-        return mSigninManager.isForceSigninEnabled();
+        return true;
     }
 
     private void showChildView(@ChildView int child) {

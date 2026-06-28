@@ -77,7 +77,8 @@ class TestWebContents : public WebContentsImpl, public WebContentsTester {
   // Override to cache the tab switch start time without going through
   // VisibleTimeRequestTrigger.
   void SetTabSwitchStartTime(base::TimeTicks start_time,
-                             bool destination_is_loaded) final;
+                             bool destination_is_loaded,
+                             bool had_saved_frame_at_start) final;
 
   // WebContentsTester implementation.
   void CommitPendingNavigation() override;
@@ -209,6 +210,8 @@ class TestWebContents : public WebContentsImpl, public WebContentsTester {
   void SetMediaCaptureRawDeviceIdsOpened(blink::mojom::MediaStreamType type,
                                          std::vector<std::string> ids) override;
   void SetCurrentlyPlayingVideoCount(int count) override;
+  void SetHasPictureInPictureDocument(
+      bool has_picture_in_picture_document) override;
 
   void OnIgnoredUIEvent() override;
   bool GetIgnoredUIEventCalled() const;
@@ -243,8 +246,8 @@ class TestWebContents : public WebContentsImpl, public WebContentsTester {
           blink_popup_widget_host,
       mojo::PendingAssociatedReceiver<blink::mojom::WidgetHost>
           blink_widget_host,
-      mojo::PendingAssociatedRemote<blink::mojom::Widget> blink_widget)
-      override;
+      mojo::PendingAssociatedRemote<blink::mojom::Widget> blink_widget,
+      GlobalRenderFrameHostId creator_frame_id) override;
   WebContents* ShowCreatedWindow(
       RenderFrameHostImpl* opener,
       int route_id,

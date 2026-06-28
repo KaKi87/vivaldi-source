@@ -357,8 +357,8 @@ using segmentation_platform::TipIdentifier;
   _mostVisitedTilesMediator.actionFactory = [[BrowserActionFactory alloc]
       initWithBrowser:self.browser
              scenario:kMenuScenarioHistogramMostVisitedEntry];
-  _mostVisitedTilesMediator.snackbarHandler =
-      static_cast<id<SnackbarCommands>>(self.browser->GetCommandDispatcher());
+  _mostVisitedTilesMediator.snackbarHandler = HandlerForProtocol(
+      self.browser->GetCommandDispatcher(), SnackbarCommands);
   _mostVisitedTilesMediator.helpHandler =
       HandlerForProtocol(self.browser->GetCommandDispatcher(), HelpCommands);
   _mostVisitedTilesMediator.NTPActionsDelegate = self.NTPActionsDelegate;
@@ -387,22 +387,11 @@ using segmentation_platform::TipIdentifier;
                        browser:self.browser
       optimizationGuideService:OptimizationGuideServiceFactory::GetForProfile(
                                    profile)
-        impressionLimitService:
-            base::FeatureList::IsEnabled(commerce::kShopCardImpressionLimits)
-                ? ImpressionLimitServiceFactory::GetForProfile(profile)
-                : nil
                shoppingService:commerce::ShoppingServiceFactory::GetForProfile(
-                                   profile)
-                 bookmarkModel:ios::BookmarkModelFactory::GetForProfile(profile)
-       pushNotificationService:GetApplicationContext()
-                                   ->GetPushNotificationService()
-         authenticationService:self.authService];
+                                   profile)];
   _tabResumptionMediator.NTPActionsDelegate = self.NTPActionsDelegate;
   _tabResumptionMediator.contentSuggestionsMetricsRecorder =
       self.contentSuggestionsMetricsRecorder;
-  _tabResumptionMediator.dispatcher = static_cast<
-      id<SceneCommands, PriceTrackedItemsCommands, SnackbarCommands>>(
-      self.browser->GetCommandDispatcher());
 
   [moduleMediators addObject:_tabResumptionMediator];
   if (IsPriceTrackingPromoCardEnabled(shoppingService, self.authService,
@@ -485,18 +474,14 @@ using segmentation_platform::TipIdentifier;
                                profile->GetSharedURLLoaderFactory())];
     _tipsMediator.presentationAudience = self;
     [moduleMediators addObject:_tipsMediator];
-  }
 
-  if (segmentation_platform::features::IsAppBundlePromoEphemeralCardEnabled() &&
-      areTipsCardsEnabled) {
     _appBundlePromoMediator = [[AppBundlePromoMediator alloc]
         initWithAppStoreBundleService:AppStoreBundleServiceFactory::
                                           GetForProfile(self.profile)
                    profilePrefService:prefs];
     _appBundlePromoMediator.presentationAudience = self;
     [moduleMediators addObject:_appBundlePromoMediator];
-  }
-  if (areTipsCardsEnabled) {
+
     _defaultBrowserMediator =
         [[DefaultBrowserMediator alloc] initWithProfilePrefService:prefs];
     _defaultBrowserMediator.presentationAudience = self;
@@ -735,20 +720,12 @@ using segmentation_platform::TipIdentifier;
 // Removes the App Bundle promo from the Magic Stack and opens the App Store
 // page to install the Best of Google bundle.
 - (void)didSelectAppBundlePromo {
-  // Note: The promo modal only works when the `kAppBundlePromoEphemeralCard`
-  // feature is enabled. If this card is forced in the
-  // #ios-segmentation-ephemeral-card-ranker, tapping the card does NOT do
-  // anything. This is because the creation of the AppStorePromoService is gated
-  // behind the feature flag.
   CHECK(_appBundlePromoMediator);
 
   __weak __typeof(self) weakSelf = self;
-
-  ProceduralBlock completion = ^{
+  [_appBundlePromoMediator removeModuleWithCompletion:^{
     [weakSelf presentAppStoreBundlePage];
-  };
-
-  [_appBundlePromoMediator removeModuleWithCompletion:completion];
+  }];
 }
 
 // Presents the Best of Google bundle install page in the App Store.
@@ -919,9 +896,12 @@ using segmentation_platform::TipIdentifier;
     case ContentSuggestionsModuleType::kSafetyCheck:
       [self didSelectSafetyCheckItem:SafetyCheckItemType::kDefault];
       break;
-    case ContentSuggestionsModuleType::kCompactedSetUpList:
-      [self showSetUpListSeeMoreMenuExpanded:NO];
+    case ContentSuggestionsModuleType::kCompactedSetUpList: {
+      BOOL expanded = !IsCompactWidth(
+          _magicStackCollectionView.view.window.traitCollection);
+      [self showSetUpListSeeMoreMenuExpanded:expanded];
       break;
+    }
     case ContentSuggestionsModuleType::kTabResumption:
       [self showMagicStackRecentTabs];
       break;
@@ -1113,8 +1093,7 @@ using segmentation_platform::TipIdentifier;
 
   LogSafetyCheckNotificationOptIn(viaContextMenu);
 
-  id<SystemIdentity> identity =
-      self.authService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
+  id<SystemIdentity> identity = self.authService->GetPrimaryIdentity();
 
   const PushNotificationClientId clientId =
       [self pushNotificationClientId:type];

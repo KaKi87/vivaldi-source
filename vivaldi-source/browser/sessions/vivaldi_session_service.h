@@ -14,12 +14,16 @@
 #include "base/files/file.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
+#include "base/memory/scoped_refptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/strings/utf_string_conversions.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/sessions/session_restore_delegate.h"
 #include "chrome/browser/sessions/session_service.h"
 #include "chrome/browser/sessions/session_service_utils.h"
 #include "components/datasource/vivaldi_image_store.h"
+#include "components/os_crypt/async/common/encryptor.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "components/sessions/core/session_command.h"
 #include "components/sessions/core/session_constants.h"
@@ -37,8 +41,12 @@ struct SessionOptions {
   bool oneWindow_ = false;
   // Include tabs that are part of a workspace
   bool withWorkspace_ = true;
+  // All the tabs will go to workspace-0.
+  bool workspaceAsTabs_ = false;
   // Only open tabs (given by id) in this list. All if list is empty
   std::vector<int32_t> tabs_to_include_;
+  // Calculate IDs in TabExtData by hashing the salt with the original ID.
+  std::optional<std::string> ext_id_salt_;
 };
 
 // TODO: Rename this from Service to helper.
@@ -166,6 +174,14 @@ class VivaldiSessionService {
 
   // Session open options
   SessionOptions opts_;
+
+  void GetOSCryptOnOnUIThread();
+
+  // Encryptor for session command serialization.
+  void OnEncryptorReady(scoped_refptr<os_crypt_async::Encryptor> encryptor);
+  scoped_refptr<os_crypt_async::Encryptor> encryptor_;
+
+  base::WeakPtrFactory<VivaldiSessionService> weak_factory_{this};
 };
 
 }  // namespace vivaldi

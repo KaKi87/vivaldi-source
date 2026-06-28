@@ -45,6 +45,7 @@
 #include "ui/ozone/common/bitmap_cursor.h"
 #include "ui/ozone/common/features.h"
 #include "ui/ozone/platform/wayland/common/wayland_overlay_config.h"
+#include "ui/ozone/platform/wayland/host/begin_frame_source_wayland.h"
 #include "ui/ozone/platform/wayland/host/dump_util.h"
 #include "ui/ozone/platform/wayland/host/wayland_async_cursor.h"
 #include "ui/ozone/platform/wayland/host/wayland_bubble.h"
@@ -99,6 +100,12 @@ WaylandWindow::WaylandWindow(PlatformWindowDelegate* delegate,
       ui_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {
   // Set a class property key, which allows |this| to be used for drag action.
   SetWmDragHandler(this, this);
+
+  if (base::FeatureList::IsEnabled(
+          features::kWaylandExternalBeginFrameSource)) {
+    begin_frame_source_ =
+        std::make_unique<BeginFrameSourceWayland>(this, frame_manager_.get());
+  }
 }
 
 WaylandWindow::~WaylandWindow() {
@@ -198,11 +205,17 @@ void WaylandWindow::RemoveBubble(WaylandBubble* window) {
   if (active_bubble_ == window) {
     active_bubble_ = nullptr;
     if (IsActive()) {
+      auto weak_this = AsWeakPtr();
       delegate()->OnActivationChanged(true);
+      if (!weak_this) {
+        return;
+      }
     }
   }
-  child_bubbles_.erase(
-      std::find(child_bubbles_.begin(), child_bubbles_.end(), window));
+  auto it = std::find(child_bubbles_.begin(), child_bubbles_.end(), window);
+  if (it != child_bubbles_.end()) {
+    child_bubbles_.erase(it);
+  }
 }
 
 void WaylandWindow::ActivateBubble(WaylandBubble* window) {
@@ -212,15 +225,35 @@ void WaylandWindow::ActivateBubble(WaylandBubble* window) {
   if (active_bubble_ == window) {
     return;
   }
+
+  base::WeakPtr<WaylandWindow> weak_window =
+      window ? window->AsWeakPtr() : nullptr;
+
   if (active_bubble_) {
+    auto weak_this = AsWeakPtr();
     active_bubble_->delegate()->OnActivationChanged(false);
+    if (!weak_this) {
+      return;
+    }
   }
+
+  if (window && !weak_window) {
+    return;
+  }
+
   active_bubble_ = window;
 
   if (active_bubble_) {
+    auto weak_this = AsWeakPtr();
     delegate()->OnActivationChanged(false);
-    active_bubble_->delegate()->OnActivationChanged(true);
+    if (!weak_this) {
+      return;
+    }
+    if (active_bubble_) {
+      active_bubble_->delegate()->OnActivationChanged(true);
+    }
   } else {
+    auto weak_this = AsWeakPtr();
     delegate()->OnActivationChanged(IsActive());
   }
 }
@@ -1552,10 +1585,10 @@ void WaylandWindow::MaybeApplyLatestStateRequest(bool force) {
   // `in_flight_requests_`.
   CHECK(!applying_state_)
       << "MaybeApplyLatestStateRequest called re-entrantly.";
-  auto setter =
-      std::make_optional<base::AutoReset<bool>>(&applying_state_, true);
+  applying_state_ = true;
 
   if (in_flight_requests_.empty()) {
+    applying_state_ = false;
     return;
   }
 
@@ -1567,12 +1600,14 @@ void WaylandWindow::MaybeApplyLatestStateRequest(bool force) {
     // Allow at most 3 configure requests to be waited on at a time.
     constexpr int MAX_IN_FLIGHT_REQUESTS = 3;
     if (in_flight_applied >= MAX_IN_FLIGHT_REQUESTS) {
+      applying_state_ = false;
       return;
     }
   }
 
   auto& latest = in_flight_requests_.back();
   if (latest.applied) {
+    applying_state_ = false;
     return;
   }
   latest.applied = true;
@@ -1586,7 +1621,12 @@ void WaylandWindow::MaybeApplyLatestStateRequest(bool force) {
   // frame to be considered synchronized. For example, this can happen if the
   // old and new states are the same, or it only changes the origin of the
   // bounds.
-  latest.viz_seq = delegate()->OnStateUpdate(old, latest.state);
+  auto weak_this = AsWeakPtr();
+  int64_t viz_seq = delegate()->OnStateUpdate(old, latest.state);
+  if (!weak_this) {
+    return;
+  }
+  latest.viz_seq = viz_seq;
 
   if (UseTestConfigForPlatformWindows()) {
     latest_applied_viz_seq_for_testing_ = std::max(
@@ -1599,7 +1639,7 @@ void WaylandWindow::MaybeApplyLatestStateRequest(bool force) {
   // `ProcessSequencePoint` may re-entrantly call
   // `MaybeApplyLatestStateRequest`. This is safe as long as we do not hold
   // references to `in_flight_requests_` after here.
-  setter.reset();
+  applying_state_ = false;
 
   // Process any requests added re-entrantly. We need to move the requests out
   // of `reentrant_requests_` here because each re-entrant request may also add

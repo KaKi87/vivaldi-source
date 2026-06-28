@@ -35,16 +35,14 @@
 #include "chrome/browser/signin/account_consistency_mode_manager.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/startup/infobar_utils.h"
 #include "chrome/browser/ui/startup/startup_browser_creator.h"
 #include "chrome/browser/ui/startup/startup_infobar_observer.h"
@@ -67,6 +65,7 @@
 #include "content/public/browser/dom_storage_context.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/common/content_switches.h"
+#include "url/origin.h"
 
 #if BUILDFLAG(IS_LINUX)
 #include "ui/display/screen.h"
@@ -102,6 +101,7 @@
 #include "app/vivaldi_version_info.h"
 #include "browser/related_tab_strip_helper.h"
 #include "browser/startup_vivaldi_browser.h"
+#include "browser/tab_positioning.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
 #include "chrome/browser/tab_contents/tab_util.h"
@@ -152,7 +152,10 @@ void PrependTabs(const StartupTabs& from, StartupTabs* to) {
 Browser* GetExistingBrowserForOpenBehavior(
     Profile* profile,
     chrome::startup::IsProcessStartup process_startup) {
-  Browser* workspace_browser = chrome::FindLastActiveWithProfile(profile);
+  BrowserWindowInterface* current_browser =
+      ProfileBrowserCollection::GetForProfile(profile)->GetLastActiveBrowser();
+  Browser* workspace_browser =
+      current_browser ? current_browser->GetBrowserForMigrationOnly() : nullptr;
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS)
   // On Windows and ChromeOS we specifically want to select the last active
@@ -342,7 +345,7 @@ Browser* StartupBrowserCreatorImpl::OpenTabsInBrowser(
 #endif
     if (command_line_->HasSwitch(switches::kWindowName)) {
       params.user_title =
-          command_line_->GetSwitchValueASCII(switches::kWindowName);
+          command_line_->GetSwitchValueUTF8(switches::kWindowName);
     }
 
     browser = Browser::Create(params);
@@ -460,13 +463,18 @@ Browser* StartupBrowserCreatorImpl::OpenTabsInBrowser(
       // NOTE(ondrej@vivaldi.com): VB-126105 Set correct workspace for the link
       // opened in the external app.
       ::vivaldi::TabExtDataImpl::Create(web_contents);
-      std::optional<int> index = vivaldi::related_tabs::DetermineInsertionIndex(
-          browser->tab_strip_model(), web_contents, add_types,
-          ui::PageTransition(0),
-          ::vivaldi::related_tabs::TabSource::kExternalApp);
+      std::optional<::vivaldi::tab_positioning::TabPosition> tab_position =
+          vivaldi::tab_positioning::DetermineInsertionIndex(
+              browser->tab_strip_model(), web_contents, add_types,
+              ui::PageTransition(0),
+              ::vivaldi::tab_positioning::TabSource::kExternalApp);
 
+      int index = browser->tab_strip_model()->count();
+      if (tab_position) {
+        index = tab_position->index;
+      }
       browser->tab_strip_model()->InsertWebContentsAt(
-          index.value_or(browser->tab_strip_model()->count()),
+          index,
           base::WrapUnique(web_contents),
           add_types);
 
@@ -474,11 +482,18 @@ Browser* StartupBrowserCreatorImpl::OpenTabsInBrowser(
         ::vivaldi::kVivaldiStartupTabUserDataKey,
         base::WrapUnique(
           new vivaldi::VivaldiStartupTabUserData(first_tab)));
-    } else {
+    } else { // Vivaldi
 
-    add_types |= AddTabTypes::ADD_FORCE_INDEX;
+    add_types |= AddTabTypes::ADD_FORCE_INDEX; // Moved Vivaldi
 
     NavigateParams params(browser, tab.url, ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
+    if (tab.is_untrusted_launch) {
+      // Force an opaque initiator origin for custom scheme launches triggered
+      // externally (e.g., from another browser). This prevents downstream
+      // components from treating the navigation as a highly privileged,
+      // user-typed omnibox navigation.
+      params.initiator_origin = url::Origin();
+    }
     params.disposition = first_tab ? WindowOpenDisposition::NEW_FOREGROUND_TAB
                                    : WindowOpenDisposition::NEW_BACKGROUND_TAB;
     params.tabstrip_add_types = add_types;
@@ -510,7 +525,7 @@ Browser* StartupBrowserCreatorImpl::OpenTabsInBrowser(
       browser->tab_strip_model()->ActivateTabAt(0);
     }
   }
-  }
+  } // End Vivaldi
 
   browser->window()->Show();
 
@@ -589,7 +604,7 @@ void StartupBrowserCreatorImpl::DetermineURLsAndLaunch(
     is_post_crash_launch ? extension_registrar->BlockAllExtensions()
                          : extension_registrar->UnblockAllExtensions();
     vivaldi::version::UpdateCrashDetectionVersion(profile_->GetPrefs());
-  }
+  } // End Vivaldi
 
   auto result = DetermineStartupTabs(
       StartupTabProviderImpl(), process_startup, is_incognito_or_guest,
@@ -687,7 +702,7 @@ StartupBrowserCreatorImpl::DetermineStartupTabs(
     if (is_post_crash_launch)
       return {{StartupTab(GURL(vivaldi::kVivaldiCrashStartPageURL))},
               launch_result};
-  } else {
+  } else { // Vivaldi
   if (whats_new_enabled && (launch_result == LaunchResult::kWithGivenUrls ||
                             is_incognito_or_guest || is_post_crash_launch)) {
     whats_new::LogStartupType(whats_new::StartupType::kIneligible);
@@ -701,7 +716,7 @@ StartupBrowserCreatorImpl::DetermineStartupTabs(
       return {std::move(tabs), launch_result};
     }
 
-    return {StartupTabs({StartupTab(GURL(chrome::kChromeUINewTabURL))}),
+    return {StartupTabs({StartupTab(chrome::ChromeUINewTabURLAsGURL())}),
             launch_result};
   }
   }  // Vivaldi
@@ -713,6 +728,8 @@ StartupBrowserCreatorImpl::DetermineStartupTabs(
 
   // URLs passed on the command line supersede all others, except pinned tabs.
   PrependTabs(reset_tabs, &tabs);
+
+  StartupTabs pinned_tabs = provider.GetPinnedTabs(*command_line_, profile_);
 
   if (launch_result == LaunchResult::kNormally) {
     // For Vivaldi we always want to display an introduction to the private mode
@@ -729,7 +746,7 @@ StartupBrowserCreatorImpl::DetermineStartupTabs(
                   launch_result};
         }
       }
-    }
+    } // End Vivaldi
 
     // An initial preferences file provided with this distribution may specify
     // tabs to be displayed on first run, overriding all non-command-line tabs,
@@ -768,20 +785,31 @@ StartupBrowserCreatorImpl::DetermineStartupTabs(
     // read and add those.
     StartupTabs prefs_tabs =
         provider.GetPreferencesTabs(*command_line_, profile_);
+
+    bool prefs_tabs_originally_empty = prefs_tabs.empty();
+
+    // Filter out tabs from preferences that are already pinned.
+    std::erase_if(prefs_tabs, [&pinned_tabs](const StartupTab& pref_tab) {
+      return std::ranges::any_of(pinned_tabs,
+                                 [&pref_tab](const StartupTab& pinned_tab) {
+                                   return pref_tab.url == pinned_tab.url;
+                                 });
+    });
+
     AppendTabs(prefs_tabs, &tabs);
 
     // Potentially add the New Tab Page.
     // Note that URLs from preferences are explicitly meant to override showing
     // the NTP.
-    if (prefs_tabs.empty()) {
+    if (prefs_tabs_originally_empty) {
       AppendTabs(provider.GetNewTabPageTabs(*command_line_, profile_), &tabs);
     }
   }
 
-  if (!is_incognito_or_guest) {
+  if (!is_incognito_or_guest) { // Vivaldi
   // Maybe add any tabs which the user has previously pinned.
-  AppendTabs(provider.GetPinnedTabs(*command_line_, profile_), &tabs);
-  }
+  AppendTabs(pinned_tabs, &tabs);
+  } // End Vivaldi
 
   // Add the Vivaldi Welcome page on first-run.
   if (vivaldi::IsVivaldiRunning() &&
@@ -793,6 +821,7 @@ StartupBrowserCreatorImpl::DetermineStartupTabs(
         {StartupTab(GURL(l10n_util::GetStringUTF8(IDS_WELCOME_PAGE_URL)))});
     return {std::move(vivaldi_welcome_tab), launch_result};
   }
+  // End Vivaldi
 
   return {std::move(tabs), launch_result};
 }
@@ -868,7 +897,7 @@ Browser* StartupBrowserCreatorImpl::RestoreOrCreateBrowser(
   browser = OpenTabsInBrowser(
       browser, process_startup,
       (tabs.empty()
-           ? StartupTabs({StartupTab(GURL(chrome::kChromeUINewTabURL))})
+           ? StartupTabs({StartupTab(chrome::ChromeUINewTabURLAsGURL())})
            : tabs),
       (behavior == BrowserOpenBehavior::USE_EXISTING_AND_OVERWRITE_ACTIVE_TAB
            ? (TabOverWrite::kYes)

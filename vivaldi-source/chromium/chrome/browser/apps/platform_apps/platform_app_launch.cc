@@ -21,8 +21,8 @@
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/web_applications/extension_status_utils.h"
 #include "chrome/common/webui_url_constants.h"
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
@@ -176,7 +176,7 @@ bool OpenExtensionApplicationWithReenablePrompt(
   }
 #endif
 
-  RecordCmdLineAppHistogram(extensions::Manifest::TYPE_PLATFORM_APP);
+  RecordCmdLineAppHistogram(extensions::Manifest::Type::kPlatformApp);
   apps::AppLaunchParams params(
       app_id, apps::LaunchContainer::kLaunchContainerNone,
       WindowOpenDisposition::NEW_WINDOW, apps::LaunchSource::kFromCommandLine);
@@ -201,7 +201,7 @@ content::WebContents* OpenExtensionAppShortcutWindow(Profile* profile,
   } else {
     extensions::RecordAppLaunchType(
         extension_misc::APP_LAUNCH_CMD_LINE_APP_LEGACY,
-        extensions::Manifest::TYPE_HOSTED_APP);
+        extensions::Manifest::Type::kHostedApp);
   }
 
   return ::OpenAppShortcutWindow(profile, url);

@@ -5,6 +5,7 @@
 #include "components/omnibox/browser/autocomplete_match_type.h"
 
 #include <array>
+#include <optional>
 
 #include "base/check.h"
 #include "base/notreached.h"
@@ -64,6 +65,7 @@ std::string AutocompleteMatchType::ToString(AutocompleteMatchType::Type type) {
     "featured-enterprise-search",
     "history-embeddings-answer",
     "tab-group",
+    "cross-device-tab",
 
     // Vivaldi
     "bookmark-nickname",
@@ -142,16 +144,14 @@ std::u16string GetAccessibilityBaseLabel(const AutocompleteMatch& match,
 
       // NAVSUGGEST_PERSONALIZED is like SEARCH_SUGGEST_PERSONALIZED, but it's a
       // URL instead of a search query.
-      IDS_ACC_AUTOCOMPLETE_HISTORY,        // NAVSUGGEST_PERSONALIZED
-      0,                                   // CALCULATOR
-      IDS_ACC_AUTOCOMPLETE_CLIPBOARD_URL,  // CLIPBOARD_URL
-      0,                                   // VOICE_SUGGEST
-      0,                                   // PHYSICAL_WEB_DEPRECATED
-      0,                                   // PHYSICAL_WEB_OVERFLOW_DEPRECATED
-      IDS_ACC_AUTOCOMPLETE_HISTORY,        // TAB_SEARCH_DEPRECATED
-      0,                                   // DOCUMENT_SUGGESTION
-
-      // TODO(orinj): Determine appropriate accessibility labels for Pedals
+      IDS_ACC_AUTOCOMPLETE_HISTORY,          // NAVSUGGEST_PERSONALIZED
+      0,                                     // CALCULATOR
+      IDS_ACC_AUTOCOMPLETE_CLIPBOARD_URL,    // CLIPBOARD_URL
+      0,                                     // VOICE_SUGGEST
+      0,                                     // PHYSICAL_WEB_DEPRECATED
+      0,                                     // PHYSICAL_WEB_OVERFLOW_DEPRECATED
+      IDS_ACC_AUTOCOMPLETE_HISTORY,          // TAB_SEARCH_DEPRECATED
+      0,                                     // DOCUMENT_SUGGESTION
       0,                                     // PEDAL
       IDS_ACC_AUTOCOMPLETE_CLIPBOARD_TEXT,   // CLIPBOARD_TEXT
       IDS_ACC_AUTOCOMPLETE_CLIPBOARD_IMAGE,  // CLIPBOARD_IMAGE
@@ -167,6 +167,7 @@ std::u16string GetAccessibilityBaseLabel(const AutocompleteMatch& match,
       0,                                     // FEATURED_ENTERPRISE_SEARCH
       0,                                     // HISTORY_EMBEDDINGS_ANSWER
       0,                                     // TAB_GROUP
+      0,                                     // CROSS_DEVICE_TAB
 
       // Vivaldi
       0,                                     // bookmark-nickname
@@ -197,8 +198,8 @@ std::u16string GetAccessibilityBaseLabel(const AutocompleteMatch& match,
     return match_text;
   }
 
-  std::u16string description;
-  bool has_description = false;
+  std::optional<std::u16string> description;
+  bool show_match_text = true;
   switch (message) {
     case IDS_ACC_AUTOCOMPLETE_SEARCH_HISTORY:
     case IDS_ACC_AUTOCOMPLETE_SEARCH:
@@ -211,7 +212,6 @@ std::u16string GetAccessibilityBaseLabel(const AutocompleteMatch& match,
             match.answer_template->answers(0).subhead();
         description = base::UTF8ToUTF16(
             subhead.has_a11y_text() ? subhead.a11y_text() : subhead.text());
-        has_description = true;
         message = IDS_ACC_AUTOCOMPLETE_QUICK_ANSWER;
       }
       break;
@@ -222,7 +222,6 @@ std::u16string GetAccessibilityBaseLabel(const AutocompleteMatch& match,
       } else {
         // Full entity search suggestion with description.
         description = match.description;
-        has_description = true;
       }
       break;
     case IDS_ACC_AUTOCOMPLETE_HISTORY:
@@ -230,14 +229,13 @@ std::u16string GetAccessibilityBaseLabel(const AutocompleteMatch& match,
       // History match.
       // May have descriptive text for the title of the page.
       description = match.description;
-      has_description = true;
       break;
     case IDS_ACC_AUTOCOMPLETE_CLIPBOARD_URL:
     case IDS_ACC_AUTOCOMPLETE_CLIPBOARD_TEXT:
       // Clipboard match.
       // Description contains clipboard content
       description = match.description;
-      has_description = true;
+      show_match_text = false;
       break;
     case IDS_ACC_AUTOCOMPLETE_CLIPBOARD_IMAGE:
       // Clipboard match with no textual clipboard content.
@@ -249,16 +247,21 @@ std::u16string GetAccessibilityBaseLabel(const AutocompleteMatch& match,
   // Get the length of friendly text inserted before the actual suggested match.
   if (label_prefix_length) {
     *label_prefix_length =
-        has_description
+        description.has_value() && show_match_text
             ? AccessibilityLabelPrefixLength(l10n_util::GetStringFUTF16(
-                  message, kAccessibilityLabelPrefixEndSentinel, description))
+                  message, kAccessibilityLabelPrefixEndSentinel, *description))
             : AccessibilityLabelPrefixLength(l10n_util::GetStringFUTF16(
                   message, kAccessibilityLabelPrefixEndSentinel));
   }
 
-  return has_description
-             ? l10n_util::GetStringFUTF16(message, match_text, description)
-             : l10n_util::GetStringFUTF16(message, match_text);
+  if (description.has_value() && show_match_text) {
+    return l10n_util::GetStringFUTF16(message, match_text, *description);
+  }
+  if (show_match_text) {
+    return l10n_util::GetStringFUTF16(message, match_text);
+  }
+  CHECK(description.has_value());
+  return l10n_util::GetStringFUTF16(message, *description);
 }
 
 // static

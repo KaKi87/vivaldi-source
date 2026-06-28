@@ -1,16 +1,13 @@
-
 update_target("//chrome/renderer:renderer") {
   deps += [
-    "//vivaldi/ui:skia_utils",
-    "//vivaldi/renderer/mojo:frame_service",
     "//third_party/highway:libhwy",
+    "//vivaldi/renderer/mojo:frame_service",
+    "//vivaldi/ui:skia_utils",
   ]
 }
 
 if (!is_android) {
   update_target("//extensions/browser:browser_sources") {
-    deps += [
-      "//vivaldi/renderer/mojo:frame_service",
-    ]
+    deps += [ "//vivaldi/renderer/mojo:frame_service" ]
   }
 }

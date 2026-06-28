@@ -49,10 +49,15 @@ vars = {
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling webpagereplay
   # and whatever else without interference from each other.
-  'webpagereplay_revision': 'be48b5e3387780790ecc7723434b6ea6733bcc33',
+  'webpagereplay_revision': 'b2b856131e36c99e9de9c419fe8ca02f857082ba',
 }
 
 deps = {
   'third_party/webpagereplay':
     Var('chromium_git') + '/webpagereplay.git' + '@' + Var('webpagereplay_revision'),
 }
+
+recursedeps = [
+  # WebPageReplay pulls the go compiler via DEPS.
+  "third_party/webpagereplay",
+]

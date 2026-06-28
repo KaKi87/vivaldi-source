@@ -95,6 +95,9 @@ public class FullscreenHtmlApiHandlerCompat extends FullscreenHtmlApiHandlerBase
         } else if (BuildConfig.IS_OEM_GAS_BUILD) {
             // System bars always on for the GAS build.
             return;
+        } else if (DeviceInfo.isAutomotive()) {
+            // Vivaldi AUTO-344: System bars cannot be hidden on AAOS.
+            return;
         }
 
         WindowInsetsControllerCompat windowInsetsController = getWindowInsetsController();
@@ -121,6 +124,9 @@ public class FullscreenHtmlApiHandlerCompat extends FullscreenHtmlApiHandlerBase
         } else if (BuildConfig.IS_OEM_GAS_BUILD) {
             // System bars always on for the GAS build.
             return;
+        } else if (DeviceInfo.isAutomotive()) {
+            // Vivaldi AUTO-344: System bars cannot be hidden on AAOS.
+            return;
         }
 
         WindowInsetsControllerCompat windowInsetsController = getWindowInsetsController();
@@ -134,6 +140,9 @@ public class FullscreenHtmlApiHandlerCompat extends FullscreenHtmlApiHandlerBase
 
     @Override
     void adjustSystemBarsInFullscreenMode(View contentView, FullscreenOptions fullscreenOptions) {
+        // Vivaldi AUTO-344: System bars cannot be hidden on AAOS.
+        if (DeviceInfo.isAutomotive()) return;
+
         boolean showNavigationBar =
                 fullscreenOptions != null && fullscreenOptions.showNavigationBar;
         boolean showStatusBar = fullscreenOptions != null && fullscreenOptions.showStatusBar;
@@ -183,6 +192,8 @@ public class FullscreenHtmlApiHandlerCompat extends FullscreenHtmlApiHandlerBase
 
     @Override
     void hideNavigationBar(View contentView) {
+        // Vivaldi AUTO-344: System bars cannot be hidden on AAOS.
+        if (DeviceInfo.isAutomotive()) return;
         getWindowInsetsController().hide(WindowInsetsCompat.Type.navigationBars());
     }
 
@@ -201,6 +212,8 @@ public class FullscreenHtmlApiHandlerCompat extends FullscreenHtmlApiHandlerBase
     // TODO(crbug.com/41492646): Coordinate usage of #setDecorFitsSystemWindows
     @Override
     void unsetLayoutFullscreen(View contentView) {
+        // Vivaldi AUTO-344: Skip to avoid reverting ImmersiveModeController state.
+        if (DeviceInfo.isAutomotive()) return;
         // TODO(crbug.com/41492929): Account for floating windows.
         WindowCompat.setDecorFitsSystemWindows(mActivity.getWindow(), true);
     }

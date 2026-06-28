@@ -8,16 +8,20 @@
 #include <utility>
 
 #include "base/functional/bind.h"
+#include "base/functional/function_ref.h"
 #include "base/logging.h"
 #include "chrome/app/vector_icons/vector_icons.h"
+#include "chrome/browser/indigo/resources/grit/indigo_strings.h"
 #include "chrome/browser/ui/views/controls/hover_button.h"
-#include "chrome/grit/generated_resources.h"
+#include "chrome/browser/ui/views/frame/contents_container_view.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
+#include "ui/compositor/layer.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/background.h"
@@ -29,13 +33,21 @@
 #include "ui/views/controls/separator.h"
 #include "ui/views/layout/flex_layout.h"
 #include "ui/views/layout/flex_layout_view.h"
+#include "ui/views/layout/layout_manager_base.h"
 #include "ui/views/metadata/view_factory.h"
 #include "ui/views/vector_icons.h"
 #include "ui/views/view.h"
 #include "ui/views/view_class_properties.h"
+#include "ui/views/view_targeter.h"
+#include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
 
+DEFINE_UI_CLASS_PROPERTY_TYPE(gfx::Point*)
+
 namespace indigo {
+
+DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(gfx::Rect, kIndigoTrackedElementRectKey)
+DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(gfx::Vector2d, kIndigoToolbarCornerOffsetKey)
 
 namespace {
 
@@ -43,14 +55,87 @@ namespace {
 constexpr int kToolbarPadding = 4;
 constexpr int kToolbarInitialOffset = 20;
 constexpr int kSeparatorHorizontalPadding = 8;
-constexpr int kFeatureIconSize = 12;
 constexpr int kControlIconSize = 16;
-constexpr int kActionIconSize = 20;
+constexpr int kActionIconSize = 16;
+constexpr int kLabelLeftMargin = 12;
+
+class IndigoOverlayTargeterDelegate : public views::ViewTargeterDelegate {
+ public:
+  IndigoOverlayTargeterDelegate() = default;
+  IndigoOverlayTargeterDelegate(const IndigoOverlayTargeterDelegate&) = delete;
+  IndigoOverlayTargeterDelegate& operator=(
+      const IndigoOverlayTargeterDelegate&) = delete;
+  ~IndigoOverlayTargeterDelegate() override = default;
+
+  bool DoesIntersectRect(const views::View* target,
+                         const gfx::Rect& rect) const override {
+    for (const views::View* child : target->children()) {
+      gfx::RectF child_rect(rect);
+      views::View::ConvertRectToTarget(target, child, &child_rect);
+      if (child->HitTestRect(gfx::ToEnclosingRect(child_rect))) {
+        return true;
+      }
+    }
+    return false;
+  }
+};
+
+class IndigoOverlayLayoutManager : public views::LayoutManagerBase {
+ public:
+  IndigoOverlayLayoutManager() = default;
+  IndigoOverlayLayoutManager(const IndigoOverlayLayoutManager&) = delete;
+  IndigoOverlayLayoutManager& operator=(const IndigoOverlayLayoutManager&) =
+      delete;
+  ~IndigoOverlayLayoutManager() override = default;
+
+ protected:
+  views::ProposedLayout CalculateProposedLayout(
+      const views::SizeBounds& size_bounds) const override {
+    views::ProposedLayout layout;
+    gfx::Rect bounds;
+
+    for (views::View* child : host_view()->children()) {
+      if (!IsChildIncludedInLayout(child)) {
+        continue;
+      }
+      gfx::Size preferred_size = child->GetPreferredSize(views::SizeBounds());
+      gfx::Point origin = GetChildOrigin(child);
+      gfx::Rect child_bounds(origin, preferred_size);
+      layout.child_layouts.push_back(
+          {child, child->GetVisible(), child_bounds, size_bounds});
+      bounds.Union(child_bounds);
+    }
+    layout.host_size = bounds.size();
+    return layout;
+  }
+
+ private:
+  gfx::Point GetChildOrigin(const views::View* child) const {
+    const gfx::Rect* tracked_rect =
+        child->GetProperty(kIndigoTrackedElementRectKey);
+    const gfx::Vector2d* corner_offset =
+        child->GetProperty(kIndigoToolbarCornerOffsetKey);
+    gfx::Size preferred_size = child->GetPreferredSize();
+    gfx::Insets insets = child->GetInsets();
+
+    if (tracked_rect && !tracked_rect->IsEmpty() && corner_offset) {
+      gfx::Point top_right = tracked_rect->top_right();
+      gfx::Point toolbar_top_right = top_right + *corner_offset;
+      return gfx::Point(
+          toolbar_top_right.x() - preferred_size.width() + insets.right(),
+          toolbar_top_right.y() - insets.top());
+    }
+    return gfx::Point(kToolbarInitialOffset, kToolbarInitialOffset);
+  }
+};
 
 }  // namespace
 
+DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(IndigoToolbar, kToolbarElementId);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(IndigoToolbar, kCloseButtonElementId);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(IndigoToolbar, kExpandButtonElementId);
+DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(IndigoToolbar,
+                                      kExpandedContainerElementId);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(IndigoToolbar,
                                       kRegenerateButtonElementId);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(IndigoToolbar,
@@ -58,15 +143,18 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(IndigoToolbar,
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(IndigoToolbar,
                                       kDeletePhotoButtonElementId);
 
+std::unique_ptr<views::View> CreateIndigoOverlayView() {
+  auto view = std::make_unique<views::View>();
+  view->SetEventTargeter(std::make_unique<views::ViewTargeter>(
+      std::make_unique<IndigoOverlayTargeterDelegate>()));
+  view->SetLayoutManager(std::make_unique<IndigoOverlayLayoutManager>());
+  return view;
+}
+
 IndigoToolbar::IndigoToolbar(Delegate* delegate) : delegate_(delegate) {}
 
 IndigoToolbar::~IndigoToolbar() {
-  if (widget_) {
-    // Since we own the widget, we should close it if we're being destroyed.
-    // This will trigger OnWidgetClosed, where the widget is destroyed, and
-    // also notify the delegate (which will need to be prepared for this).
-    widget_->Close();
-  }
+  Hide();
 }
 
 std::unique_ptr<views::View> IndigoToolbar::CreateToolbarView() {
@@ -79,6 +167,12 @@ std::unique_ptr<views::View> IndigoToolbar::CreateToolbarView() {
 
   auto view =
       views::Builder<views::FlexLayoutView>()
+          .SetProperty(views::kElementIdentifierKey, kToolbarElementId)
+          .SetPaintToLayer()
+          .CustomConfigure(base::BindOnce([](views::View* view) {
+            view->layer()->SetFillsBoundsOpaquely(false);
+            view->layer()->SetName("IndigoToolbar");
+          }))
           .SetBackground(
               std::make_unique<views::BubbleBackground>(bubble_border.get()))
           .SetBorder(std::move(bubble_border))
@@ -98,11 +192,10 @@ std::unique_ptr<views::View> IndigoToolbar::CreateToolbarView() {
                   .SetDefault(views::kMarginsKey, gfx::Insets(kToolbarPadding))
                   .SetCollapseMargins(true)
                   .AddChildren(
-                      views::Builder<views::ImageView>().SetImage(
-                          ui::ImageModel::FromVectorIcon(
-                              vector_icons::kChatSparkIcon,
-                              ui::kColorSysOnSurfaceVariant, kFeatureIconSize)),
                       views::Builder<views::Label>()
+                          .SetProperty(
+                              views::kMarginsKey,
+                              gfx::Insets::TLBR(0, kLabelLeftMargin, 0, 0))
                           .SetText(l10n_util::GetStringUTF16(
                               IDS_INDIGO_TOOLBAR_CAPTION))
                           .SetTextContext(views::style::CONTEXT_LABEL)
@@ -119,18 +212,22 @@ std::unique_ptr<views::View> IndigoToolbar::CreateToolbarView() {
                               base::BindRepeating(
                                   &IndigoToolbar::OnExpandButtonClicked,
                                   base::Unretained(this))))
-                          .CopyAddressTo(&expand_button_)
                           .SetProperty(views::kElementIdentifierKey,
                                        kExpandButtonElementId)
-                          .SetImageModel(views::Button::STATE_NORMAL,
-                                         ui::ImageModel::FromVectorIcon(
-                                             vector_icons::kCaretDownIcon,
-                                             ui::kColorSysOnSurfaceSubtle,
-                                             kControlIconSize))
+                          .SetImageModel(
+                              views::Button::STATE_NORMAL,
+                              ui::ImageModel::FromVectorIcon(
+                                  features::IsRoundedIconsEnabled()
+                                      ? vector_icons::kKeyboardArrowDownIcon
+                                      : vector_icons::kCaretDownOldIcon,
+                                  ui::kColorSysOnSurfaceSubtle,
+                                  kControlIconSize))
                           .SetToggledImageModel(
                               views::Button::STATE_NORMAL,
                               ui::ImageModel::FromVectorIcon(
-                                  vector_icons::kCaretUpIcon,
+                                  features::IsRoundedIconsEnabled()
+                                      ? vector_icons::kKeyboardArrowUpIcon
+                                      : vector_icons::kCaretUpOldIcon,
                                   ui::kColorSysOnSurfaceSubtle,
                                   kControlIconSize))
                           .SetTooltipText(l10n_util::GetStringUTF16(
@@ -160,7 +257,9 @@ std::unique_ptr<views::View> IndigoToolbar::CreateToolbarView() {
                                        kCloseButtonElementId)
                           .SetImageModel(views::Button::STATE_NORMAL,
                                          ui::ImageModel::FromVectorIcon(
-                                             vector_icons::kCloseIcon,
+                                             features::IsRoundedIconsEnabled()
+                                                 ? vector_icons::kCloseIcon
+                                                 : vector_icons::kCloseOldIcon,
                                              ui::kColorSysOnSurfaceSubtle,
                                              kControlIconSize))
                           .SetTooltipText(l10n_util::GetStringUTF16(IDS_CLOSE))
@@ -173,7 +272,8 @@ std::unique_ptr<views::View> IndigoToolbar::CreateToolbarView() {
                               }))),
               // Expanded Row: Toggled visibility
               views::Builder<views::FlexLayoutView>()
-                  .CopyAddressTo(&expanded_container_)
+                  .SetProperty(views::kElementIdentifierKey,
+                               kExpandedContainerElementId)
                   .SetVisible(false)
                   .SetOrientation(views::LayoutOrientation::kVertical)
                   .SetCrossAxisAlignment(views::LayoutAlignment::kStretch)
@@ -188,7 +288,7 @@ std::unique_ptr<views::View> IndigoToolbar::CreateToolbarView() {
                           CreateExpandedButton(
                               l10n_util::GetStringUTF16(
                                   IDS_INDIGO_TOOLBAR_REGENERATE),
-                              vector_icons::kReloadIcon,
+                              vector_icons::kReloadCustomIcon,
                               base::BindRepeating(
                                   &IndigoToolbar::OnRegenerateButtonClicked,
                                   base::Unretained(this))))
@@ -204,7 +304,9 @@ std::unique_ptr<views::View> IndigoToolbar::CreateToolbarView() {
                           CreateExpandedButton(
                               l10n_util::GetStringUTF16(
                                   IDS_INDIGO_TOOLBAR_REPLACE_ORIGINAL_PHOTO),
-                              vector_icons::kPhotoIcon,
+                              features::IsRoundedIconsEnabled()
+                                  ? vector_icons::kPhotoFilledIcon
+                                  : vector_icons::kPhotoOldIcon,
                               base::BindRepeating(
                                   &IndigoToolbar::OnReplacePhotoClicked,
                                   base::Unretained(this))))
@@ -214,7 +316,9 @@ std::unique_ptr<views::View> IndigoToolbar::CreateToolbarView() {
                           CreateExpandedButton(
                               l10n_util::GetStringUTF16(
                                   IDS_INDIGO_TOOLBAR_DELETE_ORIGINAL_PHOTO),
-                              kDeleteIcon,
+                              features::IsRoundedIconsEnabled()
+                                  ? kDeleteIcon
+                                  : kDeleteOldIcon,
                               base::BindRepeating(
                                   &IndigoToolbar::OnDeletePhotoClicked,
                                   base::Unretained(this))))
@@ -241,53 +345,92 @@ std::unique_ptr<views::Button> IndigoToolbar::CreateExpandedButton(
       .Build();
 }
 
-void IndigoToolbar::Show(gfx::NativeView parent_view) {
-  if (!widget_) {
-    widget_ = std::make_unique<views::Widget>();
-    views::Widget::InitParams params(
-        views::Widget::InitParams::CLIENT_OWNS_WIDGET,
-        views::Widget::InitParams::TYPE_CONTROL);
-    params.name = "IndigoToolbar";
-    params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
-    params.shadow_type = views::Widget::InitParams::ShadowType::kNone;
-    params.parent = parent_view;
-    params.activatable = views::Widget::InitParams::Activatable::kNo;
-    params.accept_events = true;
-
-    widget_->Init(std::move(params));
-    widget_->MakeCloseSynchronous(
-        base::BindOnce(&IndigoToolbar::OnWidgetClosed, base::Unretained(this)));
-    widget_->SetContentsView(CreateToolbarView());
+void IndigoToolbar::Show(views::View* parent_view) {
+  views::View* view = view_tracker_.view();
+  if (!view) {
+    owned_view_ = CreateToolbarView();
+    view = owned_view_.get();
+    view_tracker_.SetView(view);
   }
 
-  gfx::Size preferred_size = widget_->GetContentsView()->GetPreferredSize();
-  gfx::Rect widget_bounds(
-      gfx::Point(kToolbarInitialOffset, kToolbarInitialOffset), preferred_size);
-  // Shift the widget origin so the content area (inside the shadow) starts at
-  // (kToolbarInitialOffset, kToolbarInitialOffset).
-  gfx::Insets insets = widget_->GetContentsView()->GetInsets();
-  widget_bounds.Offset(-insets.left(), -insets.top());
-  widget_->SetBounds(widget_bounds);
-  widget_->Show();
+  // Default properties: initially unanchored with default corner offset.
+  view->SetProperty(kIndigoTrackedElementRectKey, gfx::Rect());
+  view->SetProperty(
+      kIndigoToolbarCornerOffsetKey,
+      gfx::Vector2d(-kToolbarInitialOffset, kToolbarInitialOffset));
+
+  view->SetVisible(false);
+
+  if (!parent_view) {
+    // View is created and properties are stored in owned_view_, but cannot be
+    // shown yet.
+    return;
+  }
+
+  if (owned_view_) {
+    DCHECK(parent_view->children().empty());
+    parent_view->AddChildView(std::move(owned_view_));
+    parent_view->InvalidateLayout();
+  } else {
+    view->InvalidateLayout();
+  }
 }
 
 void IndigoToolbar::Hide() {
-  if (widget_) {
-    widget_->Close();
+  views::View* view = view_tracker_.view();
+  view_tracker_.SetView(nullptr);
+  if (view && view->parent()) {
+    views::View* parent = view->parent();
+    parent->RemoveChildViewT(view);
+    parent->InvalidateLayout();
+  }
+  owned_view_.reset();
+}
+
+void IndigoToolbar::TabWillBecomeHidden() {
+  views::View* view = view_tracker_.view();
+  CHECK(view);
+  views::View* parent = view->parent();
+  if (parent) {
+    owned_view_ = parent->RemoveChildViewT(view);
+    parent->InvalidateLayout();
+  }
+}
+
+void IndigoToolbar::TabDidBecomeVisible(views::View* parent_view) {
+  if (owned_view_) {
+    DCHECK(parent_view->children().empty());
+    parent_view->AddChildView(std::move(owned_view_));
+    parent_view->InvalidateLayout();
   }
 }
 
 void IndigoToolbar::OnCloseButtonClicked() {
   Hide();
+  if (delegate_) {
+    delegate_->OnClose(this);
+  }
 }
 
 void IndigoToolbar::OnExpandButtonClicked() {
-  is_expanded_ = !is_expanded_;
-  expand_button_->SetToggled(is_expanded_);
-  expanded_container_->SetVisible(is_expanded_);
+  views::View* view = view_tracker_.view();
+  if (!view) {
+    return;
+  }
 
-  gfx::Size preferred_size = widget_->GetContentsView()->GetPreferredSize();
-  widget_->SetSize(preferred_size);
+  is_expanded_ = !is_expanded_;
+
+  auto* expand_button = views::AsViewClass<views::ToggleImageButton>(
+      view->GetViewByElementId(kExpandButtonElementId));
+  if (expand_button) {
+    expand_button->SetToggled(is_expanded_);
+  }
+
+  auto* expanded_container =
+      view->GetViewByElementId(kExpandedContainerElementId);
+  if (expanded_container) {
+    expanded_container->SetVisible(is_expanded_);
+  }
 }
 
 void IndigoToolbar::OnRegenerateButtonClicked() {
@@ -302,15 +445,15 @@ void IndigoToolbar::OnDeletePhotoClicked() {
   delegate_->OnDeleteOriginalPhoto(this);
 }
 
-void IndigoToolbar::OnWidgetClosed(views::Widget::ClosedReason reason) {
-  expand_button_ = nullptr;
-  expanded_container_ = nullptr;
-
-  // As recommended in the comment on `views::Widget::MakeCloseSynchronous`,
-  // destroy the widget here.
-  widget_.reset();
-
-  delegate_->OnClose(this);
+void IndigoToolbar::UpdateTrackedPosition(const gfx::Rect& rect) {
+  views::View* view = view_tracker_.view();
+  if (view) {
+    view->SetVisible(!rect.IsEmpty());
+    view->SetProperty(kIndigoTrackedElementRectKey, rect);
+    if (view->parent()) {
+      view->parent()->InvalidateLayout();
+    }
+  }
 }
 
 }  // namespace indigo

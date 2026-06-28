@@ -52,7 +52,7 @@ class BookmarkContextMenuController
   // Creates the bookmark context menu.
   // `browser` is used to open the bookmark manager and is null in tests.
   // `profile` is used for opening urls as well as enabling 'open incognito'.
-  // Uses a callback since this can be asynchronous. See crbug.com/1161144.
+  // Uses a callback since this can be asynchronous. See crbug.com/40054262.
   // `selection` is the nodes the context menu operates on and must be not
   // empty. The parent for newly created nodes is `selection[0]` if `selection`
   // has one element and it is a folder, otherwise it is `selection[0]->parent`.
@@ -73,6 +73,7 @@ class BookmarkContextMenuController
   ~BookmarkContextMenuController() override;
 
   ui::SimpleMenuModel* menu_model() { return menu_model_.get(); }
+  Profile* profile() const { return profile_; }
 
   // Public for testing.
   // Returns the parent for newly created folders/bookmarks. If `selection` has
@@ -130,6 +131,10 @@ class BookmarkContextMenuController
   // Returns null if no node should be focused.
   const bookmarks::BookmarkNode* ComputeNodeToFocusForBookmarkManager() const;
 
+  // Adds a submenu to the menu with items for the visibility of the bookmark
+  // bar.
+  void AddSubmenuItems();
+
   gfx::NativeWindow parent_window_;
   raw_ptr<BookmarkContextMenuControllerDelegate> delegate_;
   const raw_ptr<Browser> browser_;
@@ -139,6 +144,7 @@ class BookmarkContextMenuController
       selection_;
   const raw_ptr<BookmarkMergedSurfaceService> bookmark_service_;
   std::unique_ptr<ui::SimpleMenuModel> menu_model_;
+  std::unique_ptr<ui::SimpleMenuModel> submenu_model_;
   const std::unique_ptr<BookmarkParentFolder> new_nodes_parent_;
   // Whether IDC_PASTE is enabled.
   const bool can_paste_;

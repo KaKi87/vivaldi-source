@@ -31,8 +31,6 @@ void TestImpl(T, size_t rank) {
   ReplicableRandomDevice rng;
 
   for (size_t axes_count = 1; axes_count * 2 <= rank; ++axes_count) {
-    quantization_params quantization = random_quantization(type_of<T>(), rng);
-
     std::vector<int32_t> axes(rank / 2);
     std::iota(axes.begin(), axes.end(), 0);
     std::shuffle(axes.begin(), axes.end(), rng);
@@ -42,9 +40,10 @@ void TestImpl(T, size_t rank) {
     }
 
     // Define subgraph
+    std::vector<size_t> template_shape = random_shape(rng, rank, 0, 9);
     SubgraphBuilder subgraph(2);
-    subgraph.AddInput(type_of<T>(), rank, 0, quantization)
-        .AddOutput(type_of<T>(), rank + 1 - axes_count, 1, quantization)
+    subgraph.AddInput(type_of<T>(), template_shape, 0)
+        .AddOutput(type_of<T>(), rank + 1 - axes_count, 1)
         .AddFuseDims(axes, 0, 1);
 
     std::sort(axes.begin(), axes.end(), std::greater<int32_t>());
@@ -53,10 +52,10 @@ void TestImpl(T, size_t rank) {
     ASSERT_EQ(runtime.Status(), ynn_status_success);
 
     for (int reshape = 0; reshape < 2; ++reshape) {
-      std::vector<size_t> input_shape = random_shape(rng, rank);
+      std::vector<size_t> input_shape = random_shape(rng, template_shape);
 
       Tensor<T> input(input_shape);
-      fill_random(input.data(), input.size(), rng, quantization);
+      fill_random(input.data(), input.size(), rng);
 
       // Check reshaped shape is correct
       runtime.ReshapeExternalTensor(input_shape, input.base(), 0)

@@ -14,16 +14,16 @@
 #include "base/time/time.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
+#include "chrome/browser/ui/page_action/page_action_controller.h"
+#include "chrome/browser/ui/page_action/page_action_model.h"
+#include "chrome/browser/ui/page_action/page_action_model_observer.h"
+#include "chrome/browser/ui/page_action/page_action_triggers.h"
+#include "chrome/browser/ui/page_action/test_support/fake_tab_interface.h"
+#include "chrome/browser/ui/page_action/test_support/mock_page_action_model.h"
+#include "chrome/browser/ui/page_action/test_support/test_page_action_properties_provider.h"
 #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
 #include "chrome/browser/ui/views/location_bar/icon_label_bubble_view.h"
-#include "chrome/browser/ui/views/page_action/page_action_controller.h"
-#include "chrome/browser/ui/views/page_action/page_action_model.h"
-#include "chrome/browser/ui/views/page_action/page_action_model_observer.h"
-#include "chrome/browser/ui/views/page_action/page_action_triggers.h"
 #include "chrome/browser/ui/views/page_action/page_action_view_params.h"
-#include "chrome/browser/ui/views/page_action/test_support/fake_tab_interface.h"
-#include "chrome/browser/ui/views/page_action/test_support/mock_page_action_model.h"
-#include "chrome/browser/ui/views/page_action/test_support/test_page_action_properties_provider.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/views/chrome_views_test_base.h"
 #include "components/tabs/public/mock_tab_interface.h"
@@ -36,6 +36,7 @@
 #include "ui/actions/actions.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/interaction/interaction_test_util.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/events/test/test_event.h"
@@ -100,7 +101,9 @@ class PageActionViewWithControllerTest : public ChromeViewsTestBase {
     ChromeViewsTestBase::SetUp();
     // Use any arbitrary vector icon.
     auto image = ui::ImageModel::FromVectorIcon(
-        vector_icons::kBackArrowIcon, ui::kColorSysPrimary, kDefaultIconSize);
+        features::IsRoundedIconsEnabled() ? vector_icons::kArrowBackIcon
+                                          : vector_icons::kBackArrowOldIcon,
+        ui::kColorSysPrimary, kDefaultIconSize);
     action_item_ = actions::ActionManager::Get().AddAction(
         actions::ActionItem::Builder()
             .SetActionId(kTestPageActionId)
@@ -221,10 +224,11 @@ class PageActionViewTest : public ChromeViewsTestBase {
 
   // Mock model and associated placeholder data.
   testing::NiceMock<MockPageActionModel> mock_model_;
-  const ui::ImageModel mock_image_ =
-      ui::ImageModel::FromVectorIcon(vector_icons::kBackArrowIcon,
-                                     ui::kColorSysPrimary,
-                                     kDefaultIconSize);
+  const ui::ImageModel mock_image_ = ui::ImageModel::FromVectorIcon(
+      features::IsRoundedIconsEnabled() ? vector_icons::kArrowBackIcon
+                                        : vector_icons::kBackArrowOldIcon,
+      ui::kColorSysPrimary,
+      kDefaultIconSize);
   std::u16string mock_string_ = kTestText;
 
   const int view_icon_size_ = kDefaultIconSize;
@@ -363,12 +367,14 @@ TEST_F(PageActionViewTest, ChipStateUpdatesForegroundColor) {
 }
 
 TEST_F(PageActionViewTest, SuggestionText) {
+  EXPECT_CALL(*model(), GetVisible()).WillRepeatedly(Return(true));
   EXPECT_CALL(*model(), GetText()).WillRepeatedly(ReturnRef(kTestText));
   page_action_view()->OnPageActionModelChanged(*model());
   EXPECT_EQ(page_action_view()->GetText(), kTestText);
 }
 
 TEST_F(PageActionViewTest, TooltipText) {
+  EXPECT_CALL(*model(), GetVisible()).WillRepeatedly(Return(true));
   EXPECT_CALL(*model(), GetTooltipText()).WillRepeatedly(ReturnRef(kTestText));
   page_action_view()->OnPageActionModelChanged(*model());
   EXPECT_EQ(page_action_view()->GetTooltipText(), kTestText);
@@ -416,9 +422,12 @@ TEST_F(PageActionViewTest, OnThemeChangedUpdatesIconImage) {
   // If the default size is the intended icon size, this test is useless.
   const int kOriginalIconSize = view_icon_size() + 1;
   auto icon_image = ui::ImageModel::FromVectorIcon(
-      vector_icons::kBackArrowIcon, ui::kColorSysPrimary, kOriginalIconSize);
+      features::IsRoundedIconsEnabled() ? vector_icons::kArrowBackIcon
+                                        : vector_icons::kBackArrowOldIcon,
+      ui::kColorSysPrimary, kOriginalIconSize);
   EXPECT_CALL(*model(), GetImage()).WillRepeatedly(ReturnRef(icon_image));
 
+  EXPECT_CALL(*model(), GetVisible()).WillRepeatedly(Return(true));
   page_action_view()->OnPageActionModelChanged(*model());
   EXPECT_EQ(page_action_view()
                 ->GetImageModel(views::Button::STATE_NORMAL)
@@ -446,6 +455,7 @@ TEST_F(PageActionViewTest, UpdateIconImageHandlesDifferentImageTypes) {
   EXPECT_CALL(*model(), GetImage()).WillRepeatedly(ReturnRef(bitmap_image));
 
   // Trigger the icon update.
+  EXPECT_CALL(*model(), GetVisible()).WillRepeatedly(Return(true));
   page_action_view()->OnPageActionModelChanged(*model());
 
   // Check that the image model in the PageActionView is correctly set and is
@@ -467,7 +477,9 @@ TEST_F(PageActionViewTest, ChipCornerRadiiConsistentForVectorAndBitmapIcons) {
       ui::ImageModel::FromImage(gfx::Image::CreateFrom1xBitmap(bitmap));
 
   const ui::ImageModel vector_image = ui::ImageModel::FromVectorIcon(
-      vector_icons::kBackArrowIcon, ui::kColorSysPrimary, kDefaultIconSize);
+      features::IsRoundedIconsEnabled() ? vector_icons::kArrowBackIcon
+                                        : vector_icons::kBackArrowOldIcon,
+      ui::kColorSysPrimary, kDefaultIconSize);
 
   EXPECT_CALL(*model(), ShouldShowSuggestionChip())
       .WillRepeatedly(Return(true));
@@ -558,6 +570,21 @@ TEST_F(PageActionViewTest, ChipExpandedCallbackNoAnimation) {
   second_loop.Run();
 }
 
+TEST_F(PageActionViewTest, AnchoredMessageChipClickCallbackOrder) {
+  base::MockCallback<base::RepeatingCallback<void(PageActionTrigger)>>
+      click_callback;
+  base::MockCallback<base::RepeatingClosure> close_callback;
+
+  page_action_view()->SetClickCallback(click_callback.Get());
+  page_action_view()->SetAnchoredMessageCloseCallback(close_callback.Get());
+
+  testing::InSequence s;
+  EXPECT_CALL(click_callback, Run(PageActionTrigger::kMouse));
+  EXPECT_CALL(close_callback, Run());
+
+  page_action_view()->AnchoredMessageChipClick();
+}
+
 class PageActionViewTriggerTest : public PageActionViewTest {
  public:
   PageActionViewTriggerTest() = default;
@@ -617,6 +644,35 @@ TEST_F(PageActionViewTriggerTest, PageActionGestureTriggerPropagation) {
   page_action_view()->NotifyClick(ui::test::TestEvent(EventType::kGestureTap));
   EXPECT_EQ(1, gesture_trigger_count());
   EXPECT_EQ(1, TotalTriggerCount());
+}
+
+TEST_F(PageActionViewTriggerTest, NoClickWhenAnchoredMessageVisible) {
+  EXPECT_CALL(*model(), GetVisible()).WillRepeatedly(Return(true));
+  EXPECT_CALL(*model(), ShouldShowAnchoredMessage())
+      .WillRepeatedly(Return(true));
+
+  std::u16string text = u"Test Anchored Message";
+  std::optional<ui::ImageModel> icon = std::nullopt;
+  std::optional<AnchoredMessageExpandableContent> content = std::nullopt;
+
+  EXPECT_CALL(*model(), GetAnchoredMessageText())
+      .WillRepeatedly(ReturnRef(text));
+  EXPECT_CALL(*model(), GetAnchoredMessageIcon())
+      .WillRepeatedly(ReturnRef(icon));
+  EXPECT_CALL(*model(), GetAnchoredMessageExpandableContent())
+      .WillRepeatedly(ReturnRef(content));
+  EXPECT_CALL(*model(), GetAnchoredMessageActionIconType())
+      .WillRepeatedly(Return(AnchoredMessageActionIconType::kNone));
+
+  page_action_view()->OnPageActionModelChanged(*model());
+  ASSERT_TRUE(page_action_view()->IsAnchoredMessageVisible());
+
+  page_action_view()->NotifyClick(
+      ui::test::TestEvent(EventType::kMousePressed));
+  EXPECT_EQ(0, TotalTriggerCount());
+
+  EXPECT_FALSE(page_action_view()->IsTriggerableEvent(
+      ui::test::TestEvent(EventType::kMousePressed)));
 }
 
 TEST_F(PageActionViewTriggerTest, PageActionTriggersOnKeyboardClick) {

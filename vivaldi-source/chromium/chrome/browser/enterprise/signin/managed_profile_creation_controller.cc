@@ -23,8 +23,8 @@
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/profiles/profile_colors_util.h"
 #include "chrome/browser/ui/signin/signin_view_controller.h"
 #include "chrome/common/channel_info.h"
@@ -229,7 +229,8 @@ void ManagedProfileCreationController::ShowManagementDisclaimer() {
   CHECK(policies_received_);
   CHECK(source_profile_);
   BrowserWindowInterface* const browser =
-      chrome::FindLastActiveWithProfile(source_profile_);
+      ProfileBrowserCollection::GetForProfile(source_profile_)
+          ->GetLastActiveBrowser();
   bool has_browser_with_tab =
       browser && browser->GetBrowserForMigrationOnly()->SupportsWindowFeature(
                      Browser::WindowFeature::kFeatureTabStrip);
@@ -364,7 +365,8 @@ void ManagedProfileCreationController::MoveAccountIntoNewProfile() {
   CHECK(!profile_creator_);
   if (managed_profile_already_exists) {
     profile_creator_ = std::make_unique<DiceSignedInProfileCreator>(
-        source_profile_, account_info_.account_id, switch_to_entry->GetPath(),
+        source_profile_, account_info_.account_id, std::vector<CoreAccountId>{},
+        switch_to_entry->GetPath(),
         base::BindOnce(
             &ManagedProfileCreationController::OnNewSignedInProfileCreated,
             weak_ptr_factory_.GetWeakPtr(),
@@ -373,8 +375,8 @@ void ManagedProfileCreationController::MoveAccountIntoNewProfile() {
     return;
   }
   profile_creator_ = std::make_unique<DiceSignedInProfileCreator>(
-      source_profile_, account_info_.account_id, profile_name,
-      profiles::GetPlaceholderAvatarIndex(),
+      source_profile_, account_info_.account_id, std::vector<CoreAccountId>{},
+      profile_name, profiles::GetPlaceholderAvatarIndex(),
       base::BindOnce(
           &ManagedProfileCreationController::OnNewSignedInProfileCreated,
           weak_ptr_factory_.GetWeakPtr(),

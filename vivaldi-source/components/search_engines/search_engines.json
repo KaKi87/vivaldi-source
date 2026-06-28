@@ -984,11 +984,11 @@
       "wolfram"
     ],
     "bg_BG": [
-      "*bing",
+      "bing",
       "yahoo",
       "!duckduckgo",
       "ecosia_no_prompt",
-      "startpage_com_no_prompt",
+      "*startpage_com_no_prompt",
       "wikipedia_bg",
       "google"
     ],
@@ -1040,11 +1040,11 @@
       "google"
     ],
     "el_GR": [
-      "*bing",
+      "bing",
       "yahoo",
       "!duckduckgo",
       "ecosia_no_prompt",
-      "startpage_com_no_prompt",
+      "*startpage_com_no_prompt",
       "wikipedia_el",
       "google"
     ],
@@ -1219,11 +1219,11 @@
       "google"
     ],
     "hr_HR": [
-      "*bing",
+      "bing",
       "yahoo",
       "!duckduckgo",
       "ecosia_no_prompt",
-      "startpage_com_no_prompt",
+      "*startpage_com_no_prompt",
       "wikipedia_hr",
       "google"
     ],
@@ -1347,11 +1347,11 @@
       "google"
     ],
     "ro_RO": [
-      "*bing",
+      "bing",
       "yahoo",
       "!duckduckgo",
       "ecosia_no_prompt",
-      "startpage_com_no_prompt",
+      "*startpage_com_no_prompt",
       "wikipedia_ro",
       "google"
     ],
@@ -1384,11 +1384,11 @@
       "google"
     ],
     "sr_RS": [
-      "*bing",
+      "bing",
       "yahoo",
       "!duckduckgo",
       "ecosia_no_prompt",
-      "startpage_com_no_prompt",
+      "*startpage_com_no_prompt",
       "wikipedia_sr",
       "google"
     ],

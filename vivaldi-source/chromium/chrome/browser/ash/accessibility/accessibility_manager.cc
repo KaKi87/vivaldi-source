@@ -66,8 +66,6 @@
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/extensions/api/accessibility_private.h"
 #include "chrome/common/extensions/extension_constants.h"
-#include "chrome/common/pref_names.h"
-#include "chromeos/ash/components/audio/public/cpp/sounds/sounds_manager.h"
 #include "chromeos/ash/components/audio/sounds.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_types.h"
@@ -94,6 +92,7 @@
 #include "content/public/browser/media_session_service.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/common/content_switches.h"
+#include "device/bluetooth/public/cpp/bluetooth_address.h"
 #include "extensions/browser/api/virtual_keyboard_private/virtual_keyboard_delegate.h"
 #include "extensions/browser/api/virtual_keyboard_private/virtual_keyboard_private_api.h"
 #include "extensions/common/constants.h"
@@ -101,13 +100,14 @@
 #include "extensions/common/extension_resource.h"
 #include "media/base/audio_codecs.h"
 #include "services/accessibility/buildflags.h"
+#include "services/audio/public/cpp/sounds/global_sounds_manager.h"
+#include "services/audio/public/cpp/sounds/sounds_manager.h"
 #include "ui/accessibility/accessibility_features.h"
 #include "ui/accessibility/accessibility_switches.h"
 #include "ui/accessibility/ax_enum_util.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/ime/ash/extension_ime_util.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/resource/resource_bundle.h"
 #include "ui/events/ash/keyboard_capability.h"
 #include "ui/events/devices/device_data_manager.h"
 #include "ui/events/devices/input_device_event_observer.h"
@@ -126,6 +126,7 @@ namespace {
 using ::extensions::api::accessibility_private::DlcType;
 using ::extensions::api::accessibility_private::FaceGazeAssets;
 using ::extensions::api::accessibility_private::PumpkinData;
+using ::extensions::api::accessibility_private::TenjiData;
 using ::extensions::api::accessibility_private::TtsVariant;
 using ::extensions::api::braille_display_private::BrailleController;
 using ::extensions::api::braille_display_private::DisplayState;
@@ -202,11 +203,16 @@ void RestartBrltty(const std::string& address) {
   UpstartClient* client = UpstartClient::Get();
   client->StopJob(kBrlttyUpstartJobName, {}, base::DoNothing());
 
-  std::vector<std::string> args;
   if (address.empty())
     return;
 
-  args.push_back(base::StringPrintf("ADDRESS=%s", address.c_str()));
+  // The address is used as an environment variable in the brltty Upstart job,
+  // so a malformed value could allow injection.
+  std::string canonical = device::CanonicalizeBluetoothAddress(address);
+  CHECK(!canonical.empty());
+
+  std::vector<std::string> args;
+  args.push_back(base::StringPrintf("ADDRESS=%s", canonical.c_str()));
   client->StartJob(kBrlttyUpstartJobName, args, base::DoNothing());
 }
 
@@ -336,6 +342,27 @@ std::optional<FaceGazeAssets> CreateFaceGazeAssets(base::FilePath base_path) {
   }
 
   return assets;
+}
+
+std::optional<TenjiData> CreateTenjiData(base::FilePath base_path) {
+  DCHECK(!content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
+  base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
+                                                base::BlockingType::MAY_BLOCK);
+  TenjiData data;
+  base::flat_map<std::string, std::vector<uint8_t>*> files_to_data({
+      {"tenji_wasm_wrapper.js", &data.wrapper_js},
+      {"tenji_wasm_wrapper.wasm", &data.wasm},
+  });
+  for (const auto& iter : files_to_data) {
+    const std::string& file_name = iter.first;
+    std::vector<uint8_t>* file_data = iter.second;
+    ReadDlcFileResponse response = ReadDlcFile(base_path.Append(file_name));
+    if (response.error.has_value()) {
+      return std::nullopt;
+    }
+    *file_data = std::move(response.contents);
+  }
+  return data;
 }
 
 std::optional<PumpkinData> CreatePumpkinData(base::FilePath base_pumpkin_path) {
@@ -496,55 +523,45 @@ AccessibilityManager::AccessibilityManager(
   input_method::InputMethodManager::Get()->AddObserver(this);
   user_manager::UserManager::Get()->AddSessionStateObserver(this);
 
-  ui::ResourceBundle& bundle = ui::ResourceBundle::GetSharedInstance();
-  audio::SoundsManager* manager = audio::SoundsManager::Get();
-  manager->Initialize(static_cast<int>(Sound::kShutdown),
-                      bundle.GetRawDataResource(IDR_SOUND_SHUTDOWN_WAV),
-                      media::AudioCodec::kPCM);
-  manager->Initialize(
-      static_cast<int>(Sound::kSpokenFeedbackEnabled),
-      bundle.GetRawDataResource(IDR_SOUND_SPOKEN_FEEDBACK_ENABLED_WAV),
-      media::AudioCodec::kPCM);
-  manager->Initialize(
-      static_cast<int>(Sound::kSpokenFeedbackDisabled),
-      bundle.GetRawDataResource(IDR_SOUND_SPOKEN_FEEDBACK_DISABLED_WAV),
-      media::AudioCodec::kPCM);
-  manager->Initialize(static_cast<int>(Sound::kPassthrough),
-                      bundle.GetRawDataResource(IDR_SOUND_PASSTHROUGH_WAV),
-                      media::AudioCodec::kPCM);
-  manager->Initialize(static_cast<int>(Sound::kExitScreen),
-                      bundle.GetRawDataResource(IDR_SOUND_EXIT_SCREEN_WAV),
-                      media::AudioCodec::kPCM);
-  manager->Initialize(static_cast<int>(Sound::kEnterScreen),
-                      bundle.GetRawDataResource(IDR_SOUND_ENTER_SCREEN_WAV),
-                      media::AudioCodec::kPCM);
-  manager->Initialize(
+  audio::SoundsManager& manager = audio::GlobalSoundsManager::Get();
+  manager.Initialize(static_cast<int>(Sound::kShutdown), IDR_SOUND_SHUTDOWN_WAV,
+                     media::AudioCodec::kPCM, /*loop=*/false);
+  manager.Initialize(static_cast<int>(Sound::kSpokenFeedbackEnabled),
+                     IDR_SOUND_SPOKEN_FEEDBACK_ENABLED_WAV,
+                     media::AudioCodec::kPCM, /*loop=*/false);
+  manager.Initialize(static_cast<int>(Sound::kSpokenFeedbackDisabled),
+                     IDR_SOUND_SPOKEN_FEEDBACK_DISABLED_WAV,
+                     media::AudioCodec::kPCM, /*loop=*/false);
+  manager.Initialize(static_cast<int>(Sound::kPassthrough),
+                     IDR_SOUND_PASSTHROUGH_WAV, media::AudioCodec::kPCM,
+                     /*loop=*/false);
+  manager.Initialize(static_cast<int>(Sound::kExitScreen),
+                     IDR_SOUND_EXIT_SCREEN_WAV, media::AudioCodec::kPCM,
+                     /*loop=*/false);
+  manager.Initialize(static_cast<int>(Sound::kEnterScreen),
+                     IDR_SOUND_ENTER_SCREEN_WAV, media::AudioCodec::kPCM,
+                     /*loop=*/false);
+  manager.Initialize(
       static_cast<int>(Sound::kSpokenFeedbackToggleCountdownHigh),
-      bundle.GetRawDataResource(
-          IDR_SOUND_SPOKEN_FEEDBACK_TOGGLE_COUNTDOWN_HIGH_WAV),
-      media::AudioCodec::kPCM);
-  manager->Initialize(
-      static_cast<int>(Sound::kSpokenFeedbackToggleCountdownLow),
-      bundle.GetRawDataResource(
-          IDR_SOUND_SPOKEN_FEEDBACK_TOGGLE_COUNTDOWN_LOW_WAV),
-      media::AudioCodec::kPCM);
-  manager->Initialize(static_cast<int>(Sound::kTouchType),
-                      bundle.GetRawDataResource(IDR_SOUND_TOUCH_TYPE_WAV),
-                      media::AudioCodec::kPCM);
-  manager->Initialize(static_cast<int>(Sound::kStartup),
-                      bundle.GetRawDataResource(IDR_SOUND_STARTUP_WAV),
-                      media::AudioCodec::kPCM);
-  manager->Initialize(static_cast<int>(Sound::kLock),
-                      bundle.GetRawDataResource(IDR_SOUND_LOCK_WAV),
-                      media::AudioCodec::kPCM);
-  manager->Initialize(static_cast<int>(Sound::kUnlock),
-                      bundle.GetRawDataResource(IDR_SOUND_UNLOCK_WAV),
-                      media::AudioCodec::kPCM);
+      IDR_SOUND_SPOKEN_FEEDBACK_TOGGLE_COUNTDOWN_HIGH_WAV,
+      media::AudioCodec::kPCM, /*loop=*/false);
+  manager.Initialize(static_cast<int>(Sound::kSpokenFeedbackToggleCountdownLow),
+                     IDR_SOUND_SPOKEN_FEEDBACK_TOGGLE_COUNTDOWN_LOW_WAV,
+                     media::AudioCodec::kPCM, /*loop=*/false);
+  manager.Initialize(static_cast<int>(Sound::kTouchType),
+                     IDR_SOUND_TOUCH_TYPE_WAV, media::AudioCodec::kPCM,
+                     /*loop=*/false);
+  manager.Initialize(static_cast<int>(Sound::kStartup), IDR_SOUND_STARTUP_WAV,
+                     media::AudioCodec::kPCM, /*loop=*/false);
+  manager.Initialize(static_cast<int>(Sound::kLock), IDR_SOUND_LOCK_WAV,
+                     media::AudioCodec::kPCM, /*loop=*/false);
+  manager.Initialize(static_cast<int>(Sound::kUnlock), IDR_SOUND_UNLOCK_WAV,
+                     media::AudioCodec::kPCM, /*loop=*/false);
 
   if (VolumeAdjustSoundEnabled()) {
-    manager->Initialize(static_cast<int>(Sound::kVolumeAdjust),
-                        bundle.GetRawDataResource(IDR_SOUND_VOLUME_ADJUST_WAV),
-                        media::AudioCodec::kPCM);
+    manager.Initialize(static_cast<int>(Sound::kVolumeAdjust),
+                       IDR_SOUND_VOLUME_ADJUST_WAV, media::AudioCodec::kPCM,
+                       /*loop=*/false);
   }
 
   base::FilePath resources_path;
@@ -882,15 +899,45 @@ bool AccessibilityManager::PlayEarcon(Sound sound_key, PlaySoundOption option) {
       !IsSpokenFeedbackEnabled()) {
     return false;
   }
-  return audio::SoundsManager::Get()->Play(static_cast<int>(sound_key));
+  return audio::GlobalSoundsManager::Get().Play(static_cast<int>(sound_key));
+}
+
+void AccessibilityManager::OnTwoFingerTouchStart() {
+  if (!profile_) {
+    return;
+  }
+
+  extensions::EventRouter* event_router =
+      extensions::EventRouter::Get(profile_);
+
+  auto event = std::make_unique<extensions::Event>(
+      extensions::events::ACCESSIBILITY_PRIVATE_ON_TWO_FINGER_TOUCH_START,
+      extensions::api::accessibility_private::OnTwoFingerTouchStart::kEventName,
+      base::ListValue());
+  event_router->BroadcastEvent(std::move(event));
+}
+
+void AccessibilityManager::OnTwoFingerTouchStop() {
+  if (!profile_) {
+    return;
+  }
+
+  extensions::EventRouter* event_router =
+      extensions::EventRouter::Get(profile_);
+
+  auto event = std::make_unique<extensions::Event>(
+      extensions::events::ACCESSIBILITY_PRIVATE_ON_TWO_FINGER_TOUCH_STOP,
+      extensions::api::accessibility_private::OnTwoFingerTouchStop::kEventName,
+      base::ListValue());
+  event_router->BroadcastEvent(std::move(event));
 }
 
 bool AccessibilityManager::ShouldToggleSpokenFeedbackViaTouch() {
-  return policy::EnrollmentRequisitionManager::IsMeetDevice(local_state_.get());
+  return false;
 }
 
 bool AccessibilityManager::PlaySpokenFeedbackToggleCountdown(int tick_count) {
-  return audio::SoundsManager::Get()->Play(
+  return audio::GlobalSoundsManager::Get().Play(
       tick_count % 2
           ? static_cast<int>(Sound::kSpokenFeedbackToggleCountdownHigh)
           : static_cast<int>(Sound::kSpokenFeedbackToggleCountdownLow));
@@ -1840,7 +1887,7 @@ base::TimeDelta AccessibilityManager::PlayShutdownSound() {
                   PlaySoundOption::kOnlyIfSpokenFeedbackEnabled)) {
     return base::TimeDelta();
   }
-  return audio::SoundsManager::Get()->GetDuration(
+  return audio::GlobalSoundsManager::Get().GetDuration(
       static_cast<int>(Sound::kShutdown));
 }
 
@@ -1925,9 +1972,15 @@ void AccessibilityManager::UpdateChromeOSAccessibilityHistograms() {
     base::UmaHistogramSparse("Accessibility.CrosCaretBlinkInterval",
                              caret_blink_interval_ms);
 
-    base::UmaHistogramBoolean(
-        "Accessibility.CrosCursorColor",
-        prefs->GetBoolean(prefs::kAccessibilityCursorColorEnabled));
+    bool cursor_color_enabled =
+        prefs->GetBoolean(prefs::kAccessibilityCursorColorEnabled);
+    base::UmaHistogramBoolean("Accessibility.CrosCursorColor",
+                              cursor_color_enabled);
+
+    if (cursor_color_enabled) {
+      int color = prefs->GetInteger(prefs::kAccessibilityCursorColor);
+      base::UmaHistogramSparse("Accessibility.CrosCursorColor.Value", color);
+    }
 
     bool color_correction_enabled = IsColorCorrectionEnabled();
     base::UmaHistogramBoolean("Accessibility.CrosColorCorrection",
@@ -3050,6 +3103,55 @@ void AccessibilityManager::OnPumpkinError(std::string_view error) {
   is_pumpkin_installed_for_testing_ = false;
 
   UpdateDictationNotification();
+}
+
+void AccessibilityManager::InstallTenji(InstallTenjiCallback callback) {
+  CHECK(!callback.is_null());
+  if (!::features::IsAccessibilityChromeVoxJapaneseBrailleEnabled()) {
+    std::move(callback).Run(std::nullopt);
+    return;
+  }
+
+  install_tenji_callback_ = std::move(callback);
+  dlc_installer_->MaybeInstall(
+      AccessibilityDlcInstaller::DlcType::kTenji,
+      base::BindOnce(&AccessibilityManager::OnTenjiInstalled,
+                     weak_ptr_factory_.GetWeakPtr()),
+      base::BindRepeating([](double progress) {}),
+      base::BindOnce(&AccessibilityManager::OnTenjiError,
+                     weak_ptr_factory_.GetWeakPtr()));
+}
+
+void AccessibilityManager::OnTenjiInstalled(bool success,
+                                            const std::string& root_path) {
+  if (install_tenji_callback_.is_null()) {
+    return;
+  }
+  base::FilePath base_path = dlc_path_for_test_.empty()
+                                 ? base::FilePath(root_path)
+                                 : dlc_path_for_test_;
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock()},
+      base::BindOnce(&CreateTenjiData, base::FilePath(base_path)),
+      base::BindOnce(&AccessibilityManager::OnTenjiDataCreated,
+                     weak_ptr_factory_.GetWeakPtr()));
+}
+
+void AccessibilityManager::OnTenjiDataCreated(std::optional<TenjiData> data) {
+  if (install_tenji_callback_.is_null()) {
+    return;
+  }
+
+  std::move(install_tenji_callback_).Run(std::move(data));
+}
+
+void AccessibilityManager::OnTenjiError(std::string_view error) {
+  if (install_tenji_callback_.is_null()) {
+    return;
+  }
+
+  std::move(install_tenji_callback_).Run(std::nullopt);
 }
 
 void AccessibilityManager::GetTtsDlcContents(

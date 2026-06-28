@@ -16,8 +16,7 @@
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/glic/public/glic_enabling.h"
-#include "chrome/browser/pdf/pdf_viewer_stream_manager.h"
+//#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/extensions/api/pdf_viewer_private.h"
 #include "chrome/common/url_constants.h"
@@ -25,6 +24,7 @@
 #include "chrome/grit/generated_resources.h"
 #include "chrome/grit/pdf_resources_map.h"
 #include "components/strings/grit/components_strings.h"
+#include "components/tabs/public/tab_interface.h"
 #include "components/zoom/page_zoom_constants.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/render_frame_host.h"
@@ -32,6 +32,7 @@
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extension_event_histogram_value.h"
 #include "extensions/browser/guest_view/mime_handler_view/mime_handler_view_guest.h"
+#include "extensions/browser/mime_handler/mime_handler_stream_manager.h"
 #include "extensions/browser/mime_handler/stream_container.h"
 #include "extensions/common/api/mime_handler_private.h"
 #include "pdf/buildflags.h"
@@ -88,6 +89,18 @@ base::DictValue GetCommonStrings() {
   return dict;
 }
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+// Returns the resource id for the glic summarize button label, honoring the
+// experiment param that swaps in a longer "Summarize with Gemini" label.
+int GetGlicSummarizeButtonLabelId() {
+  if (base::FeatureList::IsEnabled(features::kPdfGlicSummarize) &&
+      features::kPdfGlicSummarizeUseLongButtonText.Get()) {
+    return IDS_PDF_GLIC_SUMMARIZE_WITH_GEMINI;
+  }
+  return IDS_PDF_GLIC_SUMMARIZE;
+}
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
 // Gets strings that are used only by the stand-alone PDF Viewer.
 base::DictValue GetPdfViewerStrings() {
   static constexpr webui::LocalizedString kPdfResources[] = {
@@ -97,7 +110,6 @@ base::DictValue GetPdfViewerStrings() {
       {"downloadEdited", IDS_PDF_DOWNLOAD_EDITED},
       {"downloadOriginal", IDS_PDF_DOWNLOAD_ORIGINAL},
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-      {"glicSummarize", IDS_PDF_GLIC_SUMMARIZE},
       {"glicSummarizeTooltip", IDS_PDF_GLIC_SUMMARIZE_TOOLTIP},
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
       {"labelPageNumber", IDS_PDF_LABEL_PAGE_NUMBER},
@@ -238,6 +250,11 @@ base::DictValue GetPdfViewerStrings() {
     dict.Set(resource.name, l10n_util::GetStringUTF16(resource.id));
   }
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  dict.Set("glicSummarize",
+           l10n_util::GetStringUTF16(GetGlicSummarizeButtonLabelId()));
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
 #if BUILDFLAG(ENABLE_PDF_INK2)
   std::u16string edit_string = l10n_util::GetStringUTF16(IDS_EDIT);
   std::erase(edit_string, '&');
@@ -337,7 +354,8 @@ base::DictValue GetStrings(PdfViewerContext context) {
   return dict;
 }
 
-base::DictValue GetAdditionalData(content::BrowserContext* context) {
+base::DictValue GetAdditionalData(content::WebContents* web_contents) {
+  content::BrowserContext* context = web_contents->GetBrowserContext();
   // NOTE: This function should not include any data used for $i18n{}
   // replacements. The i18n string resources should be added using GetStrings()
   // above instead.
@@ -346,7 +364,8 @@ base::DictValue GetAdditionalData(content::BrowserContext* context) {
            base::FeatureList::IsEnabled(
                chrome_pdf::features::kPdfGetSaveDataInBlocks));
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-  dict.Set("pdfGlicSummarizeEnabled", ShouldShowGlicSummarizeButton(context));
+  dict.Set("pdfGlicSummarizeEnabled",
+           ShouldShowGlicSummarizeButton(web_contents));
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   dict.Set(
       "pdfSearchifySaveEnabled",
@@ -413,19 +432,20 @@ std::vector<webui::ResourcePath> GetResources(PdfViewerContext context) {
 bool MaybeDispatchSaveEvent(content::RenderFrameHost* embedder_host) {
   CHECK(chrome_pdf::features::IsOopifPdfEnabled());
 
-  auto* pdf_viewer_stream_manager =
-      pdf::PdfViewerStreamManager::FromRenderFrameHost(embedder_host);
-  if (!pdf_viewer_stream_manager) {
+  auto* mime_handler_stream_manager =
+      extensions::mime_handler::MimeHandlerStreamManager::FromRenderFrameHost(
+          embedder_host);
+  if (!mime_handler_stream_manager) {
     return false;
   }
 
   // Continue only if the PDF plugin should handle the save event.
-  if (!pdf_viewer_stream_manager->PluginCanSave(embedder_host)) {
+  if (!mime_handler_stream_manager->PluginCanSave(embedder_host)) {
     return false;
   }
 
   base::WeakPtr<extensions::StreamContainer> stream =
-      pdf_viewer_stream_manager->GetStreamContainer(embedder_host);
+      mime_handler_stream_manager->GetStreamContainer(embedder_host);
 
   base::ListValue args;
   args.Append(stream->stream_url().spec());
@@ -456,24 +476,39 @@ void DispatchShouldUpdateViewportEvent(content::RenderFrameHost* embedder_host,
                                          std::move(event));
 }
 
-bool ShouldShowGlicSummarizeButton(content::BrowserContext* context) {
+bool ShouldShowGlicSummarizeButton(content::WebContents* web_contents) {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-  Profile* profile = Profile::FromBrowserContext(context);
+  if (!web_contents) {
+    return false;
+  }
+
+  // When the PDF viewer is hosted in a MimeHandlerViewGuest (legacy GuestView,
+  // e.g. on ChromeOS where kPdfOopif is disabled), `web_contents` is the inner
+  // guest contents which has no TabInterface attached. Walk up to the embedder
+  // so the tab lookup below matches the click handler in
+  // PdfViewerPrivateGlicSummarizeFunction::Run().
+  if (!chrome_pdf::features::IsOopifPdfEnabled()) {
+    if (auto* guest =
+            extensions::MimeHandlerViewGuest::FromWebContents(web_contents)) {
+      web_contents = guest->embedder_web_contents();
+      if (!web_contents) {
+        return false;
+      }
+    }
+  }
+
+  Profile* profile =
+      Profile::FromBrowserContext(web_contents->GetBrowserContext());
   if (!glic::GlicEnabling::IsEnabledForProfile(profile)) {
     return false;
   }
 
-  if (!base::FeatureList::IsEnabled(features::kPdfGlicSummarize)) {
+  auto* tab_interface = tabs::TabInterface::MaybeGetFromContents(web_contents);
+  if (tab_interface && !tab_interface->IsInNormalWindow()) {
     return false;
   }
 
-  if (glic::GlicEnabling::HasConsentedForProfile(profile)) {
-    return true;
-  }
-
-  if (glic::GlicEnabling::IsTrustFirstOnboardingEnabledForProfile(profile)) {
-    return true;
-  }
+  return base::FeatureList::IsEnabled(features::kPdfGlicSummarize);
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 
   return false;

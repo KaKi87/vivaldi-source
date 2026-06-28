@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
 #include <Eigen/Geometry>
@@ -159,6 +160,12 @@ void transformations() {
   m = q1.toRotationMatrix();
   aa1 = m;
   VERIFY_IS_APPROX(AngleAxisx(m).toRotationMatrix(), Quaternionx(m).toRotationMatrix());
+
+  // Regression test for #3082: constructing AngleAxis from a 3x3 sub-block of a
+  // larger matrix expression (rather than a plain Matrix3) must compile.
+  Matrix<Scalar, 4, 4> m44 = Matrix<Scalar, 4, 4>::Identity();
+  m44.template topLeftCorner<3, 3>() = m;
+  VERIFY_IS_APPROX(AngleAxisx(m44.template block<3, 3>(0, 0)).toRotationMatrix(), m);
 
   // Transform
   // TODO complete the tests !

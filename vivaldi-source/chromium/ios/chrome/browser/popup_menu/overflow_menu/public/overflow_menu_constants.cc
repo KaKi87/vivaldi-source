@@ -55,6 +55,9 @@ void RecordUmaActionForDestinationOnNtp(Destination destination) {
     case overflow_menu::Destination::Cobalt:
       // No need to log metrics yet.
       break;
+    case overflow_menu::Destination::LevelUp:
+      // No need to log metrics yet.
+      break;
 
 #if defined(VIVALDI_BUILD)
     case overflow_menu::Destination::vShare:
@@ -109,6 +112,8 @@ std::optional<Destination> DestinationForStringName(std::string destination) {
     return overflow_menu::Destination::SpotlightDebugger;
   } else if (destination == "overflow_menu::Destination::Cobalt") {
     return overflow_menu::Destination::Cobalt;
+  } else if (destination == "overflow_menu::Destination::LevelUp") {
+    return overflow_menu::Destination::LevelUp;
   } else {
     return std::nullopt;
   }
@@ -144,6 +149,8 @@ std::string StringNameForDestination(Destination destination) {
       return "overflow_menu::Destination::SpotlightDebugger";
     case overflow_menu::Destination::Cobalt:
       return "overflow_menu::Destination::Cobalt";
+    case overflow_menu::Destination::LevelUp:
+      return "overflow_menu::Destination::LevelUp";
 
 #if defined(VIVALDI_BUILD)
     case overflow_menu::Destination::vShare:
@@ -206,8 +213,6 @@ std::optional<ActionType> ActionTypeForStringName(std::string action) {
     return overflow_menu::ActionType::AskBWG;
   } else if (action == "HideToolbars") {
     return overflow_menu::ActionType::HideToolbars;
-  } else if (action == "TabGroup") {
-    return overflow_menu::ActionType::TabGroup;
   } else if (action == "ShareThisPage") {
     return overflow_menu::ActionType::ShareThisPage;
 
@@ -234,7 +239,7 @@ std::optional<ActionType> ActionTypeForStringName(std::string action) {
     return std::nullopt;
   }
 }
-// LINT.ThenChange(ios/chrome/browser/popup_menu/overflow_menu/public/overflow_menu_constants.cc:actionTypeToString)
+// LINT.ThenChange(/ios/chrome/browser/popup_menu/overflow_menu/public/overflow_menu_constants.cc:actionTypeToString)
 
 // LINT.IfChange(actionTypeToString)
 std::string StringNameForActionType(ActionType action) {
@@ -281,8 +286,8 @@ std::string StringNameForActionType(ActionType action) {
       return "AskBWG";
     case overflow_menu::ActionType::HideToolbars:
       return "HideToolbars";
-    case overflow_menu::ActionType::TabGroup:
-      return "TabGroup";
+    case overflow_menu::ActionType::TabGroupDeprecated:
+      NOTREACHED();
     case overflow_menu::ActionType::ShareThisPage:
       return "ShareThisPage";
 
@@ -307,7 +312,7 @@ std::string StringNameForActionType(ActionType action) {
 
   }
 }
-// LINT.ThenChange(ios/chrome/browser/popup_menu/overflow_menu/public/overflow_menu_constants.cc:stringToActionType)
+// LINT.ThenChange(/ios/chrome/browser/popup_menu/overflow_menu/public/overflow_menu_constants.cc:stringToActionType)
 
 // WARNING - PLEASE READ: Sadly, we cannot switch over strings in C++, so be
 // very careful when updating this method to ensure all enums are accounted for.
@@ -353,6 +358,9 @@ void RecordUmaActionForDestination(Destination destination, bool on_ntp) {
       // No need to log metrics for a debug-only feature.
       break;
     case overflow_menu::Destination::Cobalt:
+      // No need to log metrics yet.
+      break;
+    case overflow_menu::Destination::LevelUp:
       // No need to log metrics yet.
       break;
 

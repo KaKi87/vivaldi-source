@@ -19,6 +19,7 @@
 #include "content/public/browser/network_service_instance.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/storage_partition.h"
+#include "content/public/common/child_process_id_util.h"
 #include "content/public/common/url_utils.h"
 #include "extensions/buildflags/buildflags.h"
 #include "net/http/http_response_headers.h"
@@ -41,6 +42,11 @@
 
 namespace vivaldi {
 namespace {
+
+// A message when `WebRequestProxyingURLLoaderFactory::CreateLoaderAndStart()`
+// is called with a request ID already in use by another active request.
+constexpr char kDuplicateRequestIdError[] =
+    "Tried to proxy a web request with a duplicate request ID.";
 
 // This shutdown notifier makes sure the proxy is destroyed if an incognito
 // browser context is destroyed. This is needed because RequestFilterManager
@@ -209,7 +215,9 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
   // the original for |initiator| in the event.
   network::ResourceRequest request_for_info = request_;
   request_for_info.request_initiator = original_initiator_;
-  info_.emplace(request_id_, factory_->render_process_id_, frame_routing_id_,
+  info_.emplace(request_id_,
+                content::GlobalRenderFrameHostId(factory_->render_process_id_,
+                                                 frame_routing_id_),
                 request_for_info, factory_->loader_factory_type(),
                 !(options_ & network::mojom::kURLLoadOptionSynchronous), false,
                 factory_->navigation_id_);
@@ -290,18 +298,16 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
 }
 
 void RequestFilterProxyingURLLoaderFactory::InProgressRequest::FollowRedirect(
-    const std::vector<std::string>& removed_headers,
-    const net::HttpRequestHeaders& modified_headers,
-    const net::HttpRequestHeaders& modified_cors_exempt_headers,
+    network::HttpRequestHeadersUpdateParams headers_update_params,
     const std::optional<GURL>& new_url) {
   if (new_url) {
     request_.url = new_url.value();
   }
 
-  for (const std::string& header : removed_headers) {
+  for (const std::string& header : headers_update_params.removed_headers) {
     request_.headers.RemoveHeader(header);
   }
-  request_.headers.MergeFrom(modified_headers);
+  request_.headers.MergeFrom(headers_update_params.modified_headers);
 
   // Call this before checking |current_request_uses_header_client_| as it
   // calculates it.
@@ -314,13 +320,10 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::FollowRedirect(
     // the onBeforeSendHeaders callback(s) to run as these may modify request
     // headers and if so we'll pass these modifications to FollowRedirect.
     if (current_request_uses_header_client_) {
-      target_loader_->FollowRedirect(removed_headers, modified_headers,
-                                     modified_cors_exempt_headers, new_url);
+      target_loader_->FollowRedirect(std::move(headers_update_params), new_url);
     } else {
       auto params = std::make_unique<FollowRedirectParams>();
-      params->removed_headers = removed_headers;
-      params->modified_headers = modified_headers;
-      params->modified_cors_exempt_headers = modified_cors_exempt_headers;
+      params->headers_update_params = std::move(headers_update_params);
       params->new_url = new_url;
       pending_follow_redirect_params_ = std::move(params);
     }
@@ -744,16 +747,18 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
           .Run(error_code, request_.headers);
     }
   } else if (pending_follow_redirect_params_) {
-    pending_follow_redirect_params_->removed_headers.insert(
-        pending_follow_redirect_params_->removed_headers.end(),
-        removed_request_headers_.begin(), removed_request_headers_.end());
+    pending_follow_redirect_params_->headers_update_params.removed_headers
+        .insert(pending_follow_redirect_params_->headers_update_params
+                    .removed_headers.end(),
+                removed_request_headers_.begin(),
+                removed_request_headers_.end());
 
     for (auto& set_header : set_request_headers_) {
       std::optional<std::string> header_value =
           request_.headers.GetHeader(set_header);
       if (header_value) {
-        pending_follow_redirect_params_->modified_headers.SetHeader(
-            set_header, *header_value);
+        pending_follow_redirect_params_->headers_update_params.modified_headers
+            .SetHeader(set_header, *header_value);
       } else {
         NOTREACHED();
       }
@@ -761,9 +766,7 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
 
     if (target_loader_.is_bound()) {
       target_loader_->FollowRedirect(
-          pending_follow_redirect_params_->removed_headers,
-          pending_follow_redirect_params_->modified_headers,
-          pending_follow_redirect_params_->modified_cors_exempt_headers,
+          std::move(pending_follow_redirect_params_->headers_update_params),
           pending_follow_redirect_params_->new_url);
     }
 
@@ -1252,10 +1255,21 @@ void RequestFilterProxyingURLLoaderFactory::CreateLoaderAndStart(
       request_id_generator_->Generate(view_routing_id_, request_id);
 
   if (request_id) {
-    // Only requests with a non-zero request ID can have their proxy associated
-    // with said ID.
-    network_request_id_to_filtered_request_id_.emplace(request_id,
-                                                       filtered_request_id);
+    // Only requests with a non-zero request ID can have their proxy
+    // associated with said ID.
+    content::GlobalRequestID global_id(
+        content::ToOriginatingProcessIdUnsafe(render_process_id_), request_id);
+    // Associate the proxy with this request ID. If the request ID is already
+    // in use, abort and report a bad IPC message.
+    if (!proxies_->AssociateProxyWithRequestId(this, global_id)) {
+      if (render_process_id_ != -1) {
+        proxy_receivers_.ReportBadMessage(kDuplicateRequestIdError);
+      }
+      return;
+    }
+    auto emplace_result = network_request_id_to_filtered_request_id_.emplace(
+        request_id, filtered_request_id);
+    CHECK(emplace_result.second);
   }
 
   auto result = requests_.emplace(
@@ -1350,6 +1364,12 @@ void RequestFilterProxyingURLLoaderFactory::RemoveRequest(
     uint64_t request_id) {
   network_request_id_to_filtered_request_id_.erase(network_service_request_id);
   requests_.erase(request_id);
+  if (network_service_request_id) {
+    proxies_->DisassociateProxyWithRequestId(
+        this, content::GlobalRequestID(
+                  content::ToOriginatingProcessIdUnsafe(render_process_id_),
+                  network_service_request_id));
+  }
 
   MaybeRemoveProxy();
 }

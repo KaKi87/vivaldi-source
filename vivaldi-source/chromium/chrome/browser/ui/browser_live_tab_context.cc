@@ -24,12 +24,13 @@
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_tab_strip_model_delegate.h"
 #include "chrome/browser/ui/browser_tabrestore.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
@@ -45,8 +46,10 @@
 #include "components/sessions/core/live_tab_context.h"
 #include "components/sessions/core/session_types.h"
 #include "components/sessions/core/tab_restore_service.h"
+#include "components/split_tabs/split_tab_visual_data.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tab_groups/tab_group_visual_data.h"
+#include "components/tabs/public/split_tab_data.h"
 #include "components/tabs/public/tab_group.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/session_storage_namespace.h"
@@ -159,7 +162,7 @@ std::map<std::string, std::string> BrowserLiveTabContext::GetExtraDataForTab(
   std::map<std::string, std::string> extra_data;
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-  glic::PopulateGlicExtraData(tab_strip_model_->GetWebContentsAt(index),
+  glic::PopulateGlicExtraData(tab_strip_model_->GetTabAtIndex(index),
                               &extra_data);
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
@@ -187,6 +190,11 @@ std::optional<tab_groups::TabGroupId> BrowserLiveTabContext::GetTabGroupForTab(
   return tab_strip_model_->GetTabGroupForTab(index);
 }
 
+std::optional<split_tabs::SplitTabId> BrowserLiveTabContext::GetSplitForTab(
+    int index) const {
+  return tab_strip_model_->GetSplitForTab(index);
+}
+
 const tab_groups::TabGroupVisualData*
 BrowserLiveTabContext::GetVisualDataForGroup(
     const tab_groups::TabGroupId& group) const {
@@ -195,6 +203,16 @@ BrowserLiveTabContext::GetVisualDataForGroup(
   TabGroup* tab_group = group_model->GetTabGroup(group);
   CHECK(tab_group);
   return tab_group->visual_data();
+}
+
+const split_tabs::SplitTabVisualData*
+BrowserLiveTabContext::GetVisualDataForSplit(
+    const split_tabs::SplitTabId& split_id) const {
+  if (!tab_strip_model_->ContainsSplit(split_id)) {
+    return nullptr;
+  }
+  auto* split_data = tab_strip_model_->GetSplitData(split_id);
+  return split_data ? split_data->visual_data() : nullptr;
 }
 
 const std::optional<base::Uuid>
@@ -397,8 +415,30 @@ sessions::LiveTab* BrowserLiveTabContext::ReplaceRestoredTab(
   return sessions::ContentLiveTab::GetOrCreateForWebContents(web_contents);
 }
 
+void BrowserLiveTabContext::ReconstructSplit(
+    sessions::LiveTab* leading_tab,
+    sessions::LiveTab* trailing_tab,
+    split_tabs::SplitTabId split_id,
+    const split_tabs::SplitTabVisualData& visual_data) {
+  auto* leading_content_tab =
+      static_cast<sessions::ContentLiveTab*>(leading_tab);
+  auto* trailing_content_tab =
+      static_cast<sessions::ContentLiveTab*>(trailing_tab);
+
+  const int leading_index = tab_strip_model_->GetIndexOfWebContents(
+      &leading_content_tab->GetWebContents());
+  const int trailing_index = tab_strip_model_->GetIndexOfWebContents(
+      &trailing_content_tab->GetWebContents());
+
+  if (leading_index != TabStripModel::kNoTab &&
+      trailing_index != TabStripModel::kNoTab) {
+    tab_strip_model_->RestoreSplit(split_id, {leading_index, trailing_index},
+                                   visual_data);
+  }
+}
+
 void BrowserLiveTabContext::CloseTab() {
-  chrome::CloseTab(browser_->GetBrowserForMigrationOnly());
+  chrome::CloseTab(&*browser_);
 }
 
 // static
@@ -466,14 +506,16 @@ sessions::LiveTabContext* BrowserLiveTabContext::Create(
 // static
 sessions::LiveTabContext* BrowserLiveTabContext::FindContextForWebContents(
     const WebContents* contents) {
-  BrowserWindowInterface* const browser = chrome::FindBrowserWithTab(contents);
+  BrowserWindowInterface* const browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
   return GetLiveTabContext(browser);
 }
 
 // static
 sessions::LiveTabContext* BrowserLiveTabContext::FindContextWithID(
     SessionID desired_id) {
-  BrowserWindowInterface* const browser = chrome::FindBrowserWithID(desired_id);
+  BrowserWindowInterface* const browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithID(desired_id);
   return GetLiveTabContext(browser);
 }
 
@@ -481,9 +523,18 @@ sessions::LiveTabContext* BrowserLiveTabContext::FindContextWithID(
 sessions::LiveTabContext* BrowserLiveTabContext::FindContextWithGroup(
     tab_groups::TabGroupId group,
     Profile* profile) {
-  BrowserWindowInterface* const browser =
-      chrome::FindBrowserWithGroup(group, profile);
-  return GetLiveTabContext(browser);
+  CHECK(profile);
+  BrowserWindowInterface* target_browser = nullptr;
+  ProfileBrowserCollection::GetForProfile(profile)->ForEach(
+      [&](BrowserWindowInterface* browser) {
+        TabStripModel* const tab_strip_model = browser->GetTabStripModel();
+        if (tab_strip_model->group_model() &&
+            tab_strip_model->group_model()->ContainsTabGroup(group)) {
+          target_browser = browser;
+        }
+        return !target_browser;
+      });
+  return GetLiveTabContext(target_browser);
 }
 
 std::string BrowserLiveTabContext::GetVivExtData() const {

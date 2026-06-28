@@ -156,16 +156,14 @@ void GlicAnnotationManager::ScrollTo(
   }
   annotation_task_.reset();
 
-  GlicInstanceMetricsBackwardsCompatibility& metrics =
-      host->instance_metrics_backwards_compatibility();
-  metrics.OnGlicScrollAttempt();
+  host->instance_metrics().OnGlicScrollAttempt();
 
   mojom::WebClientHandler::ScrollToCallback wrapped_callback =
       base::BindOnce(&RunScrollToCallback, std::move(callback));
   mojom::ScrollToSelector* selector = params->selector.get();
   std::optional<shared_highlighting::TextFragment> text_fragment;
-  std::optional<int> search_range_start_node_id = std::nullopt;
-  std::optional<int> node_id = std::nullopt;
+  std::optional<int> search_range_start_node_id;
+  std::optional<int> node_id;
 
   if (selector->is_exact_text_selector()) {
     auto* exact_text_selector = selector->get_exact_text_selector().get();
@@ -424,9 +422,7 @@ void GlicAnnotationManager::AnnotationTask::SetState(State new_state) {
     case State::kFailed: {
       bool success = new_state == State::kActive;
       if (host_) {
-        GlicInstanceMetricsBackwardsCompatibility& metrics =
-            host_->instance_metrics_backwards_compatibility();
-        metrics.OnGlicScrollComplete(success);
+        host_->instance_metrics().OnGlicScrollComplete(success);
       }
       break;
     }
@@ -537,8 +533,7 @@ void GlicAnnotationManager::AnnotationTask::PrimaryPageChanged(
 // the `GlicAnnotationManager` is destroyed, removing all the annotation tasks
 // as well.
 void GlicAnnotationManager::AnnotationTask::PanelStateChanged(
-    const mojom::PanelState& panel_state,
-    const PanelStateContext& context) {
+    const mojom::PanelState& panel_state) {
   if (panel_state.kind != mojom::PanelStateKind::kHidden) {
     return;
   }

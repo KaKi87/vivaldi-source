@@ -47,8 +47,10 @@
 							)
 							OR
 							(ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO &quot;public.plain-text&quot;)
+              <!-- Vivaldi: VIB-1880
 							OR
 							(ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO &quot;public.image&quot;)
+              End Vivaldi -->
 						)
 					).@count &gt;= 1
 				).@count &gt;= 1

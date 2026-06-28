@@ -36,10 +36,10 @@ IN_PROC_BROWSER_TEST_F(SettingsFocusTest, SyncPage) {
 }
 
 IN_PROC_BROWSER_TEST_F(SettingsFocusTest, SecureDns) {
-  RunTest("settings/secure_dns_interactive_test.js", "mocha.run()");
+  RunTest("settings/security/secure_dns_interactive_test.js", "mocha.run()");
 }
 
-// Times out on Mac. See https://crbug.com/1060981.
+// Times out on Mac. See https://crbug.com/40679346.
 #if BUILDFLAG(IS_MAC)
 #define MAYBE_SettingsUIToolbarAndDrawer DISABLED_SettingsUIToolbarAndDrawer
 #else
@@ -50,7 +50,7 @@ IN_PROC_BROWSER_TEST_F(SettingsFocusTest, MAYBE_SettingsUIToolbarAndDrawer) {
           "runMochaSuite('SettingsUIToolbarAndDrawer')");
 }
 
-// Times out on Mac. See https://crbug.com/1060981.
+// Times out on Mac. See https://crbug.com/40679346.
 #if BUILDFLAG(IS_MAC)
 #define MAYBE_SettingsUISearch DISABLED_SettingsUISearch
 #else

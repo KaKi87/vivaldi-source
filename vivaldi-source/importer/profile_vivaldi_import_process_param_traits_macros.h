@@ -17,6 +17,7 @@
 #include "ipc/param_traits_macros.h"
 
 #include "importer/imported_notes_entry.h"
+#include "importer/imported_raw_password_form.h"
 #include "importer/imported_speeddial_entry.h"
 #include "importer/imported_tab_entry.h"
 #include "importer/viv_importer.h"
@@ -57,6 +58,18 @@ IPC_STRUCT_TRAITS_BEGIN(ImportedTabEntry)
   IPC_STRUCT_TRAITS_MEMBER(current_navigation_index)
   IPC_STRUCT_TRAITS_MEMBER(group)
   IPC_STRUCT_TRAITS_MEMBER(viv_ext_data)
+IPC_STRUCT_TRAITS_END()
+
+IPC_STRUCT_TRAITS_BEGIN(ImportedRawPasswordForm)
+  IPC_STRUCT_TRAITS_MEMBER(signon_realm)
+  IPC_STRUCT_TRAITS_MEMBER(url)
+  IPC_STRUCT_TRAITS_MEMBER(action)
+  IPC_STRUCT_TRAITS_MEMBER(username_element)
+  IPC_STRUCT_TRAITS_MEMBER(username_value)
+  IPC_STRUCT_TRAITS_MEMBER(password_element)
+  IPC_STRUCT_TRAITS_MEMBER(password_value_cipher)
+  IPC_STRUCT_TRAITS_MEMBER(blocked_by_user)
+  IPC_STRUCT_TRAITS_MEMBER(source_product_name)
 IPC_STRUCT_TRAITS_END()
 
 #endif  // IMPORTER_PROFILE_VIVALDI_IMPORT_PROCESS_PARAM_TRAITS_MACROS_H_

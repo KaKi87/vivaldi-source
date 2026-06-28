@@ -13,6 +13,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/android/android_theme_resources.h"
 #include "chrome/browser/android/resource_mapper.h"
+#include "chrome/browser/download/android/download_controller.h"
 #include "chrome/browser/download/android/download_dialog_utils.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/url_formatter/elide_url.h"
@@ -57,12 +58,12 @@ DangerousDownloadDialogBridge::~DangerousDownloadDialogBridge() {
 
 void DangerousDownloadDialogBridge::Show(download::DownloadItem* download_item,
                                          ui::WindowAndroid* window_android) {
-  // Don't show dangerous download again if it is already showing.
+  // Don't show download again if it is already showing.
   if (std::ranges::contains(download_items_, download_item)) {
     return;
   }
   if (!window_android) {
-    download_item->Remove();
+    DownloadController::ScheduleRemoveDownloadItem(download_item);
     return;
   }
   download_item->AddObserver(this);
@@ -77,7 +78,8 @@ void DangerousDownloadDialogBridge::Show(download::DownloadItem* download_item,
       download_item->GetTotalBytes(),
       base::android::ConvertUTF16ToJavaString(env,
                                               GetDownloadDomain(download_item)),
-      ResourceMapper::MapToJavaDrawableId(IDR_ANDROID_INFOBAR_WARNING));
+      ResourceMapper::MapToJavaDrawableId(IDR_ANDROID_INFOBAR_WARNING),
+      download_item->IsDangerous());
 }
 
 void DangerousDownloadDialogBridge::OnDownloadDestroyed(
@@ -95,7 +97,11 @@ void DangerousDownloadDialogBridge::Accepted(JNIEnv* env,
       &download_items_, download_guid);
   if (download) {
     download->RemoveObserver(this);
-    download->ValidateDangerousDownload();
+    if (download->IsDangerous()) {
+      download->ValidateDangerousDownload();
+    } else {
+      download->ConfirmNonDangerousDownload();
+    }
   }
 }
 
@@ -106,7 +112,7 @@ void DangerousDownloadDialogBridge::Cancelled(
       &download_items_, download_guid);
   if (download) {
     download->RemoveObserver(this);
-    download->Remove();
+    DownloadController::ScheduleRemoveDownloadItem(download);
   }
 }
 

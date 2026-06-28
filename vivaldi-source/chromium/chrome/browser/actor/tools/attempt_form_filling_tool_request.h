@@ -10,8 +10,8 @@
 #include <string>
 #include <vector>
 
-#include "chrome/browser/actor/shared_types.h"
 #include "chrome/browser/actor/tools/tool_request.h"
+#include "components/actor/core/shared_types.h"
 #include "components/autofill/core/browser/integrators/actor/actor_form_filling_types.h"
 
 namespace actor {
@@ -32,6 +32,7 @@ class AttemptFormFillingToolRequest : public TabToolRequest {
     FormFillingRequest& operator=(FormFillingRequest&&);
 
     RequestedData requested_data{};
+    std::string section_label;
     std::vector<PageTarget> trigger_fields;
   };
 
@@ -47,6 +48,10 @@ class AttemptFormFillingToolRequest : public TabToolRequest {
                               ToolDelegate& tool_delegate) const override;
   std::string_view Name() const override;
   void Apply(ToolRequestVisitorFunctor& f) const override;
+
+  const std::vector<FormFillingRequest>& GetRequestsForTesting() const {
+    return requests_;
+  }
 
  private:
   std::vector<FormFillingRequest> requests_;

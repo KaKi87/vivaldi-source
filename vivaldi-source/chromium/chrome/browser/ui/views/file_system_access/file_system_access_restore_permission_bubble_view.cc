@@ -5,7 +5,8 @@
 #include "chrome/browser/ui/views/file_system_access/file_system_access_restore_permission_bubble_view.h"
 
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/file_system_access/file_system_access_ui_helpers.h"
 #include "chrome/browser/ui/views/bubble_anchor_util_views.h"
 #include "chrome/browser/ui/views/file_system_access/file_system_access_scroll_panel.h"
@@ -13,6 +14,7 @@
 #include "chrome/grit/generated_resources.h"
 #include "components/permissions/permission_util.h"
 #include "components/strings/grit/components_strings.h"
+#include "components/tabs/public/tab_interface.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -37,6 +39,17 @@ FileSystemAccessRestorePermissionBubbleView::
     : LocationBarBubbleDelegateView(anchor, web_contents),
       window_title_(window_title),
       callback_(std::move(callback)) {
+  if (web_contents) {
+    if (auto* tab_interface =
+            tabs::TabInterface::MaybeGetFromContents(web_contents)) {
+      tab_deactivation_subscription_ =
+          tab_interface->RegisterWillDeactivate(base::BindRepeating(
+              [](FileSystemAccessRestorePermissionBubbleView* bubble_view,
+                 tabs::TabInterface* tab) { bubble_view->CloseBubble(); },
+              base::Unretained(this)));
+    }
+  }
+
   // Initial set up.
   views::LayoutProvider* layout_provider = views::LayoutProvider::Get();
   SetLayoutManager(std::make_unique<views::BoxLayout>(
@@ -47,8 +60,8 @@ FileSystemAccessRestorePermissionBubbleView::
   SetProperty(views::kElementIdentifierKey,
               kFileSystemAccessBubbleElementIdentifier);
   // To prevent permissions being accepted accidentally, and as a security
-  // measure against crbug.com/619429, permission prompts should not be accepted
-  // as the default action.
+  // measure against crbug.com/40084558, permission prompts should not be
+  // accepted as the default action.
   SetDefaultButton(static_cast<int>(ui::mojom::DialogButton::kNone));
   SetCloseOnMainFrameOriginNavigation(true);
   DialogDelegate::SetCloseCallback(base::BindOnce(
@@ -123,8 +136,10 @@ FileSystemAccessRestorePermissionBubbleView::CreateAndShow(
   DCHECK(request.request_type == FileSystemAccessPermissionRequestManager::
                                      RequestType::kRestorePermissions);
 
-  auto* browser = chrome::FindBrowserWithTab(web_contents);
-  if (!browser || !browser->window()) {
+  auto* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents);
+  if (!browser || !browser->GetWindow() || !browser->GetActiveTabInterface() ||
+      browser->GetActiveTabInterface()->GetContents() != web_contents) {
     return nullptr;
   }
 
@@ -147,6 +162,11 @@ FileSystemAccessRestorePermissionBubbleView::CreateAndShow(
   return bubble_view;
 }
 
+void FileSystemAccessRestorePermissionBubbleView::CloseBubble() {
+  tab_deactivation_subscription_ = {};
+  LocationBarBubbleDelegateView::CloseBubble();
+}
+
 void FileSystemAccessRestorePermissionBubbleView::AddedToWidget() {
   GetBubbleFrameView()->SetTitleView(CreateTitleOriginLabel(GetWindowTitle()));
 }
@@ -162,14 +182,14 @@ std::u16string FileSystemAccessRestorePermissionBubbleView::GetWindowTitle()
 }
 
 void FileSystemAccessRestorePermissionBubbleView::UpdateAnchor(
-    Browser* browser) {
+    BrowserWindowInterface* browser) {
   auto configuration =
       bubble_anchor_util::GetPageInfoAnchorConfiguration(browser);
   SetAnchor(configuration.anchor);
   if (configuration.highlighted_element) {
     SetHighlightedElement(*configuration.highlighted_element);
   }
-  if (std::holds_alternative<std::nullptr_t>(configuration.anchor)) {
+  if (configuration.anchor.IsNull()) {
     SetAnchorRect(bubble_anchor_util::GetPageInfoAnchorRect(browser));
   }
   SetArrow(configuration.bubble_arrow);

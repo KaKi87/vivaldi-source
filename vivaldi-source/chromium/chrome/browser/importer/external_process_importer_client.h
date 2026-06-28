@@ -8,6 +8,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// Vivaldi: Needed for UI thread decrypt handling.
+#include <memory>
+#include <optional>
+
 #include <string>
 #include <vector>
 
@@ -32,6 +36,13 @@ struct ImportedFaviconUsage;
 struct ImportedSpeedDialEntry;
 struct ImportedTabEntry;
 // End Vivaldi
+
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+namespace os_crypt_async {
+class Encryptor;
+class OSCryptAsync;
+}  // namespace os_crypt_async
+#endif  // IS_LINUX
 
 namespace user_data_importer {
 struct ImportedBookmarkEntry;
@@ -104,6 +115,11 @@ class ExternalProcessImporterClient
 
   void OnTabImportStart(uint32_t total_count) override;
   void OnTabImportGroup(const std::vector<ImportedTabEntry>& group) override;
+
+  // Vivaldi - raw (encrypted) password import for Linux decryption.
+  void OnRawPasswordsImportStart(uint32_t total_count) override;
+  void OnRawPasswordsImportGroup(
+      const std::vector<ImportedRawPasswordForm>& group) override;
 
  protected:
   ~ExternalProcessImporterClient() override;
@@ -179,7 +195,12 @@ class ExternalProcessImporterClient
 
   std::vector<ImportedTabEntry> tabs_;
 
-   // Usually some variation on IDS_NOTES_GROUP_...; the name of the folder
+  // Raw (encrypted) password forms collected from the importer process.
+  std::vector<ImportedRawPasswordForm> raw_passwords_;
+  size_t total_raw_passwords_count_ = 0;
+  bool password_import_failed_ = false;
+
+  // Usually some variation on IDS_NOTES_GROUP_...; the name of the folder
   // under which imported notes will be placed.
   std::u16string notes_first_folder_name_;
 
@@ -194,6 +215,38 @@ class ExternalProcessImporterClient
 
   // Total number of tabs to import.
   size_t total_tab_count_;
+
+  // Vivaldi: Handles the decryptor on UI thread.
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+  // Retrieves an Encryptor for the source product on the UI thread and forwards
+  // the decryption callback to the current task runner.
+  void GetDecryptorOnUIThread(
+      const std::string& product_name,
+      base::OnceCallback<void(scoped_refptr<os_crypt_async::Encryptor>)>
+          callback);
+
+  // Decrypts all collected raw passwords using the Encryptor and sends them
+  // through the bridge.
+  void OnDecryptorReady(
+      const std::vector<ImportedRawPasswordForm>& raw_passwords,
+      scoped_refptr<os_crypt_async::Encryptor> decryptor);
+
+  void CompletePendingPasswordImport(bool failed_decrypt);
+  void MaybeCompletePendingPasswordImport();
+
+  struct DeferredImportFinished {
+    bool succeeded = true;
+    std::string error_msg;
+  };
+
+  std::unique_ptr<os_crypt_async::OSCryptAsync> pending_password_os_crypt_;
+  bool pending_password_decryption_ = false;
+  bool deferred_password_item_finished_ = false;
+  std::optional<bool> pending_password_decryption_failed_;
+  std::optional<DeferredImportFinished> deferred_import_finished_;
+
+  base::WeakPtrFactory<ExternalProcessImporterClient> weak_ptr_factory_{this};
+#endif  // IS_LINUX
 };
 
 #endif  // CHROME_BROWSER_IMPORTER_EXTERNAL_PROCESS_IMPORTER_CLIENT_H_

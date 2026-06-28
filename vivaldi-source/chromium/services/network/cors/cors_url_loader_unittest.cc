@@ -165,6 +165,58 @@ TEST_F(CorsURLLoaderTest, ForbiddenMethods) {
   }
 }
 
+TEST_F(CorsURLLoaderTest, ForbiddenMethodOverride) {
+  const struct {
+    std::string header_name;
+    std::string header_value;
+  } kTestCases[] = {
+      {"X-HTTP-Method-Override", "TRACE"},
+      {"X-HTTP-Method-Override", "TRACK"},
+      {"X-HTTP-Method-Override", "CONNECT"},
+      {"X-HTTP-Method", "TRACE"},
+      {"X-Method-Override", "TRACE"},
+  };
+  for (const auto& test_case : kTestCases) {
+    SCOPED_TRACE(test_case.header_name);
+    SCOPED_TRACE(test_case.header_value);
+    for (const mojom::RequestMode mode :
+         {mojom::RequestMode::kSameOrigin, mojom::RequestMode::kNoCors,
+          mojom::RequestMode::kCors,
+          mojom::RequestMode::kCorsWithForcedPreflight,
+          mojom::RequestMode::kNavigate}) {
+      SCOPED_TRACE(mode);
+
+      ResetFactory(
+          url::Origin::Create(GURL("https://example.com")) /* initiator */,
+          OriginatingProcessId::browser());
+
+      ResourceRequest request;
+      request.mode = mode;
+      request.credentials_mode = mojom::CredentialsMode::kInclude;
+      request.url = GURL("https://example.com/");
+      request.request_initiator = url::Origin::Create(request.url);
+      request.method = "POST";
+      request.headers.SetHeader(test_case.header_name, test_case.header_value);
+
+      BadMessageTestHelper bad_message_helper;
+      CreateLoaderAndStart(request);
+      if (IsNetworkLoaderStarted()) {
+        RunUntilCreateLoaderAndStartCalled();
+        NotifyLoaderClientOnReceiveResponse();
+        NotifyLoaderClientOnComplete(net::OK);
+      }
+      RunUntilComplete();
+
+      EXPECT_FALSE(IsNetworkLoaderStarted());
+      EXPECT_FALSE(client().has_received_redirect());
+      EXPECT_FALSE(client().has_received_response());
+      EXPECT_TRUE(client().has_received_completion());
+      EXPECT_THAT(client().completion_status().error_code,
+                  net::test::IsError(net::ERR_INVALID_ARGUMENT));
+    }
+  }
+}
+
 TEST_F(CorsURLLoaderTest, SameOriginWithoutInitiator) {
   ResourceRequest request;
   request.mode = mojom::RequestMode::kSameOrigin;
@@ -1158,7 +1210,9 @@ TEST_F(CorsURLLoaderTest, CorsExemptHeaderRemovalOnCrossOriginRedirects) {
   EXPECT_TRUE(
       GetRequest().cors_exempt_headers.HasHeader(kTestCorsExemptHeader));
 
-  FollowRedirect({kTestCorsExemptHeader});
+  network::HttpRequestHeadersUpdateParams headers_update_params;
+  headers_update_params.removed_headers.push_back(kTestCorsExemptHeader);
+  FollowRedirect(std::move(headers_update_params));
   RunUntilCreateLoaderAndStartCalled();
 
   EXPECT_EQ(2, num_created_loaders());
@@ -1186,9 +1240,10 @@ TEST_F(CorsURLLoaderTest, CorsExemptHeaderModificationOnRedirects) {
   EXPECT_TRUE(
       GetRequest().cors_exempt_headers.HasHeader(kTestCorsExemptHeader));
 
-  net::HttpRequestHeaders modified_headers;
-  modified_headers.SetHeader(kTestCorsExemptHeader, "test-modified");
-  FollowRedirect({}, modified_headers);
+  network::HttpRequestHeadersUpdateParams headers_update_params;
+  headers_update_params.modified_headers.SetHeader(kTestCorsExemptHeader,
+                                                   "test-modified");
+  FollowRedirect(std::move(headers_update_params));
   RunUntilComplete();
 
   ASSERT_EQ(1, num_created_loaders());
@@ -1734,9 +1789,10 @@ TEST_F(CorsURLLoaderTest, SetHostHeaderOnRedirectFails) {
 
   ClearHasReceivedRedirect();
   // This should cause the request to fail.
-  net::HttpRequestHeaders modified_headers;
-  modified_headers.SetHeader(net::HttpRequestHeaders::kHost, "bar.test");
-  FollowRedirect({} /* removed_headers */, modified_headers);
+  network::HttpRequestHeadersUpdateParams headers_update_params;
+  headers_update_params.modified_headers.SetHeader(
+      net::HttpRequestHeaders::kHost, "bar.test");
+  FollowRedirect(std::move(headers_update_params));
 
   RunUntilComplete();
 
@@ -1763,10 +1819,10 @@ TEST_F(CorsURLLoaderTest, SetProxyAuthorizationHeaderOnRedirectFails) {
 
   ClearHasReceivedRedirect();
   // This should cause the request to fail.
-  net::HttpRequestHeaders modified_headers;
-  modified_headers.SetHeader(net::HttpRequestHeaders::kProxyAuthorization,
-                             "Basic Zm9vOmJhcg==");
-  FollowRedirect({} /* removed_headers */, modified_headers);
+  network::HttpRequestHeadersUpdateParams headers_update_params;
+  headers_update_params.modified_headers.SetHeader(
+      net::HttpRequestHeaders::kProxyAuthorization, "Basic Zm9vOmJhcg==");
+  FollowRedirect(std::move(headers_update_params));
 
   RunUntilComplete();
 

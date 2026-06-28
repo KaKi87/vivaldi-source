@@ -172,6 +172,7 @@
 #include "chrome/browser/flags/android/chrome_feature_list.h"
 #include "chrome/common/chrome_descriptors_android.h"
 #include "components/crash/android/pure_java_exception_handler.h"
+#include "components/metrics/android_unconditional_persistent_histograms_field_trial.h"
 #include "net/android/network_change_notifier_factory_android.h"
 #else  // BUILDFLAG(IS_ANDROID)
 // Diagnostics is only available on non-android platforms.
@@ -217,11 +218,15 @@
 #include "ui/ozone/public/ozone_platform.h"
 #endif  // BUILDFLAG(IS_OZONE)
 
+#if BUILDFLAG(CHROME_FOR_TESTING)
+#include "chrome/browser/chrome_for_testing/config.h"
+#endif
+
 #include "app/vivaldi_apptools.h"
 #include "app/vivaldi_version_info.h"
 #if BUILDFLAG(IS_WIN)
 #include "browser/win/vivaldi_utils.h"
-#endif
+#endif // Vivaldi
 
 base::LazyInstance<ChromeContentGpuClient>::DestructorAtExit
     g_chrome_content_gpu_client = LAZY_INSTANCE_INITIALIZER;
@@ -461,7 +466,7 @@ std::optional<int> HandlePackExtensionSwitches(
   // This happens before the default flow for FeatureList initialization, but
   // packing an extension can depend on different base::Features. Thus, we
   // should have always created a stub FeatureList by this point.
-  // See https://crbug.com/1506254.
+  // See https://crbug.com/40946904.
   CHECK(WillExitBeforeBrowserFeatureListInitialization());
   CHECK(base::FeatureList::GetInstance());
 
@@ -709,7 +714,7 @@ void OnResourceExhausted() {
   // RegisterClassEx will fail if the session's pool of ATOMs is exhausted. This
   // appears to happen most often when the browser is being driven by automation
   // tools, though the underlying reason for this remains a mystery
-  // (https://crbug.com/1470483). There is nothing that Chrome can do to
+  // (https://crbug.com/40925772). There is nothing that Chrome can do to
   // meaningfully run until the user restarts their session by signing out of
   // Windows or restarting their computer.
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -815,7 +820,7 @@ std::optional<int> ChromeMainDelegate::PostEarlyInitialization(
 
 #if BUILDFLAG(IS_WIN)
   // Initialize the cleaner of left-behind tmp files now that the main thread
-  // has its SequencedTaskRunner; see https://crbug.com/1075917.
+  // has its SequencedTaskRunner; see https://crbug.com/40687964.
   base::ImportantFileWriterCleaner::GetInstance().Initialize();
 
   // Make sure the 'uxtheme.dll' is pinned.
@@ -856,15 +861,6 @@ std::optional<int> ChromeMainDelegate::PostEarlyInitialization(
     chrome_feature_list_creator->CreateFeatureList();
   }
 
-#if BUILDFLAG(IS_OZONE)
-  // Initialize Ozone platform and add required feature flags as per platform's
-  // properties.
-#if BUILDFLAG(IS_LINUX)
-  ui::SetOzonePlatformForLinuxIfNeeded(*base::CommandLine::ForCurrentProcess());
-#endif
-  ui::OzonePlatform::PreEarlyInitialization();
-#endif  // BUILDFLAG(IS_OZONE)
-
   content::InitializeMojoCore();
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -886,6 +882,15 @@ std::optional<int> ChromeMainDelegate::PostEarlyInitialization(
   std::string actual_locale = LoadLocalState(
       chrome_feature_list_creator, invoked_in_browser->is_running_test);
   chrome_feature_list_creator->SetApplicationLocale(actual_locale);
+
+#if BUILDFLAG(CHROME_FOR_TESTING)
+  // Exit early if Chrome for Testing configuration is specified but cannot be
+  // loaded. The error info will be sent to stderr.
+  if (!chrome_for_testing::LoadConfig(
+          chrome_feature_list_creator->local_state())) {
+    return CHROME_RESULT_CODE_UNSUPPORTED_PARAM;
+  }
+#endif
 
   // On Chrome OS, initialize D-Bus clients that depend on feature list.
 #if BUILDFLAG(IS_CHROMEOS)
@@ -1109,7 +1114,7 @@ std::optional<int> ChromeMainDelegate::BasicStartupComplete() {
   }
 
   // The DevTools remote debugging pipe file descriptors need to be checked
-  // before any other files are opened, see https://crbug.com/1423048.
+  // before any other files are opened, see https://crbug.com/40259890.
   const bool is_browser = !command_line.HasSwitch(switches::kProcessType);
 #if BUILDFLAG(IS_WIN)
   const bool pipes_are_specified_explicitly =
@@ -1380,7 +1385,6 @@ void ChromeMainDelegate::PreSandboxStartup() {
   // Register component_updater PathProvider after DIR_USER_DATA overridden by
   // command line flags. Maybe move the chrome PathProvider down here also?
   component_updater::RegisterPathProvider(chrome::DIR_COMPONENTS,
-                                          chrome::DIR_INTERNAL_PLUGINS,
                                           chrome::DIR_USER_DATA);
 
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_WIN)
@@ -1393,7 +1397,7 @@ void ChromeMainDelegate::PreSandboxStartup() {
   // TODO(zturner): Throbber icons and cursors are still stored in chrome.dll,
   // this can be killed once those are merged into resources.pak. See
   // BrowserFrameViewWin::InitThrobberIcons(), https://crbug.com/41104393 and
-  // https://crbug.com/1178117.
+  // https://crbug.com/40748911.
   ui::SetResourcesDataDLL(CURRENT_MODULE());
 #endif
 
@@ -1525,6 +1529,18 @@ void ChromeMainDelegate::PreSandboxStartup() {
 #if BUILDFLAG(ENABLE_PDF)
   MaybePatchGdiGetFontData();
 #endif
+
+#if BUILDFLAG(IS_OZONE)
+  if (process_type.empty()) {
+    // Initialize Ozone platform and add required feature flags as per
+    // platform's properties.
+#if BUILDFLAG(IS_LINUX)
+    ui::SetOzonePlatformForLinuxIfNeeded(
+        *base::CommandLine::ForCurrentProcess());
+#endif
+    ui::OzonePlatform::PreSandboxStartup();
+  }
+#endif  // BUILDFLAG(IS_OZONE)
 }
 
 void ChromeMainDelegate::SandboxInitialized(const std::string& process_type) {
@@ -1540,15 +1556,20 @@ void ChromeMainDelegate::SandboxInitialized(const std::string& process_type) {
 
   // If this is a browser process, initialize the persistent histograms system
   // unless headless mode is in effect. This is done as soon as possible to
-  // ensure metrics collection coverage. For Fuchsia, persistent histogram
-  // initialization is done after field trial initialization (so that it can be
-  // controlled from the serverside and experimented with). Note: this is done
-  // before field trial initialization, so the values of
-  // `kPersistentHistogramsFeature` and `kPersistentHistogramsStorage` will
-  // not be used. Persist histograms to a memory-mapped file.
+  // ensure metrics collection coverage. Note: this is done before field trial
+  // initialization, so the values of `kPersistentHistogramsFeature` and
+  // `kPersistentHistogramsStorage` will not be used. Persist histograms to a
+  // memory-mapped file.
   if (process_type.empty() && !headless::IsHeadlessMode()) {
     base::FilePath metrics_dir;
     if (base::PathService::Get(chrome::DIR_USER_DATA, &metrics_dir)) {
+#if BUILDFLAG(IS_ANDROID)
+      // Enroll Chrome in the client-side field trial for unconditional
+      // persistent histograms. This is done here to explicitly exclude WebView.
+      metrics::android_unconditional_persistent_histograms_field_trial::
+          EnrollClient();
+#endif
+
       InstantiatePersistentHistograms(
           metrics_dir,
           /*persistent_histograms_enabled=*/true,

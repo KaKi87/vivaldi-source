@@ -9,8 +9,9 @@
 #include <optional>
 
 #include "base/callback_list.h"
-#include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ref.h"
 #include "base/observer_list.h"
+#include "base/scoped_observation.h"
 #include "base/time/time.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui_base.h"
@@ -19,8 +20,6 @@
 #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 #include "ui/views/view_observer.h"
 
-class Browser;
-class BrowserView;
 class BrowserWindowInterface;
 class SidePanel;
 
@@ -40,7 +39,7 @@ class View;
 class SidePanelCoordinator final : public SidePanelUIBase,
                                    public views::ViewObserver {
  public:
-  explicit SidePanelCoordinator(BrowserView* browser_view);
+  explicit SidePanelCoordinator(BrowserWindowInterface* browser);
   SidePanelCoordinator(const SidePanelCoordinator&) = delete;
   SidePanelCoordinator& operator=(const SidePanelCoordinator&) = delete;
   ~SidePanelCoordinator() override;
@@ -50,13 +49,11 @@ class SidePanelCoordinator final : public SidePanelUIBase,
   static SidePanelCoordinator* From(
       BrowserWindowInterface* browser_window_interface);
 
-  void Init(Browser* browser);
   void TearDownPreBrowserWindowDestruction();
 
   // SidePanelUI:
   using SidePanelUI::Close;
-  void Close(SidePanelEntry::PanelType panel_type,
-             SidePanelEntryHideReason reason,
+  void Close(SidePanelEntryHideReason reason,
              bool suppress_animations) override;
   void Toggle(SidePanelEntryKey key,
               SidePanelOpenTrigger open_trigger) override;
@@ -74,8 +71,7 @@ class SidePanelCoordinator final : public SidePanelUIBase,
   content::WebContents* GetWebContentsForTest(SidePanelEntryId id) override;
   void DisableAnimationsForTesting() override;
 
-  SidePanelEntry* GetLoadingEntryForTesting(
-      SidePanelEntry::PanelType type) const;
+  SidePanelEntry* GetLoadingEntryForTesting() const;
 
  private:
   // Returns the corresponding entry for `entry_key` or a nullptr if this key is
@@ -94,14 +90,15 @@ class SidePanelCoordinator final : public SidePanelUIBase,
       SidePanelRegistry* old_contextual_registry,
       SidePanelRegistry* new_contextual_registry) override;
 
-  // Clear cached views with the corresponding panel type for registry entries
-  // for global and contextual registries.
-  void ClearCachedEntryViews(SidePanelEntry::PanelType type);
+  // Clear cached views for registry entries for global and contextual
+  // registries.
+  void ClearCachedEntryViews();
 
   // views::ViewObserver:
   void OnViewVisibilityChanged(views::View* observed_view,
                                views::View* starting_from,
                                bool visible) override;
+  void OnViewIsDeleting(views::View* observed_view) override;
 
   // Closes `promo_feature` if showing and if actual_id == promo_id, also
   // notifies the User Education system that the feature was used.
@@ -109,13 +106,15 @@ class SidePanelCoordinator final : public SidePanelUIBase,
                                     SidePanelEntryId promo_id,
                                     SidePanelEntryId actual_id);
 
-  // Returns the corresponding side panel for the provided panel type.
-  SidePanel* GetSidePanelFor(SidePanelEntry::PanelType type);
+  SidePanel* GetSidePanel();
 
-  const raw_ptr<BrowserView, AcrossTasksDanglingUntriaged> browser_view_;
+  const raw_ref<BrowserWindowInterface> browser_;
 
   std::unique_ptr<SidePanelToolbarPinningController>
       side_panel_toolbar_pinning_controller_;
+
+  base::ScopedObservation<views::View, views::ViewObserver>
+      side_panel_observation_{this};
 
   ui::ScopedUnownedUserData<SidePanelCoordinator> scoped_unowned_user_data_;
 };

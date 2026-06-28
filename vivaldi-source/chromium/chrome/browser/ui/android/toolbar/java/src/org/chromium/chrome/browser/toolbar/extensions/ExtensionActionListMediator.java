@@ -7,6 +7,14 @@ package org.chromium.chrome.browser.toolbar.extensions;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.LayoutInflater;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewConfiguration;
 
 import androidx.annotation.VisibleForTesting;
 
@@ -18,11 +26,12 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.extensions.ContextMenuSource;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.toolbar.MenuBuilderHelper;
-import org.chromium.chrome.browser.toolbar.R;
 import org.chromium.chrome.browser.toolbar.extensions.ExtensionActionButtonProperties.ListItemType;
 import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTask;
 import org.chromium.chrome.browser.ui.extensions.ExtensionAction;
+import org.chromium.chrome.browser.ui.extensions.ExtensionAction.HoverCardState;
 import org.chromium.chrome.browser.ui.extensions.ExtensionActionContextMenuBridge;
 import org.chromium.chrome.browser.ui.extensions.ExtensionActionPopupContents;
 import org.chromium.chrome.browser.ui.extensions.ExtensionsToolbarBridge;
@@ -32,9 +41,14 @@ import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.selection.SelectionDropdownMenuDelegate;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.listmenu.ListMenuButton;
+import org.chromium.ui.modaldialog.ModalDialogManager;
+import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogManagerObserver;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 import org.chromium.ui.modelutil.PropertyModel;
+import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
+import org.chromium.ui.widget.AnchoredPopupWindow;
+import org.chromium.ui.widget.RectProvider;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -49,6 +63,25 @@ class ExtensionActionListMediator implements Destroyable {
 
         /** State when no menu or popup is active. */
         public static final class Idle extends ActionState {}
+
+        /** State when popup is waiting for UI animations to finish. */
+        public static final class PopupPending extends ActionState {
+            private final String mActionId;
+            private final ExtensionActionPopupContents mContents;
+
+            public PopupPending(String actionId, ExtensionActionPopupContents contents) {
+                mActionId = actionId;
+                mContents = contents;
+            }
+
+            public String getActionId() {
+                return mActionId;
+            }
+
+            public ExtensionActionPopupContents getContents() {
+                return mContents;
+            }
+        }
 
         /** State when a popup is active. */
         public static final class PopupActive extends ActionState {
@@ -92,10 +125,25 @@ class ExtensionActionListMediator implements Destroyable {
     private final @Nullable ContextMenuPopulatorFactory mContextMenuPopulatorFactory;
     private final @Nullable SelectionDropdownMenuDelegate mSelectionDropdownMenuDelegate;
     private final ExtensionActionListCoordinator.RecyclerViewDelegate mRecyclerViewDelegate;
+    private final TabModelSelector mTabModelSelector;
+    private final Handler mHandler = new Handler(Looper.getMainLooper());
+
+    private @Nullable AnchoredPopupWindow mHoverCard;
+    private @Nullable String mHoverCardActionId;
+    private @Nullable Runnable mShowHoverCardRunnable;
 
     private final ExtensionsToolbarBridge mExtensionsToolbarBridge;
     private final ToolbarDelegate mToolbarDelegate = new ToolbarDelegate();
     private final ToolbarObserver mToolbarObserver = new ToolbarObserver();
+
+    private final ModalDialogManagerObserver mModalDialogManagerObserver =
+            new ModalDialogManagerObserver() {
+                @Override
+                public void onDialogAdded(PropertyModel model) {
+                    closePopup();
+                }
+            };
+    private final ModalDialogManager mModalDialogManager;
 
     private ActionState mActionState = new ActionState.Idle();
 
@@ -124,7 +172,9 @@ class ExtensionActionListMediator implements Destroyable {
             ExtensionActionListCoordinator.RecyclerViewDelegate recyclerViewDelegate,
             ExtensionsToolbarBridge extensionsToolbarBridge,
             @Nullable ContextMenuPopulatorFactory contextMenuPopulatorFactory,
-            @Nullable SelectionDropdownMenuDelegate selectionDropdownMenuDelegate) {
+            @Nullable SelectionDropdownMenuDelegate selectionDropdownMenuDelegate,
+            TabModelSelector tabModelSelector,
+            ModalDialogManager modalDialogManager) {
         mContext = context;
         mWindowAndroid = windowAndroid;
         mModels = models;
@@ -135,21 +185,33 @@ class ExtensionActionListMediator implements Destroyable {
         mExtensionsToolbarBridge = extensionsToolbarBridge;
         mContextMenuPopulatorFactory = contextMenuPopulatorFactory;
         mSelectionDropdownMenuDelegate = selectionDropdownMenuDelegate;
+        mTabModelSelector = tabModelSelector;
+        mModalDialogManager = modalDialogManager;
+        mModalDialogManager.addObserver(mModalDialogManagerObserver);
 
-        mExtensionsToolbarBridge.setDelegate(mToolbarDelegate);
+        mExtensionsToolbarBridge.setActionListDelegate(mToolbarDelegate);
         mExtensionsToolbarBridge.addObserver(mToolbarObserver);
         reconcileActionItems();
     }
 
     @Override
     public void destroy() {
+        if (mShowHoverCardRunnable != null) {
+            mHandler.removeCallbacks(mShowHoverCardRunnable);
+            mShowHoverCardRunnable = null;
+        }
+
+        mRecyclerViewDelegate.clearOnAnimationsFinishedRunnables();
+
+        closeHoverCard();
         closePopup();
         closeContextMenu();
 
         assert mActionState instanceof ActionState.Idle;
 
+        mModalDialogManager.removeObserver(mModalDialogManagerObserver);
         mExtensionsToolbarBridge.removeObserver(mToolbarObserver);
-        mExtensionsToolbarBridge.setDelegate(null);
+        mExtensionsToolbarBridge.setActionListDelegate(null);
         LifetimeAssert.setSafeToGc(mLifetimeAssert, true);
     }
 
@@ -184,6 +246,9 @@ class ExtensionActionListMediator implements Destroyable {
      */
     @VisibleForTesting
     void reconcileActionItems() {
+        // The pinned action IDs are a subset of all action IDs.
+        Set<String> allActionIdsSet =
+                new HashSet<>(Arrays.asList(mExtensionsToolbarBridge.getAllActionIds()));
         String[] pinnedActionIds = mExtensionsToolbarBridge.getPinnedActionIds();
 
         Tab currentTab = mCurrentTabSupplier.get();
@@ -236,18 +301,25 @@ class ExtensionActionListMediator implements Destroyable {
 
             currentModelIndex =
                     reconcileItem(
-                            actionId, currentModelIndex, webContents, /* isPoppedOut= */ false);
+                            actionId,
+                            currentModelIndex,
+                            webContents,
+                            /* isPoppedOut= */ false,
+                            allActionIdsSet);
         }
 
         // Deal with the popped out action last, as it should appear on the [right|left] end of the
         // list for [LTR|RTL].
-        if (mPoppedOutActionId != null && mCanShowPoppedOutAction) {
+        if (mPoppedOutActionId != null
+                && allActionIdsSet.contains(mPoppedOutActionId)
+                && mCanShowPoppedOutAction) {
             currentModelIndex =
                     reconcileItem(
                             mPoppedOutActionId,
                             currentModelIndex,
                             webContents,
-                            /* isPoppedOut= */ true);
+                            /* isPoppedOut= */ true,
+                            allActionIdsSet);
         }
 
         // Remove rest of the items.
@@ -263,13 +335,20 @@ class ExtensionActionListMediator implements Destroyable {
      * Helper to calculate whether we should show an action item, and if so to reorder {@link
      * mModels} so that {@code actionId} comes at {@code currentIndex}.
      *
+     * @param actionId The ID of the action in question.
+     * @param currentIndex The current index of the action in {@link mModels}.
+     * @param webContents The WebContents to use.
+     * @param isPoppedOut Whether the action is shown because it's popped out.
+     * @param allActionIds The list of all active actions, pinned or unpinned.
      * @return The next index of {@link mModels} that needs to be evaluated.
      */
     private int reconcileItem(
             String actionId,
             int currentIndex,
             @Nullable WebContents webContents,
-            boolean isPoppedOut) {
+            boolean isPoppedOut,
+            Set<String> allActionIds) {
+        assert allActionIds.contains(actionId);
         ExtensionAction action = mExtensionsToolbarBridge.getAction(actionId, webContents);
         if (action == null) {
             return currentIndex;
@@ -319,12 +398,16 @@ class ExtensionActionListMediator implements Destroyable {
                                 ExtensionActionButtonProperties.ON_CLICK_LISTENER,
                                 (view) -> onPrimaryClick(actionId))
                         .with(
+                                ExtensionActionButtonProperties.ON_HOVER_LISTENER,
+                                (view, event) -> {
+                                    return onHover(actionId, event, webContents);
+                                })
+                        .with(
                                 ExtensionActionButtonProperties.ON_LONG_CLICK_LISTENER,
                                 (view) -> {
                                     requestShowContextMenu(actionId);
                                     return true;
                                 })
-                        .with(ExtensionActionButtonProperties.TOOLTIP, action.getTooltip())
                         .build());
     }
 
@@ -332,7 +415,7 @@ class ExtensionActionListMediator implements Destroyable {
     Bitmap getIconForAction(String actionId, @Nullable WebContents webContents) {
         Bitmap icon =
                 ExtensionActionIconUtil.getIcon(
-                        mContext, mExtensionsToolbarBridge, actionId, webContents);
+                        mContext, mWindowAndroid, mExtensionsToolbarBridge, actionId, webContents);
         assert icon != null;
         return icon;
     }
@@ -369,7 +452,6 @@ class ExtensionActionListMediator implements Destroyable {
                 ExtensionActionButtonProperties.IS_DRAGGABLE,
                 mExtensionsToolbarBridge.isActionDraggable(actionId));
         model.set(ExtensionActionButtonProperties.ACCESSIBLE_NAME, action.getAccessibleName());
-        model.set(ExtensionActionButtonProperties.TOOLTIP, action.getTooltip());
     }
 
     private void updateActionPropertiesForAll(WebContents webContents) {
@@ -399,6 +481,120 @@ class ExtensionActionListMediator implements Destroyable {
     private String getActionIdForIndex(int index) {
         assert index < mModels.size();
         return mModels.get(index).model.get(ExtensionActionButtonProperties.ID);
+    }
+
+    private boolean onHover(String actionId, MotionEvent event, @Nullable WebContents webContents) {
+        if (!(mActionState instanceof ActionState.Idle)) {
+            return false;
+        }
+
+        if (event.getAction() == MotionEvent.ACTION_HOVER_ENTER) {
+            if (mShowHoverCardRunnable != null) {
+                mHandler.removeCallbacks(mShowHoverCardRunnable);
+            }
+
+            if (mHoverCard == null) {
+                mHoverCardActionId = actionId;
+                mShowHoverCardRunnable =
+                        () -> {
+                            showHoverCard(actionId, webContents);
+                            mShowHoverCardRunnable = null;
+                        };
+                mHandler.postDelayed(
+                        mShowHoverCardRunnable, ViewConfiguration.getLongPressTimeout());
+            } else if (!actionId.equals(mHoverCardActionId)) {
+                closeHoverCard();
+                showHoverCard(actionId, webContents);
+            }
+        } else if (event.getAction() == MotionEvent.ACTION_HOVER_EXIT) {
+            if (actionId.equals(mHoverCardActionId)) {
+                if (mShowHoverCardRunnable != null) {
+                    mHandler.removeCallbacks(mShowHoverCardRunnable);
+                    mShowHoverCardRunnable = null;
+                }
+                closeHoverCard();
+            }
+        }
+
+        // We don't consume the event because we want the button to still be hovered.
+        return false;
+    }
+
+    private void showHoverCard(String actionId, @Nullable WebContents webContents) {
+        if (webContents == null) {
+            return;
+        }
+
+        Activity activity = mWindowAndroid.getActivity().get();
+        if (activity == null) {
+            return;
+        }
+
+        ExtensionAction action = mExtensionsToolbarBridge.getAction(actionId, webContents);
+        if (action == null) {
+            return;
+        }
+
+        View anchorView = mRecyclerViewDelegate.getButtonViewForId(actionId);
+        if (anchorView == null) {
+            return;
+        }
+
+        if (!(mActionState instanceof ActionState.Idle)) {
+            return;
+        }
+
+        HoverCardState state = action.getHoverCardState();
+        RectProvider rectProvider = MenuBuilderHelper.getRectProvider(anchorView);
+
+        View contentView =
+                LayoutInflater.from(activity).inflate(R.layout.extension_action_hover_card, null);
+
+        PropertyModel model =
+                new PropertyModel.Builder(ExtensionActionHoverCardProperties.ALL_KEYS)
+                        .with(ExtensionActionHoverCardProperties.ACTION_TITLE, action.getTitle())
+                        .with(
+                                ExtensionActionHoverCardProperties.SITE_ACCESS_TITLE,
+                                state.getSiteAccessTitle())
+                        .with(
+                                ExtensionActionHoverCardProperties.SITE_ACCESS_DESC,
+                                state.getSiteAccessDescription())
+                        .with(ExtensionActionHoverCardProperties.POLICY_TEXT, state.getPolicyText())
+                        .build();
+
+        PropertyModelChangeProcessor.create(
+                model, contentView, ExtensionActionHoverCardViewBinder::bind);
+
+        mHoverCard =
+                new AnchoredPopupWindow.Builder(
+                                anchorView.getContext(),
+                                anchorView.getRootView(),
+                                new ColorDrawable(Color.TRANSPARENT),
+                                () -> contentView,
+                                rectProvider)
+                        .setVerticalOverlapAnchor(false)
+                        .setHorizontalOverlapAnchor(true)
+                        .setMaxWidth(
+                                anchorView
+                                        .getResources()
+                                        .getDimensionPixelSize(
+                                                R.dimen.extension_action_hover_card_width))
+                        .setFocusable(false)
+                        .setTouchable(false)
+                        .setAnimateFromAnchor(false)
+                        .setAnimationStyle(R.style.PopupWindowAnimFade)
+                        .build();
+
+        mHoverCard.show();
+        mHoverCardActionId = actionId;
+    }
+
+    private void closeHoverCard() {
+        if (mHoverCard != null) {
+            mHoverCard.dismiss();
+            mHoverCard = null;
+            mHoverCardActionId = null;
+        }
     }
 
     private void onPrimaryClick(String actionId) {
@@ -466,18 +662,31 @@ class ExtensionActionListMediator implements Destroyable {
     }
 
     private void requestShowPopup(String actionId, long nativeHostPtr) {
+        closeHoverCard();
         closePopup();
         closeContextMenu();
 
-        ExtensionActionPopupContents contents = ExtensionActionPopupContents.create(nativeHostPtr);
-        requestActionVisibility(actionId, () -> showPopupOnAnchor(actionId, contents));
+        mActionState =
+                new ActionState.PopupPending(
+                        actionId, ExtensionActionPopupContents.create(nativeHostPtr));
+
+        requestActionVisibility(actionId, () -> showPopupOnAnchor());
     }
 
-    private void showPopupOnAnchor(String actionId, ExtensionActionPopupContents contents) {
+    private void showPopupOnAnchor() {
+        if (!(mActionState instanceof ActionState.PopupPending)) {
+            return;
+        }
+
+        ActionState.PopupPending state = (ActionState.PopupPending) mActionState;
+        String actionId = state.getActionId();
+        ExtensionActionPopupContents contents = state.getContents();
+
         ListMenuButton buttonView =
                 (ListMenuButton) mRecyclerViewDelegate.getButtonViewForId(actionId);
         if (buttonView == null) {
             contents.destroy();
+            mActionState = new ActionState.Idle();
             undoPopout();
             return;
         }
@@ -485,6 +694,7 @@ class ExtensionActionListMediator implements Destroyable {
         Activity activity = mWindowAndroid.getActivity().get();
         if (activity == null) {
             contents.destroy();
+            mActionState = new ActionState.Idle();
             return;
         }
 
@@ -494,7 +704,6 @@ class ExtensionActionListMediator implements Destroyable {
         // ourselves.
         buttonView.setIsPressed(true);
 
-        assert mActionState instanceof ActionState.Idle;
         ExtensionActionPopup popup =
                 new ExtensionActionPopup(
                         activity,
@@ -503,13 +712,22 @@ class ExtensionActionListMediator implements Destroyable {
                         actionId,
                         contents,
                         mContextMenuPopulatorFactory,
-                        mSelectionDropdownMenuDelegate);
+                        mSelectionDropdownMenuDelegate,
+                        mTabModelSelector);
         popup.loadInitialPage();
         popup.addOnDismissListener(this::closePopup);
         mActionState = new ActionState.PopupActive(popup, actionId);
     }
 
     private void closePopup() {
+        if (mActionState instanceof ActionState.PopupPending pendingState) {
+            // Handle cancellation of a pending popup.
+            pendingState.getContents().destroy();
+            mActionState = new ActionState.Idle();
+            undoPopout();
+            return;
+        }
+
         if (!(mActionState instanceof ActionState.PopupActive)) {
             return;
         }
@@ -535,6 +753,7 @@ class ExtensionActionListMediator implements Destroyable {
 
     @VisibleForTesting
     void requestShowContextMenu(String actionId) {
+        closeHoverCard();
         closePopup();
         closeContextMenu();
 
@@ -647,7 +866,7 @@ class ExtensionActionListMediator implements Destroyable {
         }
     }
 
-    private class ToolbarDelegate implements ExtensionsToolbarBridge.Delegate {
+    private class ToolbarDelegate implements ExtensionsToolbarBridge.ActionListDelegate {
         @Override
         public void triggerPopup(String actionId, long nativeHostPtr) {
             requestShowPopup(actionId, nativeHostPtr);

@@ -53,9 +53,50 @@ void RequestFilterManager::ProxySet::AddProxy(std::unique_ptr<Proxy> proxy) {
 void RequestFilterManager::ProxySet::RemoveProxy(Proxy* proxy) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
+  auto requests_it = proxy_to_request_id_map_.find(proxy);
+  if (requests_it != proxy_to_request_id_map_.end()) {
+    for (const auto& id : requests_it->second) {
+      request_id_to_proxy_map_.erase(id);
+    }
+    proxy_to_request_id_map_.erase(requests_it);
+  }
+
   auto proxy_it = proxies_.find(proxy);
   CHECK(proxy_it != proxies_.end());
   proxies_.erase(proxy_it);
+}
+
+bool RequestFilterManager::ProxySet::AssociateProxyWithRequestId(
+    Proxy* proxy,
+    const content::GlobalRequestID& id) {
+  DCHECK(proxy);
+  DCHECK(proxies_.count(proxy));
+  DCHECK(id.request_id);
+  auto result = request_id_to_proxy_map_.emplace(id, proxy);
+  if (!result.second) {
+    return false;
+  }
+  proxy_to_request_id_map_[proxy].insert(id);
+  return true;
+}
+
+void RequestFilterManager::ProxySet::DisassociateProxyWithRequestId(
+    Proxy* proxy,
+    const content::GlobalRequestID& id) {
+  DCHECK(proxy);
+  DCHECK(proxies_.count(proxy));
+  DCHECK(id.request_id);
+  size_t count = request_id_to_proxy_map_.erase(id);
+  DCHECK_GT(count, 0u);
+  count = proxy_to_request_id_map_[proxy].erase(id);
+  DCHECK_GT(count, 0u);
+}
+
+RequestFilterManager::Proxy*
+RequestFilterManager::ProxySet::GetProxyFromRequestId(
+    const content::GlobalRequestID& id) {
+  auto it = request_id_to_proxy_map_.find(id);
+  return it == request_id_to_proxy_map_.end() ? nullptr : it->second;
 }
 
 RequestFilterManager::RequestIDGenerator::RequestIDGenerator() = default;

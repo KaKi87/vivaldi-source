@@ -60,9 +60,9 @@
 #include "chrome/browser/signin/logout_tab_helper.h"
 #include "chrome/browser/signin/signin_promo.h"
 #include "chrome/browser/sync/sync_service_factory.h"
-#include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/signin/chrome_signout_confirmation_prompt.h"
 #include "chrome/browser/ui/singleton_tabs.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -140,7 +140,7 @@ void ShowTabOverwritingNTP(BrowserWindowInterface* browser,
   content::WebContents* contents = tab_strip_model->GetActiveWebContents();
   if (contents) {
     const GURL& contents_url = contents->GetVisibleURL();
-    if (contents_url == chrome::kChromeUINewTabURL ||
+    if (contents_url == chrome::ChromeUINewTabURLAsGURL() ||
         search::IsInstantNTP(contents) || contents_url == url::kAboutBlankURL) {
       params.disposition = WindowOpenDisposition::CURRENT_TAB;
     }
@@ -245,53 +245,26 @@ GURL GetSigninUrlForDiceSigninTab(
     signin_metrics::Reason signin_reason,
     const std::string& email_hint,
     const GURL& continue_url) {
-  if (signin_reason != signin_metrics::Reason::kAddSecondaryAccount &&
-      signin_reason != signin_metrics::Reason::kReauthentication) {
-    return signin::GetChromeSyncURLForDice(
-        {.email = email_hint, .continue_url = continue_url});
-  }
-
-  bool use_chrome_sync_url = true;
-  // A reauth is requested, or the account is already signed in (which is
-  // effectively a reauth).
-  if (signin_reason == signin_metrics::Reason::kReauthentication ||
-      identity_manager.HasPrimaryAccount(signin::ConsentLevel::kSignin)) {
-    use_chrome_sync_url = false;
-  }
-
+  // Use the add account URL if it's a reauthentication, or if we are adding a
+  // secondary account and already have a primary account.
   // TODO(crbug.com/425645725): Investigates simplifying the params such as the
   // signin_reason and its available values.
-  if (use_chrome_sync_url) {
-    // Note: The sync confirmation screen will NOT be displayed after signin,
-    // if the reason is `kAddSecondaryAccount`.
-    signin::ChromeSyncUrlArgs sync_url_args{.email = email_hint,
-                                            .continue_url = continue_url};
-    if (access_point == signin_metrics::AccessPoint::kExtensions &&
-        signin_reason == signin_metrics::Reason::kAddSecondaryAccount) {
-      sync_url_args.flow = signin::Flow::PROMO;
-    }
-    return signin::GetChromeSyncURLForDice(sync_url_args);
+  bool use_add_account_url =
+      signin_reason == signin_metrics::Reason::kReauthentication ||
+      (signin_reason == signin_metrics::Reason::kAddSecondaryAccount &&
+       identity_manager.HasPrimaryAccount(signin::ConsentLevel::kSignin));
+
+  if (use_add_account_url) {
+    return signin::GetAddAccountURLForDice(email_hint, continue_url);
   }
 
-  return signin::GetAddAccountURLForDice(email_hint, continue_url);
-}
-
-void FinishProfileCreationWhenNoCustomizeProfileIsShown(
-    const raw_ref<Profile> profile,
-    bool is_local_profile_creation) {
-  ProfileAttributesEntry* entry =
-      g_browser_process->profile_manager()
-          ->GetProfileAttributesStorage()
-          .GetProfileAttributesWithPath(profile->GetPath());
-  if (!is_local_profile_creation || !entry->IsOmitted()) {
-    return;
+  signin::ChromeSyncUrlArgs sync_url_args{.email = email_hint,
+                                          .continue_url = continue_url};
+  if (access_point == signin_metrics::AccessPoint::kExtensions &&
+      signin_reason == signin_metrics::Reason::kAddSecondaryAccount) {
+    sync_url_args.flow = signin::Flow::PROMO;
   }
-
-  entry->SetIsOmitted(false);
-
-  if (!profile->GetPrefs()->GetBoolean(prefs::kForceEphemeralProfiles)) {
-    entry->SetIsEphemeral(false);
-  }
+  return signin::GetChromeSyncURLForDice(sync_url_args);
 }
 
 ChromeSignoutConfirmationPromptVariant GetSignoutConfirmationPromptVariant(
@@ -357,7 +330,7 @@ bool SigninViewController::IsNTPTab(content::WebContents* contents) {
     return false;
   }
   const GURL& contents_url = contents->GetVisibleURL();
-  return contents_url == chrome::kChromeUINewTabURL ||
+  return contents_url == chrome::ChromeUINewTabURLAsGURL() ||
          search::IsInstantNTP(contents) || contents_url == url::kAboutBlankURL;
 }
 
@@ -459,7 +432,7 @@ void SigninViewController::MaybeShowChromeSigninDialogForExtensions(
 
   // Create a new tab page and wait for the navigation to complete.
   NavigateParams params(browser_->GetBrowserForMigrationOnly(),
-                        GURL(chrome::kChromeUINewTabURL),
+                        chrome::ChromeUINewTabURLAsGURL(),
                         ui::PAGE_TRANSITION_AUTO_BOOKMARK);
   params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
   params.window_action = NavigateParams::WindowAction::kShowWindow;
@@ -481,14 +454,6 @@ void SigninViewController::MaybeShowChromeSigninDialogForExtensions(
 void SigninViewController::ShowModalProfileCustomizationDialog(
     bool is_local_profile_creation) {
   CloseModalSignin();
-  if (base::FeatureList::IsEnabled(
-          switches::
-              kProfileCreationFrictionReductionExperimentSkipCustomizeProfile)) {
-    FinishProfileCreationWhenNoCustomizeProfileIsShown(
-        profile_, is_local_profile_creation);
-    return;
-  }
-
   dialog_ = std::make_unique<SigninModalDialogImpl>(
       SigninViewControllerDelegate::CreateProfileCustomizationDelegate(
           browser_->GetBrowserForMigrationOnly(), is_local_profile_creation,
@@ -706,7 +671,7 @@ void SigninViewController::ShowDiceEnableSyncTab(
     DCHECK(email_hint.empty() || gaia::AreEmailsSame(email_hint, email_to_use));
   }
   ShowDiceSigninTab(reason, access_point, promo_action, email_to_use,
-                    GURL(chrome::kChromeUINewTabURL));
+                    chrome::ChromeUINewTabURLAsGURL());
 }
 
 void SigninViewController::ShowDiceAddAccountTab(
@@ -732,7 +697,7 @@ void SigninViewController::ShowGaiaLogoutTab(
     signin_metrics::SourceForRefreshTokenOperation source) {
   // Since the user may be triggering navigation from another UI element such as
   // a menu, ensure the web contents (and therefore the page that is about to be
-  // shown) is focused. (See crbug/926492 for motivation.)
+  // shown) is focused. (See crbug.com/41438063 for motivation.)
   auto* const contents = tab_strip_model_->GetActiveWebContents();
   if (contents) {
     contents->Focus();

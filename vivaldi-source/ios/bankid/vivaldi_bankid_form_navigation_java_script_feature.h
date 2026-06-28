@@ -14,8 +14,7 @@ class VivaldiBankIDFormNavigationJavaScriptFeature
   static VivaldiBankIDFormNavigationJavaScriptFeature* GetInstance();
 
  private:
-  friend class base::NoDestructor<
-      VivaldiBankIDFormNavigationJavaScriptFeature>;
+  friend class base::NoDestructor<VivaldiBankIDFormNavigationJavaScriptFeature>;
 
   VivaldiBankIDFormNavigationJavaScriptFeature();
   ~VivaldiBankIDFormNavigationJavaScriptFeature() override;

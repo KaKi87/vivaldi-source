@@ -38,7 +38,7 @@ bool IsContextualCueingEnabled() {
     return base::FeatureList::IsEnabled(kContextualCueing);
   }
 
-  return glic::GlicEnabling::IsEnabledByFlags();
+  return glic::GlicEnabling::IsEnabledByGlobalCriteria();
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   return false;
 }
@@ -57,7 +57,7 @@ bool IsZeroStateSuggestionsEnabled() {
     return base::FeatureList::IsEnabled(kGlicZeroStateSuggestions);
   }
 
-  return glic::GlicEnabling::IsEnabledByFlags();
+  return glic::GlicEnabling::IsEnabledByGlobalCriteria();
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   return false;
 }
@@ -163,5 +163,11 @@ const base::FeatureParam<int> kMaxPinnedPagesForTriggeringSuggestions(
     "ZSSMaxPinnedPagesForTriggeringSuggestions",
     10);
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
+
+const base::FeatureParam<base::TimeDelta>
+    kZeroStateSuggestionsPrivateAiPrewarmDelay(
+        &kZeroStateSuggestionsUsePrivateAi,
+        "ZSSPrivateAiPrewarmDelay",
+        base::Milliseconds(150));
 
 }  // namespace glic

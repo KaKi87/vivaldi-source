@@ -23,6 +23,7 @@
 #include "components/tabs/public/tab_group.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/views/view_class_properties.h"
 
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(NewTabButtonMenuModel, kNewTab);
@@ -65,6 +66,14 @@ void NewTabButton::ShowContextMenuForViewImpl(
         source->GetWidget(), nullptr, gfx::Rect(point, gfx::Size()),
         views::MenuAnchorPosition::kTopLeft, source_type);
   }
+}
+
+void NewTabButton::UpdateBackground() {
+  if (features::IsGlassFrameEnabled()) {
+    SetBackground(views::CreateSolidBackground(SK_ColorTRANSPARENT));
+    return;
+  }
+  TabStripControlButton::UpdateBackground();
 }
 
 NewTabButtonMenuModel::NewTabButtonMenuModel(BrowserWindowInterface* browser)
@@ -113,7 +122,7 @@ void NewTabButtonMenuModel::ExecuteCommand(int command_id, int event_flags) {
   if (command_id == IDC_NEW_SPLIT_TAB) {
     // Handle this command directly because we want to specify the source
     // as the new tab button.
-    chrome::NewSplitTab(browser_,
+    chrome::NewSplitTab(browser_, split_tabs::SplitTabLayout::kSideBySide,
                         split_tabs::SplitTabCreatedSource::kNewTabButton);
     return;
   }

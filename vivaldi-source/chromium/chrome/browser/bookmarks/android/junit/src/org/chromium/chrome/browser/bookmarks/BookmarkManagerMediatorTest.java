@@ -61,7 +61,6 @@ import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRule;
 import org.chromium.base.test.RobolectricUtil;
-import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.base.test.util.UserActionTester;
@@ -136,6 +135,7 @@ import org.chromium.ui.modelutil.ListObservable;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 import org.chromium.ui.modelutil.PropertyModel;
+import org.chromium.ui.test.util.MockitoHelper;
 import org.chromium.url.GURL;
 import org.chromium.url.JUnitTestGURLs;
 
@@ -217,7 +217,7 @@ public class BookmarkManagerMediatorTest {
     @Mock private PriceDropNotificationManager mPriceDropNotificationManager;
 
     @Captor private ArgumentCaptor<BookmarkModelObserver> mBookmarkModelObserverArgumentCaptor;
-    @Captor private ArgumentCaptor<SelectionObserver> mSelectionObserver;
+    @Captor private ArgumentCaptor<SelectionObserver<BookmarkId>> mSelectionObserver;
     @Captor private ArgumentCaptor<DragListener> mDragListenerArgumentCaptor;
     @Captor private ArgumentCaptor<SyncStateChangedListener> mSyncStateChangedListenerCaptor;
     @Captor private ArgumentCaptor<Runnable> mFinishLoadingBookmarkModelCaptor;
@@ -1094,8 +1094,8 @@ public class BookmarkManagerMediatorTest {
     }
 
     @Test
-    @DisableFeatures({ChromeFeatureList.ANDROID_BOOKMARK_BAR_FAST_FOLLOW})
     public void testBuildImprovedBookmarkRow_SelectionStateCarriedOver() {
+        mMediator.onBookmarkModelLoaded();
         doReturn(true).when(mSelectionDelegate).isItemSelected(mBookmarkItem21.getId());
         ListItem item =
                 mMediator.buildImprovedBookmarkRow(
@@ -1612,7 +1612,7 @@ public class BookmarkManagerMediatorTest {
 
     @Test
     public void testDeleteDuringSelection() {
-        // Inspired by https://crbug.com/1449447 where the search row didn't have a property and
+        // Inspired by https://crbug.com/40064906 where the search row didn't have a property and
         // we crashed when trying to handle deletion during selection.
 
         finishLoading();
@@ -1637,7 +1637,7 @@ public class BookmarkManagerMediatorTest {
 
     @Test
     public void testDeleteMultipleDuringSelection() {
-        // Inspired by https://crbug.com/1490506 where deleting multiple items were unselected one
+        // Inspired by https://crbug.com/40074264 where deleting multiple items were unselected one
         // by one. But this caused selection notifications with deleted items to still reach other
         // components.
 
@@ -1884,13 +1884,15 @@ public class BookmarkManagerMediatorTest {
                             localDataDescription.put(
                                     DataType.READING_LIST,
                                     new LocalDataDescription(0, new String[] {}, 0));
-                            args.getArgument(1, Callback.class).onResult(localDataDescription);
+                            Callback<HashMap<Integer, LocalDataDescription>> callback =
+                                    args.getArgument(1);
+                            callback.onResult(localDataDescription);
                             return null;
                         })
                 .when(mSyncService)
                 .getLocalDataDescriptions(
                         eq(Set.of(DataType.BOOKMARKS, DataType.PASSWORDS, DataType.READING_LIST)),
-                        any(Callback.class));
+                        MockitoHelper.anyCallback());
         mMediator
                 .getBatchUploadCardCoordinatorForTesting()
                 .immediatelyHideBatchUploadCardAndUpdateItsVisibility();
@@ -1956,13 +1958,15 @@ public class BookmarkManagerMediatorTest {
                             localDataDescription.put(
                                     DataType.READING_LIST,
                                     new LocalDataDescription(1, new String[] {"example.com"}, 1));
-                            args.getArgument(1, Callback.class).onResult(localDataDescription);
+                            Callback<HashMap<Integer, LocalDataDescription>> callback =
+                                    args.getArgument(1);
+                            callback.onResult(localDataDescription);
                             return null;
                         })
                 .when(mSyncService)
                 .getLocalDataDescriptions(
                         eq(Set.of(DataType.BOOKMARKS, DataType.PASSWORDS, DataType.READING_LIST)),
-                        any(Callback.class));
+                        MockitoHelper.anyCallback());
         mMediator
                 .getBatchUploadCardCoordinatorForTesting()
                 .immediatelyHideBatchUploadCardAndUpdateItsVisibility();
@@ -2030,13 +2034,15 @@ public class BookmarkManagerMediatorTest {
                             localDataDescription.put(
                                     DataType.READING_LIST,
                                     new LocalDataDescription(0, new String[] {}, 0));
-                            args.getArgument(1, Callback.class).onResult(localDataDescription);
+                            Callback<HashMap<Integer, LocalDataDescription>> callback =
+                                    args.getArgument(1);
+                            callback.onResult(localDataDescription);
                             return null;
                         })
                 .when(mSyncService)
                 .getLocalDataDescriptions(
                         eq(Set.of(DataType.BOOKMARKS, DataType.PASSWORDS, DataType.READING_LIST)),
-                        any(Callback.class));
+                        MockitoHelper.anyCallback());
         mMediator
                 .getBatchUploadCardCoordinatorForTesting()
                 .immediatelyHideBatchUploadCardAndUpdateItsVisibility();
@@ -2062,7 +2068,7 @@ public class BookmarkManagerMediatorTest {
     // Tests directly related to a regression.
 
     @Test
-    public void testShowInFolder() { // https://crbug.com/1456275
+    public void testShowInFolder() { // https://crbug.com/40066084
         when(mBookmarkModel.searchBookmarks(eq("test"), anyInt()))
                 .thenReturn(Collections.singletonList(mBookmarkId21));
         finishLoading();
@@ -2081,7 +2087,7 @@ public class BookmarkManagerMediatorTest {
     }
 
     @Test
-    public void testChangeSortOrderDuringSearch() { // https://crbug.com/1464965
+    public void testChangeSortOrderDuringSearch() { // https://crbug.com/40275837
         mBookmarkUiPrefs.setBookmarkRowSortOrder(BookmarkRowSortOrder.ALPHABETICAL);
         when(mBookmarkModel.searchBookmarks(eq("test"), anyInt()))
                 .thenReturn(Arrays.asList(mFolderId1, mFolderId2));

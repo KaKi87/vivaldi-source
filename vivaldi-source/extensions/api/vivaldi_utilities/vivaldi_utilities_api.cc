@@ -55,8 +55,9 @@
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_select_file_dialog_controller.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/qrcode_generator/qrcode_generator_bubble_controller.h"
 #include "chrome/browser/ui/tab_dialogs.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -89,7 +90,8 @@
 #include "components/locale/locale_kit.h"
 #include "components/media_router/browser/media_router_dialog_controller.h"
 #include "components/media_router/browser/media_router_metrics.h"
-#include "components/os_crypt/sync/os_crypt.h"
+#include "components/os_crypt/async/browser/os_crypt_async.h"
+#include "components/os_crypt/async/common/encryptor.h"
 #include "components/permissions/permission_decision_auto_blocker.h"
 #include "components/permissions/permission_uma_util.h"
 #include "components/prefs/pref_service.h"
@@ -117,6 +119,9 @@
 #include "sync/file_sync/file_store.h"
 #include "sync/file_sync/file_store_factory.h"
 #include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom.h"
+#if !BUILDFLAG(IS_IOS)
+#include "thirdparty/brave/common/url_cleaning.h"
+#endif  // BUILDFLAG(IS_IOS)
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
 #include "ui/display/screen.h"
 #include "ui/lights/razer_chroma_handler.h"
@@ -176,6 +181,26 @@ VivaldiUtilitiesAPI::VivaldiUtilitiesAPI(content::BrowserContext* context)
 
   vivaldi_status::VivaldiStatusFactory::GetForBrowserContext(context)
       ->AddObserver(this);
+
+  g_browser_process->os_crypt_async()->GetInstance(base::BindOnce(
+      &VivaldiUtilitiesAPI::OnEncryptorReady, base::Unretained(this)));
+}
+
+void VivaldiUtilitiesAPI::OnEncryptorReady(
+    scoped_refptr<os_crypt_async::Encryptor> encryptor) {
+  encryptor_ = std::move(encryptor);
+  for (auto& request : pending_requests_) {
+    std::move(request).Run();
+  }
+  pending_requests_.clear();
+}
+
+void VivaldiUtilitiesAPI::AddPendingRequest(base::OnceClosure request) {
+  if (encryptor_) {
+    std::move(request).Run();
+  } else {
+    pending_requests_.push_back(std::move(request));
+  }
 }
 
 void VivaldiUtilitiesAPI::PostProfileSetup() {
@@ -1430,7 +1455,7 @@ ExtensionFunction::ResponseAction UtilitiesOpenPageFunction::Run() {
   if (!browser) {
     return RespondNow(Error("No browser with the supplied ID."));
   }
-  browser->OpenFile();
+  browser->GetFeatures().browser_select_file_dialog_controller()->OpenFile();
   return RespondNow(ArgumentList(Results::Create()));
 }
 
@@ -2220,15 +2245,31 @@ ExtensionFunction::ResponseAction UtilitiesOsCryptFunction::Run() {
 
   EXTENSION_FUNCTION_VALIDATE(params);
 
-  std::string encrypted;
-  if (!OSCrypt::EncryptString(params->plain, &encrypted)) {
-    return RespondNow(Error("Encryption failed"));
+  VivaldiUtilitiesAPI* api =
+      VivaldiUtilitiesAPI::GetFactoryInstance()->Get(browser_context());
+  std::string plain = params->plain;
+
+  if (api->GetEncryptor()) {
+    DoEncrypt(api, std::move(plain));
+    return AlreadyResponded();
   }
 
-  std::string encoded;
-  encoded = base::Base64Encode(encrypted);
-  return RespondNow(
-      ArgumentList(vivaldi::utilities::OsCrypt::Results::Create(encoded)));
+  api->AddPendingRequest(base::BindOnce(&UtilitiesOsCryptFunction::DoEncrypt,
+                                        this, api, std::move(plain)));
+  return RespondLater();
+}
+
+void UtilitiesOsCryptFunction::DoEncrypt(VivaldiUtilitiesAPI* api,
+                                         std::string plain) {
+  namespace Results = vivaldi::utilities::OsCrypt::Results;
+  std::string encrypted;
+  if (!api->GetEncryptor()->EncryptString(plain, &encrypted)) {
+    Respond(Error("Encryption failed"));
+    return;
+  }
+
+  std::string encoded = base::Base64Encode(encrypted);
+  Respond(ArgumentList(Results::Create(encoded)));
 }
 
 UtilitiesOsDecryptFunction::UtilitiesOsDecryptFunction() {}
@@ -2245,13 +2286,30 @@ ExtensionFunction::ResponseAction UtilitiesOsDecryptFunction::Run() {
     return RespondNow(Error("Invalid base64 input"));
   }
 
-  std::string decrypted;
-  if (!OSCrypt::DecryptString(encrypted, &decrypted)) {
-    return RespondNow(Error("Decryption failed"));
+  VivaldiUtilitiesAPI* api =
+      VivaldiUtilitiesAPI::GetFactoryInstance()->Get(browser_context());
+  std::string ciphertext = encrypted;
+
+  if (api->GetEncryptor()) {
+    DoDecrypt(api, std::move(ciphertext));
+    return AlreadyResponded();
   }
 
-  return RespondNow(
-      ArgumentList(vivaldi::utilities::OsCrypt::Results::Create(decrypted)));
+  api->AddPendingRequest(base::BindOnce(&UtilitiesOsDecryptFunction::DoDecrypt,
+                                        this, api, std::move(ciphertext)));
+  return RespondLater();
+}
+
+void UtilitiesOsDecryptFunction::DoDecrypt(VivaldiUtilitiesAPI* api,
+                                           std::string ciphertext) {
+  namespace Results = vivaldi::utilities::OsCrypt::Results;
+  std::string decrypted;
+  if (!api->GetEncryptor()->DecryptString(ciphertext, &decrypted)) {
+    Respond(Error("Decryption failed"));
+    return;
+  }
+
+  Respond(ArgumentList(Results::Create(decrypted)));
 }
 
 UtilitiesTranslateTextFunction::UtilitiesTranslateTextFunction() {}
@@ -2994,20 +3052,47 @@ ExtensionFunction::ResponseAction UtilitiesAcceptMixedDownloadFunction::Run() {
                             ->GetDownloadManager();
   }
 
-  download::DownloadItem* download_item = manager->GetDownload(params->download_id);
+  download::DownloadItem* download_item =
+      manager->GetDownload(params->download_id);
   if (!download_item && incognito_manager) {
     download_item = incognito_manager->GetDownload(params->download_id);
   }
 
   if (!download_item) {
-      std::string error = download_extension_errors::kInvalidId;
-      return RespondNow(Error(std::move(error)));
-    }
+    std::string error = download_extension_errors::kInvalidId;
+    return RespondNow(Error(std::move(error)));
+  }
 
   if (download_item->IsInsecure()) {
     download_item->ValidateInsecureDownload();
   }
   return RespondNow(NoArguments());
+}
+
+ExtensionFunction::ResponseAction UtilitiesStripUrlTrackingFunction::Run() {
+  namespace Results = vivaldi::utilities::StripUrlTracking::Results;
+
+  using vivaldi::utilities::StripUrlTracking::Params;
+
+  std::optional<Params> params = Params::Create(args());
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  const GURL original_url(params->url);
+  if (!original_url.is_valid()) {
+    return RespondNow(Error("Invalid URL"));
+  }
+
+  // Apply debounce, query filter, and url sanitizer pipeline.
+#if BUILDFLAG(IS_IOS)
+  // CleanURL is not available on iOS (depends on keyed_service/content
+  // which requires use_blink).
+  GURL cleaned = original_url;
+#else
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  GURL cleaned = CleanURL(profile, original_url);
+#endif  // BUILDFLAG(IS_IOS)
+
+  return RespondNow(ArgumentList(Results::Create(cleaned.spec())));
 }
 
 }  // namespace extensions

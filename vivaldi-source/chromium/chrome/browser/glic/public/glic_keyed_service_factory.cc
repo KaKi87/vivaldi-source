@@ -9,13 +9,18 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/glic/glic_profile_manager.h"
 #include "chrome/browser/glic/suggestions/contextual_cueing_service_factory.h"
+#include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/subscription_eligibility/subscription_eligibility_service_factory.h"
+#include "chrome/browser/sync/device_info_sync_service_factory.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 
-#if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/ui/android/android_profile_browser_collection_service_factory.h"  // nogncheck
+#else
 #include "chrome/browser/themes/theme_service_factory.h"
+#include "chrome/browser/ui/browser_manager_service_factory.h"
 #include "extensions/browser/api/declarative/rules_registry_service.h"
 #endif
 
@@ -40,13 +45,18 @@ GlicKeyedServiceFactory::GlicKeyedServiceFactory()
           "GlicKeyedService",
           BrowserContextDependencyManager::GetInstance()) {
   DependsOn(IdentityManagerFactory::GetInstance());
-#if !BUILDFLAG(IS_ANDROID)
-  DependsOn(ThemeServiceFactory::GetInstance());
-#endif
   DependsOn(actor::ActorKeyedServiceFactory::GetInstance());
   DependsOn(ContextualCueingServiceFactory::GetInstance());
   DependsOn(subscription_eligibility::SubscriptionEligibilityServiceFactory::
                 GetInstance());
+  DependsOn(OptimizationGuideKeyedServiceFactory::GetInstance());
+  DependsOn(DeviceInfoSyncServiceFactory::GetInstance());
+#if BUILDFLAG(IS_ANDROID)
+  DependsOn(AndroidProfileBrowserCollectionServiceFactory::GetInstance());
+#else
+  DependsOn(ThemeServiceFactory::GetInstance());
+  DependsOn(BrowserManagerServiceFactory::GetInstance());
+#endif
 }
 
 GlicKeyedServiceFactory::~GlicKeyedServiceFactory() = default;

@@ -17,6 +17,8 @@
 //#include "chrome/browser/glic/glic_profile_manager.h"               // nogncheck
 //#include "chrome/browser/glic/host/glic_synthetic_trial_manager.h"  // nogncheck
 //#include "chrome/browser/glic/public/glic_enabling.h"               // nogncheck
+#include "chrome/browser/infobars/browser_infobar_manager.h"
+#include "chrome/browser/infobars/infobar_features.h"
 #include "chrome/browser/local_network_access/ip_address_space_overrides_prefs_observer.h"
 #include "chrome/browser/media/audio_process_ml_model_forwarder.h"
 #include "chrome/browser/optimization_guide/model_execution/optimization_guide_global_state.h"
@@ -53,7 +55,11 @@
 #endif
 
 #if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/lifetime/smart_restart_manager.h"
+#include "chrome/browser/lifetime/smart_restart_metrics_observer.h"
 #include "chrome/browser/ui/startup/profile_launch_observer.h"
+#include "chrome/browser/upgrade_detector/upgrade_detector.h"
+#include "chrome/common/chrome_features.h"
 #endif  // !BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(IS_WIN)
@@ -101,10 +107,6 @@ void GlobalFeatures::ReplaceGlobalFeaturesForTesting(
   f = std::move(factory);
 }
 
-void GlobalFeatures::PreBrowserProcessInit() {
-  PreBrowserProcessInitCore();
-}
-
 void GlobalFeatures::PostBrowserProcessInit() {
 #if BUILDFLAG(IS_WIN)
   startup_launch_manager_ =
@@ -115,7 +117,11 @@ void GlobalFeatures::PostBrowserProcessInit() {
   PostBrowserProcessInitCore();
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-  if (glic::GlicEnabling::IsEnabledByFlags()) {
+  // Create Glic global features for all users in case they are only
+  // temporarily ineligible (in which case we continue to show the entrypoint
+  // but surface IPH dialogs instead of the webclient).
+  // Many tests do not initialize profile_manager so we gate on that too.
+  if (g_browser_process->profile_manager()) {
     glic_profile_manager_ = std::make_unique<glic::GlicProfileManager>();
 #if !BUILDFLAG(IS_ANDROID)
     glic_background_mode_manager_ =
@@ -149,14 +155,27 @@ void GlobalFeatures::PostBrowserProcessInit() {
 
 #if !BUILDFLAG(IS_ANDROID)
   profile_launch_observer_ = std::make_unique<ProfileLaunchObserver>();
+
+  if (base::FeatureList::IsEnabled(features::kSmartRestartMetrics)) {
+    smart_restart_metrics_observer_ =
+        std::make_unique<smart_restart::SmartRestartMetricsObserver>(
+            UpgradeDetector::GetInstance());
+  }
+
+  if (base::FeatureList::IsEnabled(features::kSmartRestart)) {
+    smart_restart_manager_ =
+        std::make_unique<smart_restart::SmartRestartManager>(
+            UpgradeDetector::GetInstance());
+  }
 #endif  // !BUILDFLAG(IS_ANDROID)
 }
 
-void GlobalFeatures::PreBrowserProcessInitCore() {
-  global_browser_collection_ = std::make_unique<GlobalBrowserCollection>();
-}
-
 void GlobalFeatures::PostBrowserProcessInitCore() {
+  if (base::FeatureList::IsEnabled(infobars::kCentralizedInfoBarFramework)) {
+    browser_infobar_manager_ =
+        GetUserDataFactory().CreateInstance<infobars::BrowserInfoBarManager>(
+            *g_browser_process, g_browser_process);
+  }
   system_permissions_platform_handle_ = CreateSystemPermissionsPlatformHandle();
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
   // TODO(crbug.com/463742800): Migrate WhatsNewRegistry (and other non-core
@@ -209,8 +228,14 @@ void GlobalFeatures::PostBrowserProcessInitCore() {
   }
 }
 
+void GlobalFeatures::Init() {
+  global_browser_collection_ = CreateGlobalBrowserCollection();
+}
+
 void GlobalFeatures::PostMainMessageLoopRun() {
 #if !BUILDFLAG(IS_ANDROID)
+  smart_restart_manager_.reset();
+  smart_restart_metrics_observer_.reset();
   profile_launch_observer_.reset();
 #endif  // !BUILDFLAG(IS_ANDROID)
 
@@ -245,8 +270,6 @@ void GlobalFeatures::PostDestroyThreads() {
   // since its infobar manager observes GlobalBrowserCollection.
   startup_launch_manager_.reset();
 #endif  // !BUILDFLAG(IS_ANDROID)
-
-  global_browser_collection_.reset();
 }
 
 std::unique_ptr<system_permission_settings::PlatformHandle>
@@ -260,6 +283,11 @@ GlobalFeatures::CreateWhatsNewRegistry() {
   return whats_new::CreateWhatsNewRegistry();
 }
 #endif
+
+std::unique_ptr<GlobalBrowserCollection>
+GlobalFeatures::CreateGlobalBrowserCollection() {
+  return std::make_unique<GlobalBrowserCollection>();
+}
 
 // static
 ui::UserDataFactoryWithOwner<BrowserProcess>&

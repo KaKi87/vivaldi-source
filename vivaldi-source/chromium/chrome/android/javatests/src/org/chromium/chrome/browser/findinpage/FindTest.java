@@ -37,15 +37,16 @@ import org.chromium.base.test.util.CloseableOnMainThread;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.KeyUtils;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabClosureParams;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.page.WebPageStation;
@@ -53,6 +54,7 @@ import org.chromium.chrome.test.util.FullscreenTestUtils;
 import org.chromium.chrome.test.util.MenuUtils;
 import org.chromium.content_public.browser.test.util.TouchCommon;
 import org.chromium.content_public.browser.test.util.UiUtils;
+import org.chromium.ui.base.DeviceFormFactor;
 
 /** Find in page tests. */
 @RunWith(ChromeJUnit4ClassRunner.class)
@@ -223,6 +225,7 @@ public class FindTest {
     /** Verify Find In Page Next button. */
     @Test
     @MediumTest
+    @DisabledTest(message = "https://crbug.com/515428606")
     @Feature({"FindInPage"})
     public void testFindNext() {
         String query = "pitts";
@@ -241,6 +244,7 @@ public class FindTest {
     /** Verify Find In Page Next/Previous button. */
     @Test
     @MediumTest
+    @DisabledTest(message = "https://crbug.com/515428606")
     @Feature({"FindInPage"})
     public void testFindNextPrevious() {
         String query = "pitts";
@@ -346,6 +350,49 @@ public class FindTest {
                 });
     }
 
+    @Test
+    @MediumTest
+    @Feature({"FindInPage"})
+    @EnableFeatures({"BlockMouseEventsOnView"})
+    public void testFindToolbarGenericMotionEventConsumed() {
+        mActivityTestRule.loadUrl(mActivityTestRule.getTestServer().getURL(FILEPATH));
+        findInPageFromMenu();
+        final FindToolbar findToolbar = getFindToolbar();
+        Assert.assertNotNull(findToolbar);
+
+        MotionEvent.PointerProperties pp = new MotionEvent.PointerProperties();
+        pp.id = 0;
+        pp.toolType = MotionEvent.TOOL_TYPE_MOUSE;
+
+        MotionEvent.PointerCoords pc = new MotionEvent.PointerCoords();
+        pc.x = 0f;
+        pc.y = 0f;
+
+        MotionEvent mouseEvent =
+                MotionEvent.obtain(
+                        0,
+                        0,
+                        MotionEvent.ACTION_BUTTON_PRESS,
+                        1,
+                        new MotionEvent.PointerProperties[] {pp},
+                        new MotionEvent.PointerCoords[] {pc},
+                        0,
+                        MotionEvent.BUTTON_PRIMARY,
+                        1.0f,
+                        1.0f,
+                        0,
+                        0,
+                        InputDevice.SOURCE_MOUSE,
+                        0);
+
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    Assert.assertTrue(
+                            "FindToolbar should consume generic motion events for pointers",
+                            findToolbar.dispatchGenericMotionEvent(mouseEvent));
+                });
+    }
+
     /**
      * Verify Find In Page isn't dismissed and matches no results if invoked with an empty string.
      */
@@ -423,6 +470,7 @@ public class FindTest {
     @Test
     @SmallTest
     @Feature({"FindInPage"})
+    @DisabledTest(message = "https://crbug.com/515428606")
     public void testFindNextPreviousIncognitoTab() {
         String query = "pitts";
         var incognitoPage = mPage.openNewIncognitoTabOrWindowFast();
@@ -521,6 +569,7 @@ public class FindTest {
      */
     @Test
     @MediumTest
+    @DisableIf.Device(DeviceFormFactor.DESKTOP)
     @Feature({"FindInPage"})
     public void testBackKeyDoesNotDismissFindWhenImeIsPresent() {
         mActivityTestRule.loadUrl(mActivityTestRule.getTestServer().getURL(FILEPATH));
@@ -544,7 +593,7 @@ public class FindTest {
     @Test
     @MediumTest
     @Feature({"FindInPage"})
-    @DisabledTest(message = "https://crbug.com/1458344")
+    @DisabledTest(message = "https://crbug.com/40918821")
     public void testBackKeyDismissesFind() {
         loadTestAndVerifyFindInPage("pitts", "1/7");
         waitForIME(true);

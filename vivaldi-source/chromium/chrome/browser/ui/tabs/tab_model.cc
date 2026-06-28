@@ -28,6 +28,7 @@
 #include "components/tabs/public/tab_group_tab_collection.h"
 #include "components/web_modal/modal_dialog_host.h"
 #include "components/web_modal/web_contents_modal_dialog_host.h"
+#include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/visibility.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -205,6 +206,28 @@ content::WebContents* TabModel::GetContents() const {
   return contents_;
 }
 
+void TabModel::LoadIfNeeded() {
+  if (contents_ && contents_->GetController().NeedsReload()) {
+    contents_->GetController().LoadIfNecessary();
+  }
+}
+
+std::u16string TabModel::GetTitle() const {
+  return contents_ ? contents_->GetTitle() : std::u16string();
+}
+
+GURL TabModel::GetURL() const {
+  return contents_ ? contents_->GetLastCommittedURL() : GURL();
+}
+
+base::Time TabModel::GetLastActiveTime() const {
+  return contents_ ? contents_->GetLastActiveTime() : base::Time();
+}
+
+Profile* TabModel::GetProfile() const {
+  return Profile::FromBrowserContext(contents_->GetBrowserContext());
+}
+
 base::CallbackListSubscription TabModel::RegisterWillDiscardContents(
     TabInterface::WillDiscardContentsCallback callback) {
   return will_discard_contents_callback_list_.Add(std::move(callback));
@@ -296,7 +319,7 @@ BrowserWindowInterface* TabModel::GetBrowserWindowInterface() {
 }
 
 const BrowserWindowInterface* TabModel::GetBrowserWindowInterface() const {
-  return GetModelForTabInterface()->delegate()->GetBrowserWindowInterface();
+  return const_cast<TabModel*>(this)->GetBrowserWindowInterface();
 }
 
 tabs::TabFeatures* TabModel::GetTabFeatures() {
@@ -387,8 +410,8 @@ void TabModel::UpdateProperties() {
   if (::vivaldi::IsVivaldiRunning() && !parent_collection_)
     return;
   bool pinned = false;
-  std::optional<tab_groups::TabGroupId> group = std::nullopt;
-  std::optional<split_tabs::SplitTabId> split = std::nullopt;
+  std::optional<tab_groups::TabGroupId> group;
+  std::optional<split_tabs::SplitTabId> split;
 
   TabCollection* ancestor = parent_collection_;
   while (ancestor) {
@@ -444,6 +467,7 @@ void TabModel::WriteIntoTrace(perfetto::TracedValue context) const {
 
 std::unique_ptr<content::WebContents> TabModel::DiscardContents(
     std::unique_ptr<content::WebContents> contents) {
+  CHECK_EQ(contents_->GetBrowserContext(), contents->GetBrowserContext());
   will_discard_contents_callback_list_.Notify(this, contents_, contents.get());
 
   // NOTE(ondrej@vivaldi.com): VB-127571 - too late doing this in
@@ -457,6 +481,7 @@ std::unique_ptr<content::WebContents> TabModel::DiscardContents(
       std::move(contents_owned_);
   contents_owned_ = std::move(contents);
   contents_ = contents_owned_.get();
+  WebContentsObserver::Observe(contents_);
 
   // NOTE(ondrej@vivaldi.com): VB-127571 - too late doing this in
   // OnTabStripModelChanged

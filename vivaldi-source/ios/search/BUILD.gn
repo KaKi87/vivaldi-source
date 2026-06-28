@@ -12,8 +12,8 @@ compile_ts("vivaldi_searchable_form_js_compile_ts") {
 
 optimize_js("vivaldi_searchable_form_js") {
   _script = filter_include(
-      get_target_outputs(":vivaldi_searchable_form_js_compile_ts"),
-      [ "*vivaldi_searchable_form.js" ])
+          get_target_outputs(":vivaldi_searchable_form_js_compile_ts"),
+          [ "*vivaldi_searchable_form.js" ])
   primary_script = _script[0]
   sources = _script
   deps = [

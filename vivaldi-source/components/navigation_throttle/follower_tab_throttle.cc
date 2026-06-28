@@ -15,13 +15,13 @@
 
 using ThrottleCheckResult = content::NavigationThrottle::ThrottleCheckResult;
 
-FollowerTabThrottle ::FollowerTabThrottle(
+FollowerTabThrottle::FollowerTabThrottle(
     content::NavigationThrottleRegistry& registry)
     : content::NavigationThrottle(registry) {}
 
-FollowerTabThrottle ::~FollowerTabThrottle() = default;
+FollowerTabThrottle::~FollowerTabThrottle() = default;
 
-const char* FollowerTabThrottle ::GetNameForLogging() {
+const char* FollowerTabThrottle::GetNameForLogging() {
   return "FollowerTabThrottle";
 }
 

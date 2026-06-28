@@ -68,11 +68,9 @@
 #include "third_party/blink/renderer/core/layout/layout_object.h"
 #include "third_party/blink/renderer/core/layout/layout_shift_tracker.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
-#include "third_party/blink/renderer/core/layout/text_autosizer.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/core/scroll/scroll_into_view_util.h"
 #include "third_party/blink/renderer/platform/instrumentation/histogram.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/timer.h"
 
 #include "app/vivaldi_apptools.h"
@@ -408,10 +406,7 @@ void TextFinder::SetFindEndstateFocusAndSelection() {
       bool focusable =
           vivaldi::IsVivaldiRunning()
               ? element->IsFocusable()
-              : (RuntimeEnabledFeatures::
-                         KeyboardFocusabilityAfterFindInPageEnabled()
-                     ? element->IsKeyboardFocusableSlow()
-                     : element->IsFocusable());
+              : element->IsKeyboardFocusableSlow();
       if (focusable) {
         // Found a focusable parent node. Set the active match as the
         // selection and focus to the focusable node.
@@ -936,15 +931,6 @@ void TextFinder::Scroll(std::unique_ptr<AsyncScrollContext> context) {
   }
 
   ScrollToVisible(context->range);
-
-  // If the user is browsing a page with autosizing, adjust the zoom to the
-  // column where the next hit has been found. Doing this when autosizing is
-  // not set will result in a zoom reset on small devices.
-  if (GetFrame()->GetDocument()->GetTextAutosizer()->PageNeedsAutosizing()) {
-    OwnerFrame().LocalRoot()->FrameWidgetImpl()->ZoomToFindInPageRect(
-        OwnerFrame().GetFrameView()->ConvertToRootFrame(
-            ComputeTextRect(EphemeralRange(context->range))));
-  }
 
   // DidFindMatch will race against this to add a text match marker to this
   // range. In the case where the match is hidden and the beforematch event (or

@@ -25,7 +25,7 @@ class GlicPinnedTabManager;
 class GlicSharingManagerCoordinator {
  public:
   GlicSharingManagerCoordinator(Profile* profile,
-                                GlicInstance::UiDelegate* ui_delegate,
+                                GlicInstance* glic_instance,
                                 GlicMetrics* metrics);
   ~GlicSharingManagerCoordinator();
 
@@ -36,6 +36,10 @@ class GlicSharingManagerCoordinator {
   // returns the active sharing manager that delegates to the appropriate
   // internal manager based on current state.
   GlicSharingManager& GetActiveSharingManager();
+
+  GlicPinCandidateProvider& pin_candidate_provider() {
+    return sharing_manager_;
+  }
 
   // Called to update the internal delegate based on state changes.
   void UpdateState(mojom::PanelStateKind panel_state_kind,
@@ -69,7 +73,7 @@ class GlicSharingManagerCoordinator {
  private:
   GlicSharingManagerCoordinator(
       Profile* profile,
-      GlicInstance::UiDelegate* ui_delegate,
+      GlicInstance* glic_instance,
       GlicMetrics* metrics,
 #if !BUILDFLAG(IS_ANDROID)
       GlicFocusedBrowserManager* detached_mode_focused_browser_manager,

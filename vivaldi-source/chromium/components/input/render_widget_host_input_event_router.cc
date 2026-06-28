@@ -192,18 +192,20 @@ void TouchEventAckQueue::ProcessAckedTouchEvents() {
       client_->GetTouchEmulator(/*create_if_necessary=*/false);
   while (!ack_queue_.empty() && ack_queue_.front().touch_event_ack_status ==
                                     TouchEventAckStatus::TouchEventAcked) {
-    TouchEventAckQueue::AckData ack_data = ack_queue_.front();
+    // Extract values and bare pointers to avoid holding raw_ptrs on the stack
+    // across synchronous view destruction boundaries.
+    TouchEventWithLatencyInfo touch_event = ack_queue_.front().touch_event;
+    blink::mojom::InputEventResultState ack_result =
+        ack_queue_.front().ack_result;
+    RenderWidgetHostViewInput* root_view = ack_queue_.front().root_view;
     ack_queue_.pop_front();
 
     if ((!touch_emulator ||
-         !touch_emulator->HandleTouchEventAck(ack_data.touch_event.event,
-                                              ack_data.ack_result)) &&
-        (client_->IsViewInMap(ack_data.root_view) ||
-         client_->ViewMapIsEmpty())) {
+         !touch_emulator->HandleTouchEventAck(touch_event.event, ack_result)) &&
+        (client_->IsViewInMap(root_view) || client_->ViewMapIsEmpty())) {
       // Forward acked event and result to the root view associated with the
       // event. The view map is only empty for AndroidWebView.
-      ack_data.root_view->ProcessAckedTouchEvent(ack_data.touch_event,
-                                                 ack_data.ack_result);
+      root_view->ProcessAckedTouchEvent(touch_event, ack_result);
     }
   }
 }
@@ -215,9 +217,11 @@ void TouchEventAckQueue::UpdateQueueAfterTargetDestroyed(
     return data.root_view == target_view;
   });
 
-  // Otherwise, mark its status accordingly.
+  // Otherwise, mark its status accordingly and clear target_view to prevent
+  // dangling raw pointers.
   for_each(ack_queue_.begin(), ack_queue_.end(), [target_view](AckData& data) {
     if (data.target_view == target_view) {
+      data.target_view = nullptr;
       data.touch_event_ack_status = TouchEventAckStatus::TouchEventAcked;
       data.ack_result = blink::mojom::InputEventResultState::kNoConsumerExists;
     }
@@ -778,7 +782,8 @@ void RenderWidgetHostInputEventRouter::DispatchMouseWheelEvent(
     const std::optional<gfx::PointF>& target_location) {
   TRACE_EVENT("input",
               "RenderWidgetHostInputEventRouter::DispatchMouseWheelEvent",
-              "phase", PhaseToString(mouse_wheel_event.phase), "target",
+              "phase", PhaseToString(mouse_wheel_event.phase), "momentum_phase",
+              PhaseToString(mouse_wheel_event.momentum_phase), "target",
               static_cast<void*>(target), "wheel_target_",
               static_cast<void*>(wheel_target_));
   if (!root_view->IsPointerLocked()) {
@@ -1183,25 +1188,6 @@ void RenderWidgetHostInputEventRouter::ReportBubblingScrollToSameView(
 
 namespace {
 
-// Returns true if |target_view| is one of |starting_view|'s ancestors.
-// If |stay_within| is provided, we only consider ancestors within that
-// sub-tree.
-bool IsAncestorView(RenderWidgetHostViewInput* starting_view,
-                    const RenderWidgetHostViewInput* target_view,
-                    const RenderWidgetHostViewInput* stay_within = nullptr) {
-  RenderWidgetHostViewInput* cur_view = starting_view->GetParentViewInput();
-  while (cur_view) {
-    if (cur_view == target_view)
-      return true;
-
-    if (stay_within && cur_view == stay_within)
-      return false;
-
-    cur_view = cur_view->GetParentViewInput();
-  }
-  return false;
-}
-
 // Given |event| in root coordinates, return an event in |target_view|'s
 // coordinates.
 blink::WebGestureEvent GestureEventInTarget(
@@ -1284,8 +1270,7 @@ bool RenderWidgetHostInputEventRouter::BubbleScrollEvent(
     // ongoing bubbling.
     if (bubbling_gesture_scroll_target_ &&
         bubbling_gesture_scroll_target_ != resending_view) {
-      TRACE_EVENT_INSTANT0("input", "EarlyOut-Reentry",
-                           TRACE_EVENT_SCOPE_THREAD);
+      TRACE_EVENT_INSTANT("input", "EarlyOut-Reentry");
       return false;
     }
 
@@ -1304,8 +1289,8 @@ bool RenderWidgetHostInputEventRouter::BubbleScrollEvent(
 
     bubbling_gesture_scroll_target_ = target_view;
     bubbling_gesture_scroll_source_device_ = event.SourceDevice();
-    DCHECK(IsAncestorView(bubbling_gesture_scroll_origin_,
-                          bubbling_gesture_scroll_target_));
+    DCHECK(RenderWidgetHostViewInput::IsAncestorView(
+        bubbling_gesture_scroll_origin_, bubbling_gesture_scroll_target_));
   } else {  // !(event.GetType() ==
             // blink::WebInputEvent::Type::kGestureScrollBegin)
     if (!bubbling_gesture_scroll_target_) {
@@ -1313,8 +1298,7 @@ bool RenderWidgetHostInputEventRouter::BubbleScrollEvent(
       // TODO(mcnee): If we inform |bubbling_gesture_scroll_origin_| and the
       // intermediate views of the end of bubbling, we could presumably DCHECK
       // that we have a target.
-      TRACE_EVENT_INSTANT0("input", "Drop_Event_Target_Gone",
-                           TRACE_EVENT_SCOPE_THREAD);
+      TRACE_EVENT_INSTANT("input", "Drop_Event_Target_Gone");
       return false;
     }
 
@@ -1322,9 +1306,8 @@ bool RenderWidgetHostInputEventRouter::BubbleScrollEvent(
     // bubbling targets.
     if (event.GetType() == blink::WebInputEvent::Type::kGestureScrollEnd &&
         resending_view != bubbling_gesture_scroll_origin_) {
-      TRACE_EVENT_INSTANT0("input",
-                           "Dont_Bubble_GestureScrollEnd_Intermediate_Sender",
-                           TRACE_EVENT_SCOPE_THREAD);
+      TRACE_EVENT_INSTANT("input",
+                          "Dont_Bubble_GestureScrollEnd_Intermediate_Sender");
       return true;
     }
   }
@@ -1339,8 +1322,7 @@ bool RenderWidgetHostInputEventRouter::BubbleScrollEvent(
   if (resending_view == bubbling_gesture_scroll_target_) {
     ReportBubblingScrollToSameView(event, resending_view);
     CancelScrollBubbling();
-    TRACE_EVENT_INSTANT0("input", "EarlyOut-SameView",
-                         TRACE_EVENT_SCOPE_THREAD);
+    TRACE_EVENT_INSTANT("input", "EarlyOut-SameView");
     return false;
   }
 
@@ -1356,8 +1338,7 @@ bool RenderWidgetHostInputEventRouter::BubbleScrollEvent(
       // bubbled to the root, a wrapping scroll begin will have already been
       // sent to the root.
       if (touchscreen_pinch_state_.IsInPinch()) {
-        TRACE_EVENT_INSTANT0("input", "EarlyOut-IsInPinch",
-                             TRACE_EVENT_SCOPE_THREAD);
+        TRACE_EVENT_INSTANT("input", "EarlyOut-IsInPinch");
         return true;
       }
     } else if (event.GetType() ==
@@ -1366,8 +1347,7 @@ bool RenderWidgetHostInputEventRouter::BubbleScrollEvent(
     }
   }
 
-  TRACE_EVENT_INSTANT0("input", "Did_Bubble_Scroll_Event_To_Target",
-                       TRACE_EVENT_SCOPE_THREAD);
+  TRACE_EVENT_INSTANT("input", "Did_Bubble_Scroll_Event_To_Target");
   bubbling_gesture_scroll_target_->ProcessGestureEvent(
       GestureEventInTarget(event, bubbling_gesture_scroll_target_),
       latency_info);
@@ -1446,7 +1426,8 @@ void RenderWidgetHostInputEventRouter::WillDetachChildView(
   // We cancel bubbling only when the child view affects the current scroll
   // bubbling sequence.
   if (detaching_view == bubbling_gesture_scroll_origin_ ||
-      IsAncestorView(bubbling_gesture_scroll_origin_, detaching_view)) {
+      RenderWidgetHostViewInput::IsAncestorView(bubbling_gesture_scroll_origin_,
+                                                detaching_view)) {
     CancelScrollBubbling();
   }
 }
@@ -1484,8 +1465,9 @@ void RenderWidgetHostInputEventRouter::CancelScrollBubblingIfConflicting(
   if (!bubbling_gesture_scroll_target_ || !bubbling_gesture_scroll_origin_)
     return;
 
-  if (IsAncestorView(bubbling_gesture_scroll_origin_, target,
-                     bubbling_gesture_scroll_target_)) {
+  if (RenderWidgetHostViewInput::IsAncestorView(
+          bubbling_gesture_scroll_origin_, target,
+          bubbling_gesture_scroll_target_)) {
     CancelScrollBubbling();
   }
 }
@@ -1851,18 +1833,12 @@ RenderWidgetTargetResult
 RenderWidgetHostInputEventRouter::FindTouchpadGestureEventTarget(
     RenderWidgetHostViewInput* root_view,
     const blink::WebGestureEvent& event) const {
-#if !BUILDFLAG(IS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
   if (vivaldi::IsVivaldiRunning() &&
-    (event.GetType() == blink::WebInputEvent::Type::kGestureDoubleTap)) {
+      ((event.GetType() == blink::WebInputEvent::Type::kGestureDoubleTap) ||
+       blink::WebInputEvent::IsPinchGestureEventType(event.GetType()))) {
     // NOTE(espen@vivaldi.com): We have to find the view under the event
     // position as we can not use the root view since it includes the UI.
-    gfx::PointF transformed_point;
-    return FindViewAtLocation(root_view, event.PositionInWidget(),
-                              viz::EventSource::TOUCH, &transformed_point);
-  }
-#if !BUILDFLAG(IS_IOS)
-  if (vivaldi::IsVivaldiRunning() &&
-      blink::WebInputEvent::IsPinchGestureEventType(event.GetType())) {
     gfx::PointF transformed_point;
     RenderWidgetTargetResult target =
         FindViewAtLocation(root_view, event.PositionInWidget(),
@@ -1877,8 +1853,7 @@ RenderWidgetHostInputEventRouter::FindTouchpadGestureEventTarget(
       return {target.view, false, event.PositionInWidget()};
     }
   }
-#endif
-#endif  // !IS_ANDROID
+#endif  // !IS_ANDROID && !IS_IOS
   if (event.GetType() != blink::WebInputEvent::Type::kGesturePinchBegin &&
       event.GetType() != blink::WebInputEvent::Type::kGestureFlingCancel &&
       event.GetType() != blink::WebInputEvent::Type::kGestureDoubleTap) {
@@ -1987,14 +1962,27 @@ void RenderWidgetHostInputEventRouter::DispatchTouchpadGestureEvent(
 
 RenderWidgetHostViewInput*
 RenderWidgetHostInputEventRouter::FindViewFromFrameSinkId(
-    const viz::FrameSinkId& frame_sink_id) const {
+    const viz::FrameSinkId& frame_sink_id,
+    RenderWidgetHostViewInput* ancestor_to_verify) const {
   // TODO(kenrb): There should be a better way to handle hit tests to surfaces
   // that are no longer valid for hit testing. See https://crbug.com/790044.
   auto iter = owner_map_.find(frame_sink_id);
   // If the point hit a Surface whose namspace is no longer in the map, then
   // it likely means the RenderWidgetHostView has been destroyed but its
   // parent frame has not sent a new compositor frame since that happened.
-  return iter == owner_map_.end() ? nullptr : iter->second.get();
+  RenderWidgetHostViewInput* view =
+      iter == owner_map_.end() ? nullptr : iter->second.get();
+
+  if (view && ancestor_to_verify && view != ancestor_to_verify &&
+      view->GetParentViewInput() != ancestor_to_verify) {
+    // We restrict targeting verification strictly to immediate direct children
+    // (parent-child relationship) rather than allowing any-depth descendants
+    // (IsAncestorView), which prevents a compromised renderer from bypassing
+    // intermediate frames to target nested grandchildren.
+    return nullptr;
+  }
+
+  return view;
 }
 
 bool RenderWidgetHostInputEventRouter::ShouldContinueHitTesting(
@@ -2262,9 +2250,17 @@ void RenderWidgetHostInputEventRouter::RootViewReceivesMouseUpIfNecessary(
   root_view_receive_additional_mouse_up_ = root_view_receives_mouse_up;
 }
 
-void RenderWidgetHostInputEventRouter::SetAutoScrollInProgress(
+RenderWidgetTargeter::AutoscrollStatus
+RenderWidgetHostInputEventRouter::SetAutoScrollInProgress(
+    RenderWidgetHostViewInput* view,
     bool is_autoscroll_in_progress) {
-  event_targeter_->SetIsAutoScrollInProgress(is_autoscroll_in_progress);
+  return event_targeter_->SetIsAutoScrollInProgress(view,
+                                                    is_autoscroll_in_progress);
+}
+
+void RenderWidgetHostInputEventRouter::CancelAutoscroll(
+    RenderWidgetHostViewInput* view) {
+  delegate_->CancelAutoscroll(view);
 }
 
 bool IsMoveEvent(ui::EventType type) {

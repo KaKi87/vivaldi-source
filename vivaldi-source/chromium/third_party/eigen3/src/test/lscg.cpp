@@ -6,9 +6,25 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "sparse_solver.h"
 #include <Eigen/IterativeLinearSolvers>
+
+template <typename T>
+void test_least_square_diagonal_preconditioner_zero_columns() {
+  SparseMatrix<T, RowMajor> mat(3, 3);
+  mat.insert(0, 0) = T(2);
+  mat.insert(2, 2) = T(4);
+  mat.makeCompressed();
+
+  LeastSquareDiagonalPreconditioner<T> precond(mat);
+  Matrix<T, 3, 1> rhs = Matrix<T, 3, 1>::Ones();
+  Matrix<T, 3, 1> expected;
+  expected << T(0.25), T(1), T(0.0625);
+
+  VERIFY_IS_APPROX(precond.solve(rhs), expected);
+}
 
 template <typename T>
 void test_lscg_T() {
@@ -33,4 +49,6 @@ void test_lscg_T() {
 EIGEN_DECLARE_TEST(lscg) {
   CALL_SUBTEST_1(test_lscg_T<double>());
   CALL_SUBTEST_2(test_lscg_T<std::complex<double> >());
+  CALL_SUBTEST_3(test_least_square_diagonal_preconditioner_zero_columns<double>());
+  CALL_SUBTEST_4(test_least_square_diagonal_preconditioner_zero_columns<std::complex<double> >());
 }

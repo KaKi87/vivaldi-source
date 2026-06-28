@@ -58,10 +58,12 @@
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
+#include "components/safe_browsing/content/browser/client_side_detection_host.h"
 #include "components/safe_browsing/content/browser/content_unsafe_resource_util.h"
 #include "components/safe_browsing/content/browser/password_protection/password_protection_commit_deferring_condition.h"
 #include "components/safe_browsing/content/browser/password_protection/password_protection_request_content.h"
 #include "components/safe_browsing/content/browser/safe_browsing_navigation_observer_manager.h"
+#include "components/safe_browsing/content/browser/safe_browsing_tab_observer.h"
 #include "components/safe_browsing/content/browser/triggers/trigger_throttler.h"
 #include "components/safe_browsing/content/browser/ui_manager.h"
 #include "components/safe_browsing/content/browser/web_contents_key.h"
@@ -83,6 +85,7 @@
 #include "components/signin/public/identity_manager/account_info.h"
 #include "components/signin/public/identity_manager/account_managed_status_finder.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
+#include "components/site_engagement/content/site_engagement_service.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/sync/protocol/user_event_specifics.pb.h"
 #include "components/sync/service/sync_service.h"
@@ -107,9 +110,9 @@
 #if BUILDFLAG(FULL_SAFE_BROWSING)
 #include "chrome/browser/extensions/api/safe_browsing_private/safe_browsing_private_event_router.h"
 #include "chrome/browser/extensions/api/safe_browsing_private/safe_browsing_private_event_router_factory.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"  // nogncheck crbug.com/40147906
 #include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"  // nogncheck crbug.com/40147906
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #endif
 
@@ -360,7 +363,7 @@ void ChromePasswordProtectionService::SetSyncPasswordHash(
     const std::string& sync_password_hash) {
 // The following code is disabled on Android. RefreshTokenIsAvailable cannot be
 // used in unit tests, because it needs to interact with system accounts.
-// Considering avoid running it during unit tests. See: crbug.com/1009957.
+// Considering avoid running it during unit tests. See: crbug.com/40101266.
 #if !BUILDFLAG(IS_ANDROID)
   // This code is shared by the normal ctor and testing ctor.
   sync_password_hash_ = sync_password_hash;
@@ -392,6 +395,19 @@ void ChromePasswordProtectionService::Shutdown() {
   if (pref_change_registrar_)
     pref_change_registrar_->RemoveAll();
   scoped_observation_.Reset();
+}
+
+void ChromePasswordProtectionService::RequestFinished(
+    PasswordProtectionRequest* request,
+    RequestOutcome outcome,
+    std::unique_ptr<LoginReputationClientResponse> response) {
+  if (response) {
+    RecordSiteEngagementScore(request->main_frame_url(),
+                              request->trigger_type(),
+                              response->verdict_type());
+  }
+  PasswordProtectionService::RequestFinished(request, outcome,
+                                             std::move(response));
 }
 
 void ChromePasswordProtectionService::HashPasswordManagerAvailable(
@@ -593,6 +609,15 @@ void ChromePasswordProtectionService::ShowInterstitial(
 
   LogWarningAction(WarningUIType::INTERSTITIAL, WarningAction::SHOWN,
                    password_type);
+}
+
+void ChromePasswordProtectionService::MaybeTriggerClientSideDetectionScan(
+    content::WebContents* web_contents) {
+  SafeBrowsingTabObserver* tab_observer =
+      SafeBrowsingTabObserver::FromWebContents(web_contents);
+  if (tab_observer && tab_observer->client_side_detection_host()) {
+    tab_observer->client_side_detection_host()->OnUnfamiliarLoginPageDetected();
+  }
 }
 
 void ChromePasswordProtectionService::OnUserAction(
@@ -1108,6 +1133,61 @@ void ChromePasswordProtectionService::LogDialogMetricsOnChangePassword(
   }
 }
 
+void ChromePasswordProtectionService::RecordSiteEngagementScore(
+    const GURL& url,
+    LoginReputationClientRequest::TriggerType trigger_type,
+    LoginReputationClientResponse::VerdictType verdict_type) {
+  if (IsIncognito()) {
+    return;
+  }
+  site_engagement::SiteEngagementService* engagement_service =
+      site_engagement::SiteEngagementService::Get(profile_);
+  if (!engagement_service) {
+    return;
+  }
+  double score = engagement_service->GetScore(url);
+
+  std::string trigger_string;
+  switch (trigger_type) {
+    case LoginReputationClientRequest::UNFAMILIAR_LOGIN_PAGE:
+      trigger_string = "UnfamiliarLoginPage";
+      break;
+    case LoginReputationClientRequest::PASSWORD_REUSE_EVENT:
+      trigger_string = "PasswordReuseEvent";
+      break;
+    case LoginReputationClientRequest::ONE_TIME_PASSWORD_FIELD_DETECTED:
+      trigger_string = "OtpFieldDetected";
+      break;
+    case LoginReputationClientRequest::TRIGGER_TYPE_UNSPECIFIED:
+      trigger_string = "Unspecified";
+      break;
+    default:
+      NOTREACHED();
+  }
+
+  std::string verdict_string;
+  switch (verdict_type) {
+    case LoginReputationClientResponse::SAFE:
+      verdict_string = "Safe";
+      break;
+    case LoginReputationClientResponse::LOW_REPUTATION:
+      verdict_string = "LowReputation";
+      break;
+    case LoginReputationClientResponse::PHISHING:
+      verdict_string = "Phishing";
+      break;
+    case LoginReputationClientResponse::VERDICT_TYPE_UNSPECIFIED:
+      verdict_string = "Unspecified";
+      break;
+    default:
+      NOTREACHED();
+  }
+  base::UmaHistogramExactLinear(
+      base::StrCat({"PasswordProtection.Verdict.", trigger_string,
+                    ".SiteEngagementScore.", verdict_string}),
+      static_cast<int>(score), 101);
+}
+
 void ChromePasswordProtectionService::AddModelWarningBypasstoPref() {
   auto* metrics_collector =
       SafeBrowsingMetricsCollectorFactory::GetForProfile(profile_);
@@ -1147,7 +1227,9 @@ void ChromePasswordProtectionService::OpenPasswordCheck(
 
 #if BUILDFLAG(FULL_SAFE_BROWSING)
     // Opens chrome://settings/passwords/check in a new tab.
-    chrome::ShowPasswordCheck(chrome::FindBrowserWithTab(web_contents));
+    chrome::ShowPasswordCheck(
+        GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+            web_contents));
     password_manager::LogPasswordCheckReferrer(
         password_manager::PasswordCheckReferrer::kPhishGuardDialog);
 #endif
@@ -1325,7 +1407,8 @@ void ChromePasswordProtectionService::MaybeReportPasswordReuseDetected(
     const std::string& username,
     PasswordType password_type,
     bool is_phishing_url,
-    bool warning_shown) {
+    bool warning_shown,
+    const ReferrerChain& referrer_chain) {
   auto reused_password_account_type =
       GetPasswordProtectionReusedPasswordAccountType(password_type, username);
   if (reused_password_account_type.account_type() ==
@@ -1368,7 +1451,8 @@ void ChromePasswordProtectionService::MaybeReportPasswordReuseDetected(
         ReportingEventRouterFactory::GetForBrowserContext(profile_);
     if (reporting_event_router) {
       reporting_event_router->OnPasswordReuse(main_frame_url, username_or_email,
-                                              is_phishing_url, warning_shown);
+                                              is_phishing_url, warning_shown,
+                                              referrer_chain);
     }
   }
 }

@@ -2,8 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --turbolev --no-maglev --turbolev-inline-js-wasm-wrappers
+// Flags: --turbolev --no-maglev --wasm-in-js-inlining-wrapper
 // Flags: --allow-natives-syntax --trace-deopt --trace-deopt-verbose
+// Flags: --turbofan --no-stress-maglev
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 d8.file.execute('test/mjsunit/mjsunit.js');

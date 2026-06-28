@@ -4,9 +4,11 @@
 
 #include "base/strings/stringprintf.h"
 #include "build/build_config.h"
+#include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_cookie_synchronizer.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service_factory.h"
+#include "chrome/browser/contextual_tasks/mock_contextual_tasks_ui_service_delegate.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
 #include "chrome/browser/ui/browser.h"
@@ -15,6 +17,7 @@
 #include "chrome/test/data/webui/webui_composebox_pixel_test.h"
 #include "components/contextual_tasks/public/features.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
+#include "components/omnibox/browser/mock_aim_eligibility_service.h"
 #include "components/signin/public/identity_manager/identity_test_utils.h"
 #include "ui/gfx/scoped_animation_duration_scale_mode.h"
 #include "ui/views/widget/widget.h"
@@ -23,21 +26,19 @@
 class FakeContextualTasksUiService
     : public contextual_tasks::ContextualTasksUiService {
  public:
-  explicit FakeContextualTasksUiService(Profile* profile)
+  explicit FakeContextualTasksUiService(
+      Profile* profile,
+      AimEligibilityService* aim_eligibility_service)
       : contextual_tasks::ContextualTasksUiService(
             profile,
-            /*delegate=*/nullptr,
+            std::make_unique<testing::NiceMock<
+                contextual_tasks::MockContextualTasksUiServiceDelegate>>(),
             /*contextual_tasks_service=*/nullptr,
             /*identity_manager=*/nullptr,
-            /*aim_eligibility_service=*/nullptr,
+            aim_eligibility_service,
+            /*eligibility_manager=*/nullptr,
             /*cookie_synchronizer=*/nullptr) {}
   GURL GetDefaultAiPageUrl() override { return GURL(url::kAboutBlankURL); }
-
-  static std::unique_ptr<KeyedService> BuildFakeService(
-      content::BrowserContext* context) {
-    return std::make_unique<FakeContextualTasksUiService>(
-        Profile::FromBrowserContext(context));
-  }
 };
 
 class ContextualTasksPixelTestBase : public WebUIComposeBoxPixelTest {
@@ -55,10 +56,28 @@ class ContextualTasksPixelTestBase : public WebUIComposeBoxPixelTest {
       content::BrowserContext* context) override {
     IdentityTestEnvironmentProfileAdaptor::
         SetIdentityTestEnvironmentFactoriesOnBrowserContext(context);
+
+    AimEligibilityServiceFactory::GetInstance()->SetTestingFactory(
+        context, base::BindRepeating([](content::BrowserContext* context)
+                                         -> std::unique_ptr<KeyedService> {
+          auto service =
+              std::make_unique<testing::NiceMock<MockAimEligibilityService>>(
+                  *Profile::FromBrowserContext(context)->GetPrefs(), nullptr,
+                  nullptr, nullptr);
+          ON_CALL(*service, IsAimEligible())
+              .WillByDefault(testing::Return(true));
+          return service;
+        }));
+
     contextual_tasks::ContextualTasksUiServiceFactory::GetInstance()
         ->SetTestingFactory(
-            context, base::BindRepeating(
-                         &FakeContextualTasksUiService::BuildFakeService));
+            context, base::BindRepeating([](content::BrowserContext* context)
+                                             -> std::unique_ptr<KeyedService> {
+              return std::make_unique<FakeContextualTasksUiService>(
+                  Profile::FromBrowserContext(context),
+                  AimEligibilityServiceFactory::GetForProfile(
+                      Profile::FromBrowserContext(context)));
+            }));
   }
 
   void SetUpOnMainThread() override {
@@ -420,8 +439,9 @@ IN_PROC_BROWSER_TEST_P(ContextualTasksToolbarPixelTest, MAYBE_Screenshots) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kActiveTab);
   DeepQuery app = {"contextual-tasks-app"};
   DeepQuery toolbar = app + "top-toolbar";
-  DeepQuery moreButton = toolbar + "#more";
-  DeepQuery menu = toolbar + "cr-action-menu" + "dialog";
+  DeepQuery moreButton = toolbar + "#overflowMenuButton";
+  DeepQuery menu =
+      toolbar + "contextual-tasks-overflow-menu" + "cr-action-menu" + "dialog";
 
   RunTestSequence(
       SetupWebUIEnvironment(kActiveTab,

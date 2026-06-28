@@ -27,30 +27,10 @@ SubgraphBuilder::SubgraphBuilder(size_t external_value_count, uint32_t flags)
 
 SubgraphBuilder& SubgraphBuilder::AddTensor(ynn_type type, TensorShape shape,
                                             uint32_t& id, const void* data,
-                                            uint32_t zero_point_id,
-                                            uint32_t scale_id, uint32_t flags) {
+                                            uint32_t flags) {
   assert(status_ == ynn_status_success);
-  status_ = ynn_define_tensor_value(
-      subgraph_.get(), type, shape.Rank(), shape.Dims(),
-      /*data=*/data, zero_point_id, scale_id, flags, &id);
-  return *this;
-}
-
-SubgraphBuilder& SubgraphBuilder::AddTensor(
-    ynn_type type, TensorShape shape, uint32_t& id, const void* data,
-    quantization_params scalar_quantization, uint32_t flags) {
-  assert(status_ == ynn_status_success);
-  uint32_t scale_id = YNN_INVALID_VALUE_ID;
-  uint32_t zero_point_id = YNN_INVALID_VALUE_ID;
-  if (scalar_quantization.scale != 1.0f) {
-    scale_id = DefineScalar<float>(scalar_quantization.scale);
-  }
-  if (scalar_quantization.zero_point != 0) {
-    zero_point_id = DefineScalar<int32_t>(scalar_quantization.zero_point);
-  }
-  status_ =
-      ynn_define_tensor_value(subgraph_.get(), type, shape.Rank(), shape.Dims(),
-                              data, zero_point_id, scale_id, flags, &id);
+  status_ = ynn_define_tensor(subgraph_.get(), type, shape.Rank(), shape.Dims(),
+                              /*data=*/data, flags, &id);
   return *this;
 }
 
@@ -61,6 +41,76 @@ SubgraphBuilder& SubgraphBuilder::AddUnary(ynn_unary_operator op,
   status_ = ynn_define_unary(subgraph_.get(), op, input_id, &output_id, flags);
   return *this;
 }
+
+SubgraphBuilder& SubgraphBuilder::AddConvert(uint32_t input_id, ynn_type type,
+                                             uint32_t output_id,
+                                             uint32_t flags) {
+  assert(status_ == ynn_status_success);
+  status_ =
+      ynn_define_convert_v2(subgraph_.get(), input_id, type, &output_id, flags);
+  return *this;
+}
+
+SubgraphBuilder& SubgraphBuilder::AddQuantize(uint32_t input_id, ynn_type type,
+                                              uint32_t zero_point_id,
+                                              uint32_t scale_id,
+                                              uint32_t output_id,
+                                              uint32_t flags) {
+  assert(status_ == ynn_status_success);
+  status_ = ynn_define_quantize(subgraph_.get(), input_id, type, zero_point_id,
+                                scale_id, &output_id, flags);
+  return *this;
+}
+
+SubgraphBuilder& SubgraphBuilder::AddQuantize(uint32_t input_id, ynn_type type,
+                                              quantization_params quantization,
+                                              uint32_t output_id,
+                                              uint32_t flags) {
+  if (quantization.zero_point == 0 && quantization.scale == 1.0f) {
+    return AddConvert(input_id, type, output_id, flags);
+  }
+  assert(status_ == ynn_status_success);
+  uint32_t scale_id = DefineScalar<float>(quantization.scale);
+  uint32_t zero_point_id = DefineScalar<int32_t>(quantization.zero_point);
+  status_ = ynn_define_quantize(subgraph_.get(), input_id, type, zero_point_id,
+                                scale_id, &output_id, flags);
+  return *this;
+}
+
+SubgraphBuilder& SubgraphBuilder::AddDequantize(
+    uint32_t input_id, uint32_t zero_point_id, uint32_t scale_id, ynn_type type,
+    uint32_t output_id, uint32_t flags) {
+  assert(status_ == ynn_status_success);
+  status_ = ynn_define_dequantize(subgraph_.get(), input_id, zero_point_id,
+                                  scale_id, type, &output_id, flags);
+  return *this;
+}
+
+SubgraphBuilder& SubgraphBuilder::AddDequantize(
+    uint32_t input_id, quantization_params quantization, ynn_type type,
+    uint32_t output_id, uint32_t flags) {
+  if (quantization.zero_point == 0 && quantization.scale == 1.0f) {
+    return AddConvert(input_id, type, output_id, flags);
+  }
+  assert(status_ == ynn_status_success);
+  uint32_t scale_id = DefineScalar<float>(quantization.scale);
+  uint32_t zero_point_id = DefineScalar<int32_t>(quantization.zero_point);
+  status_ = ynn_define_dequantize(subgraph_.get(), input_id, zero_point_id,
+                                  scale_id, type, &output_id, flags);
+  return *this;
+}
+
+SubgraphBuilder& SubgraphBuilder::AddPolynomial(
+    const std::vector<float>& coefficients, uint32_t input_id,
+    uint32_t output_id, uint32_t flags) {
+  assert(!coefficients.empty());
+  assert(status_ == ynn_status_success);
+  status_ = ynn_define_unary_polynomial(subgraph_.get(), input_id,
+                                        coefficients.size() - 1,
+                                        coefficients.data(), &output_id, flags);
+  return *this;
+}
+
 SubgraphBuilder& SubgraphBuilder::AddBinary(ynn_binary_operator op,
                                             uint32_t input_a_id,
                                             uint32_t input_b_id,
@@ -72,6 +122,16 @@ SubgraphBuilder& SubgraphBuilder::AddBinary(ynn_binary_operator op,
   return *this;
 }
 
+SubgraphBuilder& SubgraphBuilder::AddIota(ynn_type type,
+                                          const std::vector<size_t>& shape,
+                                          uint32_t begin_id, uint32_t stride_id,
+                                          uint32_t output_id, uint32_t flags) {
+  assert(status_ == ynn_status_success);
+  status_ = ynn_define_iota(subgraph_.get(), type, shape.size(), shape.data(),
+                            begin_id, stride_id, &output_id, flags);
+  return *this;
+}
+
 SubgraphBuilder& SubgraphBuilder::AddBroadcast(const std::vector<size_t>& shape,
                                                uint32_t input_id,
                                                uint32_t output_id,
@@ -79,6 +139,15 @@ SubgraphBuilder& SubgraphBuilder::AddBroadcast(const std::vector<size_t>& shape,
   assert(status_ == ynn_status_success);
   status_ = ynn_define_static_broadcast(
       subgraph_.get(), shape.size(), shape.data(), input_id, &output_id, flags);
+  return *this;
+}
+
+SubgraphBuilder& SubgraphBuilder::AddStaticBroadcast(
+    const std::vector<size_t>& shape, uint32_t input_id, uint32_t output_id) {
+  assert(status_ == ynn_status_success);
+  status_ = ynn_define_static_broadcast(
+      subgraph_.get(), shape.size(), shape.data(), input_id, &output_id,
+      /*flags=*/0);
   return *this;
 }
 
@@ -197,6 +266,17 @@ SubgraphBuilder& SubgraphBuilder::AddBroadcast(const std::vector<int32_t>& axes,
   assert(status_ == ynn_status_success);
   status_ = ynn_define_broadcast(subgraph_.get(), axes.size(), axes.data(),
                                  input_id, &output_id, /*flags=*/0);
+  return *this;
+}
+
+SubgraphBuilder& SubgraphBuilder::AddSliceLike(const std::vector<int32_t>& axes,
+                                              uint32_t input_id,
+                                              uint32_t template_id,
+                                              uint32_t output_id) {
+  assert(status_ == ynn_status_success);
+  status_ =
+      ynn_define_slice_like(subgraph_.get(), axes.size(), axes.data(), input_id,
+                            template_id, &output_id, /*flags=*/0);
   return *this;
 }
 

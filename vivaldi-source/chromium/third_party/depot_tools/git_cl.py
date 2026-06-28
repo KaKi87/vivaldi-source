@@ -1035,7 +1035,8 @@ class Settings(object):
     def GetIsGerrit(self):
         """Return True if gerrit.host is set."""
         if self.is_gerrit is None:
-            self.is_gerrit = bool(self._GetConfig('gerrit.host', False))
+            val = self._GetConfig('gerrit.host')
+            self.is_gerrit = bool(val) and val.lower() != 'false'
         return self.is_gerrit
 
     def GetGerritSkipEnsureAuthenticated(self):
@@ -1269,7 +1270,7 @@ class ChangeDescription(object):
                                                         'Change-Id')
                 print(
                     'WARNING: Change-Id has been set to %s. Use `git cl issue 0` '
-                    'if you want to set a new one.')
+                    'if you want to set a new one.' % change_id)
             # Add the expected Change-Id footer.
             description = git_footers.add_footer_change_id(
                 description, change_id)
@@ -1872,6 +1873,10 @@ class Changelist(object):
             args.extend(['--issue', str(issue)])
         if patchset:
             args.extend(['--patchset', str(patchset)])
+
+        branch = self.GetBranch()
+        if branch:
+            args.extend(['--name', branch])
 
         return args
 
@@ -2648,7 +2653,7 @@ class Changelist(object):
 
         data = self._GetChangeDetail(['CURRENT_REVISION'])
         patchset = data['revisions'][data['current_revision']]['_number']
-        if update:
+        if update and self.GetBranch():
             self.SetPatchset(patchset)
         return patchset
 
@@ -2693,7 +2698,8 @@ class Changelist(object):
             if revision_info.get('kind', '') not in \
                 ('NO_CHANGE', 'NO_CODE_CHANGE', 'TRIVIAL_REBASE'):
                 break
-        self.SetPatchset(patchset)
+        if self.GetBranch():
+            self.SetPatchset(patchset)
         return patchset
 
     def AddComment(self, message, publish=None):
@@ -2752,8 +2758,9 @@ class Changelist(object):
                        (url_prefix, comment.patch_set,
                         comment.path, 'b' if comment.side == 'PARENT' else '',
                         str(line) if line else ''))
-                comments[key][comment.path][patchset][line] = (unresolved, url,
-                                                               comment.message)
+                comments[key][comment.path][patchset].setdefault(
+                    line, []).append(
+                        (unresolved, url, comment.message, comment.id))
 
         summaries = []
         for msg in messages:
@@ -2790,28 +2797,30 @@ class Changelist(object):
             if readable:
                 message += '\n%s' % path
             for patchset, lines in sorted(patchsets.items()):
-                for line, (unresolved, url, content) in sorted(lines.items()):
-                    resolved_str = 'unresolved' if unresolved else 'resolved'
-                    if line:
-                        line_str = 'Line %d' % line
-                        path_str = '%s:%d:' % (path, line)
-                    else:
-                        line_str = 'File comment'
-                        path_str = '%s:0:' % path
-                    if readable:
-                        message += '\n  %s, %s: %s (%s)' % (patchset, line_str,
-                                                            url, resolved_str)
-                        message += '\n  %s\n' % content
-                    else:
-                        message += '\n%s (%s)' % (path_str, resolved_str)
-                        message += '\n%s\n' % content
-                    message_json['comments'].append({
-                        'path': path,
-                        'line': line,
-                        'patchset': patchset,
-                        'unresolved': unresolved,
-                        'content': content,
-                    })
+                for line, comment_list in sorted(lines.items()):
+                    for unresolved, url, content, comment_id in comment_list:
+                        resolved_str = 'unresolved' if unresolved else 'resolved'
+                        if line:
+                            line_str = 'Line %d' % line
+                            path_str = '%s:%d:' % (path, line)
+                        else:
+                            line_str = 'File comment'
+                            path_str = '%s:0:' % path
+                        if readable:
+                            message += '\n  %s, %s: %s (%s)' % (
+                                patchset, line_str, url, resolved_str)
+                            message += '\n  %s\n' % content
+                        else:
+                            message += '\n%s (%s)' % (path_str, resolved_str)
+                            message += '\n%s\n' % content
+                        message_json['comments'].append({
+                            'path': path,
+                            'line': line,
+                            'patchset': patchset,
+                            'unresolved': unresolved,
+                            'content': content,
+                            'id': comment_id,
+                        })
 
         return _CommentSummary(
             date=date,
@@ -2946,7 +2955,11 @@ class Changelist(object):
                 break
         return 0
 
-    def CMDPatchWithParsedIssue(self, parsed_issue_arg, nocommit, force):
+    def CMDPatchWithParsedIssue(self,
+                                parsed_issue_arg,
+                                nocommit,
+                                force,
+                                reauthor=False):
         assert parsed_issue_arg.valid
 
         self.issue = parsed_issue_arg.issue
@@ -2988,7 +3001,24 @@ class Changelist(object):
         # Set issue immediately in case the cherry-pick fails, which happens
         # when resolving conflicts.
         if self.GetBranch():
-            self.SetIssue(parsed_issue_arg.issue)
+            if reauthor:
+                reset_suffixes = [
+                    LAST_UPLOAD_HASH_CONFIG_KEY,
+                    ISSUE_CONFIG_KEY,
+                    PATCHSET_CONFIG_KEY,
+                    CODEREVIEW_SERVER_CONFIG_KEY,
+                    GERRIT_SQUASH_HASH_CONFIG_KEY,
+                ]
+                for prop in reset_suffixes:
+                    try:
+                        self._GitSetBranchConfigValue(prop, None)
+                    except subprocess2.CalledProcessError:
+                        pass
+                self.lookedup_issue = True
+                self.issue = None
+                self.patchset = None
+            else:
+                self.SetIssue(parsed_issue_arg.issue)
 
         if force:
             RunGit(['reset', '--hard', 'FETCH_HEAD'])
@@ -2998,18 +3028,40 @@ class Changelist(object):
             RunGit(['cherry-pick', '--no-commit', 'FETCH_HEAD'])
             print('Patch applied to index.')
         else:
-            RunGit(['cherry-pick', 'FETCH_HEAD'])
-            print('Committed patch for change %i patchset %i locally.' %
-                  (parsed_issue_arg.issue, patchset))
-            print(
-                'Note: this created a local commit on top of parent commit '
-                'that is different from the one in Gerrit. If the patched CL '
-                'is not yours and you cannot upload new patches to it, you '
-                'will not be able to upload stacked changes created on top of '
-                'this branch.\n'
-                'If you want to do that, use "git cl patch --force" instead.')
+            try:
+                RunGit(['cherry-pick', 'FETCH_HEAD'])
+                if reauthor:
+                    msg = RunGit(['log', '-1', '--format=%B']).strip()
+                    clean_msg = git_footers.remove_footer(msg, 'Change-Id')
+                    RunGit([
+                        'commit', '--amend', '--reset-author', '-m', clean_msg
+                    ])
+                    print(
+                        'Committed patch locally under your authorship with a new Change-Id.'
+                    )
+                else:
+                    print('Committed patch for change %i patchset %i locally.' %
+                          (parsed_issue_arg.issue, patchset))
+                    print(
+                        'Note: this created a local commit on top of parent commit '
+                        'that is different from the one in Gerrit. If the patched CL '
+                        'is not yours and you cannot upload new patches to it, you '
+                        'will not be able to upload stacked changes created on top of '
+                        'this branch.\n'
+                        'If you want to do that, use "git cl patch --force" instead.'
+                    )
+            except subprocess2.CalledProcessError as e:
+                if reauthor:
+                    print(
+                        '\nConflict while patching. Please resolve the conflicts and run '
+                        '"git cherry-pick --continue".\n'
+                        'Once done, run:\n'
+                        '  git commit --amend --reset-author\n'
+                        'and remove any "Change-Id:" footer inside the commit message.'
+                    )
+                raise e
 
-        if self.GetBranch():
+        if self.GetBranch() and not reauthor:
             self.SetPatchset(patchset)
             if not nocommit:
                 fetched_hash = scm.GIT.ResolveCommit(settings.GetRoot(),
@@ -3018,7 +3070,7 @@ class Changelist(object):
                                               fetched_hash)
                 self._GitSetBranchConfigValue(GERRIT_SQUASH_HASH_CONFIG_KEY,
                                               fetched_hash)
-        else:
+        elif not self.GetBranch():
             print(
                 'WARNING: You are in detached HEAD state.\n'
                 'The patch has been applied to your checkout, but you will not be '
@@ -3451,16 +3503,19 @@ class Changelist(object):
                                                  options.push_options)
 
         if options.squash:
-            regex = re.compile(r'remote:\s+https?://[\w\-\.\+\/#]*/(\d+)\s.*')
+            regex = re.compile(r'remote:\s+https?://[\w\-\.\+\/#]*/(\d+)\s?.*')
             change_numbers = [
-                m.group(1) for m in map(regex.match, push_stdout.splitlines())
+                m.group(1) for m in map(regex.search, push_stdout.splitlines())
                 if m
             ]
             if len(change_numbers) != 1:
                 DieWithError((
                     'Created|Updated %d issues on Gerrit, but only 1 expected.\n'
-                    'Change-Id: %s') % (len(change_numbers), change_id),
-                             change_desc)
+                    'Change-Id: %s\n'
+                    'Detected change numbers: %s\n'
+                    'Full git push output:\n%s') %
+                             (len(change_numbers), change_id, change_numbers,
+                              push_stdout), change_desc)
             self.SetIssue(change_numbers[0])
             self.SetPatchset(latest_ps + 1)
             self._GitSetBranchConfigValue(GERRIT_SQUASH_HASH_CONFIG_KEY,
@@ -4859,7 +4914,10 @@ def _create_commit_message(orig_message, bug=None):
     new_message = (f'Cherry pick "{subj_line}"\n\n'
                    "Original change's description:\n")
     for line in orig_message_lines:
-        new_message += f'> {line}\n'
+        if line:
+            new_message += f'> {line}\n'
+        else:
+            new_message += '>\n'
     new_message += '\n'
     if bug:
         new_message += f'Bug: {bug}\n'
@@ -5037,6 +5095,9 @@ def CMDcomments(parser, args):
     parser.add_option('-j',
                       '--json-file',
                       help='File to write JSON summary to, or "-" for stdout')
+    parser.add_option('--reply-to',
+                      dest='reply_to',
+                      help='UUID of the comment to respond to')
     options, args = parser.parse_args(args)
 
     issue = None
@@ -5052,6 +5113,47 @@ def CMDcomments(parser, args):
         sys.stderr.write(
             'There is no code review associated with this branch.\n')
         return 1
+
+    if options.reply_to:
+        if not options.comment:
+            DieWithError(
+                '--add-comment is required when --reply-to is specified.')
+
+        # Fetch all comments to find the parent comment.
+        file_comments = gerrit_util.GetChangeComments(
+            cl.GetGerritHost(), cl._GerritChangeIdentifier())
+        parent_comment = None
+        for path, comments in file_comments.items():
+            for c in comments:
+                if c.get('id') == options.reply_to:
+                    parent_comment = c
+                    parent_comment['path'] = path
+                    break
+            if parent_comment:
+                break
+
+        if not parent_comment:
+            DieWithError('Could not find comment with UUID %s to reply to.' %
+                         options.reply_to)
+
+        body = {
+            'in_reply_to': options.reply_to,
+            'message': options.comment,
+            'path': parent_comment['path'],
+        }
+        if 'line' in parent_comment:
+            body['line'] = parent_comment['line']
+        if 'range' in parent_comment:
+            body['range'] = parent_comment['range']
+        if 'side' in parent_comment:
+            body['side'] = parent_comment['side']
+
+        revision = parent_comment.get('patch_set', 'current')
+        gerrit_util.CreateDraft(cl.GetGerritHost(),
+                                cl._GerritChangeIdentifier(),
+                                revision=revision,
+                                body=body)
+        return 0
 
     if options.comment:
         cl.AddComment(options.comment, options.publish)
@@ -5521,6 +5623,7 @@ def CMDupload(parser, args):
                       dest='hashtags',
                       action='append',
                       default=[],
+                      metavar='HASHTAG',
                       help=('Gerrit hashtag for new CL; '
                             'can be applied multiple times'))
     parser.add_option('-s',
@@ -5882,15 +5985,23 @@ def UploadAllSquashed(options: optparse.Values,
         'description':
         new_upload.change_desc.description,
     }
+    logging.debug('pushing to %s', refspec)
     push_stdout = cl._RunGitPushWithTraces(refspec, refspec_opts,
                                            git_push_metadata,
                                            options.push_options)
 
     # Post push updates
-    regex = re.compile(r'remote:\s+https?://[\w\-\.\+\/#]*/(\d+)\s.*')
+    regex = re.compile(r'remote:\s+https?://[\w\-\.\+\/#]*/(\d+)\s?.*')
     change_numbers = [
-        m.group(1) for m in map(regex.match, push_stdout.splitlines()) if m
+        m.group(1) for m in map(regex.search, push_stdout.splitlines()) if m
     ]
+
+    if len(change_numbers) != len(uploads_by_cl):
+        DieWithError('Created|Updated %d issues on Gerrit, but %d expected.\n'
+                     'Detected change numbers: %s\n'
+                     'Full git push output:\n%s' %
+                     (len(change_numbers), len(uploads_by_cl), change_numbers,
+                      push_stdout))
 
     for i, (cl, new_upload) in enumerate(uploads_by_cl):
         cl.PostUploadUpdates(options, new_upload, change_numbers[i])
@@ -6259,6 +6370,13 @@ def CMDpatch(parser, args):
                       action='store_true',
                       dest='nocommit',
                       help='don\'t commit after patch applies.')
+    parser.add_option(
+        '--reauthor',
+        action='store_true',
+        dest='reauthor',
+        help='Apply the patch under your own authorship, '
+        'removing the original Change-Id footer so you can upload it as a '
+        'new CL.')
 
     group = optparse.OptionGroup(
         parser,
@@ -6280,6 +6398,14 @@ def CMDpatch(parser, args):
     parser.add_option_group(group)
 
     (options, args) = parser.parse_args(args)
+
+    if options.reauthor:
+        if options.nocommit:
+            parser.error('--reauthor cannot be used with --no-commit.')
+        if options.force:
+            parser.error('--reauthor cannot be used with --force.')
+        if options.reapply:
+            parser.error('--reauthor cannot be used with --reapply.')
 
     if options.reapply:
         if options.newbranch:
@@ -6329,8 +6455,10 @@ def CMDpatch(parser, args):
     if not args[0].isdigit():
         print('canonical issue/change URL: %s\n' % cl.GetIssueURL())
 
-    return cl.CMDPatchWithParsedIssue(target_issue_arg, options.nocommit,
-                                      options.force)
+    return cl.CMDPatchWithParsedIssue(target_issue_arg,
+                                      options.nocommit,
+                                      options.force,
+                                      reauthor=options.reauthor)
 
 
 def GetTreeStatus(url=None):
@@ -6733,9 +6861,14 @@ def CMDset_close(parser, args):
     return 0
 
 
+@subcommand.usage('[--] [files ...]')
 @metrics.collector.collect_metrics('git cl diff')
-def CMDdiff(parser, args):
-    """Shows differences between local tree and last upload."""
+def CMDdiff(parser, raw_args):
+    """Shows differences between local tree and last upload.
+
+    positional arguments:
+      files           Files to diff. If omitted, diff all files.
+    """
     if gclient_utils.IsEnvCog():
         print(
             'diff command is not supported. Please navigate to source '
@@ -6747,9 +6880,7 @@ def CMDdiff(parser, args):
                       action='store_true',
                       dest='stat',
                       help='Generate a diffstat')
-    options, args = parser.parse_args(args)
-    if args:
-        parser.error('Unrecognized args: %s' % ' '.join(args))
+    options, args = parser.parse_args(raw_args)
 
     cl = Changelist()
     issue = cl.GetIssue()
@@ -6771,6 +6902,19 @@ def CMDdiff(parser, args):
     if options.stat:
         cmd.append('--stat')
     cmd.append(base)
+    # `git diff` behaves differently depending on whether the file list starts
+    # with '--' or not (using '--' won't check for file existence and so is
+    # useful to diff deleted files). The code below ensures `git cl diff`
+    # support both cases.
+    # OptionParser.parse() strips '--' so check raw_args and not args.
+    if '--' in raw_args:
+        if any(not a.startswith('-') for a in raw_args[:raw_args.index('--')]):
+            parser.error(
+                'All positional arguments must come after "--" when it is used.'
+            )
+        cmd.append('--')
+    if args:
+        cmd.extend(args)
     subprocess2.check_call(cmd)
 
     return 0

@@ -28,7 +28,8 @@
 <settings-section page-title="$i18n{searchSiteShortcuts}">
   <!-- Active site shortcuts -->
   <cr-expand-button id="activeShortcutsRow"
-      expanded="{{activeShortcutsExpanded_}}" class="cr-row first">
+      expanded="{{activeShortcutsExpanded_}}" class="cr-row first"
+      on-expanded-changed="onSectionExpandedChanged_">
     <div class="expand-row">
       <div class="text-content-group">
         $i18n{searchSiteShortcutsActiveShortcuts}
@@ -50,7 +51,8 @@
     <settings-search-engines-list
         id="activeShortcutsList"
         hidden="[[!activeShortcuts.length]]"
-        engines="[[activeShortcuts]]" show-shortcut>
+        engines="[[activeShortcuts]]" show-shortcut
+        prefs="[[prefs]]">
     </settings-search-engines-list>
     <div id="noActiveShortcutsFound" class="no-shortcuts-found"
         hidden="[[activeShortcuts.length]]">
@@ -60,7 +62,8 @@
 
   <!-- Inactive site shortcuts -->
   <cr-expand-button id="inactiveShortcutsRow"
-      expanded="{{inactiveShortcutsExpanded_}}" class="cr-row">
+      expanded="{{inactiveShortcutsExpanded_}}" class="cr-row"
+      on-expanded-changed="onSectionExpandedChanged_">
     <div class="expand-row">
       <div class="text-content-group">
         $i18n{searchSiteShortcutsInactiveShortcuts}
@@ -75,7 +78,8 @@
     <settings-search-engines-list
         id="inactiveShortcutsList"
         hidden="[[!inactiveShortcuts.length]]"
-        engines="[[inactiveShortcuts]]" show-shortcut>
+        engines="[[inactiveShortcuts]]" show-shortcut
+        prefs="[[prefs]]">
     </settings-search-engines-list>
     <div id="noInactiveShortcutsFound" class="no-shortcuts-found"
         hidden="[[inactiveShortcuts.length]]">

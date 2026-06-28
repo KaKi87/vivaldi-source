@@ -73,6 +73,9 @@ class LargeIconService;
 /// Toggle visibility of the omnibox debugger view.
 - (void)toggleOmniboxDebuggerView;
 
+/// Disconnects properties before destruction.
+- (void)disconnect;
+
 // Vivaldi
 /// Flag that controls whether the search results should be reversed.
 /// Only available when omnibox is at the bottom.

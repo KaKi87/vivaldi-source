@@ -509,7 +509,8 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
   [super tearDownHelper];
 }
 
-- (void)testTapAppendArrowButton {
+// TODO(crbug.com/513297149): Re-enable after the fix.
+- (void)DISABLED_testTapAppendArrowButton {
   [ChromeEarlGrey loadURL:GURL("about:blank")];
 
   // Clears the url and replace it with local url host.
@@ -540,7 +541,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
   // Wait for the new suggestions to show.
   [ChromeEarlGrey
       waitForUIElementToAppearWithMatcher:
-          chrome_test_util::OmniboxPopupRowVisibleWithString(@"abcdefghi")];
+          chrome_test_util::OmniboxPopupRowVisibleWithString(@"abcdefg")];
 }
 
 // Test when the popup is scrolled, the keyboard is dismissed
@@ -553,21 +554,20 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 
   id<GREYMatcher> row =
       chrome_test_util::OmniboxPopupRowVisibleWithString(@"abcdef");
+  id<GREYMatcher> secondRow =
+      chrome_test_util::OmniboxPopupRowVisibleWithString(@"abcdefg");
 
   // Wait for the suggestions to show.
   [ChromeEarlGrey waitForUIElementToAppearWithMatcher:row];
+  [ChromeEarlGrey waitForUIElementToAppearWithMatcher:secondRow];
   // Wait for the keyboard to appear.
   [ChromeEarlGrey waitForKeyboardToAppear];
 
-  // Scroll the popup. This swipes from the point located at 50% of the width of
-  // the frame horizontally and most importantly 10% (50% on iPad since it is a
-  // popover not a fullscreen modal) of the height of the frame vertically. This
-  // is necessary if the center of the list's accessibility frame is not
-  // visible, as it is the default start point.
-  CGFloat height = [ChromeEarlGrey isIPadIdiom] ? 0.5 : 0.1;
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxPopupList()]
-      performAction:grey_swipeFastInDirectionWithStartPoint(kGREYDirectionDown,
-                                                            0.5, height)];
+  // Scroll the popup by swiping on the second suggestion.
+  [[EarlGrey selectElementWithMatcher:omnibox::PopupRowAtIndex([NSIndexPath
+                                          indexPathForRow:1
+                                                inSection:0])]
+      performAction:grey_swipeFastInDirection(kGREYDirectionDown)];
 
   [[EarlGrey selectElementWithMatcher:row]
       assertWithMatcher:grey_sufficientlyVisible()];

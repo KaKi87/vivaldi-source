@@ -1,172 +1,231 @@
-// Copyright 2023 The Chromium Authors
+// Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/webui/signin/managed_user_profile_notice_ui.h"
 
-#include <memory>
+#include <optional>
 
-#include "base/functional/callback_forward.h"
+#include "base/functional/callback_helpers.h"
+#include "base/no_destructor.h"
 #include "base/strings/strcat.h"
-#include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
-#include "chrome/browser/signin/signin_browser_test_base.h"
+#include "build/build_config.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/test/test_browser_dialog.h"
-#include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/profiles/profile_ui_test_utils.h"
+#include "chrome/browser/ui/test/test_browser_ui.h"
 #include "chrome/browser/ui/views/profiles/profile_management_step_controller.h"
 #include "chrome/browser/ui/views/profiles/profile_picker_view_test_utils.h"
 #include "chrome/browser/ui/views/profiles/profiles_pixel_test_utils.h"
+#include "chrome/browser/ui/webui/signin/signin_utils.h"
 #include "chrome/common/webui_url_constants.h"
-#include "components/signin/public/base/signin_buildflags.h"
 #include "components/signin/public/base/signin_switches.h"
-#include "components/signin/public/identity_manager/account_info.h"
+#include "content/public/browser/web_ui.h"
+#include "content/public/common/content_features.h"
 #include "content/public/test/browser_test.h"
-#include "content/public/test/test_navigation_observer.h"
-#include "ui/compositor/scoped_animation_duration_scale_mode.h"
-#include "ui/views/widget/any_widget_observer.h"
-
-#if !BUILDFLAG(ENABLE_DICE_SUPPORT)
-#error Platform not supported
-#endif
-
-// Tests for the chrome://managed-user-profile-notice/ WebUI page. They
-// live here and not in the webui directory because they manipulate views.
+#include "ui/gfx/scoped_animation_duration_scale_mode.h"
+#include "ui/views/view_observer.h"
 
 namespace {
-struct ManagedUserNoticeTestParam {
-  PixelTestParam pixel_test_param;
-  bool profile_creation_required_by_policy = false;
-  bool show_link_data_checkbox = false;
+
+enum class ScreenVersion {
+  kOld,
+  kRefreshed,
+  kRevamped,
 };
 
-// To be passed as 4th argument to `INSTANTIATE_TEST_SUITE_P()`, allows the test
-// to be named like `<TestClassName>.InvokeUi_default/<TestSuffix>` instead
-// of using the index of the param in `TestParam` as suffix.
+struct ManagedUserProfileNoticePixelTestParam {
+  PixelTestParam pixel_test_param;
+  ScreenVersion screen_version = ScreenVersion::kOld;
+  bool use_primary_and_tonal_buttons = false;
+};
+
 std::string ParamToTestSuffix(
-    const ::testing::TestParamInfo<ManagedUserNoticeTestParam>& info) {
-  return info.param.pixel_test_param.test_suffix;
+    const testing::TestParamInfo<ManagedUserProfileNoticePixelTestParam>&
+        info) {
+  std::string screen_version_suffix;
+  switch (info.param.screen_version) {
+    case ScreenVersion::kOld:
+      screen_version_suffix = "Old";
+      break;
+    case ScreenVersion::kRefreshed:
+      screen_version_suffix = "Refreshed";
+      break;
+    case ScreenVersion::kRevamped:
+      screen_version_suffix = "Revamped";
+      break;
+  }
+  return base::StrCat(
+      {info.param.pixel_test_param.test_suffix, screen_version_suffix,
+       info.param.use_primary_and_tonal_buttons ? "Tonal" : ""});
 }
 
-// Permutations of supported parameters.
-const ManagedUserNoticeTestParam kWindowTestParams[] = {
-    {.pixel_test_param = {.test_suffix = "Regular"}},
-    {.pixel_test_param = {.test_suffix = "DarkTheme", .use_dark_theme = true}},
-    {.pixel_test_param = {.test_suffix = "Rtl",
-                          .use_right_to_left_language = true}},
-    {.pixel_test_param = {.test_suffix = "SmallWindow",
-                          .window_size = PixelTestParam::kSmallWindowSize}},
-};
+std::unique_ptr<signin::EnterpriseProfileCreationDialogParams>
+CreateEnterpriseProfileCreationDialogParams(AccountInfo account_info) {
+  return std::make_unique<signin::EnterpriseProfileCreationDialogParams>(
+      account_info,
+      /*is_oidc_account=*/false,
+      /*user_already_signed_in=*/false,
+      /*profile_creation_required_by_policy=*/false,
+      /*show_link_data_option=*/false,
+      /*process_user_choice_callback=*/
+      signin::SigninChoiceCallback(base::DoNothing()),
+      /*done_callback=*/base::DoNothing());
+}
 
-const ManagedUserNoticeTestParam kDialogTestParams[] = {
-    {.pixel_test_param = {.test_suffix = "Regular"}},
-    {.pixel_test_param = {.test_suffix = "WithLinkDataCheckbox"},
-     .show_link_data_checkbox = true},
-    {.pixel_test_param = {.test_suffix = "WithProfileCreationRequired"},
-     .profile_creation_required_by_policy = true},
-    {.pixel_test_param = {.test_suffix = "DarkTheme", .use_dark_theme = true},
-     .show_link_data_checkbox = true},
-    {.pixel_test_param = {.test_suffix = "Rtl",
-                          .use_right_to_left_language = true},
-     .show_link_data_checkbox = true},
-};
+const std::vector<ManagedUserProfileNoticePixelTestParam>& GetTestParams() {
+  static const base::NoDestructor<
+      std::vector<ManagedUserProfileNoticePixelTestParam>>
+      params([] {
+        const PixelTestParam kWindowTestParams[] = {
+            {.test_suffix = "Regular"},
+            {.test_suffix = "DarkTheme", .use_dark_theme = true},
+            {.test_suffix = "Rtl", .use_right_to_left_language = true},
+            {.test_suffix = "SmallWindow",
+             .window_size = PixelTestParam::kSmallWindowSize},
+        };
 
-// Creates a step to represent the managed-user-profile-notice
-class ManagedUserNoticeStepControllerForTest
+        std::vector<ManagedUserProfileNoticePixelTestParam> params;
+        for (const auto& window_param : kWindowTestParams) {
+          for (ScreenVersion screen_version :
+               {ScreenVersion::kOld, ScreenVersion::kRefreshed,
+                ScreenVersion::kRevamped}) {
+            for (bool use_primary_and_tonal_buttons : {false, true}) {
+              params.push_back({.pixel_test_param = window_param,
+                                .screen_version = screen_version,
+                                .use_primary_and_tonal_buttons =
+                                    use_primary_and_tonal_buttons});
+            }
+          }
+        }
+        return params;
+      }());
+  return *params;
+}
+
+// Creates a step to represent the managed-user-profile-notice.
+class ManagedUserProfileNoticeStepControllerForTest
     : public ProfileManagementStepController {
  public:
-  explicit ManagedUserNoticeStepControllerForTest(
+  explicit ManagedUserProfileNoticeStepControllerForTest(
       ProfilePickerWebContentsHost* host,
-      Profile* profile,
-      const AccountInfo& account_info)
+      AccountInfo account_info,
+      bool use_refreshed_ui)
       : ProfileManagementStepController(host),
         managed_user_notice_url_(
-            GURL(chrome::kChromeUIManagedUserProfileNoticeUrl)),
-        profile_(profile),
-        account_info_(&account_info) {}
+            use_refreshed_ui
+                ? GURL(chrome::kChromeUIManagedUserProfileNoticeRefreshURL)
+                : GURL(chrome::kChromeUIManagedUserProfileNoticeUrl)),
+        account_info_(account_info) {}
 
-  ~ManagedUserNoticeStepControllerForTest() override = default;
+  ~ManagedUserProfileNoticeStepControllerForTest() override = default;
 
   void Show(StepSwitchFinishedCallback step_shown_callback,
             bool reset_state) override {
     // Reload the WebUI in the picker contents.
     host()->ShowScreenInPickerContents(
         managed_user_notice_url_,
-        base::BindOnce(
-            &ManagedUserNoticeStepControllerForTest::OnManagedUserNoticeLoaded,
-            weak_ptr_factory_.GetWeakPtr(), std::move(step_shown_callback)));
+        base::BindOnce(&ManagedUserProfileNoticeStepControllerForTest::
+                           OnManagedUserProfileNoticeLoaded,
+                       weak_ptr_factory_.GetWeakPtr(),
+                       std::move(step_shown_callback)));
   }
 
   void OnNavigateBackRequested() override { NOTREACHED(); }
 
-  void OnManagedUserNoticeLoaded(
+  void OnManagedUserProfileNoticeLoaded(
       StepSwitchFinishedCallback step_shown_callback) {
-    DCHECK(profile_);
-    DCHECK(account_info_);
-    auto* managed_user_notice_ui = static_cast<ManagedUserProfileNoticeUI*>(
-        host()->GetPickerContents()->GetWebUI()->GetController());
+    ManagedUserProfileNoticeUI* managed_user_notice_ui =
+        host()
+            ->GetPickerContents()
+            ->GetWebUI()
+            ->GetController()
+            ->GetAs<ManagedUserProfileNoticeUI>();
 
+    CHECK(managed_user_notice_ui);
     managed_user_notice_ui->Initialize(
         /*browser=*/nullptr,
-        ManagedUserProfileNoticeUI::ScreenType::kEntepriseAccountSyncEnabled,
-        std::make_unique<signin::EnterpriseProfileCreationDialogParams>(
-            *account_info_, /*is_oidc_account=*/false,
-            /*turn_sync_on_signed_profile=*/false,
-            /*profile_creation_required_by_policy=*/false,
-            /*show_link_data_option=*/false,
-            /*process_user_choice_callback=*/
-            signin::SigninChoiceCallback(base::DoNothing()),
-            /*done_callback=*/base::DoNothing()));
+        ManagedUserProfileNoticeUI::ScreenType::kProfilePicker,
+        CreateEnterpriseProfileCreationDialogParams(account_info_));
 
-    if (step_shown_callback) {
-      std::move(step_shown_callback).Run(/*success=*/true);
+    if (!step_shown_callback->is_null()) {
+      std::move(step_shown_callback.value()).Run(/*success=*/true);
     }
   }
 
  private:
   const GURL managed_user_notice_url_;
-  raw_ptr<Profile> profile_;
-  raw_ptr<const AccountInfo> account_info_;
-  base::WeakPtrFactory<ManagedUserNoticeStepControllerForTest>
+  AccountInfo account_info_;
+  base::WeakPtrFactory<ManagedUserProfileNoticeStepControllerForTest>
       weak_ptr_factory_{this};
 };
+
 }  // namespace
 
-class ManagedUserNoticeUIWindowPixelTest
+class ManagedUserProfileNoticeUIWindowPixelTest
     : public ProfilesPixelTestBaseT<UiBrowserTest>,
-      public testing::WithParamInterface<ManagedUserNoticeTestParam> {
+      public testing::WithParamInterface<
+          ManagedUserProfileNoticePixelTestParam>,
+      public views::ViewObserver {
  public:
-  ManagedUserNoticeUIWindowPixelTest()
+  ManagedUserProfileNoticeUIWindowPixelTest()
       : ProfilesPixelTestBaseT<UiBrowserTest>(GetParam().pixel_test_param) {
-    feature_list_.InitAndDisableFeature(
-        features::kEnterpriseUpdatedProfileCreationScreen);
+    scoped_feature_list_.InitWithFeatureStates(
+        {{switches::kFirstRunDesktopRefresh,
+          GetParam().screen_version == ScreenVersion::kRefreshed ||
+              GetParam().screen_version == ScreenVersion::kRevamped},
+         {switches::kFirstRunDesktopRevamp,
+          GetParam().screen_version == ScreenVersion::kRevamped},
+         {switches::kUsePrimaryAndTonalButtonsForPromos,
+          GetParam().use_primary_and_tonal_buttons}});
+  }
+
+  ~ManagedUserProfileNoticeUIWindowPixelTest() override {
+    if (profile_picker_view_) {
+      profile_picker_view_->views::View::RemoveObserver(this);
+    }
   }
 
   void ShowUi(const std::string& name) override {
-    ui::ScopedAnimationDurationScaleMode disable_animation(
-        ui::ScopedAnimationDurationScaleMode::ZERO_DURATION);
-    DCHECK(browser());
+    gfx::ScopedAnimationDurationScaleMode disable_animation(
+        gfx::ScopedAnimationDurationScaleMode::ZERO_DURATION);
+    CHECK(browser());
 
     AccountInfo account_info =
         SignInWithAccount(AccountManagementStatus::kManaged);
+    const bool is_ui_refresh_enabled =
+        GetParam().screen_version == ScreenVersion::kRefreshed ||
+        GetParam().screen_version == ScreenVersion::kRevamped;
     profile_picker_view_ = new ProfileManagementStepTestView(
         ProfilePicker::Params::ForFirstRun(browser()->profile()->GetPath(),
                                            base::DoNothing()),
         ProfileManagementFlowController::Step::kPostSignInFlow,
         /*step_controller_factory=*/
-        base::BindLambdaForTesting(
-            [this, &account_info](ProfilePickerWebContentsHost* host)
-                -> std::unique_ptr<ProfileManagementStepController> {
-              return std::make_unique<ManagedUserNoticeStepControllerForTest>(
-                  host, browser()->profile(), account_info);
-            }));
+        base::BindRepeating(
+            [](bool use_refreshed_ui, AccountInfo account_info,
+               ProfilePickerWebContentsHost* host) {
+              return std::unique_ptr<ProfileManagementStepController>(
+                  std::make_unique<
+                      ManagedUserProfileNoticeStepControllerForTest>(
+                      host, account_info, use_refreshed_ui));
+            },
+            is_ui_refresh_enabled, account_info));
+    profile_picker_view_->views::View::AddObserver(this);
     profile_picker_view_->ShowAndWait(GetParam().pixel_test_param.window_size);
+    if (ProfilePicker::GetWebViewForTesting()) {
+      profiles::testing::WaitForPickerUrl(
+          is_ui_refresh_enabled
+              ? GURL(chrome::kChromeUIManagedUserProfileNoticeRefreshURL)
+              : GURL(chrome::kChromeUIManagedUserProfileNoticeUrl));
+    }
   }
 
   bool VerifyUi() override {
     views::Widget* widget = GetWidgetForScreenshot();
 
-    auto* test_info = testing::UnitTest::GetInstance()->current_test_info();
+    const testing::TestInfo* test_info =
+        testing::UnitTest::GetInstance()->current_test_info();
     const std::string screenshot_name =
         base::StrCat({test_info->test_suite_name(), "_", test_info->name()});
 
@@ -175,93 +234,44 @@ class ManagedUserNoticeUIWindowPixelTest
   }
 
   void WaitForUserDismissal() override {
-    DCHECK(GetWidgetForScreenshot());
+    if (!profile_picker_view_) {
+      return;
+    }
+    CHECK(GetWidgetForScreenshot());
     ViewDeletedWaiter(profile_picker_view_).Wait();
+  }
+
+  // views::ViewObserver:
+  void OnViewIsDeleting(views::View* observed_view) override {
+    profile_picker_view_ = nullptr;
   }
 
  private:
   views::Widget* GetWidgetForScreenshot() {
+    if (!profile_picker_view_) {
+      return nullptr;
+    }
     return profile_picker_view_->GetWidget();
   }
 
-  base::test::ScopedFeatureList feature_list_;
-  raw_ptr<ProfileManagementStepTestView, DanglingUntriaged>
-      profile_picker_view_;
+  raw_ptr<ProfileManagementStepTestView> profile_picker_view_ = nullptr;
+
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-// TODO(https://crbug.com/1504935, https://crbug.com/1505546): Fails too often
-// on Windows tester bot.
+IN_PROC_BROWSER_TEST_P(ManagedUserProfileNoticeUIWindowPixelTest,
+                       InvokeUi_default) {
 #if BUILDFLAG(IS_WIN)
-#define MAYBE_InvokeUi_default DISABLED_InvokeUi_default
-#else
-#define MAYBE_InvokeUi_default InvokeUi_default
+  if (base::FeatureList::IsEnabled(features::kInitialWebUI)) {
+    GTEST_SKIP() << "Skipping test because it fails with InitialWebUI enabled. "
+                    "See b/477426026.";
+  }
 #endif
-IN_PROC_BROWSER_TEST_P(ManagedUserNoticeUIWindowPixelTest,
-                       MAYBE_InvokeUi_default) {
+
   ShowAndVerifyUi();
 }
 
 INSTANTIATE_TEST_SUITE_P(,
-                         ManagedUserNoticeUIWindowPixelTest,
-                         testing::ValuesIn(kWindowTestParams),
-                         &ParamToTestSuffix);
-
-class ManagedUserNoticeUIDialogPixelTest
-    : public ProfilesPixelTestBaseT<DialogBrowserTest>,
-      public testing::WithParamInterface<ManagedUserNoticeTestParam> {
- public:
-  ManagedUserNoticeUIDialogPixelTest()
-      : ProfilesPixelTestBaseT<DialogBrowserTest>(GetParam().pixel_test_param) {
-    feature_list_.InitAndDisableFeature(
-        features::kEnterpriseUpdatedProfileCreationScreen);
-  }
-
-  ~ManagedUserNoticeUIDialogPixelTest() override = default;
-
-  void ShowUi(const std::string& name) override {
-    DCHECK(browser());
-
-    AccountInfo account_info =
-        SignInWithAccount(AccountManagementStatus::kManaged);
-    auto url = GURL(chrome::kChromeUIManagedUserProfileNoticeUrl);
-
-    // Wait for the web content to load to be able to properly render the
-    // modal dialog.
-    content::TestNavigationObserver observer(url);
-    observer.StartWatchingNewWebContents();
-
-    // ShowUi() can sometimes return before the dialog widget is shown because
-    // the call to show the latter is asynchronous. Adding
-    // NamedWidgetShownWaiter will prevent that from happening.
-    views::NamedWidgetShownWaiter widget_waiter(
-        views::test::AnyWidgetTestPasskey{},
-        "SigninViewControllerDelegateViews");
-
-    auto* controller = browser()->signin_view_controller();
-    controller->ShowModalManagedUserNoticeDialog(
-        std::make_unique<signin::EnterpriseProfileCreationDialogParams>(
-            account_info, /*is_oidc_account=*/false,
-            /*turn_sync_on_signed_profile=*/false,
-            GetParam().profile_creation_required_by_policy,
-            GetParam().show_link_data_checkbox,
-            /*process_user_choice_callback=*/
-            signin::SigninChoiceCallback(base::DoNothing()),
-            /*done_callback=*/base::DoNothing()));
-
-    widget_waiter.WaitIfNeededAndGet();
-    observer.Wait();
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_P(ManagedUserNoticeUIDialogPixelTest,
-                       MAYBE_InvokeUi_default) {
-  ShowAndVerifyUi();
-}
-
-INSTANTIATE_TEST_SUITE_P(,
-                         ManagedUserNoticeUIDialogPixelTest,
-                         testing::ValuesIn(kDialogTestParams),
+                         ManagedUserProfileNoticeUIWindowPixelTest,
+                         testing::ValuesIn(GetTestParams()),
                          &ParamToTestSuffix);

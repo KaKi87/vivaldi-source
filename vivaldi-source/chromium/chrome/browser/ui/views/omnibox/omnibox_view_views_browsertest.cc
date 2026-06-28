@@ -45,7 +45,6 @@
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/webui_url_constants.h"
-#include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/testing_profile.h"
@@ -298,7 +297,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, AyncDropCallback) {
       browser()->tab_strip_model()->GetActiveWebContents()->IsLoading());
 }
 
-// Flaky: https://crbug.com/915591.
+// Flaky: https://crbug.com/41432033.
 IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, DISABLED_SelectAllOnClick) {
   OmniboxView* omnibox_view = nullptr;
   ASSERT_NO_FATAL_FAILURE(GetOmniboxViewForBrowser(browser(), &omnibox_view));
@@ -412,7 +411,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, DISABLED_SelectionClipboard) {
   EXPECT_EQ(18U, omnibox_view_views->GetCursorPosition());
 }
 
-// No touch on desktop Mac. Tracked in http://crbug.com/445520.
+// No touch on desktop Mac. Tracked in http://crbug.com/41150204.
 #if !BUILDFLAG(IS_MAC) || defined(USE_AURA)
 
 IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, SelectAllOnTap) {
@@ -858,7 +857,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, AccessiblePopup) {
   OmniboxPopupView* popup_view =
       BrowserView::GetBrowserViewForBrowser(browser())
           ->GetLocationBarView()
-          ->GetOmniboxPopupViewForTesting();
+          ->GetOmniboxPopupView();
   ui::AXNodeData popup_node_data_1;
   popup_view->GetPopupAccessibleNodeData(&popup_node_data_1);
   EXPECT_FALSE(popup_node_data_1.HasState(ax::mojom::State::kExpanded));
@@ -904,9 +903,10 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, AccessiblePopup) {
   EXPECT_FALSE(popup_node_data_2.HasState(ax::mojom::State::kInvisible));
 }
 
-// Flaky: https://crbug.com/1143630.
+// Flaky: https://crbug.com/40728392.
 // Omnibox returns to clean state after chrome://kill and reload.
-// https://crbug.com/993701 left the URL and icon as chrome://kill after reload.
+// https://crbug.com/41475973 left the URL and icon as chrome://kill after
+// reload.
 IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, DISABLED_ReloadAfterKill) {
   OmniboxView* omnibox_view = nullptr;
   ASSERT_NO_FATAL_FAILURE(GetOmniboxViewForBrowser(browser(), &omnibox_view));
@@ -915,7 +915,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, DISABLED_ReloadAfterKill) {
 
   // Open new tab page.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(),
-                                           GURL(chrome::kChromeUINewTabURL)));
+                                           chrome::ChromeUINewTabURLAsGURL()));
 
   content::WebContents* tab =
       browser()->tab_strip_model()->GetActiveWebContents();
@@ -1114,7 +1114,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsUIATest, GetSelectionAndBounds) {
   ASSERT_HRESULT_SUCCEEDED(
       root_node_raw->GetPatternProvider(UIA_TextPatternId, &document_provider));
 
-  CComPtr<ITextRangeProvider> selected_text_range_provider;
+  ComPtr<ITextRangeProvider> selected_text_range_provider;
   base::win::ScopedSafearray selection;
   LONG index = 0;
 
@@ -1122,8 +1122,9 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsUIATest, GetSelectionAndBounds) {
   // 1. Call ITextProvider::GetSelection to get the selected text range.
   document_provider->GetSelection(selection.Receive());
   ASSERT_NE(nullptr, selection.Get());
-  ASSERT_HRESULT_SUCCEEDED(SafeArrayGetElement(selection.Get(), &index,
-                                               &selected_text_range_provider));
+  ASSERT_HRESULT_SUCCEEDED(
+      SafeArrayGetElement(selection.Get(), &index,
+                          static_cast<void**>(&selected_text_range_provider)));
 
   // 2. Call ITextRangeProvider::GetText to get the selected text.
   base::win::ScopedBstr text_content;
@@ -1248,8 +1249,8 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsIMETest, TextInputTypeInitRespectsIME) {
 
 // ClickOnView(VIEW_ID_OMNIBOX) does not set focus to omnibox on Mac.
 // Looks like the same problem as in the SelectAllOnClick().
-// Tracked in: https://crbug.com/915591
-// Test is also flaky on Linux: https://crbug.com/1157250
+// Tracked in: https://crbug.com/41432033
+// Test is also flaky on Linux: https://crbug.com/40160762
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 #define MAYBE_HandleExternalProtocolURLs DISABLED_HandleExternalProtocolURLs
 #else
@@ -1257,7 +1258,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsIMETest, TextInputTypeInitRespectsIME) {
 #endif
 
 // Checks that focusing on the omnibox allows the page to open external protocol
-// URLs. Regression test for https://crbug.com/1143632
+// URLs. Regression test for https://crbug.com/40155157
 IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, MAYBE_HandleExternalProtocolURLs) {
   OmniboxView* omnibox_view = nullptr;
   ASSERT_NO_FATAL_FAILURE(GetOmniboxViewForBrowser(browser(), &omnibox_view));
@@ -1323,7 +1324,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, MAYBE_HandleExternalProtocolURLs) {
 
   set_text_and_perform_navigation();
 
-// No touch on desktop Mac. Tracked in http://crbug.com/445520.
+// No touch on desktop Mac. Tracked in http://crbug.com/41150204.
 #if !BUILDFLAG(IS_MAC) || defined(USE_AURA)
 
   // Set focus to omnibox by tap.
@@ -1341,7 +1342,8 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, MAYBE_HandleExternalProtocolURLs) {
 #endif  // !BUILDFLAG(IS_MAC) || defined(USE_AURA)
 }
 
-// SendKeyPressSync times out on Mac, probably due to https://crbug.com/824418.
+// SendKeyPressSync times out on Mac, probably due to
+// https://crbug.com/41378108.
 #if BUILDFLAG(IS_MAC)
 #define MAYBE_DefaultTypedNavigationsToHttps_ZeroSuggest_NoUpgrade \
   DISABLED_DefaultTypedNavigationsToHttps_ZeroSuggest_NoUpgrade
@@ -1353,7 +1355,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, MAYBE_HandleExternalProtocolURLs) {
 // Test that triggers a zero suggest autocomplete request by clicking on the
 // omnibox. These should never attempt an HTTPS upgrade or involve the typed
 // navigation upgrade throttle.
-// This is a regression test for https://crbug.com/1251065
+// This is a regression test for https://crbug.com/40057320
 IN_PROC_BROWSER_TEST_F(
     OmniboxViewViewsTest,
     MAYBE_DefaultTypedNavigationsToHttps_ZeroSuggest_NoUpgrade) {
@@ -1785,6 +1787,30 @@ class OmniboxViewViewsPlaceholderTest : public InProcessBrowserTest {
         {});
   }
 
+  void SetUpInProcessBrowserTestFixture() override {
+    create_services_subscription_ =
+        BrowserContextDependencyManager::GetInstance()
+            ->RegisterCreateServicesCallbackForTesting(
+                base::BindRepeating(&OmniboxViewViewsPlaceholderTest::
+                                        OnWillCreateBrowserContextServices,
+                                    base::Unretained(this)));
+  }
+
+  virtual void OnWillCreateBrowserContextServices(
+      content::BrowserContext* context) {
+    AimEligibilityServiceFactory::GetInstance()->SetTestingFactory(
+        context, base::BindRepeating([](content::BrowserContext* context)
+                                         -> std::unique_ptr<KeyedService> {
+          auto service =
+              std::make_unique<testing::NiceMock<MockAimEligibilityService>>(
+                  *Profile::FromBrowserContext(context)->GetPrefs(), nullptr,
+                  nullptr, nullptr);
+          ON_CALL(*service, IsAimEligible())
+              .WillByDefault(testing::Return(true));
+          return service;
+        }));
+  }
+
  protected:
   OmniboxViewViews* omnibox_view() {
     return static_cast<OmniboxViewViews*>(
@@ -1797,6 +1823,7 @@ class OmniboxViewViewsPlaceholderTest : public InProcessBrowserTest {
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
+  base::CallbackListSubscription create_services_subscription_;
 };
 
 IN_PROC_BROWSER_TEST_F(OmniboxViewViewsPlaceholderTest,
@@ -1820,7 +1847,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsPlaceholderTest,
                        DefaultSearchEnginePlaceholderForNewTabPage) {
   // Navigate to the New Tab Page.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(),
-                                           GURL(chrome::kChromeUINewTabURL)));
+                                           chrome::ChromeUINewTabURLAsGURL()));
   // Take focus away from the omnibox.
   ASSERT_NO_FATAL_FAILURE(
       ui_test_utils::ClickOnView(browser(), VIEW_ID_TAB_CONTAINER));
@@ -1868,7 +1895,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsPlaceholderTest,
 
   // Navigate to the New Tab Page.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(),
-                                           GURL(chrome::kChromeUINewTabURL)));
+                                           chrome::ChromeUINewTabURLAsGURL()));
   ASSERT_NO_FATAL_FAILURE(
       ui_test_utils::ClickOnView(browser(), VIEW_ID_TAB_CONTAINER));
   EXPECT_FALSE(omnibox_view()->ShouldInstallContextualTasksPlaceholderText());
@@ -1978,7 +2005,6 @@ class OmniboxViewViewsDumpAccessibilityEventsTest
 IN_PROC_BROWSER_TEST_P(OmniboxViewViewsDumpAccessibilityEventsTest,
                        OmniboxPopupOpenClose) {
   SetFilters(R"(
-    @UIA-WIN-DENY:*
     @UIA-WIN-ALLOW:ControllerFor*
   )");
 

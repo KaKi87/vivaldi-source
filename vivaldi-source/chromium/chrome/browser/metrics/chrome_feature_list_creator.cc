@@ -78,10 +78,6 @@ GetSwitchDependentFeatureOverrides(const base::CommandLine& command_line) {
     // State to override the feature with.
     base::FeatureList::OverrideState override_state;
   } chrome_layer_override_info[] = {
-      // Override for --privacy-sandbox-ads-apis.
-      {switches::kEnablePrivacySandboxAdsApis,
-       std::cref(privacy_sandbox::kOverridePrivacySandboxSettingsLocalTesting),
-       base::FeatureList::OVERRIDE_ENABLE_FEATURE},
       // Override for --devtools-greendev-ui. Vivaldi: TODO(DF): linker error.
       /*{switches::kEnableDevToolsGreenDevUi,
        std::cref(features::kDevToolsGreenDevUi),

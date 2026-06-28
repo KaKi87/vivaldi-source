@@ -7,6 +7,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #define EIGEN_USE_THREADS
 #include "main.h"
@@ -131,7 +132,7 @@ static void test_stress_eventcount() {
   }
 }
 
-EIGEN_DECLARE_TEST(cxx11_eventcount) {
+EIGEN_DECLARE_TEST(threads_eventcount) {
   CALL_SUBTEST(test_basic_eventcount());
   CALL_SUBTEST(test_stress_eventcount());
 }

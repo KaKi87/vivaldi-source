@@ -73,7 +73,8 @@ bool VivaldiSnapshotPage(blink::LocalFrame* local_frame,
   }
 
   gfx::Rect visible_content_rect =
-      local_frame->View()->LayoutViewport()->VisibleContentRect();
+      local_frame->View()->LayoutViewport()->VisibleContentRect(
+          blink::kExcludeScrollbars);
   if (visible_content_rect.IsEmpty()) {
     LOG(ERROR) << "empty visible content rect";
     return false;

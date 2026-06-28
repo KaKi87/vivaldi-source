@@ -13,6 +13,7 @@
 #include "chrome/browser/extensions/chrome_test_extension_loader.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "chrome/browser/profiles/profile.h"
+#include "content/public/browser/security_principal.h"
 #include "content/public/browser/site_isolation_policy.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/isolated_world_ids.h"
@@ -175,7 +176,7 @@ IN_PROC_BROWSER_TEST_F(DisableExtensionBrowserTest,
 
 // Verify that navigating a subframe to an enabled -> disabled -> enabled
 // extension URL doesn't result in a renderer process termination.  See
-// https://crbug.com/1197360.
+// https://crbug.com/40760109.
 IN_PROC_BROWSER_TEST_F(DisableExtensionBrowserTest,
                        VisitReenabledExtensionInSubframe) {
   ASSERT_TRUE(embedded_test_server()->Start());
@@ -219,7 +220,7 @@ IN_PROC_BROWSER_TEST_F(DisableExtensionBrowserTest,
   // Go back and then forward.  This should go back to the original URL in the
   // iframe, then go forward to the now-disabled extension URL.  Using a
   // history navigation makes the latter navigation a browser-initiated one,
-  // which is important for reproducing https://crbug.com/1197360.
+  // which is important for reproducing https://crbug.com/40760109.
   content::RenderFrameDeletedObserver observer(subframe);
   web_contents->GetController().GoBack();
   EXPECT_TRUE(content::WaitForLoadStop(web_contents));
@@ -245,10 +246,14 @@ IN_PROC_BROWSER_TEST_F(DisableExtensionBrowserTest,
 #if !BUILDFLAG(IS_MAC) && !BUILDFLAG(IS_WIN)
   EXPECT_NE(subframe->GetSiteInstance(), extension_site_instance);
   if (content::SiteIsolationPolicy::IsErrorPageIsolationEnabled(false)) {
-    EXPECT_EQ(subframe->GetSiteInstance()->GetSiteURL(),
+    EXPECT_EQ(subframe->GetSiteInstance()
+                  ->GetSecurityPrincipal()
+                  .GetDeprecatedSiteURL(),
               GURL(content::kUnreachableWebDataURL));
   } else {
-    EXPECT_EQ(subframe->GetSiteInstance()->GetSiteURL(),
+    EXPECT_EQ(subframe->GetSiteInstance()
+                  ->GetSecurityPrincipal()
+                  .GetDeprecatedSiteURL(),
               GURL(kExtensionInvalidRequestURL));
     // The disabled extension process should be locked.
     EXPECT_TRUE(subframe->GetProcess()->IsProcessLockedToSiteForTesting());

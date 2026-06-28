@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "base/containers/flat_map.h"
+#include "base/containers/flat_set.h"
 #include "base/functional/callback_forward.h"
 #include "base/functional/callback_helpers.h"
 #include "base/values.h"
@@ -65,6 +66,11 @@ class FakeWebAppUiManager : public WebAppUiManager {
   bool CanAddAppToQuickLaunchBar() const override;
   void AddAppToQuickLaunchBar(const webapps::AppId& app_id) override;
   bool IsAppInQuickLaunchBar(const webapps::AppId& app_id) const override;
+
+  bool IsAppMigrationSuggested(BrowserWindowInterface* window) const override;
+  bool IsAppMigrationDialogShowing(
+      BrowserWindowInterface* window) const override;
+
   bool CanReparentAppTabToWindow(
       const webapps::AppId& app_id,
       bool shortcut_created,
@@ -153,6 +159,12 @@ class FakeWebAppUiManager : public WebAppUiManager {
       UninstallCompleteCallback callback,
       UninstallScheduledCallback scheduled_callback) override;
 
+  void ShowProfileErrorDialogForCorruptDB() override;
+
+  int num_show_profile_error_dialog_calls() const {
+    return num_show_profile_error_dialog_calls_;
+  }
+
   void ShowIntentPicker(const GURL& url,
                         content::WebContents* web_contents,
                         ShowIntentPickerBubbleCallback callback) override;
@@ -176,6 +188,10 @@ class FakeWebAppUiManager : public WebAppUiManager {
       Profile* profile,
       const std::string& app_id) override;
 
+  FakeWebAppUiManager* AsFakeWebAppUiManagerForTesting() override;
+
+  void SetCanAddAppToQuickLaunchBar(bool can_add);
+
  private:
   base::flat_map<webapps::AppId, size_t> app_id_to_num_windows_map_;
   // Closures waiting to be called when all windows for a given `webapps::AppId`
@@ -188,7 +204,11 @@ class FakeWebAppUiManager : public WebAppUiManager {
       notify_on_all_app_windows_closed_callback_ = base::DoNothing();
 
   int num_reparent_tab_calls_ = 0;
+  int num_show_profile_error_dialog_calls_ = 0;
   OnLaunchWebAppCallback on_launch_web_app_callback_;
+
+  bool can_add_to_quick_launch_bar_ = false;
+  base::flat_set<webapps::AppId> quick_launch_bar_apps_;
 };
 
 }  // namespace web_app

@@ -22,13 +22,16 @@
 #include "ynnpack/include/ynnpack.h"
 #include "ynnpack/subgraph/subgraph.h"
 
-// This causes gmock to print the subgraph instead of just a hex encoded dump of
-// the memory. It needs to be in the global namespace for argument dependent
-// lookup to work.
+// This causes gmock to print the subgraph/node instead of just a hex encoded
+// dump of the memory. It needs to be in the global namespace for argument
+// dependent lookup to work.
 inline std::ostream& operator<<(std::ostream& os, const ynn_subgraph& g) {
   os << "subgraph:" << std::endl;
   g.dump(os);
   return os;
+}
+inline std::ostream& operator<<(std::ostream& os, const ynn_node& node) {
+  return os << node.to_string();
 }
 
 namespace ynn {
@@ -182,9 +185,86 @@ MATCHER_P(IsStencilCopy, stencils, "") {
   return true;
 }
 
+MATCHER(IsExpandDims, "") {
+  const ynn_node::static_expand_dims* expand_dims =
+      std::get_if<ynn_node::static_expand_dims>(&arg.op);
+  return expand_dims != nullptr;
+}
+
 MATCHER(IsCopy, "") {
   const ynn_node::copy* copy = std::get_if<ynn_node::copy>(&arg.op);
   return copy != nullptr;
+}
+
+// Checks that the given node is a quantize.
+//
+// Example:
+//   EXPECT_THAT(ProducerOf(y_id, subgraph), IsQuantize());
+MATCHER(IsQuantize, "") {
+  const ynn_node::ternary_elementwise* ternary =
+      std::get_if<ynn_node::ternary_elementwise>(&arg.op);
+  return ternary && (ternary->op == ternary_op::quantize_int8 ||
+                     ternary->op == ternary_op::quantize_uint8);
+}
+
+// Checks that the given node is a dequantize.
+//
+// Example:
+//   EXPECT_THAT(ProducerOf(y_id, subgraph), IsDequantize());
+MATCHER(IsDequantize, "") {
+  return std::get_if<ynn_node::ternary_elementwise>(&arg.op) &&
+         std::get<ynn_node::ternary_elementwise>(arg.op).op ==
+             ternary_op::dequantize;
+}
+
+// Checks that the given node is a dequantize_dot.
+//
+// Example:
+//   EXPECT_THAT(ProducerOf(y_id, subgraph), IsRescaleDot());
+MATCHER(IsRescaleDot, "") {
+  return std::holds_alternative<ynn_node::dequantize_dot>(arg.op);
+}
+
+// Checks that the given node is a dot.
+//
+// Example:
+//   EXPECT_THAT(ProducerOf(y_id, subgraph), IsDot());
+MATCHER(IsDot, "") { return std::holds_alternative<ynn_node::dot>(arg.op); }
+
+// Checks that the given node is an iota.
+//
+// Example:
+//   EXPECT_THAT(ProducerOf(y_id, subgraph), IsIota());
+MATCHER(IsIota, "") { return std::holds_alternative<ynn_node::iota>(arg.op); }
+
+// Checks that the given node is a broadcast_like.
+//
+// Example:
+//   EXPECT_THAT(ProducerOf(y_id, subgraph), IsBroadcastLike());
+MATCHER(IsBroadcastLike, "") {
+  return std::holds_alternative<ynn_node::broadcast_like>(arg.op);
+}
+MATCHER(IsStaticBroadcast, "") {
+  return std::holds_alternative<ynn_node::static_broadcast>(arg.op);
+}
+MATCHER(IsStaticReshape, "") {
+  return std::holds_alternative<ynn_node::static_reshape>(arg.op);
+}
+MATCHER(IsStaticExpandDims, "") {
+  return std::holds_alternative<ynn_node::static_expand_dims>(arg.op);
+}
+MATCHER(IsStaticSlice, "") {
+  return std::holds_alternative<ynn_node::static_slice>(arg.op);
+}
+MATCHER(IsStaticTranspose, "") {
+  return std::holds_alternative<ynn_node::static_transpose>(arg.op);
+}
+MATCHER_P(IsStaticTransposeWithPerm, perm_matcher, "") {
+  const ynn_node::static_transpose* transpose =
+      std::get_if<ynn_node::static_transpose>(&arg.op);
+  return transpose &&
+         testing::ExplainMatchResult(perm_matcher, transpose->permutation,
+                                     result_listener);
 }
 
 // Checks that the given value ID is valid in the given subgraph.
@@ -196,7 +276,7 @@ MATCHER_P(HasValidValueId, value_id, "") {
   if (subgraph == nullptr) {
     return false;
   }
-  if (!subgraph->value(value_id).is_valid()) {
+  if (!subgraph->is_valid_value(value_id)) {
     *result_listener << "value " << value_id << " is invalid";
     return false;
   }
@@ -212,7 +292,7 @@ MATCHER_P(IsValidValueIn, subgraph, "") {
   if (s == nullptr) {
     return false;
   }
-  if (!s->value(arg).is_valid()) {
+  if (!s->is_valid_value(arg)) {
     *result_listener << "value " << arg << " is invalid";
     return false;
   }

@@ -103,6 +103,10 @@ const char kOmniboxFocusResultedInNavigation[] =
   return [self.textInput.view isFirstResponder];
 }
 
+- (BOOL)hasFocus {
+  return _omniboxTextModel && _omniboxTextModel->HasFocus();
+}
+
 - (void)focusOmnibox {
   id<OmniboxTextInput> textInput = self.textInput;
   if ([self isOmniboxFirstResponder]) {
@@ -407,7 +411,13 @@ const char kOmniboxFocusResultedInNavigation[] =
 
 - (void)removePreEditText {
   if (self.textInput.isPreEditing) {
-    [self.textInput setText:@""];
+    // Use replaceRange:withText: instead of setText:@"" to be more
+    // IME-friendly and avoid breaking active composition when exiting
+    // pre-edit state by typing. crbug.com/507828507
+    UITextRange* allTextRange =
+        [self.textInput textRangeFromPosition:self.textInput.beginningOfDocument
+                                   toPosition:self.textInput.endOfDocument];
+    [self.textInput replaceRange:allTextRange withText:@""];
     [self setUserText:u""];
     [self onTextChanged];
     // Ensure the pre-edit state is exited after the text is cleared, preventing
@@ -873,13 +883,14 @@ const char kOmniboxFocusResultedInNavigation[] =
 }
 
 - (void)refineWithText:(const std::u16string&)text {
+  std::u16string sanitizedText = omnibox::SanitizeTextForPaste(text);
   id<OmniboxTextInput> textInput = self.textInput;
   // Exit preedit state and append the match. Refocus if necessary.
   [textInput exitPreEditState];
-  [self setUserText:text];
+  [self setUserText:sanitizedText];
 
-  [self setWindowText:text
-               caretPos:text.length()
+  [self setWindowText:sanitizedText
+               caretPos:sanitizedText.length()
       startAutocomplete:true
       notifyTextChanged:true];
 
@@ -889,7 +900,7 @@ const char kOmniboxFocusResultedInNavigation[] =
   [textInput.omniboxTextInputDelegate textInputDidChange:textInput];
   [textInput.view becomeFirstResponder];
   // Set the caret pos to the end of the text (crbug.com/331622199).
-  [self setCaretPos:text.length()];
+  [self setCaretPos:sanitizedText.length()];
 }
 
 #pragma mark - Private

@@ -4,8 +4,9 @@
 
 #include "content/browser/renderer_host/legacy_render_widget_host_win.h"
 
-#include <windows.h>
 #include <objbase.h>
+
+#include <windows.h>
 
 #include <memory>
 #include <utility>
@@ -16,7 +17,10 @@
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/task/sequenced_task_runner.h"
+#include "base/trace_event/typed_macros.h"
+#include "base/tracing/protos/chrome_track_event.pbzero.h"
 #include "base/win/win_util.h"
+#include "base/win/windowsx_shim.h"
 #include "base/win/wrapped_window_proc.h"
 #include "content/browser/accessibility/browser_accessibility_state_impl.h"
 #include "content/browser/renderer_host/direct_manipulation_helper_win.h"
@@ -72,8 +76,15 @@ LegacyRenderWidgetHostHWND* LegacyRenderWidgetHostHWND::Create(
 }
 
 void LegacyRenderWidgetHostHWND::Destroy() {
-  // Delete DirectManipulationHelper before the window is destroyed.
+  // Delete DirectManipulationHelper before the window is destroyed. The
+  // helper's destructor makes COM calls that can spin a nested message loop
+  // that could destroy the window through another path before returning.
+  base::WeakPtr<LegacyRenderWidgetHostHWND> ref(
+      msg_handler_weak_factory_.GetWeakPtr());
   direct_manipulation_helper_.reset();
+  if (!ref) {
+    return;
+  }
   window_tree_host_prop_.reset();
   host_ = nullptr;
   if (::IsWindow(hwnd())) {
@@ -90,8 +101,14 @@ void LegacyRenderWidgetHostHWND::CreateDirectManipulationHelper() {
   // returns NULL if Direct Manipulation is not available. Recreate
   // |direct_manipulation_helper_| when parent changed (compositor and window
   // event target updated).
-  direct_manipulation_helper_ =
+  base::WeakPtr<LegacyRenderWidgetHostHWND> ref(
+      msg_handler_weak_factory_.GetWeakPtr());
+  std::unique_ptr<DirectManipulationHelper> direct_manipulation_helper =
       DirectManipulationHelper::CreateInstance(hwnd());
+  if (!ref) {
+    return;
+  }
+  direct_manipulation_helper_ = std::move(direct_manipulation_helper);
   if (direct_manipulation_helper_) {
     direct_manipulation_helper_->UpdateEventHandler(
         host_->GetNativeView()->GetHost()->GetWeakPtr(),
@@ -111,10 +128,26 @@ void LegacyRenderWidgetHostHWND::UpdateParent(HWND new_parent) {
   // call altogether.
   const HWND current_parent = GetParent();
   if (current_parent != new_parent) {
+    // ::SetParent and CreateDirectManipulationHelper (CoCreateInstance /
+    // IDirectManipulationManager::Activate / Enable) can synchronously dispatch
+    // window messages. Re-entrant dispatch may reach
+    // RenderWidgetHostViewAura::OnWindowDestroying ->
+    // LegacyRenderWidgetHostHWND::Destroy() -> ::DestroyWindow() ->
+    // WM_NCDESTROY -> OnNCDestroy -> delete this. Guard against |this| being
+    // freed mid-method, matching the pattern used in OnKeyboardRange et al.
+    base::WeakPtr<LegacyRenderWidgetHostHWND> ref(
+        msg_handler_weak_factory_.GetWeakPtr());
+
     ::SetParent(hwnd(), new_parent);
+    if (!ref) {
+      return;
+    }
 
     if (!only_update_direct_manipulation_helper) {
       CreateDirectManipulationHelper();
+      if (!ref) {
+        return;
+      }
     }
 
     // Reset tooltips when parent changed; otherwise tooltips could stay open as
@@ -138,7 +171,12 @@ void LegacyRenderWidgetHostHWND::UpdateParent(HWND new_parent) {
     // subsequently changes.
     if (!only_update_direct_manipulation_helper &&
         !direct_manipulation_helper_) {
+      base::WeakPtr<LegacyRenderWidgetHostHWND> ref(
+          msg_handler_weak_factory_.GetWeakPtr());
       CreateDirectManipulationHelper();
+      if (!ref) {
+        return;
+      }
     }
   }
 
@@ -171,9 +209,16 @@ void LegacyRenderWidgetHostHWND::Hide() {
 void LegacyRenderWidgetHostHWND::SetBounds(const gfx::Rect& bounds) {
   gfx::Rect bounds_in_pixel =
       display::win::GetScreenWin()->DIPToClientRect(hwnd(), bounds);
+  // ::SetWindowPos can spin a nested message loop, which can potentially
+  // destroy `this`.
+  base::WeakPtr<LegacyRenderWidgetHostHWND> ref(
+      msg_handler_weak_factory_.GetWeakPtr());
   ::SetWindowPos(hwnd(), nullptr, bounds_in_pixel.x(), bounds_in_pixel.y(),
                  bounds_in_pixel.width(), bounds_in_pixel.height(),
                  SWP_NOREDRAW);
+  if (!ref) {
+    return;
+  }
   if (direct_manipulation_helper_) {
     direct_manipulation_helper_->SetSizeInPixels(bounds_in_pixel.size());
   }
@@ -193,7 +238,21 @@ bool LegacyRenderWidgetHostHWND::InitOrDeleteSelf(HWND parent) {
   set_window_ex_style(WS_EX_TRANSPARENT);
   set_window_class_name(ui::kLegacyRenderWidgetHostHwnd);
   set_window_name(L"Chrome Legacy Window");
+
+  // WindowImpl::Init (::CreateWindowEx), NotifyWinEvent, and
+  // DirectManipulationHelper::CreateInstance (CoCreateInstance / Activate /
+  // Enable) can synchronously dispatch window messages. Re-entrant dispatch may
+  // reach RenderWidgetHostViewAura::OnWindowDestroying ->
+  // LegacyRenderWidgetHostHWND::Destroy() -> ::DestroyWindow() ->
+  // WM_NCDESTROY -> OnNCDestroy -> delete this. Guard against |this| being
+  // freed mid-method.
+  base::WeakPtr<LegacyRenderWidgetHostHWND> ref(
+      msg_handler_weak_factory_.GetWeakPtr());
+
   WindowImpl::Init(parent, gfx::Rect());
+  if (!ref) {
+    return false;
+  }
 
   // We create a system caret regardless of accessibility mode since not all
   // assistive software that makes use of a caret is classified as a screen
@@ -209,8 +268,13 @@ bool LegacyRenderWidgetHostHWND::InitOrDeleteSelf(HWND parent) {
   // Ignore failure from this call. Some SKUs of Windows such as Hololens do not
   // support MSAA, and this call failing should not stop us from initializing
   // UI Automation support.
+  Microsoft::WRL::ComPtr<IAccessible> window_accessible;
   ::CreateStdAccessibleObject(hwnd(), OBJID_WINDOW,
-                              IID_PPV_ARGS(&window_accessible_));
+                              IID_PPV_ARGS(&window_accessible));
+  if (!ref) {
+    return false;
+  }
+  window_accessible_ = std::move(window_accessible);
 
   if (::ui::AXPlatform::GetInstance().IsUiaProviderEnabled()) {
     // The usual way for UI Automation to obtain a fragment root is through
@@ -234,10 +298,20 @@ bool LegacyRenderWidgetHostHWND::InitOrDeleteSelf(HWND parent) {
   ui::AXMode mode =
       BrowserAccessibilityStateImpl::GetInstance()->GetAccessibilityMode();
   if (!mode.has_mode(ui::AXMode::kWebContents)) {
+    TRACE_EVENT(
+        "accessibility", "NotifyWinEvent", [&](perfetto::EventContext ctx) {
+          auto* event = ctx.event<perfetto::protos::pbzero::ChromeTrackEvent>();
+          auto* accessibility_event =
+              event->set_chrome_accessibility_win_notify_win_event();
+          accessibility_event->set_native_event(EVENT_SYSTEM_ALERT);
+        });
     // Attempt to detect screen readers or other clients who want full
     // accessibility support, by seeing if they respond to this event.
     NotifyWinEvent(EVENT_SYSTEM_ALERT, hwnd(), kIdScreenReaderHoneyPot,
                    CHILDID_SELF);
+    if (!ref) {
+      return false;
+    }
   }
 
   // Disable pen flicks (http://crbug.com/506977)
@@ -256,8 +330,12 @@ bool LegacyRenderWidgetHostHWND::InitOrDeleteSelf(HWND parent) {
     // UpdateParent() will assign an event target to it. Note Direct
     // Manipulation is enabled on Windows 10+. The CreateInstance function
     // returns NULL if Direct Manipulation is not available.
-    direct_manipulation_helper_ =
+    std::unique_ptr<DirectManipulationHelper> direct_manipulation_helper =
         DirectManipulationHelper::CreateInstance(hwnd());
+    if (!ref) {
+      return false;
+    }
+    direct_manipulation_helper_ = std::move(direct_manipulation_helper);
   }
 
   return true;
@@ -305,6 +383,7 @@ LRESULT LegacyRenderWidgetHostHWND::OnGetObject(UINT message,
 
   switch (obj_id) {
     case UiaRootObjectId:
+      ui::AXPlatform::GetInstance().SetUiaRequested();
       if (ui::AXPlatform::GetInstance().IsUiaProviderEnabled()) {
         // Return the IRawElementProviderSimple for the window's client area to
         // a UI Automation client.
@@ -322,6 +401,7 @@ LRESULT LegacyRenderWidgetHostHWND::OnGetObject(UINT message,
       break;
 
     case OBJID_CLIENT:
+      ui::AXPlatform::GetInstance().SetMsaaRequested();
       // Return the IAccessible for the web content to an MSAA client.
       if (IAccessible* root =
               GetOrCreateWindowRootAccessible(/*is_uia_request=*/false)) {
@@ -422,7 +502,11 @@ LRESULT LegacyRenderWidgetHostHWND::OnMouseRange(UINT message,
   if (!msg_handled &&
       (message >= WM_NCMOUSEMOVE && message <= WM_NCXBUTTONDBLCLK)) {
     ret = ::DefWindowProc(GetParent(), message, w_param, l_param);
-    SetMsgHandled(TRUE);
+    // DefWindowProc() may result in |this| being deleted (e.g. if a nested
+    // modal loop is entered and the tab is closed). See crbug.com/503793153.
+    if (ref) {
+      SetMsgHandled(TRUE);
+    }
   }
   return ret;
 }
@@ -631,6 +715,14 @@ LRESULT LegacyRenderWidgetHostHWND::OnNCHitTest(UINT message,
     // If the parent returns HTNOWHERE which can happen for popup windows, etc,
     // return HTCLIENT.
     return HTCLIENT;
+  }
+  if (hit_test == HTMAXBUTTON) {
+    // If the legacy HWND geometrically overlaps the caption buttons, which
+    // happens when the client area extends to the top of the window (e.g. PWAs
+    // with Window Controls Overlay enabled), return HTTRANSPARENT so
+    // Windows passes messages through to the parent HWND, enabling proper hover
+    // highlighting on the maximize/restore buttons with Win11 snap layouts.
+    return HTTRANSPARENT;
   }
   return hit_test;
 }

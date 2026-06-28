@@ -15,6 +15,7 @@
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_ui_element.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_ui_updater.h"
 #import "ios/chrome/browser/main/ui/browser_layout_consumer.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
 #import "ios/chrome/browser/shared/ui/util/named_guide.h"
@@ -34,6 +35,13 @@ using vivaldi::IsVivaldiRunning;
 - (void)setBottomOmniboxEnabled:(BOOL)enabled;
 @end
 // End Vivaldi
+
+namespace {
+constexpr CGFloat kContainedLayoutTabStripTopMargin = 4.0;
+}  // namespace
+
+@interface BrowserLayoutViewController () <LayoutStateObserver>
+@end
 
 @implementation BrowserLayoutViewController {
   // Observer for the fullscreen controller.
@@ -136,7 +144,7 @@ using vivaldi::IsVivaldiRunning;
   CHECK_EQ(_browserViewController, browserViewController,
            base::NotFatalUntil::M150);
 
-  [self updateCurrentBVCLayoutInsets];
+  [self updateCurrentBVCLayoutInsetsWithTopInset:[self topInset]];
 
   if (IsVivaldiRunning()) {
     [self updateVivaldiTabStripLayout];
@@ -144,27 +152,27 @@ using vivaldi::IsVivaldiRunning;
 
 }
 
-- (void)updateCurrentBVCLayoutInsets {
+- (void)updateCurrentBVCLayoutInsetsWithTopInset:(CGFloat)topInset {
 
   if (IsVivaldiRunning()) {
-    CGFloat topInset = 0;
+    CGFloat vivaldiTopInset = 0;
     if ([self shouldShowTabStrip] && ![self shouldPlaceTabStripAtBottom]) {
-      topInset = self.safeAreaProvider.safeArea.top +
+      vivaldiTopInset = self.safeAreaProvider.safeArea.top +
           [self currentTabStripHeight];
     }
-    self.browserViewController.topToolbarInset = topInset;
+    self.browserViewController.topToolbarInset = vivaldiTopInset;
     return;
   } // End Vivaldi
 
-  CGFloat topInset = 0;
+  CGFloat finalInset = 0;
   if (CanShowTabStrip(self)) {
-    topInset = self.safeAreaProvider.safeArea.top;
+    finalInset = topInset;
 
     if (self.tabStripViewController) {
-      topInset += TabStripCollectionViewConstants.height;
+      finalInset += TabStripCollectionViewConstants.height;
     }
   }
-  self.browserViewController.topToolbarInset = topInset;
+  self.browserViewController.topToolbarInset = finalInset;
 }
 
 - (void)setUpFullscreenObservation:(FullscreenController*)fullscreenController {
@@ -178,7 +186,7 @@ using vivaldi::IsVivaldiRunning;
 
 - (void)viewSafeAreaInsetsDidChange {
   [super viewSafeAreaInsetsDidChange];
-  [self updateCurrentBVCLayoutInsets];
+  [self updateCurrentBVCLayoutInsetsWithTopInset:[self topInset]];
   if (_tabStripViewController) {
 
     if (IsVivaldiRunning()) {
@@ -198,6 +206,11 @@ using vivaldi::IsVivaldiRunning;
 }
 
 - (void)updateForFullscreenProgress:(CGFloat)progress {
+  [self updateForFullscreenProgress:progress withTopInset:[self topInset]];
+}
+
+- (void)updateForFullscreenProgress:(CGFloat)progress
+                       withTopInset:(CGFloat)topInset {
   _fullscreenProgress = progress;
 
   if (IsVivaldiRunning() && [self shouldPlaceTabStripAtBottom]) {
@@ -228,7 +241,6 @@ using vivaldi::IsVivaldiRunning;
   // Update frame directly for synchronous layout.
   // We don't rely on constraints here to avoid fighting with the layout system
   // during safe area transitions.
-  CGFloat topInset = self.safeAreaProvider.safeArea.top;
   CGRect frame = _tabStripViewController.view.frame;
   frame.origin.y = topInset - offset;
 
@@ -265,6 +277,16 @@ using vivaldi::IsVivaldiRunning;
 
 #pragma mark - FullscreenBrowserAgentObserving
 
+- (void)fullscreenWillUpdateState:(FullscreenBrowserAgent*)agent {
+  CHECK(IsFullscreenRefactoringEnabled());
+  if (CanShowTabStrip(self)) {
+    CGFloat progress = agent->top_progress();
+    CGFloat height = TabStripCollectionViewConstants.height * progress;
+    agent->AddObscuredInset(UIRectEdgeTop, height);
+    [self updateForFullscreenProgress:progress];
+  }
+}
+
 - (void)fullscreenWillUpdateObscuredInsetRange:(FullscreenBrowserAgent*)agent {
   CHECK(IsFullscreenRefactoringEnabled());
   if (CanShowTabStrip(self)) {
@@ -273,12 +295,18 @@ using vivaldi::IsVivaldiRunning;
   }
 }
 
+- (void)fullscreenDidUpdateObscuredInsetRange:(FullscreenBrowserAgent*)agent {
+  CHECK(IsFullscreenRefactoringEnabled());
+  _fullscreenViewportInsetRange =
+      agent->max_insets().top - agent->min_insets().top;
+}
+
 #pragma mark - Private
 
 // Updates the UI when the trait collection changes.
 - (void)updateUIOnTraitChange:(UITraitCollection*)previousTraitCollection {
   [self updateStatusBarBackgroundViews];
-  [self updateCurrentBVCLayoutInsets];
+  [self updateCurrentBVCLayoutInsetsWithTopInset:[self topInset]];
 
   if (IsVivaldiRunning()) {
     if (_tabStripViewController) {
@@ -296,7 +324,7 @@ using vivaldi::IsVivaldiRunning;
 // Ensures the status bar background views are created and installed in the
 // view hierarchy with proper constraints.
 - (void)ensureStatusBarViewsInstalled {
-  DCHECK(self.isViewLoaded);
+  DCHECK(self.viewLoaded);
 
 #if defined(VIVALDI_BUILD)
   BOOL shouldShowStatusBarBackground =
@@ -315,7 +343,7 @@ using vivaldi::IsVivaldiRunning;
   self.fadingStatusBarView.alpha = _tabStripViewController.view.alpha;
   self.staticStatusBarView.backgroundColor = tabStripBackgroundColor;
   self.staticStatusBarView.alpha = _tabStripViewController.view.alpha;
-#else
+#else // Vivaldi
   if ([self.fadingStatusBarView isDescendantOfView:self.view]) {
     return;
   }
@@ -347,7 +375,7 @@ using vivaldi::IsVivaldiRunning;
 
 // Updates the status bar background views properties and visibility.
 - (void)updateStatusBarBackgroundViews {
-  DCHECK(self.isViewLoaded);
+  DCHECK(self.viewLoaded);
 
 #if defined(VIVALDI_BUILD)
   bool shouldShow = [self shouldShowTabStrip] &&
@@ -419,7 +447,7 @@ using vivaldi::IsVivaldiRunning;
 }
 
 - (void)updateVivaldiTabStripLayout {
-  [self updateCurrentBVCLayoutInsets];
+  [self updateCurrentBVCLayoutInsetsWithTopInset:[self topInset]];
 
   if (!_tabStripViewController) {
     _bottomTabStripBackgroundView.hidden = YES;
@@ -565,7 +593,7 @@ using vivaldi::IsVivaldiRunning;
   [_tabStripViewController didMoveToParentViewController:self];
 
   // Set default frame to ensure valid initial position.
-  CGFloat topInset = self.safeAreaProvider.safeArea.top;
+  CGFloat topInset = [self topInset];
   CGRect frame = self.view.bounds;
   frame.origin.y = topInset;
 
@@ -581,6 +609,27 @@ using vivaldi::IsVivaldiRunning;
 
 }
 
+// Returns the top inset based on the layout mode.
+- (CGFloat)topInset {
+  return [self topInsetForContainedLayout:_layoutState.containedLayoutActive];
+}
+
+// Returns the top inset for the specified contained layout state.
+- (CGFloat)topInsetForContainedLayout:(BOOL)containedLayout {
+  CGFloat topInset = containedLayout ? self.view.safeAreaInsets.top
+                                     : self.safeAreaProvider.safeArea.top;
+  if (CanShowTabStrip(self) && containedLayout) {
+    topInset += kContainedLayoutTabStripTopMargin;
+  }
+  return topInset;
+}
+
+// Updates the layout with the given top inset.
+- (void)updateLayoutWithTopInset:(CGFloat)topInset {
+  [self updateForFullscreenProgress:_fullscreenProgress withTopInset:topInset];
+  [self updateCurrentBVCLayoutInsetsWithTopInset:topInset];
+}
+
 #pragma mark - Properties
 
 // Sets the incognito state and updates status bar styles.
@@ -594,6 +643,15 @@ using vivaldi::IsVivaldiRunning;
       _incognito ? UIUserInterfaceStyleDark : UIUserInterfaceStyleUnspecified;
   _fadingStatusBarView.overrideUserInterfaceStyle = style;
   _staticStatusBarView.overrideUserInterfaceStyle = style;
+}
+
+- (void)setLayoutState:(LayoutState*)layoutState {
+  if (_layoutState == layoutState) {
+    return;
+  }
+  [_layoutState removeObserver:self];
+  _layoutState = layoutState;
+  [_layoutState addObserver:self];
 }
 
 // Sets the tab strip view controller and installs it in the view hierarchy.
@@ -624,7 +682,7 @@ using vivaldi::IsVivaldiRunning;
   [self updateStatusBarBackgroundViews];
 
   // Notify the BVC about the layout inset changes.
-  [self updateCurrentBVCLayoutInsets];
+  [self updateCurrentBVCLayoutInsetsWithTopInset:[self topInset]];
 
   if (!_tabStripViewController) {
     return;
@@ -688,6 +746,26 @@ using vivaldi::IsVivaldiRunning;
 - (NamedGuide*)contentAreaGuide {
   return [NamedGuide guideWithName:kContentAreaGuide
                               view:self.browserViewController.view];
+}
+
+#pragma mark - LayoutStateObserver
+
+- (void)layoutState:(LayoutState*)layoutState
+    willChangeContainedLayout:(BOOL)containedLayoutActive
+    withTransitionCoordinator:(id<LayoutTransitionCoordinating>)coordinator {
+  CGFloat targetTopInset =
+      [self topInsetForContainedLayout:containedLayoutActive];
+
+  __weak __typeof(self) weakSelf = self;
+  if (coordinator) {
+    [coordinator
+        animateAlongsideTransition:^{
+          [weakSelf updateLayoutWithTopInset:targetTopInset];
+        }
+                        completion:nil];
+    return;
+  }
+  [self updateLayoutWithTopInset:targetTopInset];
 }
 
 @end

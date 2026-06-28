@@ -10,13 +10,12 @@
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/browser/actor/ui/actor_overlay_ui.h"
 #include "chrome/browser/devtools/devtools_window.h"
+//#include "chrome/browser/glic/host/guest_util.h"
 //#include "chrome/browser/glic/public/glic_enabling.h"
-//#include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/profiles/profile.h"
 #import "chrome/browser/renderer_host/chrome_render_widget_host_view_mac_history_swiper.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/tabs/inactive_window_mouse_event_controller.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/common/url_constants.h"
@@ -183,14 +182,16 @@
 
 
   // Vivaldi
-  Browser* browser = chrome::FindBrowserWithWindow(gfx::NativeWindow(window));
+  BrowserWindowInterface* browser_window_interface =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithWindow(
+          gfx::NativeWindow(window));
   // Note(tomas@vivaldi.com): VB-70626, VB-96150, VB-101337.
   // self.webContents is our UI webcontents. This breaks
   // history swipe, use the active webcontents instead.
-  if (browser && vivaldi::IsVivaldiRunning()) {
-    webContents = browser->tab_strip_model()->GetActiveWebContents();
-  } // end Vivaldi
-
+  if (browser_window_interface && vivaldi::IsVivaldiRunning()) {
+    webContents =
+        browser_window_interface->GetTabStripModel()->GetActiveWebContents();
+  }  // end Vivaldi
 
   if (!webContents) {
     return NO;
@@ -209,12 +210,15 @@
 
 
   // Vivaldi
-  Browser* browser = chrome::FindBrowserWithWindow(gfx::NativeWindow(window));
+  BrowserWindowInterface* browser_window_interface =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithWindow(
+          gfx::NativeWindow(window));
   // Note(tomas@vivaldi.com): VB-96150.
   // self.webContents is our UI webcontents. This breaks
   // history swipe, use the active webcontents instead.
-  if (browser && vivaldi::IsVivaldiRunning()) {
-    webContents = browser->tab_strip_model()->GetActiveWebContents();
+  if (browser_window_interface && vivaldi::IsVivaldiRunning()) {
+    webContents =
+        browser_window_interface->GetTabStripModel()->GetActiveWebContents();
   } // end Vivaldi
 
 
@@ -410,7 +414,7 @@
   DCHECK(browserWindow);
 
   // If the browser window is already key, there's nothing to do.
-  if (browserWindow.isKeyWindow) {
+  if (browserWindow.keyWindow) {
     return;
   }
 
@@ -484,9 +488,7 @@
   // inactive, aligning with the expected behavior of native chrome dialogs.
   // TODO(crbug.com/399119513): Consider making this a single WebContents
   // scoped setting, allowing this behavior to be configured by feature code.
-  glic::GlicKeyedService* glic_service = glic::GlicKeyedService::Get(
-      Profile::FromBrowserContext(webContents->GetBrowserContext()));
-  if (glic_service && glic_service->IsActiveWebContents(webContents)) {
+  if (glic::GetGlicGuestWebContents(webContents) != nullptr) {
     return AcceptMouseEvents::kWhenInActiveApp;
   }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
@@ -514,6 +516,21 @@
   }
 
   return AcceptTooltipEvents::kWhenInKeyWindow;
+}
+
+- (BOOL)shouldBecomeFirstResponderOnRightClick {
+  content::WebContents* webContents = self.webContents;
+  if (!webContents) {
+    return NO;
+  }
+
+  // For Top Chrome WebUIs, allow right click to make the view first responder.
+  if (IsTopChromeWebUIURL(webContents->GetVisibleURL()) ||
+      IsTopChromeUntrustedWebUIURL(webContents->GetVisibleURL())) {
+    return YES;
+  }
+
+  return NO;
 }
 
 

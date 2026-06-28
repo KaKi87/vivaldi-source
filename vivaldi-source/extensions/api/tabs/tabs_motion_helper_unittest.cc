@@ -7,7 +7,10 @@
 #include "base/functional/callback_helpers.h"
 #include "browser/tab_probe.h"
 #include "browser/tab_strip_sanitizer.h"
+#include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "components/ext_data/tab_ext_data_impl.h"
@@ -17,18 +20,128 @@
 #include "extensions/vivaldi_browser_component_wrapper.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
+#include "browser/tab_positioning.h"
+#include "components/ext_data/tab_positioning_params.h"
+
+// ./out/Debug/unit_tests --gtest_filter=TabsMotionHelperTest.*
+namespace tpos = ::vivaldi::tab_positioning;
 namespace vivaldi {
 
-  // ./out/Debug/unit_tests --gtest_filter=TabsMotionHelperTest.*
 namespace {
+
+constexpr tpos::TabPlacingStrategy kStrategies[] = {
+  tpos::TabPlacingStrategy::kDirectRightOfCurrent,
+  tpos::TabPlacingStrategy::kRightOfCurrent,
+  tpos::TabPlacingStrategy::kAlwaysLast,
+  tpos::TabPlacingStrategy::kOpenInTabstackWithRelated
+};
+
+std::string DescribeStrategy(tpos::TabPlacingStrategy s) {
+  switch (s) {
+    case tpos::TabPlacingStrategy::kRightOfCurrent:
+      return "RightOfCurrent";
+    case tpos::TabPlacingStrategy::kDirectRightOfCurrent:
+      return "DirectRightOfCurrent";
+    case tpos::TabPlacingStrategy::kAlwaysLast:
+      return "AlwaysLast";
+    case tpos::TabPlacingStrategy::kOpenInTabstackWithRelated:
+      return "OpenInTabstackWithRelated";
+    default:
+      NOTREACHED();
+  }
+}
+
+std::string DescribeStackMode(tpos::TabstackMode s) {
+  switch (s) {
+    case tpos::TabstackMode::kOff:
+      return "Off";
+    case tpos::TabstackMode::kDotted:
+      return "Dotted";
+    case tpos::TabstackMode::kSubstrip:
+      return "Substrip";
+    case tpos::TabstackMode::kAccordion:
+      return "Accordion";
+    case tpos::TabstackMode::kUnknown:
+      return "Unknown";
+  }
+}
+
+std::string DescribeInvokedBy(TabInvokedBy invoked_by) {
+  switch (invoked_by) {
+    case TabInvokedBy::kNone:
+      return "None";
+    case TabInvokedBy::kMainStrip:
+      return "MainStrip";
+    case TabInvokedBy::kSubStrip:
+      return "SubStrip";
+    case TabInvokedBy::kKeyboard:
+      return "Keyboard";
+    case TabInvokedBy::kAccordion:
+      return "Accordion";
+    case TabInvokedBy::kTabBarButton:
+      return "TabBarButton";
+    case TabInvokedBy::kChromiumExtension:
+      return "ChromiumExtension";
+    case TabInvokedBy::kEmailUi:
+      return "EmailUi";
+    case TabInvokedBy::kHtml:
+      return "Html";
+    case TabInvokedBy::kBackground:
+      return "Background";
+    case TabInvokedBy::kBookmarks:
+      return "Bookmarks";
+    case TabInvokedBy::kSpeedDial:
+      return "SpeedDial";
+    case TabInvokedBy::kCommand:
+      return "Command";
+    case TabInvokedBy::kEmailLinkBackground:
+      return "EmailLinkBackground";
+    case TabInvokedBy::kEmailLink:
+      return "EmailLink";
+  }
+}
+
+std::string DescribeTabBarState(const tpos::TabBarState& state) {
+  std::string flags;
+  if (state.is_substrip_locked)
+    flags += "(substrip_locked)";
+  if (state.open_in_current_tab_stack)
+    flags += "(open_in_current_tab_stack)";
+  if (!flags.empty())
+    flags = ";" + flags;
+  CHECK(state.placement_strategy);
+  CHECK(state.tab_stack_mode);
+  return DescribeStrategy(*state.placement_strategy) +
+         "[stack_mode=" + DescribeStackMode(*state.tab_stack_mode) + flags +
+         "]";
+}
+
+void SetCommand(content::WebContents* contents, const std::string &command) {
+  if (command.empty())
+    return;
+  TabExtData *ext = TabExtData::Get(contents);
+  TabPositioningParams positional_params = ext->GetPositioningParams();
+  positional_params.invoked_by_extra_arg = "{ \"type\": \"" + command + "\" }";
+  positional_params.invoked_by = TabInvokedBy::kCommand;
+  ext->SetPositioningParams(positional_params);
+}
+
 class ParamsFactory {
-  public:
-  ParamsFactory & SetTarget(const std::string &target) {
-    target_ = target;
+ public:
+  ParamsFactory& SetTarget(const std::string& target) {
+    target_tab_ = target;
+    target_index_ = std::nullopt;
     return *this;
   }
 
-  ParamsFactory & ResetTweaks(std::optional<std::string> first_tweak = std::nullopt) {
+  ParamsFactory& SetTarget(int index) {
+    target_tab_ = std::nullopt;
+    target_index_ = index;
+    return *this;
+  }
+
+  ParamsFactory& ResetTweaks(
+      std::optional<std::string> first_tweak = std::nullopt) {
     tweaks_.clear();
     if (first_tweak) {
       tweaks_.push_back(*first_tweak);
@@ -36,20 +149,36 @@ class ParamsFactory {
     return *this;
   }
 
-  ParamsFactory & AddTweak(const std::string &t) {
+  ParamsFactory& AddTweak(const std::string& t) {
     tweaks_.push_back(t);
     return *this;
   }
 
+  ParamsFactory& SetWorkspaceId(double workspace_id) {
+    workspace_id_ = workspace_id;
+    return *this;
+  }
 
-  ParamsFactory & AddSource(const std::string &src) {
+  ParamsFactory& AddSource(const std::string& src) {
     source_.push_back(src);
     return *this;
   }
 
   base::DictValue Build() {
     base::DictValue move_props;
-    move_props.Set("target", target_);
+    if (target_tab_) {
+      CHECK(!target_index_);
+      move_props.Set("target", *target_tab_);
+    }
+
+    if (target_index_) {
+      CHECK(!target_tab_);
+      move_props.Set("target", *target_index_);
+    }
+
+    if (workspace_id_) {
+      move_props.Set("workspaceId", *workspace_id_);
+    }
 
     if (!source_.empty()) {
       base::ListValue extIds;
@@ -62,7 +191,7 @@ class ParamsFactory {
 
     if (!tweaks_.empty()) {
       base::ListValue tweaksList;
-      for (const std::string &tweak: tweaks_) {
+      for (const std::string& tweak : tweaks_) {
         tweaksList.Append(tweak);
       }
       move_props.Set("tweaks", std::move(tweaksList));
@@ -70,18 +199,28 @@ class ParamsFactory {
 
     return move_props;
   }
-  private:
-  std::string target_;
+
+ private:
+  std::optional<std::string> target_tab_;
+  std::optional<int> target_index_;
   std::vector<std::string> source_;
   std::vector<std::string> tweaks_;
+  std::optional<double> workspace_id_;
 };
-}
-
+}  // namespace
 
 class TabsMotionHelperTest : public BrowserWithTestWindowTest {
  public:
   TabsMotionHelperTest() = default;
   ~TabsMotionHelperTest() override = default;
+
+  raw_ptr<BrowserWindow> window2_;
+  std::unique_ptr<Browser> browser2_;
+
+  Browser* browser2() {
+    CHECK(browser2_.get());
+    return browser2_.get();
+  }
 
   void SetUp() override {
     base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();
@@ -89,16 +228,39 @@ class TabsMotionHelperTest : public BrowserWithTestWindowTest {
     ForceVivaldiRunning(true);
     BrowserWithTestWindowTest::SetUp();
     VivaldiBrowserComponentWrapper::CreateImpl();
+
+    auto window2 = CreateBrowserWindow();
+    window2_ = window2.get();
+    browser2_ = CreateBrowser(profile(), Browser::TYPE_NORMAL, false,
+                              window2.release());
+  }
+
+  void TearDown() {
+    window2_ = nullptr;
+    if (browser2_) {
+      browser2_->tab_strip_model()->CloseAllTabs();
+      browser2_->GetFeatures().TearDownPreBrowserWindowDestruction();
+      browser2_.reset();
+    }
+    BrowserWithTestWindowTest::TearDown();
+  }
+
+  int GetWindowIdOfTab(const std::string& extId) {
+    auto probe = tab_probe::ResolveTabByExtId(extId);
+    CHECK(probe);
+    return ::extensions::ExtensionTabUtil::GetWindowIdOfTab(probe->contents);
   }
 
   // Helper to create a tab with Vivaldi-specific extension data.
-  content::WebContents* AddTabWithExtData(Browser* browser, const std::string& ext_id) {
+  content::WebContents* AddTabWithExtData(Browser* browser,
+                                          const std::string& ext_id) {
     std::unique_ptr<content::WebContents> contents =
         content::WebContentsTester::CreateTestWebContents(profile(), nullptr);
     content::WebContents* raw_contents = contents.get();
 
     // Attach SessionTabHelper to ensure IdForTab(contents) returns a valid ID.
-    sessions::SessionTabHelper::CreateForWebContents(raw_contents, base::NullCallback());
+    sessions::SessionTabHelper::CreateForWebContents(raw_contents,
+                                                     base::NullCallback());
 
     // Initialize and set Vivaldi's TabExtData.
     TabExtData* ext_data = TabExtDataImpl::Create(raw_contents);
@@ -108,7 +270,7 @@ class TabsMotionHelperTest : public BrowserWithTestWindowTest {
     return raw_contents;
   }
 
-  int FindTabId(TabStripModel *tab_strip, int tab_id) {
+  int FindTabId(TabStripModel* tab_strip, int tab_id) {
     for (int i = 0; i < tab_strip->count(); ++i) {
       content::WebContents* contents = tab_strip->GetWebContentsAt(i);
       if (tab_id == sessions::SessionTabHelper::IdForTab(contents).id())
@@ -117,7 +279,7 @@ class TabsMotionHelperTest : public BrowserWithTestWindowTest {
     return -1;
   }
 
-  std::string GetExtIdAt(TabStripModel *tab_strip, int index) {
+  std::string GetExtIdAt(TabStripModel* tab_strip, int index) {
     auto probe = tab_probe::TabLookup(index, tab_strip);
     CHECK(probe.has_value());
     auto ext_id = tab_probe::GetExtId(*probe);
@@ -127,7 +289,8 @@ class TabsMotionHelperTest : public BrowserWithTestWindowTest {
 
   // Helper to set a group ID for a tab.
   void SetGroupId(content::WebContents* contents, const std::string& group_id) {
-    TabExtData::Get(contents)->Set(TabExtKey::kGroupId, group_id);
+    TabExtData::Get(contents)->SetForTesting(
+        TabExtKey::kGroupId_, base::Value(std::string(group_id)));
   }
 
   // Helper to set a group ID for a tab.
@@ -135,7 +298,8 @@ class TabsMotionHelperTest : public BrowserWithTestWindowTest {
     TabStripModel* tab_strip = browser()->tab_strip_model();
     content::WebContents* contents = tab_strip->GetWebContentsAt(index);
     CHECK(contents);
-    TabExtData::Get(contents)->Set(TabExtKey::kGroupId, group_id);
+    TabExtData::Get(contents)->SetForTesting(
+        TabExtKey::kGroupId_, base::Value(std::string(group_id)));
   }
 
   void RunMoves(const TabsMotionHelper& helper) {
@@ -147,7 +311,7 @@ class TabsMotionHelperTest : public BrowserWithTestWindowTest {
   }
 
   TabsMotionHelper::Expected CreateHelper(base::DictValue&& move_properties,
-      bool safe=false) {
+                                          bool safe = false) {
     namespace mv = extensions::vivaldi::tabs_private::Move;
     base::ListValue args;
     args.Append(std::move(move_properties));
@@ -161,8 +325,16 @@ class TabsMotionHelperTest : public BrowserWithTestWindowTest {
     return TabsMotionHelper::Create(std::move(*params), true);
   }
 
-  std::string DescribeTabStrip() {
-    TabStripModel* tab_strip = browser()->tab_strip_model();
+  std::string DescribeTabStrip(int browser_index = 0) {
+    Browser* browser_ptr = nullptr;
+    if (browser_index == 0) {
+      browser_ptr = browser();
+    } else if (browser_index == 1) {
+      browser_ptr = browser2();
+    }
+
+    CHECK(browser_ptr);
+    TabStripModel* tab_strip = browser_ptr->tab_strip_model();
     std::vector<std::string> tabs;
     for (int i = 0; i < tab_strip->count(); ++i) {
       content::WebContents* contents = tab_strip->GetWebContentsAt(i);
@@ -187,6 +359,13 @@ class TabsMotionHelperTest : public BrowserWithTestWindowTest {
     browser()->tab_strip_model()->CloseAllTabs();
     for (int i = 0; i < count; ++i) {
       AddTabWithExtData(browser(), "t" + base::NumberToString(i));
+    }
+  }
+
+  void CreateTabs2(int count) {
+    browser2()->tab_strip_model()->CloseAllTabs();
+    for (int i = 0; i < count; ++i) {
+      AddTabWithExtData(browser2(), "s" + base::NumberToString(i));
     }
   }
 };
@@ -324,6 +503,57 @@ TEST_F(TabsMotionHelperTest, TabsMotionHelperMoveSpecial) {
   }
 }
 
+// VB-128777 [Tabs][Commands] "Move Active Tabs Forward" (or Backward) do not move past stacks
+TEST_F(TabsMotionHelperTest, TabsMotionHelperShiftOverGroup) {
+  namespace mv = extensions::vivaldi::tabs_private::Move;
+  CreateTabs(5);
+  SetGroupId(2, "a");
+  SetGroupId(3, "a");
+
+  {
+    base::DictValue move_props;
+    move_props.Set("target", "right");
+    base::ListValue extIds;
+    extIds.Append("t1");
+    move_props.Set("extIds", std::move(extIds));
+    auto helper_or_error = CreateHelper(std::move(move_props));
+    ASSERT_TRUE(helper_or_error.has_value());
+    RunMoves(*helper_or_error.value());
+    ASSERT_EQ(DescribeTabStrip(), "t0;;;;|t2;;a;;|t3;;a;;|t1;;;;|t4;;;;");
+  }
+
+  {
+    base::DictValue move_props;
+    move_props.Set("target", "right");
+    base::ListValue extIds;
+    extIds.Append("t3");
+    move_props.Set("extIds", std::move(extIds));
+    auto helper_or_error = CreateHelper(std::move(move_props));
+    ASSERT_FALSE(helper_or_error.has_value());
+  }
+
+  {
+    base::DictValue move_props;
+    move_props.Set("target", "left");
+    base::ListValue extIds;
+    extIds.Append("t2");
+    move_props.Set("extIds", std::move(extIds));
+    auto helper_or_error = CreateHelper(std::move(move_props));
+    ASSERT_FALSE(helper_or_error.has_value());
+  }
+
+  {
+    base::DictValue move_props;
+    move_props.Set("target", "right");
+    base::ListValue extIds;
+    extIds.Append("t2");
+    move_props.Set("extIds", std::move(extIds));
+    auto helper_or_error = CreateHelper(std::move(move_props));
+    ASSERT_TRUE(helper_or_error.has_value());
+    ASSERT_EQ(DescribeTabStrip(), "t0;;;;|t2;;a;;|t3;;a;;|t1;;;;|t4;;;;");
+  }
+}
+
 TEST_F(TabsMotionHelperTest, SanitizeGroupSplit) {
   CreateTabs(8);
   SetGroupId(1, "a");
@@ -354,30 +584,64 @@ TEST_F(TabsMotionHelperTest, SanitizeGroupst) {
   SetGroupId(5, "c");
   ::vivaldi::SanitizeGroups(browser()->tab_strip_model());
   ASSERT_EQ(DescribeTabStrip(),
-      "t0;;;;|t1;;;;|t2;;;;|t3;;a;;|t4;;a;;|t5;;;;|t6;;;;");
+            "t0;;;;|t1;;;;|t2;;;;|t3;;a;;|t4;;a;;|t5;;;;|t6;;;;");
 }
 
 // Move tab above/below another tab.
 TEST_F(TabsMotionHelperTest, BelowAbove) {
   CreateTabs(5);
   ParamsFactory factory;
-  factory.SetTarget("t1")
-    .AddSource("t4")
-    .ResetTweaks("above");
+  factory.SetTarget("t1").AddSource("t4").ResetTweaks("above");
   auto helper_or_error = CreateHelper(factory.Build());
   ASSERT_TRUE(helper_or_error.has_value());
   RunMoves(*helper_or_error.value());
-  ASSERT_EQ(DescribeTabStrip(),
-      "t0;;;;|t4;;;;|t1;;;;|t2;;;;|t3;;;;");
+  ASSERT_EQ(DescribeTabStrip(), "t0;;;;|t4;;;;|t1;;;;|t2;;;;|t3;;;;");
   CreateTabs(5);
   factory.ResetTweaks("below");
   helper_or_error = CreateHelper(factory.Build());
   RunMoves(*helper_or_error.value());
-  ASSERT_EQ(DescribeTabStrip(),
-      "t0;;;;|t1;;;;|t4;;;;|t2;;;;|t3;;;;");
+  ASSERT_EQ(DescribeTabStrip(), "t0;;;;|t1;;;;|t4;;;;|t2;;;;|t3;;;;");
   factory.AddTweak("above");
   helper_or_error = CreateHelper(factory.Build(), true);
   ASSERT_FALSE(helper_or_error.has_value());
+}
+
+// Move to last/first
+TEST_F(TabsMotionHelperTest, MoveToEdge) {
+#if 0 // needs: ondrej/tab-motion-helper-refactoring
+  {
+    CreateTabs(5);
+    ParamsFactory factory;
+    factory.SetTarget("last").AddSource("t1");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    auto& helper = helper_or_error.value();
+    ASSERT_EQ(helper->GetTargetType(), TabsMotionHelper::TargetType::kLast);
+    ASSERT_TRUE(helper->IsBelow());
+    RunMoves(*helper);
+    ASSERT_EQ(DescribeTabStrip(), "t0;;;;|t2;;;;|t3;;;;|t4;;;;|t1;;;;");
+  }
+#endif
+  {
+    CreateTabs(5);
+    ParamsFactory factory;
+    factory.SetTarget("first").AddSource("t1");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    RunMoves(*helper_or_error.value());
+    ASSERT_EQ(DescribeTabStrip(), "t1;;;;|t0;;;;|t2;;;;|t3;;;;|t4;;;;");
+  }
+}
+
+// Move tab to index
+TEST_F(TabsMotionHelperTest, MoveToIndex) {
+  CreateTabs(5);
+  ParamsFactory factory;
+  factory.SetTarget(2).AddSource("t4");
+  auto helper_or_error = CreateHelper(factory.Build());
+  ASSERT_TRUE(helper_or_error.has_value());
+  RunMoves(*helper_or_error.value());
+  ASSERT_EQ(DescribeTabStrip(), "t0;;;;|t1;;;;|t4;;;;|t2;;;;|t3;;;;");
 }
 
 // Move tab into the group.
@@ -386,9 +650,7 @@ TEST_F(TabsMotionHelperTest, AutoStack) {
   SetGroupId(1, "a");
   SetGroupId(2, "a");
   ParamsFactory factory;
-  factory.SetTarget("t0")
-    .AddSource("t5")
-    .ResetTweaks("below");
+  factory.SetTarget("t0").AddSource("t5").ResetTweaks("below");
   auto helper_or_error = CreateHelper(factory.Build());
   ASSERT_TRUE(helper_or_error.has_value());
   RunMoves(*helper_or_error.value());
@@ -408,21 +670,867 @@ TEST_F(TabsMotionHelperTest, BelowAboveStack) {
   SetGroupId(3, "a");
   SetGroupId(4, "a");
   ParamsFactory factory;
-  factory.SetTarget("a")
-    .AddSource("t0")
-    .AddSource("t6");
+  factory.SetTarget("a").AddSource("t0").AddSource("t6");
   factory.ResetTweaks("above");
   auto helper_or_error = CreateHelper(factory.Build());
   ASSERT_TRUE(helper_or_error.has_value());
   RunMoves(*helper_or_error.value());
-  ASSERT_EQ(DescribeTabStrip(), "t1;;;;|t2;;;;|t0;;;;|t6;;;;|t3;;a;;|t4;;a;;|t5;;;;");
+  ASSERT_EQ(DescribeTabStrip(),
+            "t1;;;;|t2;;;;|t0;;;;|t6;;;;|t3;;a;;|t4;;a;;|t5;;;;");
   ASSERT_FALSE(helper_or_error.value()->SuggestGroup());
   factory.ResetTweaks("below");
   helper_or_error = CreateHelper(factory.Build());
   ASSERT_TRUE(helper_or_error.has_value());
   RunMoves(*helper_or_error.value());
-  ASSERT_EQ(DescribeTabStrip(), "t1;;;;|t2;;;;|t3;;a;;|t4;;a;;|t0;;;;|t6;;;;|t5;;;;");
+  ASSERT_EQ(DescribeTabStrip(),
+            "t1;;;;|t2;;;;|t3;;a;;|t4;;a;;|t0;;;;|t6;;;;|t5;;;;");
   ASSERT_FALSE(helper_or_error.value()->SuggestGroup());
+}
+
+// The target window is decided by the target tab.
+TEST_F(TabsMotionHelperTest, MultiWindowTabTarget) {
+  CreateTabs(3);
+  CreateTabs2(3);
+  auto probe0 = tab_probe::ResolveTabByExtId("s1");
+  auto probe1 = tab_probe::ResolveTabByExtId("t1");
+  ASSERT_TRUE(probe0.has_value());
+  ASSERT_TRUE(probe1.has_value());
+  ParamsFactory factory;
+  factory.AddSource("t1");
+
+  {
+    factory.SetTarget("s1");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    const TabsMotionHelper& helper = *helper_or_error.value();
+    int target_window_id = helper.GetWindowId();
+    ASSERT_EQ(target_window_id, GetWindowIdOfTab("s1"));
+  }
+
+  {
+    factory.SetTarget("t1");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    const TabsMotionHelper& helper = *helper_or_error.value();
+    int target_window_id = helper.GetWindowId();
+    ASSERT_EQ(target_window_id, GetWindowIdOfTab("t1"));
+  }
+
+  // Ensure we have 2 windows (the test makes sense)
+  ASSERT_NE(GetWindowIdOfTab("s1"), GetWindowIdOfTab("t1"));
+}
+
+// Target is an index + workspace. The tab must move to the window with the
+// workspace.
+TEST_F(TabsMotionHelperTest, WorkspaceTarget) {
+  CreateTabs(4);
+  CreateTabs2(4);
+  auto probe0 = tab_probe::ResolveTabByExtId("s2");
+  auto probe1 = tab_probe::ResolveTabByExtId("t2");
+  ASSERT_TRUE(probe0.has_value());
+  ASSERT_TRUE(probe1.has_value());
+  TabExtData* ext = TabExtData::Get(probe0->contents);
+  ext->Set(TabExtKey::kWorkspaceId, double(7));
+  ext = TabExtData::Get(probe1->contents);
+  ext->Set(TabExtKey::kWorkspaceId, double(8));
+
+  ParamsFactory factory;
+  factory.SetTarget(1).AddSource("s0").AddSource("t0");
+
+  {
+    factory.SetWorkspaceId(7);
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    ASSERT_EQ(helper_or_error.value()->GetWindowId(), GetWindowIdOfTab("s2"));
+  }
+
+  {
+    factory.SetWorkspaceId(8);
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    ASSERT_EQ(helper_or_error.value()->GetWindowId(), GetWindowIdOfTab("t2"));
+  }
+
+  ASSERT_NE(GetWindowIdOfTab("s2"), GetWindowIdOfTab("t2"));
+}
+
+TEST_F(TabsMotionHelperTest, NewTabAllStrategiesExtApp) {
+  {
+    using tpos::TabPlacingStrategy;
+    using tpos::TabSource;
+    using tpos::TabstackMode;
+    CreateTabs(8);
+    SetGroupId(4, "b");
+    SetGroupId(5, "b");
+    SetGroupId(6, "b");
+    auto* tab_strip = browser()->tab_strip_model();
+    tpos::TabBarState state;
+    state.source = TabSource::kExternalApp;
+    std::optional<tpos::TabPosition> pos;
+    int count = 0;
+    for (int open_in_current_tab_stack = 0; open_in_current_tab_stack <= 1;
+         open_in_current_tab_stack++) {
+      state.open_in_current_tab_stack = open_in_current_tab_stack;
+      for (int substrip_locked = 0; substrip_locked <= 1; ++substrip_locked) {
+        state.is_substrip_locked = substrip_locked;
+        for (auto stacking :
+             {TabstackMode::kOff,
+              TabstackMode::kDotted,
+              TabstackMode::kSubstrip,
+              TabstackMode::kAccordion})
+        {
+          state.tab_stack_mode = stacking;
+          tab_strip->ActivateTabAt(1);
+          for (auto strategy :
+               {TabPlacingStrategy::kRightOfCurrent,
+                TabPlacingStrategy::kDirectRightOfCurrent,
+                TabPlacingStrategy::kAlwaysLast,
+                TabPlacingStrategy::kOpenInTabstackWithRelated}) {
+            state.placement_strategy = strategy;
+            pos = DetermineInsertionIndexFromState(
+                tab_strip, tab_strip->GetWebContentsAt(1), TabSource::kGeneral,
+                state);
+            count++;
+            ASSERT_TRUE(pos.has_value());
+            ASSERT_EQ(pos->pinned, false);
+            ASSERT_EQ(pos->index,
+                      state.placement_strategy ==
+                              TabPlacingStrategy::kDirectRightOfCurrent
+                          ? 2
+                          : 8);
+          }
+
+          tab_strip->ActivateTabAt(4);
+          for (auto strategy :
+               {TabPlacingStrategy::kRightOfCurrent,
+                TabPlacingStrategy::kDirectRightOfCurrent,
+                TabPlacingStrategy::kAlwaysLast,
+                TabPlacingStrategy::kOpenInTabstackWithRelated}) {
+            state.placement_strategy = strategy;
+            count++;
+            pos = DetermineInsertionIndexFromState(
+                tab_strip, tab_strip->GetWebContentsAt(1), TabSource::kGeneral,
+                state);
+            ASSERT_TRUE(pos.has_value());
+            ASSERT_EQ(pos->pinned, false);
+
+            int exception = 7;
+            if (stacking == TabstackMode::kOff)
+              exception = 5;
+
+            ASSERT_EQ(pos->index,
+                      state.placement_strategy ==
+                              TabPlacingStrategy::kDirectRightOfCurrent
+                          ? exception
+                          : 8);
+          }
+        }
+      }
+    }
+    // Check the test did some work to avoid stupid typos.
+    ASSERT_GT(count, 100);
+  }
+}
+
+TEST_F(TabsMotionHelperTest, NewTabAllStrategies) {
+  {
+    using tpos::TabBarState;
+    using tpos::TabSource;
+    using tpos::TabstackMode;
+    using tpos::TabPlacingStrategy;
+    CreateTabs(8);
+    SetGroupId(4, "b");
+    SetGroupId(5, "b");
+    SetGroupId(6, "b");
+
+    // Tab strip created: *t0 t1 t2 t3 [ t4 t5 t6 ] t7
+    // t0 - pinned
+    // t4, t5, t6 - in stack with groupId="b"
+
+    auto* tab_strip = browser()->tab_strip_model();
+    TabBarState state;
+    state.source = TabSource::kGeneral;
+    std::optional<tpos::TabPosition> pos;
+    tab_strip->SetTabPinned(0, true);
+    TabExtData* ext = nullptr;
+
+    auto check = [&](int index) -> std::optional<int> {
+      CHECK(ext);
+      constexpr std::nullopt_t kNoError = std::nullopt;
+      if (pos->pinned)
+        return __LINE__;
+      const StackingMode stacking_mode = ext->GetStackingMode();
+      if (state.placement_strategy == TabPlacingStrategy::kAlwaysLast) {
+        // Pinned or unpinned, does not matter.
+        if (index == 0 || index == 1) {
+          if (pos->index == 8) {
+            if (stacking_mode != StackingMode::kAvoid)
+              return __LINE__;
+            return kNoError;
+          }
+          return __LINE__;
+        }
+
+        // Active tab is in the group, but the groups are disabled,
+        if ((index == 4 || index == 5 || index == 6) &&
+            state.tab_stack_mode == TabstackMode::kOff) {
+          if (pos->index == 8) {
+            if (stacking_mode != StackingMode::kAvoid)
+              return __LINE__;
+
+            return kNoError;
+          }
+        }
+        if (stacking_mode != StackingMode::kSticky)
+          return __LINE__;
+
+        if (pos->index == 7)
+          return kNoError;
+        return __LINE__;
+      }
+
+      // Only the "Right Of" types of settings get here, so +1 index is
+      // expected.
+      if (pos->index != index + 1)
+        return __LINE__;
+
+      // The first pinned tab is active, don't stack.
+      if (index == 0) {
+        if (stacking_mode != StackingMode::kAvoid)
+          return __LINE__;
+
+        return kNoError;
+      }
+
+      // Tab 1 is not in the stack
+      if (index == 1) {
+        if (state.placement_strategy ==
+            TabPlacingStrategy::kOpenInTabstackWithRelated) {
+          if (state.tab_stack_mode == TabstackMode::kOff) {
+            if (stacking_mode != StackingMode::kAvoid)
+              return __LINE__;
+          } else {
+            if (stacking_mode != StackingMode::kForced)
+              return __LINE__;
+          }
+        } else {
+          if (stacking_mode != StackingMode::kAvoid)
+            return __LINE__;
+        }
+        return kNoError;
+      }
+
+      // Check the stacking mode
+      if (state.tab_stack_mode == TabstackMode::kOff) {
+        if (stacking_mode != StackingMode::kAvoid)
+          return __LINE__;
+      } else if (stacking_mode != StackingMode::kSticky) {
+        return __LINE__;
+      }
+
+      return kNoError;
+    };
+
+    int checked_states_count = 0;
+    for (bool open_in_stack : {true, false}) {
+      state.open_in_current_tab_stack = open_in_stack;
+      for (bool substrip_locked : {true, false}) {
+        state.is_substrip_locked = substrip_locked;
+        for (auto stacking :
+             {TabstackMode::kOff, TabstackMode::kDotted,
+              TabstackMode::kSubstrip, TabstackMode::kAccordion}) {
+          state.tab_stack_mode = stacking;
+          for (int index : {0, 1, 4, 5, 6}) {
+            tab_strip->ActivateTabAt(index);
+            for (auto strategy :
+                 {TabPlacingStrategy::kRightOfCurrent,
+                  TabPlacingStrategy::kDirectRightOfCurrent,
+                  TabPlacingStrategy::kAlwaysLast,
+                  TabPlacingStrategy::kOpenInTabstackWithRelated}) {
+              state.placement_strategy = strategy;
+              std::unique_ptr<content::WebContents> new_contents =
+                  content::WebContentsTester::CreateTestWebContents(profile(),
+                                                                    nullptr);
+              ext = TabExtDataImpl::Create(new_contents.get());
+              pos = DetermineInsertionIndexFromState(
+                  tab_strip, new_contents.get(), TabSource::kGeneral, state);
+              ASSERT_TRUE(pos.has_value());
+              checked_states_count++;
+              if (std::optional<int> check_result = check(index)) {
+                ADD_FAILURE() << "ActiveTab: " << index
+                              << " TabBarState: " << DescribeTabBarState(state)
+                              << " ResultIndex: " << pos->index
+                              << " ErrorAtLine: " << *check_result;
+              }
+            }
+          }
+        }
+      }
+    }
+    // Ensure we did many checks.
+    ASSERT_GT(checked_states_count, 100);
+  }
+}
+
+TEST_F(TabsMotionHelperTest, MoveToEdgeOfGroup) {
+  {
+    CreateTabs(7);
+    SetGroupId(2, "a");
+    SetGroupId(3, "a");
+    SetGroupId(4, "a");
+    SetGroupId(5, "a");
+    ParamsFactory factory;
+    factory.SetTarget("last").AddSource("t3");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    auto& helper = helper_or_error.value();
+    RunMoves(*helper);
+    ASSERT_EQ(DescribeTabStrip(),
+              "t0;;;;|t1;;;;|t2;;a;;|t4;;a;;|t5;;a;;|t3;;a;;|t6;;;;");
+  }
+
+  {
+    CreateTabs(7);
+    SetGroupId(2, "a");
+    SetGroupId(3, "a");
+    SetGroupId(4, "a");
+    SetGroupId(5, "a");
+    ParamsFactory factory;
+    factory.SetTarget("first").AddSource("t3");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    auto& helper = helper_or_error.value();
+    RunMoves(*helper);
+    ASSERT_EQ(DescribeTabStrip(),
+              "t0;;;;|t1;;;;|t3;;a;;|t2;;a;;|t4;;a;;|t5;;a;;|t6;;;;");
+  }
+}
+
+TEST_F(TabsMotionHelperTest, MoveToGroupExtId) {
+  {
+    CreateTabs(7);
+    SetGroupId(2, "a");
+    SetGroupId(3, "a");
+    SetGroupId(4, "a");
+    ParamsFactory factory;
+    factory.SetTarget("a").AddSource("t0");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    auto& helper = helper_or_error.value();
+    RunMoves(*helper);
+    ASSERT_EQ(DescribeTabStrip(),
+              "t1;;;;|t0;;;;|t2;;a;;|t3;;a;;|t4;;a;;|t5;;;;|t6;;;;");
+  }
+
+  {
+    CreateTabs(7);
+    SetGroupId(2, "a");
+    SetGroupId(3, "a");
+    SetGroupId(4, "a");
+    ParamsFactory factory;
+    factory.SetTarget("a").AddSource("t0").AddTweak("below");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    auto& helper = helper_or_error.value();
+    RunMoves(*helper);
+    ASSERT_EQ(DescribeTabStrip(),
+              "t1;;;;|t2;;a;;|t3;;a;;|t4;;a;;|t0;;;;|t5;;;;|t6;;;;");
+  }
+
+  {
+    CreateTabs(7);
+    SetGroupId(2, "a");
+    SetGroupId(3, "a");
+    SetGroupId(4, "a");
+    ParamsFactory factory;
+    factory.SetTarget("t4").AddSource("t0").AddTweak("below");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    auto& helper = helper_or_error.value();
+    RunMoves(*helper);
+    ASSERT_EQ(DescribeTabStrip(),
+             "t1;;;;|t2;;a;;|t3;;a;;|t4;;a;;|t0;;;;|t5;;;;|t6;;;;");
+  }
+}
+
+TEST_F(TabsMotionHelperTest, MoveStackToStack) {
+  {
+    CreateTabs(8);
+    SetGroupId(2, "a");
+    SetGroupId(3, "a");
+    SetGroupId(5, "b");
+    SetGroupId(6, "b");
+    ParamsFactory factory;
+    factory
+      // Put content of group a into middle of group b.
+      .SetTarget("t5")
+      .AddSource("a")
+      .AddTweak("below");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    auto& helper = helper_or_error.value();
+    RunMoves(*helper);
+    ASSERT_EQ(DescribeTabStrip(),
+              "t0;;;;|t1;;;;|t4;;;;|t5;;b;;|t2;;a;;|t3;;a;;|t6;;b;;|t7;;;;");
+  }
+
+  {
+    CreateTabs(8);
+    SetGroupId(5, "b");
+    SetGroupId(6, "b");
+    ParamsFactory factory;
+    factory
+      // Put content of group a into middle of group b.
+      .SetTarget("t5")
+      .AddSource("t2")
+      .AddSource("t3")
+      .AddTweak("below");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    auto& helper = helper_or_error.value();
+    RunMoves(*helper);
+    ASSERT_EQ(DescribeTabStrip(),
+              "t0;;;;|t1;;;;|t4;;;;|t5;;b;;|t2;;;;|t3;;;;|t6;;b;;|t7;;;;");
+  }
+
+  {
+    CreateTabs(8);
+    SetGroupId(5, "b");
+    SetGroupId(6, "b");
+    ParamsFactory factory;
+    factory
+      // Put content of group a into middle of group b.
+      .SetTarget(5)
+      .AddSource("t2")
+      .AddSource("t3")
+      .AddTweak("below");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    auto& helper = helper_or_error.value();
+    RunMoves(*helper);
+    ASSERT_EQ(DescribeTabStrip(),
+              "t0;;;;|t1;;;;|t4;;;;|t5;;b;;|t2;;;;|t3;;;;|t6;;b;;|t7;;;;");
+    ASSERT_EQ(helper->SuggestGroup().value_or("ggg"), "b");
+  }
+}
+
+TEST_F(TabsMotionHelperTest, BaseMoveOn) {
+  {
+    CreateTabs(4);
+    ParamsFactory factory;
+    factory
+      .SetTarget("t3")
+      .AddSource("t1")
+      .AddTweak("on");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    auto& helper = helper_or_error.value();
+    RunMoves(*helper);
+    ASSERT_EQ(helper->GetReparentId().value_or("-"), "t3");
+  }
+
+ {
+    CreateTabs(4);
+    ParamsFactory factory;
+    factory
+      .SetTarget("t3")
+      .AddSource("t1")
+      .AddTweak("below");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    auto& helper = helper_or_error.value();
+    RunMoves(*helper);
+    ASSERT_EQ(helper->GetReparentId().value_or("-"), "-");
+  }
+}
+
+TEST_F(TabsMotionHelperTest, MoveStripDown) {
+  {
+    CreateTabs(8);
+    SetGroupId(2, "a");
+    SetGroupId(3, "a");
+    SetGroupId(5, "b");
+    SetGroupId(6, "b");
+    ParamsFactory factory;
+    factory.SetTarget("t5").AddSource("a").AddTweak("below").AddTweak(
+        "strip-down");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    auto& helper = helper_or_error.value();
+    RunMoves(*helper);
+    ASSERT_EQ(DescribeTabStrip(),
+              "t0;;;;|t1;;;;|t4;;;;|t5;;b;;|t2;;a;;|t3;;a;;|t6;;b;;|t7;;;;");
+    ASSERT_EQ(helper->SuggestGroup().value_or("-"), "b");
+  }
+  {
+    CreateTabs(8);
+    SetGroupId(5, "b");
+    SetGroupId(6, "b");
+    ParamsFactory factory;
+    factory.SetTarget("t5").AddSource("t1").AddTweak("above").AddTweak(
+        "strip-down");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    auto& helper = helper_or_error.value();
+    RunMoves(*helper);
+    ASSERT_EQ(helper->SuggestGroup().value_or("-"), "b");
+  }
+  {
+    CreateTabs(8);
+    SetGroupId(5, "b");
+    SetGroupId(6, "b");
+    ParamsFactory factory;
+    factory.SetTarget("t6").AddSource("t1").AddTweak("below").AddTweak(
+        "strip-down");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    auto& helper = helper_or_error.value();
+    RunMoves(*helper);
+    ASSERT_EQ(helper->SuggestGroup().value_or("-"), "b");
+  }
+}
+
+TEST_F(TabsMotionHelperTest, MoveOnGroup) {
+  {
+    CreateTabs(8);
+    SetGroupId(5, "b");
+    SetGroupId(6, "b");
+    ParamsFactory factory;
+    factory.SetTarget("b").AddSource("t1").AddTweak("on");
+    auto helper_or_error = CreateHelper(factory.Build());
+    ASSERT_TRUE(helper_or_error.has_value());
+    auto& helper = helper_or_error.value();
+    RunMoves(*helper);
+    ASSERT_EQ(DescribeTabStrip(),
+              "t0;;;;|t2;;;;|t3;;;;|t4;;;;|t1;;;;|t5;;b;;|t6;;b;;|t7;;;;");
+    ASSERT_EQ(helper->SuggestGroup().value_or("-"), "b");
+  }
+}
+
+namespace {
+class SnapshotSampler {
+ public:
+  void Snap(int active,
+            std::string prefix,
+            tpos::TabPlacingStrategy strategy,
+            int index) {
+    std::string s = base::NumberToString(active) + ";" + prefix + ";" +
+                    DescribeStrategy(strategy) + ";" +
+                    base::NumberToString(index);
+    CHECK(samples.find(s) == samples.end());
+    samples.insert(s);
+    if (expected.find(s) == expected.end()) {
+      errors.push_back(s);
+    } else {
+      expected.erase(s);
+    }
+  }
+
+  void Dump() const {
+    LOG(INFO) << "Double-check before you replace an invalid snapshot!!!";
+    LOG(INFO) << "VALID SNAPSHOT START";
+    for (auto sample : samples) {
+      LOG(INFO) << "\"" << sample << "\"" << ",";
+    }
+    LOG(INFO) << "VALID SNAPSHOT END";
+  }
+
+  void Check() {
+    if (!errors.empty() || !expected.empty()) {
+      for (auto err : errors) {
+        ADD_FAILURE() << "Invalid sample: " << err;
+      }
+      for (auto err : expected) {
+        ADD_FAILURE() << "Missing sample: " << err;
+      }
+      Dump();
+    }
+  }
+
+  std::set<std::string> expected;
+  std::set<std::string> samples;
+  std::vector<std::string> errors;
+};
+}  // namespace
+
+// Test by snapshot. The main purpose of this test is to avoid regressions.
+//
+// If the snapshot does not match, it logs an expected
+// snapshot which you can cut-paste into the code to update sampler.expected.
+//
+// The snapshot contains tabs placed by jscommands:
+//  * "About vivaldi" (and the tabs invoked from Help > ... menu)
+//  * VB-126235 the tab placed by the mouse gesture
+//  * and ordinary tab placed by chrome.tabs.create()
+TEST_F(TabsMotionHelperTest, NewTabByCommandPosition) {
+  using tpos::TabBarState;
+  using tpos::TabPlacingStrategy;
+  using tpos::TabSource;
+  using tpos::TabstackMode;
+  constexpr int last_index = 10;
+  CreateTabs(last_index);
+  SetGroupId(4, "b");
+  SetGroupId(5, "b");
+  SetGroupId(6, "b");
+  auto* tab_strip = browser()->tab_strip_model();
+  TabBarState state;
+  state.source = TabSource::kGeneral;
+  std::optional<tpos::TabPosition> pos;
+  state.tab_stack_mode = TabstackMode::kSubstrip;
+
+  SnapshotSampler sampler;
+
+  sampler.expected = std::set<std::string>({
+      "2;;AlwaysLast;10",
+      "2;;DirectRightOfCurrent;3",
+      "2;;OpenInTabstackWithRelated;3",
+      "2;;RightOfCurrent;3",
+      "2;COMMAND_NEW_TAB_LINK;AlwaysLast;10",
+      "2;COMMAND_NEW_TAB_LINK;DirectRightOfCurrent;3",
+      "2;COMMAND_NEW_TAB_LINK;OpenInTabstackWithRelated;3",
+      "2;COMMAND_NEW_TAB_LINK;RightOfCurrent;3",
+      "2;INFO_PAGE_TAG;AlwaysLast;10",
+      "2;INFO_PAGE_TAG;DirectRightOfCurrent;3",
+      "2;INFO_PAGE_TAG;OpenInTabstackWithRelated;10",
+      "2;INFO_PAGE_TAG;RightOfCurrent;10",
+      "5;;AlwaysLast;7",
+      "5;;DirectRightOfCurrent;6",
+      "5;;OpenInTabstackWithRelated;6",
+      "5;;RightOfCurrent;6",
+      "5;COMMAND_NEW_TAB_LINK;AlwaysLast;7",
+      "5;COMMAND_NEW_TAB_LINK;DirectRightOfCurrent;6",
+      "5;COMMAND_NEW_TAB_LINK;OpenInTabstackWithRelated;6",
+      "5;COMMAND_NEW_TAB_LINK;RightOfCurrent;6",
+      "5;INFO_PAGE_TAG;AlwaysLast;10",
+      "5;INFO_PAGE_TAG;DirectRightOfCurrent;7",
+      "5;INFO_PAGE_TAG;OpenInTabstackWithRelated;10",
+      "5;INFO_PAGE_TAG;RightOfCurrent;10",
+  });
+
+  for (std::string command : {"INFO_PAGE_TAG", "COMMAND_NEW_TAB_LINK", ""}) {
+    for (int active_tab : {5, 2}) {
+      tab_strip->ActivateTabAt(active_tab);
+      for (auto strategy : kStrategies) {
+        state.placement_strategy = strategy;
+        std::unique_ptr<content::WebContents> new_contents =
+            content::WebContentsTester::CreateTestWebContents(profile(),
+                                                              nullptr);
+        TabExtDataImpl::Create(new_contents.get());
+        SetCommand(new_contents.get(), command);
+        pos = DetermineInsertionIndexFromState(tab_strip, new_contents.get(),
+                                               TabSource::kGeneral, state);
+        sampler.Snap(active_tab, command, strategy, pos->index);
+      }
+    }
+  }
+  sampler.Check();
+}
+
+// VB-129239 [regression] "New top level tab" command doesn't open new tab as last tab
+TEST_F(TabsMotionHelperTest, NewTopLevelTab) {
+  using tpos::TabBarState;
+  using tpos::TabPlacingStrategy;
+  using tpos::TabSource;
+  using tpos::TabstackMode;
+  constexpr int last_index = 10;
+  CreateTabs(last_index);
+  SetGroupId(4, "b");
+  SetGroupId(5, "b");
+  SetGroupId(6, "b");
+  auto* tab_strip = browser()->tab_strip_model();
+  TabBarState state;
+  state.source = TabSource::kGeneral;
+  std::optional<tpos::TabPosition> pos;
+  state.tab_stack_mode = TabstackMode::kSubstrip;
+
+  SnapshotSampler sampler;
+
+  sampler.expected = std::set<std::string>({
+      "2;COMMAND_NEW_TAB_OUTSIDE_GROUP;AlwaysLast;10",
+      "2;COMMAND_NEW_TAB_OUTSIDE_GROUP;DirectRightOfCurrent;3",
+      "2;COMMAND_NEW_TAB_OUTSIDE_GROUP;OpenInTabstackWithRelated;10",
+      "2;COMMAND_NEW_TAB_OUTSIDE_GROUP;RightOfCurrent;10",
+      "5;COMMAND_NEW_TAB_OUTSIDE_GROUP;AlwaysLast;10",
+      "5;COMMAND_NEW_TAB_OUTSIDE_GROUP;DirectRightOfCurrent;7",
+      "5;COMMAND_NEW_TAB_OUTSIDE_GROUP;OpenInTabstackWithRelated;10",
+      "5;COMMAND_NEW_TAB_OUTSIDE_GROUP;RightOfCurrent;10",
+  });
+
+  const std::string command = "COMMAND_NEW_TAB_OUTSIDE_GROUP";
+
+  for (int active_tab : {5, 2}) {
+    tab_strip->ActivateTabAt(active_tab);
+    for (auto strategy : kStrategies) {
+      state.placement_strategy = strategy;
+      std::unique_ptr<content::WebContents> new_contents =
+          content::WebContentsTester::CreateTestWebContents(profile(), nullptr);
+      TabExtDataImpl::Create(new_contents.get());
+      SetCommand(new_contents.get(), command);
+      pos = DetermineInsertionIndexFromState(tab_strip, new_contents.get(),
+                                             TabSource::kGeneral, state);
+      sampler.Snap(active_tab, command, strategy, pos->index);
+    }
+  }
+  sampler.Check();
+}
+
+// Ensures TabInvokedBy::kEmailLink, TabInvokedBy::kEmailLinkBackground,
+// TabInvokedBy::kHtml, and TabInvokedBy::kBackground behavior won't change
+// unnoticed.
+TEST_F(TabsMotionHelperTest, InvokedByLinkClickSnapshot) {
+  using tpos::TabBarState;
+  using tpos::TabPlacingStrategy;
+  using tpos::TabSource;
+  using tpos::TabstackMode;
+  constexpr int last_index = 10;
+  CreateTabs(last_index);
+  SetGroupId(4, "b");
+  SetGroupId(5, "b");
+  SetGroupId(6, "b");
+  auto* tab_strip = browser()->tab_strip_model();
+  tab_strip->SetTabPinned(0, true);
+  TabBarState state;
+  state.source = TabSource::kGeneral;
+  std::optional<tpos::TabPosition> pos;
+  state.tab_stack_mode = TabstackMode::kSubstrip;
+
+  SnapshotSampler sampler;
+
+  sampler.expected = std::set<std::string>({
+      "0;Background;AlwaysLast;10",
+      "0;Background;DirectRightOfCurrent;1",
+      "0;Background;OpenInTabstackWithRelated;1",
+      "0;Background;RightOfCurrent;1",
+      "0;EmailLink;AlwaysLast;10",
+      "0;EmailLink;DirectRightOfCurrent;1",
+      "0;EmailLink;OpenInTabstackWithRelated;10",
+      "0;EmailLink;RightOfCurrent;10",
+      "0;EmailLinkBackground;AlwaysLast;10",
+      "0;EmailLinkBackground;DirectRightOfCurrent;1",
+      "0;EmailLinkBackground;OpenInTabstackWithRelated;10",
+      "0;EmailLinkBackground;RightOfCurrent;10",
+      "0;Html;AlwaysLast;10",
+      "0;Html;DirectRightOfCurrent;1",
+      "0;Html;OpenInTabstackWithRelated;1",
+      "0;Html;RightOfCurrent;1",
+      "2;Background;AlwaysLast;10",
+      "2;Background;DirectRightOfCurrent;3",
+      "2;Background;OpenInTabstackWithRelated;3",
+      "2;Background;RightOfCurrent;3",
+      "2;EmailLink;AlwaysLast;10",
+      "2;EmailLink;DirectRightOfCurrent;3",
+      "2;EmailLink;OpenInTabstackWithRelated;10",
+      "2;EmailLink;RightOfCurrent;10",
+      "2;EmailLinkBackground;AlwaysLast;10",
+      "2;EmailLinkBackground;DirectRightOfCurrent;3",
+      "2;EmailLinkBackground;OpenInTabstackWithRelated;10",
+      "2;EmailLinkBackground;RightOfCurrent;10",
+      "2;Html;AlwaysLast;10",
+      "2;Html;DirectRightOfCurrent;3",
+      "2;Html;OpenInTabstackWithRelated;3",
+      "2;Html;RightOfCurrent;3",
+      "5;Background;AlwaysLast;7",
+      "5;Background;DirectRightOfCurrent;6",
+      "5;Background;OpenInTabstackWithRelated;6",
+      "5;Background;RightOfCurrent;6",
+      "5;EmailLink;AlwaysLast;10",
+      "5;EmailLink;DirectRightOfCurrent;7",
+      "5;EmailLink;OpenInTabstackWithRelated;10",
+      "5;EmailLink;RightOfCurrent;10",
+      "5;EmailLinkBackground;AlwaysLast;10",
+      "5;EmailLinkBackground;DirectRightOfCurrent;7",
+      "5;EmailLinkBackground;OpenInTabstackWithRelated;10",
+      "5;EmailLinkBackground;RightOfCurrent;10",
+      "5;Html;AlwaysLast;7",
+      "5;Html;DirectRightOfCurrent;6",
+      "5;Html;OpenInTabstackWithRelated;6",
+      "5;Html;RightOfCurrent;6",
+  });
+
+  for (int active_tab : {0, 5, 2}) {
+    tab_strip->ActivateTabAt(active_tab);
+    for (auto invoked_by : {
+             TabInvokedBy::kEmailLink,
+             TabInvokedBy::kEmailLinkBackground,
+             TabInvokedBy::kHtml,
+             TabInvokedBy::kBackground,
+         }) {
+      for (auto strategy : kStrategies) {
+        state.placement_strategy = strategy;
+        std::unique_ptr<content::WebContents> new_contents =
+            content::WebContentsTester::CreateTestWebContents(profile(),
+                                                              nullptr);
+        auto* ext = TabExtDataImpl::Create(new_contents.get());
+        TabPositioningParams positioning_params;
+        positioning_params.invoked_by = invoked_by;
+        ext->SetPositioningParams(positioning_params);
+
+        pos = DetermineInsertionIndexFromState(tab_strip, new_contents.get(),
+                                               TabSource::kGeneral, state);
+        sampler.Snap(active_tab, DescribeInvokedBy(invoked_by), strategy,
+                     pos->index);
+      }
+    }
+  }
+  sampler.Check();
+}
+
+// The tab was created by clicking an email link; VB-126815
+TEST_F(TabsMotionHelperTest, NewTabEmailLink) {
+  using tpos::TabBarState;
+  using tpos::TabPlacingStrategy;
+  using tpos::TabSource;
+  using tpos::TabstackMode;
+  constexpr int last_index = 10;
+  CreateTabs(last_index);
+
+  const int last_in_group = 6;
+  SetGroupId(last_in_group - 2, "b");
+  SetGroupId(last_in_group - 1, "b");
+  SetGroupId(last_in_group, "b");
+
+  auto* tab_strip = browser()->tab_strip_model();
+  tab_strip->SetTabPinned(0, true);
+  tab_strip->SetTabPinned(1, true);
+  TabBarState state;
+  state.source = TabSource::kGeneral;
+  std::optional<tpos::TabPosition> pos;
+  state.tab_stack_mode = TabstackMode::kSubstrip;
+
+  for (int active_tab = 0; active_tab < last_index; ++active_tab) {
+    tab_strip->ActivateTabAt(active_tab);
+    for (auto invoked_by :
+         {TabInvokedBy::kEmailLink, TabInvokedBy::kEmailLinkBackground}) {
+      for (auto strategy : kStrategies) {
+        state.placement_strategy = strategy;
+        std::unique_ptr<content::WebContents> new_contents =
+            content::WebContentsTester::CreateTestWebContents(profile(),
+                                                              nullptr);
+        auto* ext = TabExtDataImpl::Create(new_contents.get());
+
+        TabPositioningParams positioning_params;
+        positioning_params.invoked_by = invoked_by;
+        ext->SetPositioningParams(positioning_params);
+        pos = DetermineInsertionIndexFromState(tab_strip, new_contents.get(),
+                                               TabSource::kGeneral, state);
+        ASSERT_TRUE(pos.has_value());
+        // This is described in VB-126815
+        if (strategy == tpos::TabPlacingStrategy::kDirectRightOfCurrent) {
+          // Exception: kDirectRightOfCurrent works as defined
+          // Exception of exception: if the active tab is within a group, the
+          // new tab is created after this group.
+          if (active_tab == 4 || active_tab == 5 || active_tab == 6) {
+            ASSERT_EQ(pos->index, last_in_group + 1);
+          } else {
+            ASSERT_EQ(pos->index, active_tab + 1);
+          }
+        } else {
+          // Always last.
+          ASSERT_EQ(pos->index, last_index);
+        }
+      }
+    }
+  }
 }
 
 }  // namespace vivaldi

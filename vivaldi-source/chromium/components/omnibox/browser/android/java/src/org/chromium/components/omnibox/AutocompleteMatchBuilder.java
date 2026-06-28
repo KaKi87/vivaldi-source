@@ -40,11 +40,13 @@ public class AutocompleteMatchBuilder {
     private String mImageDominantColor;
     private int mTransition;
     private boolean mIsDeletable;
+    private int mStarterPackId;
     private String mPostContentType;
     private byte[] mPostData;
     private int mGroupId;
     private byte[] mClipboardImageData;
     private boolean mHasTabMatch;
+    private int mAndroidTabId;
     private List<OmniboxAction> mActions;
     private boolean mAllowedToBeDefaultMatch;
     private String mInlineAutocompletion;
@@ -93,11 +95,13 @@ public class AutocompleteMatchBuilder {
         mImageDominantColor = null;
         mTransition = 0;
         mIsDeletable = false;
+        mStarterPackId = 0;
         mPostContentType = null;
         mPostData = null;
         mGroupId = AutocompleteMatch.INVALID_GROUP;
         mClipboardImageData = null;
         mHasTabMatch = false;
+        mAndroidTabId = 0;
         mActions = null;
         mAllowedToBeDefaultMatch = false;
         mInlineAutocompletion = null;
@@ -136,11 +140,13 @@ public class AutocompleteMatchBuilder {
                 mImageUrl,
                 mImageDominantColor,
                 mIsDeletable,
+                mStarterPackId,
                 mPostContentType,
                 mPostData,
                 mGroupId,
                 mClipboardImageData,
                 mHasTabMatch,
+                mAndroidTabId,
                 mActions,
                 mAllowedToBeDefaultMatch,
                 mInlineAutocompletion,
@@ -277,6 +283,15 @@ public class AutocompleteMatchBuilder {
     }
 
     /**
+     * @param androidTabId Android Tab ID for the matching tab.
+     * @return Omnibox suggestion builder.
+     */
+    public AutocompleteMatchBuilder setAndroidTabId(int androidTabId) {
+        mAndroidTabId = androidTabId;
+        return this;
+    }
+
+    /**
      * @param type Suggestion type.
      * @return Omnibox suggestion builder.
      */
@@ -309,6 +324,15 @@ public class AutocompleteMatchBuilder {
      */
     public AutocompleteMatchBuilder setDeletable(boolean isDeletable) {
         mIsDeletable = isDeletable;
+        return this;
+    }
+
+    /**
+     * @param starterPackId The starter pack engine id.
+     * @return Omnibox suggestion builder.
+     */
+    public AutocompleteMatchBuilder setStarterPackId(int starterPackId) {
+        mStarterPackId = starterPackId;
         return this;
     }
 

@@ -48,6 +48,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
+// Vivaldi
+import org.chromium.base.ThreadUtils;
+import org.chromium.build.BuildConfig;
+
+import org.chromium.url.GURL;
+
+import org.vivaldi.browser.common.VivaldiUrlUtils;
+
 /** Provides a list of Chrome-provided sharing options. */
 @NullMarked
 public abstract class ChromeProvidedSharingOptionsProviderBase {
@@ -63,6 +71,10 @@ public abstract class ChromeProvidedSharingOptionsProviderBase {
     private static final String USER_ACTION_PRINT_SELECTED = "SharingHubAndroid.PrintSelected";
     protected static final String USER_ACTION_LONG_SCREENSHOT_SELECTED =
             "SharingHubAndroid.LongScreenshotSelected";
+
+    // Vivaldi
+    private static final String USER_ACTION_COPY_LINK_NO_PARAMETERS_SELECTED =
+            "SharingHubAndroid.CopyLinkNoParametersSelected";
 
     protected final Activity mActivity;
     protected final @Nullable WindowAndroid mWindowAndroid;
@@ -291,6 +303,9 @@ public abstract class ChromeProvidedSharingOptionsProviderBase {
     protected void initializeFirstPartyOptionsInOrder() {
         maybeAddCopyFirstPartyOption();
 
+        if (BuildConfig.IS_VIVALDI) { // Vivaldi VAB-7479
+            maybeAddCopyLinkNoParametersFirstPartyOption();
+        } // Vivaldi end
         // TODO(386833405): Decide on priority for this option.
         maybeAddCollaborateFirstPartyOption();
 
@@ -506,4 +521,36 @@ public abstract class ChromeProvidedSharingOptionsProviderBase {
      * supported.
      */
     protected abstract @Nullable FirstPartyOption createCollaborateFirstPartyOption();
+
+    // Vivaldi VAB-7479
+    private void maybeAddCopyLinkNoParametersFirstPartyOption() {
+        if (mTabProvider.get() == null || mTabProvider.get().getUrl() == null
+                || BuildConfig.IS_VIVALDI /*Disabled*/) { // VAB-12914
+            return;
+        }
+        FirstPartyOption option = createAddCopyLinkNoParametersFirstPartyOption();
+        if (option != null) {
+            mOrderedFirstPartyOptions.add(option);
+        }
+    }
+
+    private @Nullable FirstPartyOption createAddCopyLinkNoParametersFirstPartyOption() {
+        return new FirstPartyOptionBuilder(
+                ContentType.LINK_PAGE_VISIBLE, ContentType.LINK_PAGE_NOT_VISIBLE)
+                .setIcon(R.drawable.ic_content_copy, R.string.copy_link_no_parameters_title)
+                .setFeatureNameForMetrics(USER_ACTION_COPY_LINK_NO_PARAMETERS_SELECTED)
+                .setShareActionType(ShareCustomAction.COPY_LINK_NO_PARAMETERS)
+                .setOnClickCallback((view) -> {
+                    ThreadUtils.runOnUiThread(() -> {
+                        if (mShareParams.getUrl() != null) {
+                            GURL strippedUrl = !mShareParams.getUrl().isEmpty()
+                                    ? VivaldiUrlUtils.copyUrlWithoutParameters(
+                                    new GURL(mShareParams.getUrl()))
+                                    : GURL.emptyGURL();
+                            Clipboard.getInstance().copyUrlToClipboard(strippedUrl);
+                        }
+                    });
+                })
+                .build();
+    } // End Vivaldi
 }

@@ -1,13 +1,13 @@
 source_set("kagi_token") {
   sources = [
+    "kagi_token_cookie_listener.h",
     "kagi_token_cookie_listnener.cc",
-    "kagi_token_cookie_listener.h"
   ]
 
   deps = [
     "//services/network:network_service",
     "//services/network/public/cpp",
     "//services/network/public/mojom",
-    "//vivaldi/prefs"
+    "//vivaldi/prefs",
   ]
 }

@@ -25,13 +25,18 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <vector>
 
-#include "dawn/common/Math.h"
-#include "dawn/tests/DawnTest.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/TestUtils.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/common/Math.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/TestUtils.h"
+#include "src/dawn/utils/WGPUHelpers.h"
 
 namespace dawn {
 namespace {
@@ -140,7 +145,14 @@ class BufferZeroInitTest : public DawnTest {
         wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
         encoder.CopyTextureToBuffer(&texelCopyTextureInfo, &texelCopyBufferInfo, &spec.textureSize);
         wgpu::CommandBuffer commandBuffer = encoder.Finish();
-        EXPECT_LAZY_CLEAR(spec.lazyClearCount, queue.Submit(1, &commandBuffer));
+
+        // TODO(b/513631768): SetInitialized is now skipped for use_blit_for_t2b path.
+        uint32_t expectedLazyClearCount = spec.lazyClearCount;
+        if (expectedLazyClearCount == 0u && (HasToggleEnabled("use_blit_for_t2b"))) {
+            expectedLazyClearCount = 1u;
+        }
+
+        EXPECT_LAZY_CLEAR(expectedLazyClearCount, queue.Submit(1, &commandBuffer));
 
         const uint64_t expectedValueCount = bufferSize / sizeof(float);
         std::vector<float> expectedValues(expectedValueCount, 0.f);
@@ -962,6 +974,9 @@ TEST_P(BufferZeroInitTest, Copy2DTextureToBuffer) {
 // Test that the code path of CopyTextureToBuffer clears the destination buffer correctly when it is
 // the first use of the buffer and the texture is a 2D array texture.
 TEST_P(BufferZeroInitTest, Copy2DArrayTextureToBuffer) {
+    // TODO(crbug.com/500445352): Produces incorrect output on Win/AMD RX 5500 XT.
+    DAWN_SUPPRESS_TEST_IF(IsWindows11() && IsAMD() && IsD3D11());
+
     constexpr wgpu::Extent3D kTextureSize = {64u, 4u, 3u};
 
     // bytesPerRow == texelBlockSizeInBytes * copySize.width && rowsPerImage == copySize.height &&
@@ -1109,6 +1124,74 @@ TEST_P(BufferZeroInitTest, BoundAsStorageBuffer) {
     }
 }
 
+// Test that a dispatch of size 0 does not cause a desync in state tracking,
+// bypassing lazy clearing of buffers used in subsequent dispatches in the same pass.
+// This was happening in D3D12's command buffer processing because we'd early return
+// when one of the dispatch args was 0 without incrementing the currentDispatch counter.
+TEST_P(BufferZeroInitTest, DispatchZeroDesync) {
+    // Create a shader that reads from a storage buffer.
+    wgpu::ShaderModule module = utils::CreateShaderModule(device, R"(
+        @group(0) @binding(0) var<storage, read> ssbo : array<u32>;
+        @group(0) @binding(1) var<storage, read_write> outbuf : array<u32>;
+
+        @compute @workgroup_size(1)
+        fn main(@builtin(global_invocation_id) gid : vec3u) {
+            let i = gid.x;
+            if (i < arrayLength(&outbuf)) {
+                outbuf[i] = ssbo[i];
+            }
+        }
+    )");
+
+    wgpu::ComputePipelineDescriptor pipelineDescriptor;
+    pipelineDescriptor.layout = nullptr;
+    pipelineDescriptor.compute.module = module;
+    wgpu::ComputePipeline pipeline = device.CreateComputePipeline(&pipelineDescriptor);
+
+    constexpr uint64_t kBufferSize = 256u;
+
+    // noop buffer for the 0 dispatch. Initialize it so it doesn't need lazy clear.
+    std::vector<uint32_t> noopData(kBufferSize / sizeof(uint32_t), 0u);
+    wgpu::Buffer noopBuffer =
+        utils::CreateBufferFromData(device, noopData.data(), kBufferSize,
+                                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
+
+    // victimBuf: not initialized so it stays in NeedsInitialization state.
+    wgpu::Buffer victimBuf =
+        CreateBuffer(kBufferSize, wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc);
+
+    // outBuf: pre-initialize so its own lazy-clear doesn't hide the leak
+    wgpu::Buffer outBuf = utils::CreateBufferFromData(
+        device, noopData.data(), kBufferSize,
+        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc | wgpu::BufferUsage::CopyDst);
+
+    wgpu::BindGroup noopBindGroup = utils::MakeBindGroup(device, pipeline.GetBindGroupLayout(0),
+                                                         {{0, noopBuffer}, {1, outBuf}});
+    wgpu::BindGroup victimBG =
+        utils::MakeBindGroup(device, pipeline.GetBindGroupLayout(0), {{0, victimBuf}, {1, outBuf}});
+
+    wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+    wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+    pass.SetPipeline(pipeline);
+
+    pass.SetBindGroup(0, noopBindGroup);
+    pass.DispatchWorkgroups(0, 1, 1);
+
+    pass.SetBindGroup(0, victimBG);
+    // This dispatch should lazy-clear victimBuf
+    pass.DispatchWorkgroups(1, 1, 1);
+
+    pass.End();
+    wgpu::CommandBuffer commandBuffer = encoder.Finish();
+
+    // Expect one lazy clear for victimBuf.
+    EXPECT_LAZY_CLEAR(1u, queue.Submit(1, &commandBuffer));
+
+    // Also verify that outBuf contains zeros.
+    std::vector<uint32_t> expected(kBufferSize / sizeof(uint32_t), 0u);
+    EXPECT_BUFFER_U32_RANGE_EQ(expected.data(), outBuf, 0, expected.size());
+}
+
 // Test the buffer will be lazily initialized correctly when its first use is in SetVertexBuffer.
 TEST_P(BufferZeroInitTest, SetVertexBuffer) {
     // Bind the whole buffer as a vertex buffer.
@@ -1144,6 +1227,10 @@ TEST_P(BufferZeroInitTest, PaddingInitialized) {
 
     // TODO(crbug.com/473593119): [Capture] size not multiple of 4.
     DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
+
+    // TODO(crbug.com/513631768): Skip D3D11 as they may use intermediate buffer for blit
+    // path and fail for EXPECT_LAZY_CLEAR.
+    DAWN_SUPPRESS_TEST_IF(IsD3D11());
 
     constexpr wgpu::TextureFormat kColorAttachmentFormat = wgpu::TextureFormat::RGBA8Unorm;
     // A small sub-4-byte format means a single vertex can fit entirely within the padded buffer,
@@ -1214,7 +1301,13 @@ TEST_P(BufferZeroInitTest, PaddingInitialized) {
                     encoder.CopyTextureToBuffer(&zeroTextureSrc, &dst, &extent);
 
                     wgpu::CommandBuffer commandBuffer = encoder.Finish();
-                    EXPECT_LAZY_CLEAR(0u, queue.Submit(1, &commandBuffer));
+
+                    // TODO(b/513631768): SetInitialized is now skipped for use_blit_for_t2b path.
+                    uint32_t expectedLazyClearCount = 0u;
+                    if (HasToggleEnabled("use_blit_for_t2b")) {
+                        expectedLazyClearCount = 1u;
+                    }
+                    EXPECT_LAZY_CLEAR(expectedLazyClearCount, queue.Submit(1, &commandBuffer));
                 }
 
                 wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
@@ -1393,26 +1486,17 @@ TEST_P(BufferZeroInitTest, ResolveQuerySet) {
 }
 
 DAWN_INSTANTIATE_TEST(BufferZeroInitTest,
-                      D3D11Backend({"nonzero_clear_resources_on_creation_for_testing",
-                                    "timestamp_query_conversion_even_if_1ns"}),
+                      D3D11Backend({"nonzero_clear_resources_on_creation_for_testing"}),
                       D3D11Backend({"auto_map_backend_buffer", "d3d11_disable_cpu_buffers",
-                                    "nonzero_clear_resources_on_creation_for_testing",
-                                    "timestamp_query_conversion_even_if_1ns"}),
-                      D3D12Backend({"nonzero_clear_resources_on_creation_for_testing",
-                                    "timestamp_query_conversion_even_if_1ns"}),
-                      D3D12Backend({"nonzero_clear_resources_on_creation_for_testing",
-                                    "timestamp_query_conversion_even_if_1ns"},
+                                    "nonzero_clear_resources_on_creation_for_testing"}),
+                      D3D12Backend({"nonzero_clear_resources_on_creation_for_testing"}),
+                      D3D12Backend({"nonzero_clear_resources_on_creation_for_testing"},
                                    {"d3d12_create_not_zeroed_heap"}),
-                      MetalBackend({"nonzero_clear_resources_on_creation_for_testing",
-                                    "timestamp_query_conversion_even_if_1ns"}),
-                      OpenGLBackend({"nonzero_clear_resources_on_creation_for_testing",
-                                     "timestamp_query_conversion_even_if_1ns"}),
-                      OpenGLESBackend({"nonzero_clear_resources_on_creation_for_testing",
-                                       "timestamp_query_conversion_even_if_1ns"}),
-                      VulkanBackend({"nonzero_clear_resources_on_creation_for_testing",
-                                     "timestamp_query_conversion_even_if_1ns"}),
-                      WebGPUBackend({"nonzero_clear_resources_on_creation_for_testing",
-                                     "timestamp_query_conversion_even_if_1ns"}));
+                      MetalBackend({"nonzero_clear_resources_on_creation_for_testing"}),
+                      OpenGLBackend({"nonzero_clear_resources_on_creation_for_testing"}),
+                      OpenGLESBackend({"nonzero_clear_resources_on_creation_for_testing"}),
+                      VulkanBackend({"nonzero_clear_resources_on_creation_for_testing"}),
+                      WebGPUBackend({"nonzero_clear_resources_on_creation_for_testing"}));
 
 }  // anonymous namespace
 }  // namespace dawn

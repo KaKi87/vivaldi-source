@@ -34,15 +34,15 @@
 #include "base/android/bundle_utils.h"
 #include "base/task/thread_pool/environment_config.h"
 #include "build/android_buildflags.h"
-#include "chrome/browser/android/flags/chrome_cached_flags.h"
+#include "chrome/browser/android/flags/chrome_cached_flags.h"  // nogncheck crbug.com/40147906
 #include "chrome/browser/flags/android/chrome_feature_list.h"
 #include "chrome/browser/media/webrtc/desktop_media_picker.h"
 #include "chrome/common/chrome_features.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "content/public/common/content_features.h"
+#include "gpu/config/gpu_finch_features.h"
 #include "media/audio/audio_features.h"
 #include "media/base/media_switches.h"
-#include "gpu/config/gpu_finch_features.h"
 #include "sandbox/policy/features.h"
 #include "ui/gl/gl_features.h"
 #include "ui/gl/gl_switches.h"
@@ -149,22 +149,17 @@ void ChromeBrowserFieldTrials::RegisterFeatureOverrides(
   // override in the generic IS_ANDROID block below, guarded by an appropriate
   // runtime check.
 
-  // Enable the link hover status bar.
-  // TODO(crbug.com/404678510): Remove when the feature is stable.
-  feature_overrides.EnableFeature(chrome::android::kLinkHoverStatusBar);
-
-  // If enabled, render processes associated only with tabs in unfocused windows
-  // will be downgraded to "vis" priority, rather than remaining at "fg". This
-  // will allow tabs in unfocused windows to be prioritized for OOM kill in
-  // low-memory scenarios.
-  feature_overrides.EnableFeature(chrome::android::kChangeUnfocusedPriority);
+  // Enables media capture (tab+window+screen sharing).
+  // TODO(crbug.com/352187279): Remove when tablet rollout is complete.
+  feature_overrides.EnableFeature(kAndroidMediaPicker);
+  feature_overrides.EnableFeature(features::kUserMediaScreenCapturing);
 
   // Enable background media capturing on desktop devices.
   // TODO(crbug.com/426461170): Remove once we enable this feature for all form
   // factors. Currently we have no conclusion whether to enable this on mobile
   // phones yet.
   feature_overrides.EnableFeature(
-      features::kAndroidEnableBackgroundMediaCapturing);
+      media::kAndroidEnableBackgroundMediaCapturing);
   // TODO(crbug.com/465596248): Remove when experiment is complete.
   feature_overrides.EnableFeature(chrome::android::kProtectRecentlyVisibleTab);
   // TODO(crbug.com/422903297): Remove when tablet rollout is complete.
@@ -176,10 +171,6 @@ void ChromeBrowserFieldTrials::RegisterFeatureOverrides(
   // factors.
   feature_overrides.EnableFeature(
       autofill::features::kAutofillAndroidDesktopSuppressAccessoryOnEmpty);
-  // TODO(crbug.com/436900619): Remove when the long term solution is
-  // implemented.
-  feature_overrides.EnableFeature(
-      chrome::android::kLockTopControlsOnLargeTablets);
   // TODO(crbug.com/445446479): Remove when rollout is complete to all form
   // factors.
   feature_overrides.EnableFeature(
@@ -219,10 +210,6 @@ void ChromeBrowserFieldTrials::RegisterFeatureOverrides(
   // factors.
   feature_overrides.EnableFeature(
       autofill::features::kAutofillAndroidDesktopKeyboardAccessoryRevamp);
-  // Enable by default for desktop platforms, pending a tablet rollout using the
-  // same flag.
-  // TODO(crbug.com/445475304): Remove when tablet rollout is complete.
-  feature_overrides.EnableFeature(feed::kAndroidOpenIncognitoAsWindow);
 
   // Enable ANGLE/Vulkan features.
   // TODO (crbug.com//376280554): Enable these features with runtime checks
@@ -249,7 +236,7 @@ void ChromeBrowserFieldTrials::RegisterFeatureOverrides(
   // TODO(crbug.com/448420873): Remove once we enable this feature for all form
   // factors. This is currently blocked by performance regressions on low-end
   // Android devices.
-  feature_overrides.DisableFeature(features::kWebContentsDiscard); // Vivaldi
+  feature_overrides.EnableFeature(features::kWebContentsDiscard);
   feature_overrides.DisableFeature(features::kLazyBrowserInterfaceBroker); // Vivaldi
   feature_overrides.DisableFeature(chrome::android::kLoadAllTabsAtStartup); // Vivaldi
 
@@ -270,9 +257,15 @@ void ChromeBrowserFieldTrials::RegisterFeatureOverrides(
   // TODO(crbug.com/450281745): Remove once feature is enabled by default.
   feature_overrides.EnableFeature(::features::kAndroidDesktopZoomScaling);
 
-  // Enable Android desktop fluid resize to improve UX.
-  // TODO(crbug.com/464967916): Remove when the feature is stable.
-  feature_overrides.EnableFeature(features::kFluidResize);
+  // Enables desktop page web prefs for large displays on Android.
+  // TODO(crbug.com/433519850): Remove once feature is enabled by default.
+  feature_overrides.EnableFeature(
+      blink::features::kAndroidDesktopWebPrefsLargeDisplays);
+
+  // Enable timeout for TextClassifier calls.
+  // TODO(crbug.com/504722790): Remove when experiment is complete.
+  feature_overrides.EnableFeature(features::kTextClassifierTimeout);
+
 #endif  // BUILDFLAG(IS_DESKTOP_ANDROID)
   // Desktop-first features which are past incubation should either end up here,
   // or to a finch trial that enables it for all form factors.

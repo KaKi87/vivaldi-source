@@ -30,7 +30,6 @@
 #import "components/autofill/ios/browser/autofill_client_ios.h"
 #import "components/autofill/ios/browser/autofill_client_ios_bridge.h"
 #import "components/infobars/core/infobar_manager.h"
-#import "components/plus_addresses/core/browser/plus_address_types.h"
 #import "components/prefs/pref_service.h"
 #import "components/strike_database/strike_database.h"
 #import "components/sync/service/sync_service.h"
@@ -49,6 +48,7 @@ class WebState;
 namespace autofill {
 
 class AutofillAiSaveEntityInfoBarDelegateIOS;
+class AutofillSuggestionDelegate;
 class LogRouter;
 
 enum class SuggestionType;
@@ -112,6 +112,7 @@ class ChromeAutofillClientIOS : public AutofillClientIOS {
   syncer::SyncService* GetSyncService() override;
   signin::IdentityManager* GetIdentityManager() override;
   const signin::IdentityManager* GetIdentityManager() const override;
+  metrics::ProfileMetricsService* GetProfileMetricsService() override;
   const GoogleGroupsManager* GetGoogleGroupsManager() const override;
   FormDataImporter* GetFormDataImporter() override;
   payments::IOSChromePaymentsAutofillClient* GetPaymentsAutofillClient()
@@ -134,12 +135,10 @@ class ChromeAutofillClientIOS : public AutofillClientIOS {
   SuggestionUiSessionId ShowAutofillSuggestions(
       const PopupOpenArgs& open_args,
       base::WeakPtr<AutofillSuggestionDelegate> delegate) override;
-  void ShowPlusAddressEmailOverrideNotification(
-      const std::string& original_email,
-      EmailOverrideUndoCallback email_override_undo_callback) override;
   void UpdateAutofillDataListValues(
       base::span<const autofill::SelectOption> datalist) override;
-  void HideAutofillSuggestions(SuggestionHidingReason reason) override;
+  void HideSuggestions(SuggestionHidingReason reason,
+                       std::optional<FillingProduct> product) override;
   bool IsAutofillEnabled() const override;
   bool IsAutofillProfileEnabled() const override;
   bool IsWalletPublicPassStorageEnabled() const override;
@@ -152,7 +151,6 @@ class ChromeAutofillClientIOS : public AutofillClientIOS {
   const AutofillAblationStudy& GetAblationStudy() const override;
   bool IsLastQueriedField(FieldGlobalId field_id) override;
   bool ShouldFormatForLargeKeyboardAccessory() const override;
-  AutofillPlusAddressDelegate* GetPlusAddressDelegate() override;
   // Returns a pointer to a DeviceAuthenticator. Might be nullptr if the given
   // platform is not supported.
   std::unique_ptr<device_reauth::DeviceAuthenticator> GetDeviceAuthenticator(
@@ -228,6 +226,10 @@ class ChromeAutofillClientIOS : public AutofillClientIOS {
   __weak UIViewController* base_view_controller_;
 
   __weak id<AutofillCommands> commands_handler_;
+
+  // Holds a weak reference to the delegate driving the active suggestions
+  // popup.
+  base::WeakPtr<AutofillSuggestionDelegate> active_suggestion_delegate_;
 
   // If this is true, we consider the form to be secure.
   // Only use this for testing purposes!

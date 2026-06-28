@@ -6,24 +6,45 @@
           few {Створено <ph name="NUM_WEEKS_MANY" /> тижні тому}
           other {Створено <ph name="NUM_WEEKS_MANY" /> тижнів тому}
         }</translation>
-<translation id="1062777154504442433">Нова група вкладок</translation>
+<translation id="1062777154504442433">Нова група</translation>
 <translation id="1092908249939127748">{NUM_MONTHS, plural,
           =1 {Створено <ph name="NUM_YEARS_ONE" /> рік тому}
           few {Створено <ph name="NUM_YEARS_MANY" /> роки тому}
           other {Створено <ph name="NUM_YEARS_MANY" /> років тому}
         }</translation>
+<translation id="1101895854844881935">{DAY_COUNT, plural,
+          =1 {Неактивні вкладки та групи будуть закриті через 1 місяць}
+          other {Неактивні вкладки та групи будуть закриті через <ph name="MONTH_COUNT_MANY" /> місяців}
+        }</translation>
+<translation id="1133985792690629147">Колір іконки групи <ph name="COLOR_NAME" /></translation>
+<translation id="1166688074841572519">{NUMBER_OF_TABS, plural,
+          =1 {Закрити <ph name="TITLE_OF_GROUP" /> групу з <ph name="TABS_COUNT_ONE" /> вкладкою, <ph name="COLOR_NAME" /> колір.}
+          other {Закрити <ph name="TITLE_OF_GROUP" /> групу з <ph name="TABS_COUNT_MANY" /> вкладками, <ph name="COLOR_NAME" /> колір.}
+        }</translation>
+<translation id="1284091376947323642">Перемістити групу праворуч</translation>
 <translation id="1329584516321524826">Оновлено щойно</translation>
+<translation id="1455797424496857273">{TABS_COUNT, plural,
+          =1 {Додати вкладку в нову групу}
+          other {Додати вкладки в нову групу}
+        }</translation>
+<translation id="1458791605942787797">Нова група з іншого вашого пристрою</translation>
+<translation id="1487138071670610189">Групуйте вкладки перетягуванням</translation>
 <translation id="149054111719651807">{NUM_MINS, plural,
           =1 {Створено <ph name="NUM_MINS_ONE" /> хвилину тому}
           few {Створено <ph name="NUM_MINS_MANY" /> хвилини тому}
           other {Створено <ph name="NUM_MINS_MANY" /> хвилин тому}
         }</translation>
 <translation id="1625440863545383011">Видалити вкладку з групи та покинути групу вкладок</translation>
+<translation id="19713940601468134">Створіть групи, щоб організувати вкладки.</translation>
+<translation id="2001678985916350707">Закриті вкладки та групи можна знову відкрити в розділах Нещодавні вкладки та Групи вкладок.</translation>
+<translation id="216776815027855047">Внесені зміни бачитимуть усі в групі</translation>
+<translation id="2221077170275765262">Група "<ph name="TAB_GROUP_NAME" />" більше недоступна</translation>
+<translation id="2299756585602735249">Список груп, відкритий на пів висоти</translation>
 <translation id="2330212241471632770">{TABS_COUNT, plural,
           =1 {Вкладку в закладки}
           other {Вкладки в закладки}
         }</translation>
-<translation id="2498435670446402865">Перейменувати групу вкладок</translation>
+<translation id="2416147124259461944">Групувати</translation>
 <translation id="2734252994837336591">{NUM_WEEKS, plural,
           =1 {Оновлено <ph name="NUM_WEEKS_ONE" /> тиждень тому}
           few {Оновлено <ph name="NUM_WEEKS_MANY" /> тижні тому}
@@ -39,38 +60,125 @@
           few {Створено <ph name="NUM_HOURS_MANY" /> години тому}
           other {Створено <ph name="NUM_HOURS_MANY" /> годин тому}
         }</translation>
+<translation id="2823409674319971145">Додати нову вкладку в групу</translation>
 <translation id="2947471979790858922">Вашу активність в приватних вкладках буде видалено з пристрою</translation>
+<translation id="3285228391229471836">{TABS_COUNT, plural,
+          =1 {Додати вкладку до групи}
+          other {Додати вкладки до групи}
+        }</translation>
 <translation id="3298614730029636660">Покинути групу вкладок</translation>
+<translation id="3300124386085148622">{TAB_COUNT, plural,
+          =1 {Додати до групи <ph name="TITLE_OF_GROUP" /> з <ph name="TAB_COUNT1" /> вкладкою}
+          other {Додати до групи <ph name="TITLE_OF_GROUP" /> з <ph name="TAB_COUNT1" /> вкладками}
+        }</translation>
+<translation id="3316876767347568113">Видалити вкладку з групи</translation>
 <translation id="354698175756845966">Редагувати колір групи вкладок</translation>
+<translation id="3832906837818406941">Опції групи <ph name="TITLE_OF_GROUP" /></translation>
+<translation id="3917319257151883508">Список груп, відкритий на всю висоту</translation>
+<translation id="3972555006334883530">Ваші групи зберігаються тут і оновлюються на всіх пристроях, на яких ви ввійшли в систему</translation>
+<translation id="3984192732035267948">Відкрити меню дій групи для групи <ph name="TITLE_OF_GROUP" />, колір <ph name="COLOR_NAME" />.</translation>
 <translation id="4009732926939031387">{NUM_DAYS, plural,
           =1 {Створено <ph name="NUM_DAYS_ONE" /> день тому}
           few {Створено <ph name="NUM_DAYS_MANY" /> дні тому}
           other {Створено <ph name="NUM_DAYS_MANY" /> днів тому}
         }</translation>
+<translation id="406102127632982874">{NUMBER_OF_TABS, plural,
+          =1 {Розкрити групу з <ph name="TABS_COUNT_ONE" /> вкладкою, <ph name="COLOR_NAME" /> колір.}
+          other {Розкрити групу з <ph name="TABS_COUNT_MANY" /> вкладками, <ph name="COLOR_NAME" /> колір.}
+        }</translation>
+<translation id="4166594760689356813">Закрити всі вкладки і групу</translation>
+<translation id="423046824994248930">Вибрати або створити нову групу</translation>
+<translation id="4439281775431634915">Ваші групи вкладок збережені тут</translation>
 <translation id="4453940245650019914">{NUM_DAYS, plural,
           =1 {Оновлено <ph name="NUM_DAYS_ONE" /> день тому}
           few {Оновлено <ph name="NUM_DAYS_MANY" /> дні тому}
           other {Оновлено <ph name="NUM_DAYS_MANY" /> днів тому}
         }</translation>
+<translation id="451604412571753027">{TABS_COUNT, plural,
+          =1 {Додати <ph name="TABS_COUNT_ONE" /> вкладку до групи}
+          other {Додати <ph name="TABS_COUNT_MANY" /> вкладок до групи}
+        }</translation>
+<translation id="4521279527488891004">Групи <ph name="USER_EMAIL" /> збережені (вкладки будуть закрити, групи видалені)</translation>
+<translation id="4583669313366060453">{TABS_COUNT, plural,
+          =1 {Вилучити вкладку з групи}
+          other {Вилучити вкладки з групи}
+        }</translation>
 <translation id="4686942373615810936">Щойно створено</translation>
+<translation id="4687160919883774711">Автоматично відкривати групи з інших пристроїв</translation>
+<translation id="4707553699210476405">{NUMBER_OF_TABS, plural,
+          =1 {Розкрити групу <ph name="TITLE_OF_GROUP" /> з <ph name="TABS_COUNT_ONE" /> вкладкою, <ph name="COLOR_NAME" /> колір.}
+          other {Розкрити групу <ph name="TITLE_OF_GROUP" /> з <ph name="TABS_COUNT_MANY" /> вкладками, <ph name="COLOR_NAME" /> колір.}
+        }</translation>
+<translation id="4779979121749047116">Виберіть, коли вкладки та групи автоматично перенесуться до неактивних.</translation>
+<translation id="4804611303502643481">Ви знайдете всі групи вкладок тут</translation>
+<translation id="4811314918290341974">{NUMBER_OF_TABS, plural,
+          =1 {Розкрити загальну теку з <ph name="TABS_COUNT_ONE" /> вкладкою, <ph name="COLOR_NAME" /> колір, з міткою <ph name="CARD_LABEL" />.}
+          other {Розкрити загальну теку з <ph name="TABS_COUNT_MANY" /> вкладками, <ph name="COLOR_NAME" /> колір, з міткою <ph name="CARD_LABEL" />.}
+        }</translation>
+<translation id="4811534123347558992">{NUMBER_OF_TABS, plural,
+          =1 {Розкрити загальну теку з <ph name="TABS_COUNT_ONE" /> вкладкою, <ph name="COLOR_NAME" /> колір.}
+          other {Розкрити загальну теку з <ph name="TABS_COUNT_MANY" /> вкладками, <ph name="COLOR_NAME" /> колір.}
+        }</translation>
 <translation id="4870911314065352661">Закрити усі вкладки?</translation>
 <translation id="4871187110787939393">Закрити усі приватні вкладки?</translation>
+<translation id="5011517165747668569">Вибрати вкладку</translation>
+<translation id="5344746330577571162">{AUTO_DELETE_DELAY, plural,
+            =1 {Vivaldi автоматично закриває неактивні вкладки та групи через <ph name="AUTO_DELETE_DELAY_ONE" /> місяць. Ви можете змінити все в налаштуваннях.}
+            other {Vivaldi автоматично закриває неактивні вкладки та групи через <ph name="AUTO_DELETE_DELAY_MANY" /> місяців. Ви можете змінити все в налаштуваннях.}
+          }</translation>
 <translation id="5494920125229734069">Вибрати все</translation>
+<translation id="5686531930895087743">{INCOGNITO_TABS_COUNT, plural,
+        =1 {Ваші закриті вкладки та групи можуть бути відновлені з розділів Нещодавно закриті та Групи вкладок. Ваша приватна вкладка буде недоступна.}
+        other {Ваші закриті вкладки та групи можуть бути відновлені з розділів Нещодавно закриті та Групи вкладок. Ваші # приватні вкладки будуть недоступні.}}</translation>
+<translation id="570198925265232174">Перейменувати групу</translation>
+<translation id="5782736613560873551">{TAB_GROUPS_COUNT, plural,
+            =1 {<ph name="TAB_GROUPS_COUNT_ONE" /> група більше недоступна}
+            other {<ph name="TAB_GROUPS_COUNT_MANY" /> групи більше недоступні}
+          }</translation>
+<translation id="5932736435198834671">{TABS_COUNT, plural,
+          =1 {Вилучити з групи <ph name="TABS_COUNT_ONE" /> вибрану вкладку}
+          other {Вилучити з групи <ph name="TABS_COUNT_MANY" /> вибрані вкладки}
+        }</translation>
+<translation id="6103180007424260422">{NUMBER_OF_TABS, plural,
+          =1 {Відновити та відкрити групу з <ph name="TABS_COUNT_ONE" /> вкладкою, <ph name="COLOR_NAME" /> колір.}
+          other {Відновити та відкрити групу з <ph name="TABS_COUNT_MANY" /> вкладками, <ph name="COLOR_NAME" /> колір.}
+        }</translation>
+<translation id="618983369399969832">{NUMBER_OF_TABS, plural,
+          =1 {Відновити та відкрити групу <ph name="TITLE_OF_GROUP" /> з <ph name="TABS_COUNT_ONE" /> вкладкою, <ph name="COLOR_NAME" /> колір.}
+          other {Відновити та відкрити групу <ph name="TITLE_OF_GROUP" /> з <ph name="TABS_COUNT_MANY" /> вкладками, <ph name="COLOR_NAME" /> колір.}
+        }</translation>
+<translation id="6484029326952865825">{NUMBER_OF_TABS, plural,
+          =1 {Розкрити загальну теку <ph name="TITLE_OF_GROUP" /> з <ph name="TABS_COUNT_ONE" /> вкладкою, <ph name="COLOR_NAME" /> колір, з міткою <ph name="CARD_LABEL" />.}
+          other {Розкрити загальну теку <ph name="TITLE_OF_GROUP" /> з <ph name="TABS_COUNT_MANY" /> вкладками, <ph name="COLOR_NAME" /> колір, з міткою <ph name="CARD_LABEL" />.}
+        }</translation>
+<translation id="6577665056633327473">{NUMBER_OF_TABS, plural,
+          =1 {Закрити групу з <ph name="TABS_COUNT_ONE" /> вкладкою, <ph name="COLOR_NAME" /> колір.}
+          other {Закрити групу з <ph name="TABS_COUNT_MANY" /> вкладками, <ph name="COLOR_NAME" /> колір.}
+        }</translation>
 <translation id="6807841890213931603">Видалити вкладку з групи та видалити групу вкладок</translation>
+<translation id="692024099672685501">Вкладки та групи вкладок</translation>
+<translation id="7198439757237441132">Показувати групи вкладок в сітці на весь екран</translation>
+<translation id="7251417927463455051">Групи вкладок автоматично зберігаються та оновлюються на всіх ваших пристроях</translation>
 <translation id="750227952939161636">Ваші групи вкладок автоматично зберігаються та оновлюються на всіх ваших пристроях</translation>
 <translation id="7640137753339219124">Видалити групу вкладок</translation>
 <translation id="7653857400289671414">Ваша група вкладок автоматично збережена</translation>
+<translation id="7720577161467416873">Перемістити групу ліворуч</translation>
 <translation id="775668479044571025">{NUM_MONTHS, plural,
           =1 {Оновлено <ph name="NUM_YEARS_ONE" /> рік тому}
           few {Оновлено <ph name="NUM_YEARS_MANY" /> роки тому}
           other {Оновлено <ph name="NUM_YEARS_MANY" /> років тому}
         }</translation>
-<translation id="7825973332242257878">Групи вкладок</translation>
+<translation id="7797448773120597519">{TAB_COUNT, plural,
+          =1 {Вилучити вкладку з групи}
+          other {Вилучити вкладки з групи}}</translation>
+<translation id="7861101756732813803">Групувати <ph name="NUMBER_OF_TABS" /> вкладок?</translation>
+<translation id="8176081848609891478">Групи "<ph name="TAB_GROUP_NAME_1" />" й "<ph name="TAB_GROUP_NAME_2" />" більше недоступні</translation>
 <translation id="8207688828622594111">{NUM_MINS, plural,
           =1 {Оновлено <ph name="NUM_MINS_ONE" /> хвилину тому}
           few {Оновлено <ph name="NUM_MINS_MANY" /> хвилини тому}
           other {Оновлено <ph name="NUM_MINS_MANY" /> хвилин тому}
         }</translation>
+<translation id="825209846084758814">Вкладок в групі: <ph name="TABS_COUNT_ONE" /></translation>
 <translation id="8374451057714760401">{NUM_MONTHS, plural,
                 =1 {Оновлено <ph name="NUM_MONTHS_ONE" /> місяць тому}
                 few {Оновлено <ph name="NUM_MONTHS_MANY" /> місяці тому}
@@ -78,11 +186,23 @@
               }</translation>
 <translation id="8440938071054361204">Редагувати назву групи вкладок</translation>
 <translation id="8602902357364871325">Закрити групу вкладок</translation>
+<translation id="8660513434781407996">Вкладок в групі: <ph name="TABS_COUNT_MANY" /></translation>
+<translation id="8685478989144570078">Групи вкладок</translation>
+<translation id="8686544461740117253">{NUMBER_OF_TABS, plural,
+          =1 {Розкрити загальну теку <ph name="TITLE_OF_GROUP" /> з <ph name="TABS_COUNT_ONE" /> вкладкою, <ph name="COLOR_NAME" /> колір.}
+          other {Розкрити загальну теку<ph name="TITLE_OF_GROUP" /> з <ph name="TABS_COUNT_MANY" /> вкладками, <ph name="COLOR_NAME" /> колір.}
+        }</translation>
 <translation id="875848103419578654">{NUM_MONTHS, plural,
                 =1 {Створено <ph name="NUM_MONTHS_ONE" /> місяць тому}
                 few {Створено <ph name="NUM_MONTHS_MANY" /> місяці тому}
                 other {Створено <ph name="NUM_MONTHS_MANY" /> місяців тому}
               }</translation>
 <translation id="8851621822786801079">Видалити з групи вкладок</translation>
-<translation id="8887921976452567404">Закриті вкладки та групи можна знову відкрити в розділах «Нещодавні вкладки» та «Групи вкладок».</translation>
+<translation id="8882027961563202956">Відкрити меню дій групи для загальної групи <ph name="TITLE_OF_GROUP" />, колір <ph name="COLOR_NAME" />.</translation>
+<translation id="8929097293917882827">Ви знайдете ваші групи тут</translation>
+<translation id="9080816060085763385">{TABS_COUNT, plural,
+          =1 {Додати <ph name="TABS_COUNT_ONE" /> вибрану вкладку до групи}
+          other {Додати <ph name="TABS_COUNT_MANY" /> вибраних вкладок до групи}
+        }</translation>
+<translation id="9107807397058417097">Список груп закритий</translation>
 </translationbundle>

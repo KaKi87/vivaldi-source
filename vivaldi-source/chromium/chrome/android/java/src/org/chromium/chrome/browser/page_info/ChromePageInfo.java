@@ -10,6 +10,7 @@ import android.view.Gravity;
 
 import androidx.annotation.GravityInt;
 
+import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
@@ -41,7 +42,8 @@ public class ChromePageInfo {
     private final Supplier<@Nullable ModalDialogManager> mModalDialogManagerSupplier;
     private final @Nullable String mPublisher;
     private final @OpenedFromSource int mSource;
-    private final @Nullable Supplier<StoreInfoActionHandler> mStoreInfoActionHandlerSupplier;
+    private final @Nullable MonotonicObservableSupplier<StoreInfoActionHandler>
+            mStoreInfoActionHandlerSupplier;
     private final @Nullable Supplier<@Nullable EphemeralTabCoordinator>
             mEphemeralTabCoordinatorSupplier;
     private final @Nullable TabCreator mTabCreator;
@@ -62,7 +64,8 @@ public class ChromePageInfo {
             Supplier<@Nullable ModalDialogManager> modalDialogManagerSupplier,
             @Nullable String publisher,
             @OpenedFromSource int source,
-            @Nullable Supplier<StoreInfoActionHandler> storeInfoActionHandlerSupplier,
+            @Nullable MonotonicObservableSupplier<StoreInfoActionHandler>
+                    storeInfoActionHandlerSupplier,
             @Nullable Supplier<@Nullable EphemeralTabCoordinator> ephemeralTabCoordinatorSupplier,
             @Nullable TabCreator tabCreator) {
         mModalDialogManagerSupplier = modalDialogManagerSupplier;

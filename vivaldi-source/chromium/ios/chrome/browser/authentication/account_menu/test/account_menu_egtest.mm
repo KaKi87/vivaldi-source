@@ -4,6 +4,7 @@
 
 #import <UIKit/UIKit.h>
 
+#import "base/ios/ios_util.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/test/ios/wait_util.h"
 #import "ios/chrome/browser/authentication/account_menu/public/account_menu_constants.h"
@@ -14,8 +15,8 @@
 #import "ios/chrome/browser/metrics/model/metrics_app_interface.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_constants.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
-#import "ios/chrome/browser/settings/google_services/manage_accounts/public/manage_accounts_table_view_controller_constants.h"
-#import "ios/chrome/browser/settings/ui_bundled/google_services/google_services_settings_constants.h"
+#import "ios/chrome/browser/settings/google_services/public/google_services_settings_constants.h"
+#import "ios/chrome/browser/settings/manage_accounts/public/manage_accounts_table_view_controller_constants.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/public/snackbar/snackbar_constants.h"
@@ -214,6 +215,40 @@ id<GREYMatcher> identityDiscMatcher() {
       assertWithMatcher:grey_sufficientlyVisible()];
 }
 
+// Test the manage account menu entry opens the manage account view if the user
+// needs to reauth.
+- (void)testManageAccountReauth {
+  [SigninEarlGrey signinWithFakeIdentity:kPrimaryIdentity];
+  [SigninEarlGrey
+      setPersistentAuthErrorForAccount:CoreAccountId::FromGaiaId(
+                                           kPrimaryIdentity.gaiaId)];
+  [self selectIdentityDisc];
+  // Tap on the Ellipsis button.
+  [[EarlGrey
+      selectElementWithMatcher:grey_accessibilityID(
+                                   kAccountMenuSecondaryActionMenuButtonId)]
+      performAction:grey_tap()];
+  // Tap on Manage your account.
+  [[EarlGrey
+      selectElementWithMatcher:
+          grey_allOf(
+              grey_text(l10n_util::GetNSString(
+                  IDS_IOS_GOOGLE_ACCOUNT_SETTINGS_MANAGE_GOOGLE_ACCOUNT_ITEM)),
+              grey_interactable(), nil)] performAction:grey_tap()];
+
+  // Confirm the fake reauthentication dialog.
+  [[EarlGrey
+      selectElementWithMatcher:grey_allOf(
+                                   grey_accessibilityID(
+                                       kFakeAuthAddAccountButtonIdentifier),
+                                   grey_sufficientlyVisible(), nil)]
+      performAction:grey_tap()];
+  // Checks the Fake Account Detail View Controller is shown
+  [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
+                                          kFakeAccountDetailsViewIdentifier)]
+      assertWithMatcher:grey_sufficientlyVisible()];
+}
+
 // Tests the edit accounts menu entry opens the edit account list view.
 - (void)testEditAccountsList {
   [SigninEarlGrey signinWithFakeIdentity:kPrimaryIdentity];
@@ -223,7 +258,7 @@ id<GREYMatcher> identityDiscMatcher() {
       selectElementWithMatcher:grey_accessibilityID(
                                    kAccountMenuSecondaryActionMenuButtonId)]
       performAction:grey_tap()];
-  // Tap on Manage your account.
+  // Tap on "Manage accounts on this device".
   [[EarlGrey
       selectElementWithMatcher:grey_allOf(
                                    grey_text(l10n_util::GetNSString(
@@ -272,6 +307,11 @@ id<GREYMatcher> identityDiscMatcher() {
 
 // Tests that the add account button opens the add account view.
 - (void)testAddAccount {
+  // TODO(crbug.com/516431613): Re-enable this flaky test on iOS below 26.
+  if (!base::ios::IsRunningOnIOS26OrLater()) {
+    EARL_GREY_TEST_DISABLED(@"Flaky on iOS below 26.");
+  }
+
   [SigninEarlGrey signinWithFakeIdentity:kPrimaryIdentity];
   [self selectIdentityDisc];
   for (NSString* cancelButtonId in
@@ -299,6 +339,11 @@ id<GREYMatcher> identityDiscMatcher() {
 
 // Tests the enter passphrase button.
 - (void)testAddPassphrase {
+  // TODO(crbug.com/516431613): Re-enable this flaky test on iOS below 26.
+  if (!base::ios::IsRunningOnIOS26OrLater()) {
+    EARL_GREY_TEST_DISABLED(@"Flaky on iOS below 26.");
+  }
+
   [SigninEarlGrey signinWithFakeIdentity:kPrimaryIdentity];
   // Encrypt synced data with a passphrase to enable passphrase encryption for
   // the signed in account.
@@ -370,7 +415,8 @@ id<GREYMatcher> identityDiscMatcher() {
 // Tests that tapping on a managed account button causes the primary account
 // to be changed and the account menu view to be closed after showing managed
 // account sign-in dialog.
-- (void)testSwitchToManagedAccount {
+// TODO(crbug.com/507486331): Re-enable test
+- (void)DISABLED_testSwitchToManagedAccount {
   [SigninEarlGrey signinWithFakeIdentity:kPrimaryIdentity];
   [SigninEarlGrey addFakeIdentity:kManagedIdentity1];
   [self selectIdentityDisc];
@@ -399,7 +445,8 @@ id<GREYMatcher> identityDiscMatcher() {
   [self assertAccountMenuIsNotShown];
 }
 
-- (void)testSwitchFromManagedAccountToManagedAccount {
+// TODO(crbug.com/507486331): Re-enable test
+- (void)DISABLED_testSwitchFromManagedAccountToManagedAccount {
   [SigninEarlGrey
       signinWithFakeManagedIdentityInPersonalProfile:kManagedIdentity1];
   [ChromeEarlGreyUI waitForAppToIdle];
@@ -440,7 +487,7 @@ id<GREYMatcher> identityDiscMatcher() {
       selectElementWithMatcher:grey_accessibilityID(
                                    kAccountMenuSecondaryActionMenuButtonId)]
       performAction:grey_tap()];
-  // Tap on Manage your account.
+  // Tap on "Manage accounts on this device".
   [[EarlGrey
       selectElementWithMatcher:grey_allOf(
                                    grey_text(l10n_util::GetNSString(

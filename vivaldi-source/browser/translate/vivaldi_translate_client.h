@@ -105,8 +105,8 @@ class VivaldiTranslateClient
       const translate::LanguageDetectionDetails& details) override;
 
   // translate::ContentTranslateDriver::Observer implementation
-  void OnPageTranslated(const std::string& original_lang,
-                        const std::string& translated_lang,
+  void OnPageTranslated(std::string_view original_lang,
+                        std::string_view translated_lang,
                         translate::TranslateErrors error_type) override;
   void OnIsPageTranslatedChanged(content::WebContents* source) override;
 

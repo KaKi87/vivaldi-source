@@ -9,9 +9,13 @@
 
 #import "base/apple/foundation_util.h"
 #import "base/debug/crash_logging.h"
+#import "base/location.h"
 #import "base/logging.h"
 #import "base/notreached.h"
 #import "base/strings/sys_string_conversions.h"
+#import "base/trace_event/interned_args_helper.h"
+#import "base/trace_event/trace_event.h"
+#import "base/trace_event/trace_id_helper.h"
 #import "base/values.h"
 
 namespace {
@@ -160,23 +164,105 @@ id NSObjectFromValueResult(const base::Value* value_result) {
   return ::NSObjectFromValueResult(value_result, kMaximumParsingRecursionDepth);
 }
 
+id NSDictionaryFromValue(const base::DictValue& dict) {
+  NSMutableDictionary* dictionary = [[NSMutableDictionary alloc] init];
+
+  for (const auto pair : dict) {
+    NSString* key = base::SysUTF8ToNSString(pair.first);
+    id wk_result =
+        ::NSObjectFromValueResult(&pair.second, kMaximumParsingRecursionDepth);
+    if (wk_result) {
+      [dictionary setValue:wk_result forKey:key];
+    }
+  }
+  return dictionary;
+}
+
 void ExecuteJavaScript(WKWebView* web_view,
                        NSString* script,
-                       void (^completion_handler)(id, NSError*)) {
+                       void (^completion_handler)(id, NSError*),
+                       const base::Location& location) {
   DCHECK([script length]);
-  if (!web_view && completion_handler) {
-    NotifyCompletionHandlerNullWebView(completion_handler);
+
+  if (!web_view) {
+    if (completion_handler) {
+      NotifyCompletionHandlerNullWebView(completion_handler);
+    }
     return;
   }
 
-  [web_view evaluateJavaScript:script completionHandler:completion_handler];
+  uint64_t trace_id = base::trace_event::GetNextGlobalTraceId();
+
+  void (^wrapped_handler)(id, NSError*) = ^(id result, NSError* error) {
+    TRACE_EVENT_END("webkit",
+                    perfetto::NamedTrack("Script Execution", trace_id));
+    if (completion_handler) {
+      TRACE_EVENT("webkit", "ExecuteJavaScript Completion Handler");
+      completion_handler(result, error);
+    }
+  };
+  TRACE_EVENT_BEGIN(
+      "webkit", "ExecuteJavaScript",
+      perfetto::NamedTrack("Script Execution", trace_id),
+      [&](perfetto::EventContext ctx) {
+        ctx.event()->set_source_location_iid(
+            base::trace_event::InternedSourceLocation::Get(&ctx, location));
+      });
+  [web_view evaluateJavaScript:script completionHandler:wrapped_handler];
 }
 
 void ExecuteJavaScript(WKWebView* web_view,
                        WKContentWorld* content_world,
                        WKFrameInfo* frame_info,
                        NSString* script,
-                       void (^completion_handler)(id, NSError*)) {
+                       void (^completion_handler)(id, NSError*),
+                       const base::Location& location) {
+  DCHECK(content_world);
+  // `frame_info` is required to ensure `script` is executed on the correct
+  // webpage. This works because a `frame_info` instance is associated with a
+  // particular loaded webpage/navigation and the script execution will only
+  // happen in the web view if the current frame_info matches.
+  DCHECK(frame_info);
+
+  DCHECK([script length] > 0);
+
+  if (!web_view) {
+    if (completion_handler) {
+      NotifyCompletionHandlerNullWebView(completion_handler);
+    }
+    return;
+  }
+
+  uint64_t trace_id = base::trace_event::GetNextGlobalTraceId();
+
+  void (^wrapped_handler)(id, NSError*) = ^(id result, NSError* error) {
+    TRACE_EVENT_END("webkit",
+                    perfetto::NamedTrack("Script Execution", trace_id));
+    if (completion_handler) {
+      TRACE_EVENT("webkit", "ExecuteJavaScript completion_handler");
+      completion_handler(result, error);
+    }
+  };
+  TRACE_EVENT_BEGIN(
+      "webkit", "ExecuteJavaScript",
+      perfetto::NamedTrack("Script Execution", trace_id),
+      [&](perfetto::EventContext ctx) {
+        ctx.event()->set_source_location_iid(
+            base::trace_event::InternedSourceLocation::Get(&ctx, location));
+      });
+  [web_view evaluateJavaScript:script
+                       inFrame:frame_info
+                inContentWorld:content_world
+             completionHandler:wrapped_handler];
+}
+
+void ExecuteAsyncJavaScript(WKWebView* web_view,
+                            WKContentWorld* content_world,
+                            WKFrameInfo* frame_info,
+                            NSString* script,
+                            NSDictionary<NSString*, id>* arguments,
+                            void (^completion_handler)(id, NSError*),
+                            const base::Location& location) {
   DCHECK(content_world);
   // `frame_info` is required to ensure `script` is executed on the correct
   // webpage. This works because a `frame_info` instance is associated with a
@@ -190,10 +276,28 @@ void ExecuteJavaScript(WKWebView* web_view,
     return;
   }
 
-  [web_view evaluateJavaScript:script
-                       inFrame:frame_info
-                inContentWorld:content_world
-             completionHandler:completion_handler];
+  uint64_t trace_id = base::trace_event::GetNextGlobalTraceId();
+
+  void (^wrapped_handler)(id, NSError*) = ^(id result, NSError* error) {
+    TRACE_EVENT_END("webkit",
+                    perfetto::NamedTrack("Script Execution", trace_id));
+    if (completion_handler) {
+      TRACE_EVENT("webkit", "ExecuteAsyncJavaScript completion_handler");
+      completion_handler(result, error);
+    }
+  };
+  TRACE_EVENT_BEGIN(
+      "webkit", "ExecuteAsyncJavaScript",
+      perfetto::NamedTrack("Script Execution", trace_id),
+      [&](perfetto::EventContext ctx) {
+        ctx.event()->set_source_location_iid(
+            base::trace_event::InternedSourceLocation::Get(&ctx, location));
+      });
+  [web_view callAsyncJavaScript:script
+                      arguments:arguments
+                        inFrame:frame_info
+                 inContentWorld:content_world
+              completionHandler:wrapped_handler];
 }
 
 void RegisterExistingFrames(WKWebView* web_view,

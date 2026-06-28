@@ -19,6 +19,7 @@
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
 #include "chrome/browser/ui/views/tabs/hovercard/tab_hover_card_controller.h"
 #include "chrome/browser/ui/views/tabs/shared/drop_arrow.h"
+#include "chrome/browser/ui/views/tabs/shared/tab_strip_types.h"
 #include "chrome/browser/ui/views/tabs/tab.h"
 #include "chrome/browser/ui/views/tabs/tab_group_header.h"
 #include "chrome/browser/ui/views/tabs/tab_group_highlight.h"
@@ -28,7 +29,6 @@
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_controller.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_layout_types.h"
-#include "chrome/browser/ui/views/tabs/tab_strip_types.h"
 #include "chrome/browser/ui/views/tabs/tab_style_views.h"
 #include "chrome/browser/ui/views/tabs/z_orderable_tab_container_element.h"
 #include "chrome/grit/theme_resources.h"
@@ -47,7 +47,11 @@
 #include "ui/views/view_utils.h"
 
 namespace {
-
+// When the window has a top drag handle, a thin strip at the top of
+// inactive tabs and the new tab button can be treated as part of the window
+// drag handle, to increase draggability.  This region starts 1 DIP above
+// the top of the separator.
+constexpr int kDragHandleExtension = 6;
 }  // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -98,6 +102,8 @@ TabContainerImpl::TabContainerImpl(
           base::BindRepeating(&TabContainerImpl::GetTabsViewModel,
                               base::Unretained(this)))) {
   SetEventTargeter(std::make_unique<views::ViewTargeter>(this));
+  GetViewAccessibility().SetRole(ax::mojom::Role::kTabList);
+  GetViewAccessibility().SetIsMultiselectable(true);
 
   bounds_animator_.AddObserver(this);
 
@@ -373,6 +379,15 @@ void TabContainerImpl::OnGroupVisualsChanged(
   if (active_index.has_value()) {
     GetTabAtModelIndex(active_index.value())->SchedulePaint();
   }
+
+  if (old_visuals && old_visuals->title() != new_visuals->title()) {
+    for (int i = 0; i < GetTabCount(); ++i) {
+      Tab* tab = GetTabAtModelIndex(i);
+      if (tab && tab->group() == group) {
+        tab->UpdateAccessibleName();
+      }
+    }
+  }
 }
 
 void TabContainerImpl::ToggleTabGroup(
@@ -524,7 +539,7 @@ void TabContainerImpl::UpdateHoverCard(
   // Some operations (including e.g. starting a drag) can cause the tab focus
   // to change at the same time as the tabstrip is starting to animate; the
   // hover card should not be visible at this time.
-  // See crbug.com/1220840 for an example case.
+  // See crbug.com/40773156 for an example case.
   if (controller_->IsAnimatingInTabStrip()) {
     anchor_target = nullptr;
     update_type = TabSlotController::HoverCardUpdateType::kAnimating;
@@ -556,20 +571,13 @@ bool TabContainerImpl::IsRectInContentArea(const gfx::Rect& rect) {
   }
 
   if (controller_->CanExtendDragHandle()) {
-    // When the window has a top drag handle, a thin strip at the top of
-    // inactive tabs and the new tab button can be treated as part of the window
-    // drag handle, to increase draggability.  This region starts 1 DIP above
-    // the top of the separator.
-    const int drag_handle_extension =
-        TabStyle::Get()->GetDragHandleExtension(height());
-
     // A hit on an inactive tab is in the content area unless it is in the thin
     // strip mentioned above.
     const std::optional<size_t> tab_index = tabs_view_model_.GetIndexOfView(v);
     if (tab_index.has_value() && IsValidModelIndex(tab_index.value())) {
       Tab* tab = GetTabAtModelIndex(tab_index.value());
       gfx::Rect tab_drag_handle = tab->GetMirroredBounds();
-      tab_drag_handle.set_height(drag_handle_extension);
+      tab_drag_handle.set_height(kDragHandleExtension);
       return tab->IsActive() || !tab_drag_handle.Intersects(rect);
     }
   }
@@ -734,7 +742,7 @@ void TabContainerImpl::ExitTabClosingMode() {
 void TabContainerImpl::SetTabSlotVisibility() {
   std::set<tab_groups::TabGroupId> visibility_changed_groups;
   bool last_tab_visible = false;
-  std::optional<tab_groups::TabGroupId> last_tab_group = std::nullopt;
+  std::optional<tab_groups::TabGroupId> last_tab_group;
   std::vector<Tab*> tabs = layout_helper_->GetTabs();
   for (auto it = tabs.rbegin(); true; ++it) {
     Tab* tab = it != tabs.rend() ? *it : nullptr;

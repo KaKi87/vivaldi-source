@@ -85,14 +85,27 @@ void FakeWebAppUiManager::NotifyOnAllAppWindowsClosed(
 }
 
 bool FakeWebAppUiManager::CanAddAppToQuickLaunchBar() const {
-  return false;
+  return can_add_to_quick_launch_bar_;
 }
 
 void FakeWebAppUiManager::AddAppToQuickLaunchBar(const webapps::AppId& app_id) {
+  if (can_add_to_quick_launch_bar_) {
+    quick_launch_bar_apps_.insert(app_id);
+  }
 }
 
 bool FakeWebAppUiManager::IsAppInQuickLaunchBar(
     const webapps::AppId& app_id) const {
+  return quick_launch_bar_apps_.contains(app_id);
+}
+
+bool FakeWebAppUiManager::IsAppMigrationSuggested(
+    BrowserWindowInterface* window) const {
+  return false;
+}
+
+bool FakeWebAppUiManager::IsAppMigrationDialogShowing(
+    BrowserWindowInterface* window) const {
   return false;
 }
 
@@ -239,6 +252,10 @@ void FakeWebAppUiManager::PresentUserUninstallDialog(
   std::move(callback).Run(webapps::UninstallResultCode::kAppRemoved);
 }
 
+void FakeWebAppUiManager::ShowProfileErrorDialogForCorruptDB() {
+  ++num_show_profile_error_dialog_calls_;
+}
+
 void FakeWebAppUiManager::ShowIntentPicker(
     const GURL& url,
     content::WebContents* web_contents,
@@ -262,5 +279,13 @@ void FakeWebAppUiManager::MaybeShowIPHPromoForAppsLaunchedViaLinkCapturing(
     Browser* browser,
     Profile* profile,
     const std::string& app_id) {}
+
+FakeWebAppUiManager* FakeWebAppUiManager::AsFakeWebAppUiManagerForTesting() {
+  return this;
+}
+
+void FakeWebAppUiManager::SetCanAddAppToQuickLaunchBar(bool can_add) {
+  can_add_to_quick_launch_bar_ = can_add;
+}
 
 }  // namespace web_app

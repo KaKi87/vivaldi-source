@@ -14,9 +14,10 @@ source_set("nsd") {
 
   deps = [
     ":nsd_swift",
-    "//base:i18n",
+    "resources:assets",
     "//base",
-    "//components/bookmarks/browser:browser",
+    "//base:i18n",
+    "//components/bookmarks/browser",
     "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
     "//ios/chrome/browser/shared/model/browser",
     "//ios/chrome/common/ui/util",
@@ -24,7 +25,6 @@ source_set("nsd") {
     "//vivaldi/ios/direct_match",
     "//vivaldi/ios/most_visited_sites",
     "//vivaldi/ios/ui/helpers",
-    "resources:assets",
   ]
 
   frameworks = [
@@ -40,14 +40,14 @@ swift_source_set("nsd_swift") {
     "vivaldi_nsd_constants.swift",
     "vivaldi_nsd_direct_match_category.swift",
     "vivaldi_nsd_direct_match_item.swift",
-    "vivaldi_nsd_item_flow_layout.swift",
-    "vivaldi_nsd_item_list_view_provider.swift",
-    "vivaldi_nsd_item_list_view.swift",
     "vivaldi_nsd_item.swift",
+    "vivaldi_nsd_item_flow_layout.swift",
+    "vivaldi_nsd_item_list_view.swift",
+    "vivaldi_nsd_item_list_view_provider.swift",
     "vivaldi_nsd_state.swift",
     "vivaldi_nsd_top_site_item.swift",
-    "vivaldi_nsd_view_provider.swift",
     "vivaldi_nsd_view.swift",
+    "vivaldi_nsd_view_provider.swift",
   ]
 
   deps = [

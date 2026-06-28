@@ -19,8 +19,13 @@
 #include "chrome/browser/notifications/scheduler/test/mock_notification_schedule_service.h"
 #include "chrome/browser/optimization_guide/mock_optimization_guide_keyed_service.h"
 #include "components/history/core/browser/history_service.h"
+#include "components/optimization_guide/core/feature_registry/feature_registration.h"
+#include "components/optimization_guide/core/model_execution/model_execution_prefs.h"
 #include "components/optimization_guide/proto/features/finds.pb.h"
+#include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/testing_pref_service.h"
+#include "components/sync/test/test_sync_service.h"
+#include "components/unified_consent/pref_names.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -58,16 +63,25 @@ class FindsServiceTest : public testing::Test {
   ~FindsServiceTest() override = default;
 
   void SetUp() override {
+    optimization_guide::model_execution::prefs::RegisterProfilePrefs(
+        prefs_.registry());
     FindsService::RegisterProfilePrefs(prefs_.registry());
+    prefs_.registry()->RegisterBooleanPref(
+        unified_consent::prefs::kUrlKeyedAnonymizedDataCollectionEnabled,
+        false);
+    prefs_.SetBoolean(
+        unified_consent::prefs::kUrlKeyedAnonymizedDataCollectionEnabled, true);
     opt_guide_service_ = std::make_unique<
         testing::NiceMock<MockOptimizationGuideKeyedService>>();
     history_service_ =
         std::make_unique<testing::NiceMock<history::MockHistoryService>>();
+    history_service_->set_backend_task_runner_for_testing(
+        task_environment_.GetMainThreadTaskRunner());
     notification_schedule_service_ = std::make_unique<testing::NiceMock<
         notifications::test::MockNotificationScheduleService>>();
     service_ = std::make_unique<FindsService>(
         opt_guide_service_.get(), history_service_.get(), &prefs_,
-        notification_schedule_service_.get());
+        notification_schedule_service_.get(), &sync_service_);
   }
 
  protected:
@@ -78,6 +92,7 @@ class FindsServiceTest : public testing::Test {
   std::unique_ptr<history::MockHistoryService> history_service_;
   std::unique_ptr<notifications::test::MockNotificationScheduleService>
       notification_schedule_service_;
+  syncer::TestSyncService sync_service_;
   std::unique_ptr<FindsService> service_;
   base::HistogramTester histogram_tester_;
 
@@ -90,10 +105,8 @@ class FindsServiceTest : public testing::Test {
 
 TEST_F(FindsServiceTest, VerifyNotificationCooldownPref) {
   EXPECT_EQ(0, prefs_.GetInt64(prefs::kFindsModelExecutionLastTimestamp));
-  finds::MarkNotificationShown(&prefs_);
+  finds::MarkModelExecutionLastTimestamp(&prefs_);
   EXPECT_NE(0, prefs_.GetInt64(prefs::kFindsModelExecutionLastTimestamp));
-  histogram_tester_.ExpectUniqueSample(
-      "Notifications.ChromeFinds.NotificationShown", true, 1);
 }
 
 TEST_F(FindsServiceTest, VerifyThemeNotInterestedCooldownPref) {
@@ -106,10 +119,42 @@ TEST_F(FindsServiceTest, VerifyThemeNotInterestedCooldownPref) {
                   .Find("Shopping"));
 }
 
+TEST_F(FindsServiceTest, DeleteNotificationsOnMSBBToggle) {
+  EXPECT_CALL(
+      *notification_schedule_service_,
+      DeleteNotifications(notifications::SchedulerClientType::kChromeFinds))
+      .Times(1);
+
+  prefs_.SetBoolean(
+      unified_consent::prefs::kUrlKeyedAnonymizedDataCollectionEnabled, false);
+}
+
+TEST_F(FindsServiceTest, DeleteNotificationsOnHistorySyncToggle) {
+  EXPECT_CALL(
+      *notification_schedule_service_,
+      DeleteNotifications(notifications::SchedulerClientType::kChromeFinds))
+      .Times(1);
+
+  sync_service_.GetUserSettings()->SetSelectedType(
+      syncer::UserSelectableType::kHistory, false);
+  // TestSyncService requires explicit firing of observer events.
+  sync_service_.FireStateChanged();
+}
+
+TEST_F(FindsServiceTest, DeleteNotificationsOnHistoryDeletion) {
+  EXPECT_CALL(
+      *notification_schedule_service_,
+      DeleteNotifications(notifications::SchedulerClientType::kChromeFinds))
+      .Times(1);
+
+  static_cast<history::HistoryServiceObserver*>(service_.get())
+      ->OnHistoryDeletions(nullptr, history::DeletionInfo::ForAllHistory());
+}
+
 TEST_F(FindsServiceTest, HistoryServiceUnavailable) {
-  auto service =
-      std::make_unique<FindsService>(opt_guide_service_.get(), nullptr, &prefs_,
-                                     notification_schedule_service_.get());
+  auto service = std::make_unique<FindsService>(
+      opt_guide_service_.get(), nullptr, &prefs_,
+      notification_schedule_service_.get(), &sync_service_);
 
   bool callback_called = false;
   service->ExecuteModelAndScheduleNotification(
@@ -125,9 +170,9 @@ TEST_F(FindsServiceTest, HistoryServiceUnavailable) {
 }
 
 TEST_F(FindsServiceTest, OptimizationGuideUnavailable) {
-  auto service =
-      std::make_unique<FindsService>(nullptr, history_service_.get(), &prefs_,
-                                     notification_schedule_service_.get());
+  auto service = std::make_unique<FindsService>(
+      nullptr, history_service_.get(), &prefs_,
+      notification_schedule_service_.get(), &sync_service_);
 
   bool callback_called = false;
   service->ExecuteModelAndScheduleNotification(
@@ -140,6 +185,41 @@ TEST_F(FindsServiceTest, OptimizationGuideUnavailable) {
   histogram_tester_.ExpectUniqueSample(
       "Finds.Result",
       FindsService::Result::Status::kOptimizationGuideUnavailable, 1);
+}
+
+TEST_F(FindsServiceTest, HistorySyncDisabled) {
+  sync_service_.GetUserSettings()->SetSelectedType(
+      syncer::UserSelectableType::kHistory, false);
+  sync_service_.FireStateChanged();
+
+  bool callback_called = false;
+  service_->ExecuteModelAndScheduleNotification(
+      base::BindLambdaForTesting([&](FindsService::Result result) {
+        EXPECT_EQ(FindsService::Result::Status::kDisabledByHistorySyncOrMsbb,
+                  result.status);
+        callback_called = true;
+      }));
+  EXPECT_TRUE(callback_called);
+  histogram_tester_.ExpectUniqueSample(
+      "Finds.Result",
+      FindsService::Result::Status::kDisabledByHistorySyncOrMsbb, 1);
+}
+
+TEST_F(FindsServiceTest, MSBBDisabled) {
+  prefs_.SetBoolean(
+      unified_consent::prefs::kUrlKeyedAnonymizedDataCollectionEnabled, false);
+
+  bool callback_called = false;
+  service_->ExecuteModelAndScheduleNotification(
+      base::BindLambdaForTesting([&](FindsService::Result result) {
+        EXPECT_EQ(FindsService::Result::Status::kDisabledByHistorySyncOrMsbb,
+                  result.status);
+        callback_called = true;
+      }));
+  EXPECT_TRUE(callback_called);
+  histogram_tester_.ExpectUniqueSample(
+      "Finds.Result",
+      FindsService::Result::Status::kDisabledByHistorySyncOrMsbb, 1);
 }
 
 TEST_F(FindsServiceTest, EmptyHistory) {
@@ -290,13 +370,14 @@ TEST_F(FindsServiceTest, Success) {
         callback_called = true;
       }));
   EXPECT_TRUE(callback_called);
+  EXPECT_NE(0, prefs_.GetInt64(prefs::kFindsModelExecutionLastTimestamp));
   histogram_tester_.ExpectUniqueSample(
       "Finds.Result", FindsService::Result::Status::kSuccess, 1);
 }
 
 TEST_F(FindsServiceTest, ExecutionCooldownNotPassed) {
   // Set the last execution timestamp to now.
-  finds::MarkNotificationShown(&prefs_);
+  finds::MarkModelExecutionLastTimestamp(&prefs_);
 
   // Fast forward time just before the cooldown is set to expire.
   task_environment_.FastForwardBy(base::Days(
@@ -316,7 +397,7 @@ TEST_F(FindsServiceTest, ExecutionCooldownNotPassed) {
 
 TEST_F(FindsServiceTest, ExecutionCooldownPassed) {
   // Set the last execution timestamp to now.
-  finds::MarkNotificationShown(&prefs_);
+  finds::MarkModelExecutionLastTimestamp(&prefs_);
 
   // Fast forward enough to pass the cooldown.
   task_environment_.FastForwardBy(
@@ -369,8 +450,7 @@ TEST_F(FindsServiceTest, VerifyHistoryLookbackIntervalWithFinchParam) {
   // Override the feature param to something non-default.
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitAndEnableFeatureWithParameters(
-      finds::features::kChromeFinds,
-      {{"model_execution_cooldown_duration_in_days", "14"}});
+      finds::features::kChromeFinds, {{"history_time_window_in_days", "14"}});
 
   EXPECT_CALL(*history_service_, QueryHistory(_, _, _, _))
       .WillOnce([](const std::u16string& text_query,
@@ -422,8 +502,9 @@ TEST_F(FindsServiceTest, VerifyMaxHistoryEntriesDefault) {
 }
 
 TEST_F(FindsServiceTest, EmptyNotificationService) {
-  auto service = std::make_unique<FindsService>(
-      opt_guide_service_.get(), history_service_.get(), &prefs_, nullptr);
+  auto service = std::make_unique<FindsService>(opt_guide_service_.get(),
+                                                history_service_.get(), &prefs_,
+                                                nullptr, &sync_service_);
 
   EXPECT_CALL(*history_service_, QueryHistory(_, _, _, _))
       .WillOnce([](const std::u16string& text_query,
@@ -861,9 +942,15 @@ TEST_F(FindsServiceTest, RecordThemeURLVisitedIncrementsCount) {
 }
 
 TEST_F(FindsServiceTest, RecordThemeURLVisitedThresholdTriggersOptIn) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeatureWithParameters(
+      finds::features::kChromeFinds,
+      {{"finds_theme_url_visit_count_for_opt_in", "3"}});
+
   testing::NiceMock<MockFindsServiceObserver> observer;
   service_->AddObserver(&observer);
 
+  // Observer will be triggered exactly once when RecordNTPVisited is called.
   EXPECT_CALL(observer, OnOptInCriteriaFulfilled()).Times(1);
 
   service_->RecordThemeURLVisited(
@@ -886,6 +973,9 @@ TEST_F(FindsServiceTest, RecordThemeURLVisitedThresholdTriggersOptIn) {
       optimization_guide::proto::FindsMetadata::SHOPPING);
   EXPECT_NE(it, theme_url_visit_count().end());
   EXPECT_EQ(it->second, 0);
+
+  // NTP visit triggers the opt-in promo.
+  service_->RecordNTPVisited();
 
   histogram_tester_.ExpectUniqueSample(
       "Notifications.ChromeFinds.OptInCriteriaFulfilled.Reason",
@@ -926,6 +1016,19 @@ TEST_F(FindsServiceTest, ScheduleNotificationForInternalsPage) {
   EXPECT_EQ("https://www.google.com",
             scheduled_params->notification_data
                 .custom_data[notifications::kChromeFindsNotificationsUrl]);
+  EXPECT_NE(0, prefs_.GetInt64(prefs::kFindsModelExecutionLastTimestamp));
+}
+
+TEST_F(FindsServiceTest, ClearNotificationsBeforeScheduling) {
+  testing::InSequence enforce_call_order;
+  EXPECT_CALL(
+      *notification_schedule_service_,
+      DeleteNotifications(notifications::SchedulerClientType::kChromeFinds))
+      .Times(1);
+  EXPECT_CALL(*notification_schedule_service_, Schedule(_)).Times(1);
+
+  bool success = service_->ScheduleNotificationForInternalsPage();
+  EXPECT_TRUE(success);
 }
 
 TEST_F(FindsServiceTest, MaybeRescheduleNotifications_Empty_NoOp) {
@@ -957,6 +1060,118 @@ TEST_F(FindsServiceTest, MaybeRescheduleNotifications_Reschedules) {
   EXPECT_CALL(*notification_schedule_service_, Schedule(_)).Times(1);
 
   service_->MaybeRescheduleNotifications();
+}
+
+TEST_F(FindsServiceTest, TestExecuteModelEnterprisePolicyDisabled) {
+  prefs_.SetInteger(
+      optimization_guide::prefs::kFindsEnterprisePolicyAllowed,
+      static_cast<int>(optimization_guide::model_execution::prefs::
+                           ModelExecutionEnterprisePolicyValue::kDisable));
+
+  base::RunLoop run_loop;
+  service_->ExecuteModelAndScheduleNotification(base::BindOnce(
+      [](base::OnceClosure quit_closure, FindsService::Result result) {
+        EXPECT_EQ(result.status,
+                  FindsService::Result::Status::kDisabledByEnterprisePolicy);
+        EXPECT_EQ(result.message,
+                  "Error: Feature disabled by enterprise policy.");
+        std::move(quit_closure).Run();
+      },
+      run_loop.QuitClosure()));
+  run_loop.Run();
+}
+
+TEST_F(FindsServiceTest, TestRecordThemeURLVisitedEnterprisePolicyDisabled) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeatureWithParameters(
+      finds::features::kChromeFinds,
+      {{"finds_theme_url_visit_count_for_opt_in", "3"}});
+
+  prefs_.SetInteger(
+      optimization_guide::prefs::kFindsEnterprisePolicyAllowed,
+      static_cast<int>(optimization_guide::model_execution::prefs::
+                           ModelExecutionEnterprisePolicyValue::kDisable));
+
+  testing::NiceMock<MockFindsServiceObserver> observer;
+  service_->AddObserver(&observer);
+
+  EXPECT_CALL(observer, OnOptInCriteriaFulfilled()).Times(0);
+
+  service_->RecordThemeURLVisited(
+      optimization_guide::proto::FindsMetadata::SHOPPING);
+  service_->RecordThemeURLVisited(
+      optimization_guide::proto::FindsMetadata::SHOPPING);
+  service_->RecordThemeURLVisited(
+      optimization_guide::proto::FindsMetadata::SHOPPING);
+
+  EXPECT_TRUE(theme_url_visit_count().empty());
+
+  service_->RemoveObserver(&observer);
+}
+
+TEST_F(FindsServiceTest, TestSRPBackNavigationEnterprisePolicyDisabled) {
+  prefs_.SetInteger(
+      optimization_guide::prefs::kFindsEnterprisePolicyAllowed,
+      static_cast<int>(optimization_guide::model_execution::prefs::
+                           ModelExecutionEnterprisePolicyValue::kDisable));
+
+  testing::NiceMock<MockFindsServiceObserver> observer;
+  service_->AddObserver(&observer);
+
+  EXPECT_CALL(observer, OnOptInCriteriaFulfilled()).Times(0);
+
+  service_->SRPBackNavigationCountForOptInReached();
+
+  service_->RemoveObserver(&observer);
+}
+
+TEST_F(FindsServiceTest, TestModelExecutionDisabledByParam) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeatureWithParameters(
+      finds::features::kChromeFinds, {{"block_model_execution", "true"}});
+
+  EXPECT_CALL(*history_service_, QueryHistory(_, _, _, _)).Times(0);
+  EXPECT_CALL(*opt_guide_service_, ExecuteModel(_, _, _, _)).Times(0);
+
+  bool callback_called = false;
+  service_->ExecuteModelAndScheduleNotification(
+      base::BindLambdaForTesting([&](FindsService::Result result) {
+        EXPECT_EQ(FindsService::Result::Status::kModelExecutionDisabledByParam,
+                  result.status);
+        EXPECT_EQ("Error: Model execution disabled by feature parameter.",
+                  result.message);
+        callback_called = true;
+      }));
+  EXPECT_TRUE(callback_called);
+
+  histogram_tester_.ExpectUniqueSample(
+      "Finds.Result",
+      FindsService::Result::Status::kModelExecutionDisabledByParam, 1);
+}
+
+TEST_F(FindsServiceTest,
+       RecordRecentSearchSuggestionClickAndCheckThresholdReached) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeatureWithParameters(
+      finds::features::kChromeFinds,
+      {{"omnibox_recent_search_suggestion_count_threshold", "3"}});
+
+  testing::NiceMock<MockFindsServiceObserver> observer;
+  service_->AddObserver(&observer);
+  EXPECT_FALSE(
+      service_->RecordRecentSearchSuggestionClickAndCheckThresholdReached());
+  EXPECT_FALSE(
+      service_->RecordRecentSearchSuggestionClickAndCheckThresholdReached());
+  EXPECT_TRUE(
+      service_->RecordRecentSearchSuggestionClickAndCheckThresholdReached());
+
+  EXPECT_CALL(observer, OnOptInCriteriaFulfilled()).Times(1);
+  service_->RecentSearchSuggestionCountForOptInReached();
+
+  histogram_tester_.ExpectUniqueSample(
+      "Notifications.ChromeFinds.OptInCriteriaFulfilled.Reason",
+      FindsOptInTriggerReason::kOmniboxRecentSearchSuggestionCount, 1);
+  service_->RemoveObserver(&observer);
 }
 
 }  // namespace finds

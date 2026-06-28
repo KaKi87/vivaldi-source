@@ -77,10 +77,10 @@ checkout_src_internal = false
 checkout_mutter = false
 """
 
-gclient_gni_file_name = os.path.join(sourcedir, "chromium/build/config/gclient_args.gni")
-if not os.access(gclient_gni_file_name, os.F_OK) or open(gclient_gni_file_name, "r").read() != gclient_gni_content:
-  with open(gclient_gni_file_name, "w") as f:
-    f.write(gclient_gni_content)
+#gclient_gni_file_name = os.path.join(sourcedir, "chromium/build/config/gclient_args.gni")
+#if not os.access(gclient_gni_file_name, os.F_OK) or open(gclient_gni_file_name, "r").read() != gclient_gni_content:
+#  with open(gclient_gni_file_name, "w") as f:
+#    f.write(gclient_gni_content)
 
 extra_subprocess_flags = {}
 if is_windows:

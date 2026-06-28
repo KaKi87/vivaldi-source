@@ -201,6 +201,12 @@ const CGFloat kCloseButtonPadding = 16.0f;
   }
 }
 
+- (void)disconnect {
+  self.largeIconService = nullptr;
+  self.largeIconCache = nullptr;
+  _carouselAttributeProvider = nil;
+}
+
 #pragma mark - Getter/Setter
 
 - (void)setHighlightedIndexPath:(NSIndexPath*)highlightedIndexPath {

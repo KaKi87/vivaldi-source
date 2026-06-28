@@ -2,7 +2,7 @@
 
 import("//vivaldi/testing/testing.gni")
 
-if(vivaldi_build_tests && false) { # Disabled
+if (vivaldi_build_tests && false) {  # Disabled
   update_template_instance("//chrome/test:sync_integration_tests") {
     sources += [
       "//vivaldi/sync/test/integration/single_client_notes_sync_test.cpp",
@@ -26,9 +26,7 @@ update_target("//components/sync/base:base") {
     "//vivaldi/sync/vivaldi_sync_utils.cc",
   ]
 
-  deps += [
-    "//vivaldi/prefs:prefs_files_generator",
-  ]
+  deps += [ "//vivaldi/prefs:prefs_files_generator" ]
 }
 
 update_target("//components/sync_sessions:sync_sessions") {
@@ -37,7 +35,6 @@ update_target("//components/sync_sessions:sync_sessions") {
     "//vivaldi/sync/vivaldi_session_sync_prefs.cc",
   ]
 }
-
 
 if (!is_ios) {
   update_target("//chrome/browser/sync:sync") {
@@ -49,9 +46,7 @@ if (!is_ios) {
   }
 
   update_target("//chrome/browser:browser") {
-    deps += [
-      "//vivaldi/sync:factory",
-    ]
+    deps += [ "//vivaldi/sync:factory" ]
   }
 } else {
   update_target("//ios/chrome/browser/sync/model:model") {
@@ -63,7 +58,5 @@ if (!is_ios) {
 }
 
 update_target("//components/browser_sync:browser_sync") {
-  sources += [
-    "//vivaldi/sync/vivaldi_common_controller_builder.cc",
-  ]
+  sources += [ "//vivaldi/sync/vivaldi_common_controller_builder.cc" ]
 }

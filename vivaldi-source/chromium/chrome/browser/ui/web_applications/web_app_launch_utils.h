@@ -45,7 +45,7 @@ namespace web_app {
 // required to be the active web contents in `source_browser`.
 //
 // Note: This will CHECK-fail if `contents` is not in `source_browser`.
-void ReparentWebContentsIntoBrowserImpl(Browser* source_browser,
+void ReparentWebContentsIntoBrowserImpl(BrowserWindowInterface* source_browser,
                                         content::WebContents* contents,
                                         BrowserWindowInterface* target_browser,
                                         bool insert_as_pinned_home_tab = false);
@@ -143,14 +143,6 @@ void LaunchWebApp(apps::AppLaunchParams params,
                   Profile& profile,
                   WithAppResources& app_resources,
                   LaunchWebAppDebugValueCallback callback);
-
-// Will enqueue the given url in the launch params for this web contents. Does
-// not check if the url is within scope of the app.
-void EnqueueLaunchParams(content::WebContents* contents,
-                         const webapps::AppId& app_id,
-                         const GURL& url,
-                         bool wait_for_navigation_to_complete,
-                         base::TimeTicks time_navigation_started);
 
 // Focus the app container depending on whether the `browser` is an app window
 // or if it is a normal tabbed browser. `browser` shouldn't be a nullptr, and

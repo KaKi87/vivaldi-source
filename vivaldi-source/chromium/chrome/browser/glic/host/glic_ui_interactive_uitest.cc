@@ -185,6 +185,31 @@ class GlicUiInteractiveUiTestBase : public test::InteractiveGlicTest {
     return steps;
   }
 
+  auto WaitForMockElementChecked(const DeepQuery& where, bool checked) {
+    return Do([this, where, checked]() {
+      content::RenderFrameHost* frame = FindGlicGuestMainFrame();
+      ASSERT_TRUE(frame);
+      auto result =
+          content::EvalJs(frame, content::JsReplace(R"js(
+        (async () => {
+          return new Promise((resolve) => {
+            const check = () => {
+              const el = document.querySelector($1);
+              if (el && el.checked === $2) {
+                resolve(true);
+              } else {
+                setTimeout(check, 100);
+              }
+            };
+            check();
+          });
+        })()
+      )js",
+                                                    where[0], checked));
+      EXPECT_EQ(true, result);
+    });
+  }
+
   auto CheckEscapeKeyDismisses(const DeepQuery& panel) {
     return InAnyContext(
         WaitForShow(test::kGlicHostElementId), CheckElementVisible(panel, true),
@@ -318,16 +343,11 @@ IN_PROC_BROWSER_TEST_P(GlicUiConnectedUiTest, CanAttachWithBrowserWindow) {
 
 // TODO(crbug.com/454087646): Not reliable yet.
 IN_PROC_BROWSER_TEST_P(GlicUiConnectedUiTest,
-                       DISABLED_CanNotAttachWithMinimizedBrowser) {
-  RunTestSequence(
-      OpenGlic(GlicInstrumentMode::kHostAndContents),
-      CheckMockElementChecked({"#canAttachCheckbox"}, true),
-      Do([&]() { browser()->GetBrowserView().Minimize(); }),
-      // TODO(harringtond): Ideally this would wait until not checked, rather
-      // than check only once. There's no guarantee the web client
-      // has been updated before this code runs. Currently, this
-      // test works, though it's a risk for flakiness.
-      CheckMockElementChecked({"#canAttachCheckbox"}, false));
+                       CanNotAttachWithMinimizedBrowser) {
+  RunTestSequence(OpenGlic(GlicInstrumentMode::kHostAndContents), Detach(),
+                  WaitForMockElementChecked({"#canAttachCheckbox"}, true),
+                  Do([&]() { browser()->GetBrowserView().Minimize(); }),
+                  WaitForMockElementChecked({"#canAttachCheckbox"}, false));
 }
 
 IN_PROC_BROWSER_TEST_P(GlicUiConnectedUiTest,
@@ -846,9 +866,9 @@ class GlicUiUnifiedFreIntegrationTest : public GlicUiInteractiveUiTestBase {
     host_resolver()->AddRule("glic.test", "127.0.0.1");
     GlicUiInteractiveUiTestBase::SetUpOnMainThread();
     ASSERT_TRUE(embedded_https_test_server().Start());
-    browser()->profile()->GetPrefs()->SetInteger(
-        glic::prefs::kGlicCompletedFre,
-        static_cast<int>(glic::prefs::FreStatus::kNotStarted));
+    glic::GlicKeyedService::Get(browser()->profile())
+        ->enabling()
+        .SetCompletedFre(glic::prefs::FreStatus::kNotStarted);
   }
 
   const DeepQuery kFreContainer = {"#fre-app-container"};
@@ -919,9 +939,9 @@ IN_PROC_BROWSER_TEST_F(GlicUiUnifiedFreIntegrationTest,
           WaitForElementVisible(test::kGlicHostElementId, kGlicGuestPanel)),
       CheckResult(
           [this]() {
-            return static_cast<glic::prefs::FreStatus>(
-                browser()->profile()->GetPrefs()->GetInteger(
-                    glic::prefs::kGlicCompletedFre));
+            return glic::GlicKeyedService::Get(browser()->profile())
+                ->enabling()
+                .GetCompletedFre();
           },
           glic::prefs::FreStatus::kCompleted),
       WaitForState(kGlicUiStateHistory, IsCurrently(WebUiState::kReady)),
@@ -955,9 +975,9 @@ IN_PROC_BROWSER_TEST_F(GlicUiUnifiedFreIntegrationTest, RejectFreClosesPanel) {
       CheckControllerShowing(false),
       CheckResult(
           [this]() {
-            return static_cast<glic::prefs::FreStatus>(
-                browser()->profile()->GetPrefs()->GetInteger(
-                    glic::prefs::kGlicCompletedFre));
+            return glic::GlicKeyedService::Get(browser()->profile())
+                ->enabling()
+                .GetCompletedFre();
           },
           glic::prefs::FreStatus::kNotStarted));
 }
@@ -1032,9 +1052,7 @@ IN_PROC_BROWSER_TEST_F(GlicUiUnifiedFreIntegrationTest,
 class GlicUiTrustFirstOnboardingTest : public GlicUiInteractiveUiTestBase {
  public:
   GlicUiTrustFirstOnboardingTest()
-      : GlicUiInteractiveUiTestBase(TestParams(/*connected=*/true)) {
-    feature_list_.InitAndEnableFeature(features::kGlicTrustFirstOnboarding);
-  }
+      : GlicUiInteractiveUiTestBase(TestParams(/*connected=*/true)) {}
   ~GlicUiTrustFirstOnboardingTest() override = default;
 
  private:

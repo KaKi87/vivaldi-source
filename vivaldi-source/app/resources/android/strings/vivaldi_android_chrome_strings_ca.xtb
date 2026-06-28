@@ -1,22 +1,35 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="ca">
+<translation id="1062777154504442433">Nova pila de pestanyes</translation>
 <translation id="1204037785786432551">Baixa l'enllaç</translation>
 <translation id="1206892813135768548">Copia el text de l'enllaç</translation>
+<translation id="1223158186497001208">La pila de pestanyes compartida <ph name="GROUP_TITLE" /> té activitat nova</translation>
+<translation id="1328749518742029305"><ph name="TAB_GROUP_TITLE" /> pila de pestanyes tancada i desada</translation>
 <translation id="1397811292916898096">Cerca amb <ph name="PRODUCT_NAME" /></translation>
 <translation id="1435593198351412143">Obre els PDF automàticament</translation>
 <translation id="1456207338570705181">La funcionalitat de prémer per cercar només és disponible quan Google és el motor de cerca predeterminat a Vivaldi. Envia una paraula i el seu context al cercador de Google. El pots deshabilitar als <ph name="BEGIN_LINK" />Ajustos<ph name="END_LINK" />.</translation>
 <translation id="1598449788754183301">Commuta pestanyes normals/privades</translation>
+<translation id="1626105448931436644">Més sobre les piles de pestanyes compartides</translation>
 <translation id="1644574205037202324">Historial</translation>
 <translation id="1829244130665387512">Cerca a la pàgina</translation>
-<translation id="1910514478706885609">Obre a una nova pila de pestanyes</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+          =1 {Visualitza <ph name="TABS_COUNT_ONE" /> pestanya amb activitat nova a la pila de pestanyes compartida}
+          other {Visualitza <ph name="TABS_COUNT_MANY" /> pestanyes amb activitat nova a la pila de pestanyes compartida}
+        }</translation>
 <translation id="1925021887439448749">Introdueix l'adreça web personalitzada</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+          =1 {Uneix-te a la pila de pestanyes amb <ph name="OWNER_FIRST_NAME" /> i <ph name="NUMBER_OF_OTHER_MEMBERS" /> altre}
+          other {Uneix-te a la pila de pestanyes amb <ph name="OWNER_FIRST_NAME" /> i <ph name="NUMBER_OF_OTHER_MEMBERS" /> altres}
+        }</translation>
 <translation id="2038563949887743358">Activa la petició de vista del lloc d'escriptori</translation>
+<translation id="2067565353468675023">Uneix-te a la pila de pestanyes amb <ph name="OWNER_FIRST_NAME" /></translation>
 <translation id="208033313373016095">Mode de lectura per pàgines web</translation>
 <translation id="2149973817440762519">Edita el marcador</translation>
 <translation id="2306442503286132111">Marcador desat a la carpeta <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Aparença</translation>
-<translation id="2501278716633472235">Torna enrere</translation>
+<translation id="2495373685671077949">Cerca les teves pestanyes i piles</translation>
+<translation id="2500281581698062897">Perdràs accés immediatament a la pila de pestanyes “<ph name="GROUP_NAME" />”, i <ph name="BLOCKED_MEMBER_FULL_NAME" /> (<ph name="BLOCKED_MEMBER_EMAIL" />) no podràs accedir o interaccionar-hi als teus dispositius.</translation>
 <translation id="2546283357679194313">Galetes i dades del lloc</translation>
 <translation id="2633278372998075009">Pestanyes Privades</translation>
 <translation id="2650751991977523696">Vols tornar a baixar el fitxer?</translation>
@@ -26,6 +39,7 @@
 <translation id="2871733351037274014">Precàrrega de pàgines</translation>
 <translation id="2904300462646366554">Els PDF baixats s'obren automàticament amb un dels lectors de PDF del teu dispositiu</translation>
 <translation id="2951071800649516099">Afegeix pàgines a la teva llista de lectura, per a més tard</translation>
+<translation id="3020023775880428664">Mou la pestanya a la pila</translation>
 <translation id="3029276696788198026">Sense precàrrega</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> marcador}
@@ -35,7 +49,13 @@
 <translation id="3232293466644486101">Suprimeix les dades de navegació…</translation>
 <translation id="3234355010754616171">Nova pestanya privada</translation>
 <translation id="3237087289225714896">Precàrrega estàndard:</translation>
+<translation id="3298614730029636660">Deixa la pila de pestanyes</translation>
+<translation id="3359462099791810823">Queda't aquesta pila per afegir pestanyes més tard, o suprimeix-la si no la necessites més.</translation>
 <translation id="3478414204555961127">Mode de lectura</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+          =1 {Restableix la pila de pestanyes amb <ph name="TAB_COUNT_ONE" /> pestanya, color <ph name="COLOR_NAME" />, com a nova pila de pestanyes en segon pla.}
+          other {Restableix la pila de pestanyes amb <ph name="TAB_COUNT_MANY" /> pestanyes, color <ph name="COLOR_NAME" />, com a nova pila de pestanyes en segon pla.}
+        }</translation>
 <translation id="3504699618187058974">Apila les pestanyes</translation>
 <translation id="3518985090088779359">Accepta i continua</translation>
 <translation id="3571177741182643350">Articles no llegits - Disponibles fora de línia:</translation>
@@ -43,9 +63,11 @@
 <translation id="3700829948786686853">Benvingut a Vivaldi</translation>
 <translation id="3719826155360621982">Pàgina principal</translation>
 <translation id="3738139272394829648">Toca per cercar</translation>
-<translation id="385051799172605136">Enrere</translation>
+<translation id="3900825170941000696">Restableix la pila de pestanyes <ph name="TITLE_OF_GROUP" />, color <ph name="COLOR_NAME" />, com a nova pila de pestanyes en segon pla.</translation>
+<translation id="395421286877117532">Personalitza la pila de pestanyes i prem Fet</translation>
 <translation id="3987993985790029246">Copia l'enllaç</translation>
 <translation id="399014816462153200">Articles llegits:</translation>
+<translation id="4048089913902125176">Obre la pila de pestanyes <ph name="TITLE_OF_GROUP" /> , color <ph name="COLOR_NAME" />, amb els llocs <ph name="URL_LIST" />.</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> pestanya}
           other {<ph name="TAB_COUNT_MANY" /> pestanyes, <ph name="TAB_COUNT_INCOGNITO" /> privades}}</translation>
@@ -54,25 +76,41 @@
 <translation id="4137746084635924146">Idioma actual del dispositiu</translation>
 <translation id="4167670741834902166">Nova pestanya privada</translation>
 <translation id="4195643157523330669">Obre en una pestanya nova</translation>
+<translation id="4219031106525503429">Comparteix la pila de pestanyes “<ph name="GROUP_NAME" />”</translation>
 <translation id="4225895483398857530">Drecera de la barra d'eines</translation>
 <translation id="4243710787042215766">Obre en una pestanya privada</translation>
 <translation id="4269820728363426813">Copia l'adreça de l'enllaç</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Activa el bloqueig de pantalla als ajustos d'Android<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Gestor de contrasenyes</translation>
-<translation id="441100617989818073">Pestanyes i grups no usats o duplicats</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {<ph name="TABS_COUNT_ONE" /> pestanya estàndard amb nova activitat a una pila de pestanyes compartida}
+          other {<ph name="TABS_COUNT_MANY" /> pestanyes estàndard amb nova activitat a una pila de pestanyes compartida}
+        }</translation>
+<translation id="4445802392779002787">Afegeix pestanya a la pila</translation>
 <translation id="451872707440238414">Cerca als marcadors</translation>
 <translation id="4526803704855831732">Pestanyes privades</translation>
 <translation id="4532845899244822526">Escull carpeta</translation>
+<translation id="454284936014822050"><ph name="GROUP_TITLE" /> pila de pestanyes</translation>
+<translation id="4614713783237504866">Pestanyes i piles duplicades o no usades</translation>
+<translation id="463284870544181537">Queda't aquesta pila per afegir pestanyes més tard, o deixa-la si no hi vols accedir més</translation>
+<translation id="4638726726741656531">Ara pots afegir fàcilment pestanyes a les piles aquí</translation>
 <translation id="4699172675775169585">Imatges i fitxers desats a la memòria cau</translation>
 <translation id="4719086422742491124">Aprèn sobre coses a les pàgines webs sense sortir-ne. Selecciona una o més paraules a la pàgina per cercar-les.
 
 La funcionalitat de prèmer per cercar només és disponible quan Google és el motor de cerca predeterminat a Vivaldi.</translation>
 <translation id="4759238208242260848">Baixades</translation>
-<translation id="4777866634702576038">Suprimeix el grup de pestanyes?</translation>
+<translation id="4771820744342013314">Suprimir la pila de pestanyes?</translation>
 <translation id="4850886885716139402">Mostra</translation>
 <translation id="4883379392681899581">Surt del mode privat</translation>
+<translation id="4883812026489706387">La pila de pestanyes “<ph name="TAB_GROUP_TITLE" />” té nova activitat</translation>
+<translation id="4887248255051238988">Deixar la pila de pestanyes?</translation>
 <translation id="4943872375798546930">Sense resultats</translation>
 <translation id="49576331685473090">Bloquejador de continguts</translation>
+<translation id="4964059453543967592">Reobre la pila tancada</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" /> pila de pestanyes}
+          other {<ph name="TAB_GROUPS_MANY" /> piles de pestanyes}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> pestanya privada}
           other {<ph name="TAB_COUNT_NORMAL" /> pestanyes privades}}</translation>
@@ -83,19 +121,26 @@ La funcionalitat de prèmer per cercar només és disponible quan Google és el 
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {Baixant fitxer…}
             other {Baixant # fitxers…}}</translation>
+<translation id="5210689723585747462"><ph name="TAB_GROUP_TITLE" /> pila de pestanyes tancada</translation>
 <translation id="5233638681132016545">Nova pestanya</translation>
 <translation id="5375131951310889874">Aprèn sobre coses a les pàgines web sense sortir-ne. La funcionalitat de prémer per cercar només és disponible quan Google és el motor de cerca predeterminat a Vivaldi. Envia una paraula i el seu context al cercador de Google, retornant definicions, imatges, resultats de cerca i altres detalls.
 
 Per ajustar el teu terme de cerca, prem llarg per seleccionar. Per refinar la teva cerca, llisca el tauler cap amunt i prem al camp de cerca.</translation>
+<translation id="5570837353202786816">Tothom perdrà accés immediatament a la pila de pestanyes “<ph name="GROUP_NAME" />” i tots els enllaços d'invitació s'apagaran</translation>
+<translation id="5614794348925178470">Pila de pestanyes compartida <ph name="GROUP_TITLE" /></translation>
 <translation id="572328651809341494">Pestanyes recents</translation>
 <translation id="5833984609253377421">Comparteix l'enllaç</translation>
+<translation id="6129507335719227488">Pestanyes apilades</translation>
 <translation id="6150320133806434356">Marcador desat</translation>
 <translation id="6193448654517602979">Selecciona les pestanyes</translation>
+<translation id="6221225660285238685">Mou la pila a una altra finestra</translation>
+<translation id="6277377952699614191">Pila de pestanyes</translation>
 <translation id="6336451774241870485">Nova pestanya privada</translation>
 <translation id="6337323516034698937">Per enviar aquesta pestanya a un altre dispositiu, inicia sessió a Vivaldi Sync als dos dispositius. Assegura't que introdueixes la contrasenya de xifrat si és necessari.</translation>
 <translation id="6341580099087024258">Pregunta on desar els fitxers</translation>
 <translation id="6364438453358674297">Suprimeix suggeriment de l'historial?</translation>
 <translation id="6404511346730675251">Edita el marcador</translation>
+<translation id="6453011654157908292">Detalls de la pila de pestanyes</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
           =1 {Fitxer baixat}
           other {# baixades completades}}</translation>
@@ -104,11 +149,13 @@ Per ajustar el teu terme de cerca, prem llarg per seleccionar. Per refinar la te
 <translation id="6593061639179217415">Lloc a l'escriptori</translation>
 <translation id="6610147964972079463">Tanca les pestanyes privades</translation>
 <translation id="6627583120233659107">Edita la carpeta</translation>
+<translation id="6785740335511995065">Mantenir la pila de pestanyes?</translation>
 <translation id="6865313869410766144">Dades d'emplenament automàtic de formularis</translation>
 <translation id="6909589135458168665">Precàrrega de pàgines</translation>
 <translation id="7029995644714925509">Quan un lloc pregunta per precarregar privadament enllaços a la seva pàgina, Vivaldi encripta i precarrega les pàgines a través dels servidors de Google sense galetes. Això amaga la teva identitat al lloc precarregat.</translation>
 <translation id="706339621163631076">Política de privadesa de Vivaldi</translation>
 <translation id="7100573672995171864">Personalitza i controla Vivaldi</translation>
+<translation id="7133879160432070247">Bloqueja i surt de la pila?</translation>
 <translation id="732145680195464316">Marcador desat a <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Envia una sol·licitud "Do Not Track"</translation>
 <translation id="7359002509206457351">Accedeix a les formes de pagament</translation>
@@ -117,24 +164,33 @@ Per ajustar el teu terme de cerca, prem llarg per seleccionar. Per refinar la te
 <translation id="7456774706094330779">Precàrrega ampliada</translation>
 <translation id="7465104139234185284">Tanca totes les pestanyes privades</translation>
 <translation id="7481312909269577407">Endavant</translation>
+<translation id="759273611317559136"><ph name="TAB_GROUP_TITLE" /> pila de pestanyes suprimida</translation>
+<translation id="7630413501995820846">Mantingues la pila</translation>
+<translation id="7640137753339219124">Suprimeix la pila</translation>
 <translation id="7764225426217299476">Afegeix una adreça</translation>
+<translation id="7910753230807645596">Les pestanyes i piles duplicades o no usades durant <ph name="DAYS_INACTIVE" /> dies, es mouen aquí <ph name="AUTODELETE_SECTION" />. Pots canviar-ho quan vulguis a <ph name="DECLUTTER_SETTINGS_TITLE" />.</translation>
 <translation id="7968014550143838305">S'ha afegit a la llista de lectura</translation>
 <translation id="804786196054284061">Condicions de servei de Vivaldi</translation>
 <translation id="8062594758852531064">Precàrrega ampliada:</translation>
 <translation id="8073388330009372546">Obre la imatge a una pestanya nova</translation>
 <translation id="8127542551745560481">Edita la pàgina d'inici</translation>
+<translation id="8149776854955817519">Revisa les teves pestanyes i piles inactives aquí</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
           =1 {(1) ítem inactiu}
           other {(#) ítems inactius}}</translation>
 <translation id="8266862848225348053">Ubicació de les baixades</translation>
 <translation id="8348430946834215779">Utilitza HTTPS sempre que sigui possible i rep un avís abans de carregar llocs que no ho admeten</translation>
+<translation id="8480628728881718381">Obre en una nova pestanya a la pila</translation>
+<translation id="8543049482641423692">Afegeix pestanya a la nova pila</translation>
 <translation id="8560602726703398413">Troba la teva llista de lectura als marcadors</translation>
 <translation id="85991616550051997">Ves a la pàgina principal</translation>
+<translation id="8680308397617585416">Perdràs accés immediatament a la pila de pestanyes “<ph name="GROUP_NAME" />” , i se suprimirà de tots els teus dispositius</translation>
 <translation id="8738163682604285902">Veure el mode lectura?</translation>
 <translation id="8820817407110198400">Marcadors</translation>
 <translation id="9042893549633094279">Privadesa i seguretat</translation>
 <translation id="9063523880881406963">Desactiva la petició de vista del lloc d'escriptori</translation>
 <translation id="9080642952018487277">Entra al mode privat</translation>
+<translation id="9099398755190923267">Tothom perdrà accés immediatament a la pila de pestanyes “<ph name="GROUP_NAME" />” i se suprimirà de tots els dispositius</translation>
 <translation id="930124987204876019">Suprimeix l'historial, les galetes, les dades dels llocs web, la memòria cau…</translation>
 <translation id="961856697154696964">Suprimeix les dades de navegació</translation>
 </translationbundle>

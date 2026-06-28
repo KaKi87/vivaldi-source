@@ -35,6 +35,14 @@ BASE_FEATURE_PARAM(base::TimeDelta,
                    "inactive_interval",
                    base::Days(7));
 
+// Controls how long of inactivity are allowed before ARC on Demand is
+// triggered for 4GiB devices.
+BASE_FEATURE_PARAM(base::TimeDelta,
+                   kArcOnDemandInactiveIntervalFor4GiB,
+                   &kArcOnDemandV2,
+                   "inactive_interval_4gib",
+                   base::Days(0));
+
 // Controls whether to start ARC with the GKI kernel.
 BASE_FEATURE(kArcVmGki, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -198,12 +206,6 @@ BASE_FEATURE_PARAM(int,
 BASE_FEATURE(kArcVmPvclock,
              "ArcEnablePvclock",
              base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Enables/disables mlock() of guest memory for ARCVM.
-// Often used in combination with kGuestZram.
-BASE_FEATURE(kLockGuestMemory,
-             "ArcLockGuestMemory",
-             base::FEATURE_DISABLED_BY_DEFAULT);
 
 // Toggles between native bridge implementations for ARC.
 // Note, that we keep the original feature name to preserve

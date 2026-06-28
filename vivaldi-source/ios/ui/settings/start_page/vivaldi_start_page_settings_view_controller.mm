@@ -240,8 +240,7 @@ NSString* const kStartPageShowAddSettingsCellId =
   // No op.
 }
 
-- (void)setPhotoCredit:
-    (nullable NSDictionary<NSString*, NSString*>*)credit {
+- (void)setPhotoCredit:(nullable NSDictionary<NSString*, NSString*>*)credit {
   // No op.
 }
 

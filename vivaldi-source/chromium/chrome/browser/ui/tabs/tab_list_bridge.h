@@ -48,7 +48,9 @@ class TabListBridge : public TabListInterface, public TabStripModelObserver {
   int GetActiveIndex() const override;
   tabs::TabInterface* GetActiveTab() override;
   void ActivateTab(tabs::TabHandle tab) override;
-  tabs::TabInterface* OpenTab(const GURL& url, int index) override;
+  tabs::TabInterface* OpenTab(const GURL& url,
+                              int index,
+                              bool foreground) override;
   void SetOpenerForTab(tabs::TabHandle target, tabs::TabHandle opener) override;
   tabs::TabInterface* GetOpenerForTab(tabs::TabHandle target) override;
   tabs::TabInterface* InsertWebContentsAt(
@@ -87,7 +89,7 @@ class TabListBridge : public TabListInterface, public TabStripModelObserver {
   void MoveTabToWindow(tabs::TabHandle tab,
                        SessionID destination_window_id,
                        int destination_index) override;
-  void MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
+  bool MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
                             SessionID destination_window_id,
                             int destination_index) override;
   bool IsThisTabListEditable() override;

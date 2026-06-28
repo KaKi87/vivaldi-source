@@ -16,9 +16,7 @@ source_set("direct_match") {
     "//services/network/public/cpp",
   ]
   if (!is_ios) {
-    deps += [
-      "//content/public/browser",
-    ]
+    deps += [ "//content/public/browser" ]
   }
 }
 
@@ -33,16 +31,16 @@ static_library("browser") {
   ]
   if (is_android) {
     sources += [
+      "direct_match_bridge.cc",
       "direct_match_bridge.h",
-      "direct_match_bridge.cc"
     ]
 
     deps += [
-        "//chrome/android:jni_headers",
-        "//chrome/android:chrome_jni_headers",
-        "//vivaldi/app:vivaldi_native_resources",
-        "//content/public/browser",
-     ]
+      "//chrome/android:chrome_jni_headers",
+      "//chrome/android:jni_headers",
+      "//content/public/browser",
+      "//vivaldi/app:vivaldi_native_resources",
+    ]
   }
 }
 

@@ -137,8 +137,8 @@ source_set("core") {
   ]
 
   public_deps = [
-    "//vivaldi/components/ad_blocker/public/core",
     "//vivaldi/components/ad_blocker/core/parser",
+    "//vivaldi/components/ad_blocker/public/core",
   ]
 
   deps = [

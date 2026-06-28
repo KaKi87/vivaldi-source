@@ -21,6 +21,7 @@
 #import "components/policy/core/common/policy_types.h"
 #import "components/pref_registry/pref_registry_syncable.h"
 #import "components/signin/public/base/signin_metrics.h"
+#import "components/signin/public/base/signin_pref_names.h"
 #import "components/signin/public/identity_manager/tribool.h"
 #import "components/sync/test/test_sync_service.h"
 #import "components/sync_preferences/pref_service_mock_factory.h"
@@ -28,6 +29,7 @@
 #import "components/test/ios/test_utils.h"
 #import "ios/chrome/app/change_profile_commands.h"
 #import "ios/chrome/app/change_profile_continuation.h"
+#import "ios/chrome/browser/authentication/enterprise/public/managed_profile_creation_constants.h"
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_flow/authentication_flow_delegate.h"
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_flow/authentication_flow_in_profile.h"
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_flow/authentication_flow_in_profile_performer.h"
@@ -37,7 +39,6 @@
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_flow/test_authentication_flow_delegate.h"
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_test_util.h"
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_ui_util.h"
-#import "ios/chrome/browser/authentication/ui_bundled/enterprise/managed_profile_creation/managed_profile_creation_constants.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
 #import "ios/chrome/browser/policy/model/cloud/user_policy_constants.h"
 #import "ios/chrome/browser/policy/model/enterprise_policy_test_helper.h"
@@ -194,13 +195,18 @@ class AuthenticationFlowTest : public PlatformTest {
 
     signin_ui::SigninCompletionCallback sign_in_completion =
         ^(signin_ui::CancelationReason cancelationReason) {
+          cancelation_reason_ = cancelationReason;
           run_loop_->Quit();
           switch (cancelationReason) {
             case signin_ui::CancelationReason::kNotCanceled:
               signin_result_ = signin::Tribool::kTrue;
               break;
             case signin_ui::CancelationReason::kUserCanceled:
+            case signin_ui::CancelationReason::kAgeMismatchCanceled:
+            case signin_ui::CancelationReason::
+                kAgeMismatchCanceledStaySignedOut:
             case signin_ui::CancelationReason::kFailed:
+            case signin_ui::CancelationReason::kSignInNotAllowed:
               signin_result_ = signin::Tribool::kFalse;
               break;
           }
@@ -435,6 +441,8 @@ class AuthenticationFlowTest : public PlatformTest {
   // Used to wait for sign-in workflow to complete.
   std::unique_ptr<base::RunLoop> run_loop_;
   signin::Tribool signin_result_ = signin::Tribool::kUnknown;
+  signin_ui::CancelationReason cancelation_reason_ =
+      signin_ui::CancelationReason::kNotCanceled;
 };
 
 // Tests a Sign In of a normal account on the same profile.
@@ -611,6 +619,30 @@ TEST_F(AuthenticationFlowTest, TestShowUnsyncedDataConfirmation) {
 
   [authentication_flow_ startSignIn];
   run_loop_->Run();
+}
+
+// Tests that when sign-in is disabled, the flow is canceled with
+// `kSignInNotAllowed`.
+TEST_F(AuthenticationFlowTest, TestSignInNotAllowed) {
+  // Disable sign-in on device.
+  GetApplicationContext()->GetLocalState()->SetBoolean(
+      prefs::kSigninAllowedOnDevice, false);
+
+  CreateAuthenticationFlow(PostSignInActionSet(), identity1_,
+                           signin_metrics::AccessPoint::kStartPage,
+                           /*shouldHandOverToFlowInProfile=*/NO);
+
+  OCMExpect([performer_mock_ fetchManagedStatus:personal_profile_.get()
+                                    forIdentity:identity1_])
+      .andDo(^(NSInvocation*) {
+        [authentication_flow_ didFetchManagedStatus:nil];
+      });
+
+  [authentication_flow_ startSignIn];
+
+  CheckSignInCompletion(/*expected_signed_in=*/false);
+  EXPECT_EQ(signin_ui::CancelationReason::kSignInNotAllowed,
+            cancelation_reason_);
 }
 
 }  // namespace

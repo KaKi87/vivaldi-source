@@ -1,20 +1,23 @@
-
 ai_filter_list_base_ = [
   "//chrome/browser/background/glic",
   "//chrome/browser/extensions/api/experimental_actor",
   "//chrome/browser/extensions/api/glic_private",
   "//chrome/browser/glic",
-  "//chrome/browser/ui/tabs:glic*",
+  "//chrome/browser/resources/glic/experimental_opt_in",
+  "//chrome/browser/sharing/glic_experimental_triggering",
+  "//chrome/browser/ui/feature_first_run",
+
+  #"//chrome/browser/ui/tabs:glic*",
   "//chrome/browser/ui/views/glic",
   "//chrome/browser/ui/views/tabs/glic",
 ]
 
 ai_filter_list = []
-foreach (ai_filter_item_, ai_filter_list_base_)  {
+foreach(ai_filter_item_, ai_filter_list_base_) {
   ai_filter_list += [
     ai_filter_item_,
-    ai_filter_item_+":*",
-    ai_filter_item_+"/*",
+    ai_filter_item_ + ":*",
+    ai_filter_item_ + "/*",
   ]
 }
 
@@ -23,6 +26,7 @@ ai_filter_list += [
   "//chrome/browser/actor:browser_tests",
   "//chrome/browser/actor:interactive_ui_tests",
   "//chrome/browser/actor:test_support",
+  "//chrome/browser/actor:tools_test_support",
   "//chrome/browser/actor:unit_tests",
   "//chrome/browser/actor/ui:browser_tests",
   "//chrome/browser/actor/ui:interactive_ui_tests",
@@ -30,11 +34,16 @@ ai_filter_list += [
   "//chrome/browser/actor/ui/task_list_bubble:interactive_ui_tests",
   "//chrome/browser/actor/ui/task_list_bubble:unit_tests",
   "//chrome/browser/ai:unit_tests",
+  "//chrome/browser/contextual_tasks:interactive_ui_tests",
   "//chrome/browser/extensions/api/pdf_viewer_private:browser_tests",
+  "//chrome/browser/indigo:unit_tests",
+  "//chrome/browser/indigo:browser_tests",
+  "//chrome/browser/record_replay:unit_tests",
   "//chrome/browser/skills:browser_tests",
   "//chrome/browser/skills:unit_tests",
   "//chrome/browser/skills:interactive_ui_tests",
   "//chrome/browser/ui/tabs:glic*",
+  "//chrome/browser/ui/android/bottombar:metrics_java",
   "//chrome/browser/ui/tabs/alert:interactive_ui_tests",
   "//chrome/browser/ui/tabs/projects:browser_tests",
   "//chrome/browser/ui/tabs/projects:interactive_ui_tests",
@@ -42,4 +51,6 @@ ai_filter_list += [
   "//chrome/browser/ui/views/tabs/projects:browser_tests",
   "//chrome/browser/ui/views/tabs/projects:interactive_ui_tests",
   "//chrome/browser/ui/views/tabs/projects:unit_tests",
+  "//chrome/browser/ui/views/toolbar:browser_tests",
+  "//chrome/browser/ui/webui/webui_toolbar:browser_tests",
 ]

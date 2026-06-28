@@ -13,14 +13,14 @@
 /buildtools
 /testing
 /third_party/abseil-cpp/
+/third_party/agility-sdk/src
 /third_party/angle
 /third_party/binutils
 /third_party/catapult
 /third_party/clang-format
 /third_party/cpplint
 /third_party/depot_tools
-/third_party/dxc
-/third_party/dxheaders
+/third_party/directx-shader-compiler/src
 /third_party/directx-headers/src
 /third_party/glfw3/src
 /third_party/glslang/src/
@@ -165,3 +165,9 @@ compile_commands.json
 
 ### Root user file for gemini cli
 GEMINI.md
+
+### Default when following coverage instructions
+/coverage_report
+
+### Jetski
+.jetskicli

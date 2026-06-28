@@ -3,19 +3,21 @@
 <grit base_dir="." latest_public_release="0" current_release="1"
       source_lang_id="en" enc_check="möl">
   <outputs>
-    <output filename="ui_strings_ca-valencia.pak" type="data_package" lang="ca@valencia" />
-    <output filename="ui_strings_de-CH.pak" type="data_package" lang="de-CH" />
-    <output filename="ui_strings_eo.pak" type="data_package" lang="eo" />
-    <output filename="ui_strings_es-PE.pak" type="data_package" lang="es-PE" />
-    <output filename="ui_strings_fy.pak" type="data_package" lang="fy" />
-    <output filename="ui_strings_gd.pak" type="data_package" lang="gd" />
-    <output filename="ui_strings_io.pak" type="data_package" lang="io" />
-    <output filename="ui_strings_ja-KS.pak" type="data_package" lang="ja-KS" />
-    <output filename="ui_strings_jbo.pak" type="data_package" lang="jbo" />
-    <output filename="ui_strings_kab.pak" type="data_package" lang="kab" />
-    <output filename="ui_strings_kmr.pak" type="data_package" lang="kmr" />
-    <output filename="ui_strings_sc.pak" type="data_package" lang="sc" />
-    <output filename="ui_strings_nn.pak" type="data_package" lang="nn" />
+    <if expr="not is_ios">
+      <output filename="ui_strings_ca-valencia.pak" type="data_package" lang="ca@valencia" />
+      <output filename="ui_strings_de-CH.pak" type="data_package" lang="de-CH" />
+      <output filename="ui_strings_eo.pak" type="data_package" lang="eo" />
+      <output filename="ui_strings_es-PE.pak" type="data_package" lang="es-PE" />
+      <output filename="ui_strings_fy.pak" type="data_package" lang="fy" />
+      <output filename="ui_strings_gd.pak" type="data_package" lang="gd" />
+      <output filename="ui_strings_io.pak" type="data_package" lang="io" />
+      <output filename="ui_strings_ja-KS.pak" type="data_package" lang="ja-KS" />
+      <output filename="ui_strings_jbo.pak" type="data_package" lang="jbo" />
+      <output filename="ui_strings_kab.pak" type="data_package" lang="kab" />
+      <output filename="ui_strings_kmr.pak" type="data_package" lang="kmr" />
+      <output filename="ui_strings_sc.pak" type="data_package" lang="sc" />
+      <output filename="ui_strings_nn.pak" type="data_package" lang="nn" />
+    </if>
     <if expr="not is_android">
     </if>
   </outputs>

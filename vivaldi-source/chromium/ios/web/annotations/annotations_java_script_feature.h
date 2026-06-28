@@ -14,6 +14,9 @@
 
 namespace web {
 
+extern const int kMaxAnnotationsTextLength;
+extern const int kMaxAnnotationsMetadataLength;
+
 /**
  * Handles JS communication for the annotations feature.
  */
@@ -39,8 +42,6 @@ class AnnotationsJavaScriptFeature : public JavaScriptFeature {
   // Triggers the JS decoration removal code for a single type.
   virtual void RemoveDecorationsWithType(WebState* web_state,
                                          const std::string& type);
-  // Triggers the JS highlight removal code.
-  virtual void RemoveHighlight(WebState* web_state);
 
  protected:
   // JavaScriptFeature:

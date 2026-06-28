@@ -49,6 +49,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/views/web_apps/web_app_dialog_test_support.h"
 #include "chrome/browser/ui/web_applications/web_app_dialogs.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_integrity_block_data.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolation_data.h"
@@ -677,7 +678,7 @@ std::vector<MigrationSource> CreateRandomMigrationSources(
       install_url = GURL("https://example.com/install_url_" +
                          base::NumberToString(random.next_uint()));
     }
-    sources.emplace_back(std::move(manifest_id), behavior,
+    sources.emplace_back(webapps::ManifestId(std::move(manifest_id)), behavior,
                          std::move(install_url));
   }
   return sources;
@@ -719,8 +720,12 @@ std::unique_ptr<WebApp> CreateWebApp(const GURL& start_url,
 }
 
 std::unique_ptr<WebApp> CreateWebAppFromSyncProto(
-    const sync_pb::WebAppSpecifics& sync_proto) {
+    sync_pb::WebAppSpecifics& sync_proto) {
   CHECK(sync_proto.has_start_url() && GURL(sync_proto.start_url()).is_valid());
+  if (!sync_proto.has_scope()) {
+    sync_proto.set_scope(
+        GURL(sync_proto.start_url()).GetWithoutFilename().spec());
+  }
   auto web_app = std::make_unique<WebApp>(sync_proto);
   web_app->AddSource(WebAppManagement::kSync);
   return web_app;
@@ -914,7 +919,9 @@ std::unique_ptr<WebApp> CreateRandomWebApp(
   }
 
   app->SetLastBadgingTime(random.next_time());
-  app->SetLastLaunchTime(random.next_time());
+  if (random.next_bool()) {
+    app->SetLastLaunchTime(random.next_time());
+  }
   app->SetFirstInstallTime(random.next_time());
 
   const std::array<DisplayMode, 4> display_modes = {
@@ -1355,8 +1362,16 @@ void TestAcceptDialogCallback(
     std::unique_ptr<WebAppInstallInfo> web_app_info,
     WebAppInstallationAcceptanceCallback acceptance_callback) {
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(std::move(acceptance_callback), true /*accept*/,
-                                std::move(web_app_info)));
+      FROM_HERE,
+      base::BindOnce(
+          std::move(acceptance_callback), true /*accept*/,
+          std::move(web_app_info),
+          base::BindOnce(
+              [](bool success, base::OnceClosure reparent_or_launch_app) {
+                if (success && reparent_or_launch_app) {
+                  std::move(reparent_or_launch_app).Run();
+                }
+              })));
 }
 
 void TestDeclineDialogCallback(
@@ -1365,23 +1380,23 @@ void TestDeclineDialogCallback(
     std::unique_ptr<WebAppInstallInfo> web_app_info,
     WebAppInstallationAcceptanceCallback acceptance_callback) {
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(std::move(acceptance_callback),
-                                false /*accept*/, std::move(web_app_info)));
+      FROM_HERE,
+      base::BindOnce(std::move(acceptance_callback), false /*accept*/,
+                     std::move(web_app_info), base::DoNothing()));
 }
 
 // TODO(b/329703817): Make this smarter by waiting for a specific dialog, and
 // then triggering accept on the dialog.
 webapps::AppId InstallPwaForCurrentUrl(Browser* browser) {
   // Depending on the installability criteria, different dialogs can be used.
-  SetAutoAcceptWebAppDialogForTesting(true, true);
-  auto auto_accept_pwa_install_confirmation =
-      SetAutoAcceptPWAInstallConfirmationForTesting();
+  web_app::test::ScopedAutoAcceptCreateShortcutDialog auto_accept;
+  web_app::test::ScopedAutoCheckChromeOsOpenInWindow auto_check;
+  web_app::test::ScopedAutoAcceptWebAppDialogs auto_accept_pwa;
   SetAutoAcceptDiyAppsInstallDialogForTesting(true);
   WebAppTestInstallWithOsHooksObserver observer(browser->profile());
   observer.BeginListening();
   CHECK(chrome::ExecuteCommand(browser, IDC_INSTALL_PWA));
   webapps::AppId app_id = observer.Wait();
-  SetAutoAcceptWebAppDialogForTesting(false, false);
   SetAutoAcceptDiyAppsInstallDialogForTesting(false);
   return app_id;
 }

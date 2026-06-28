@@ -23,6 +23,7 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/menu_model.h"
 #include "ui/base/mojom/menu_source_type.mojom.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/compositor/layer.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/animation_builder.h"
@@ -226,8 +227,11 @@ void ToastView::Init() {
         close_button_callback_.Then(
             base::BindRepeating(&ToastView::Close, base::Unretained(this),
                                 ToastCloseReason::kCloseButton)),
-        vector_icons::kCloseChromeRefreshIcon,
+        features::IsRoundedIconsEnabled()
+            ? vector_icons::kCloseIcon
+            : vector_icons::kCloseChromeRefreshOldIcon,
         lp->GetDistanceMetric(DISTANCE_TOAST_BUBBLE_ICON_SIZE),
+        ui::kColorToastForeground, ui::kColorIconDisabled,
         ui::kColorToastForeground));
     // Override the image button's border with the appropriate icon border size.
     const gfx::Insets insets =
@@ -252,9 +256,12 @@ void ToastView::Init() {
 
   if (menu_model_) {
     menu_button_ = AddChildView(views::CreateVectorImageButtonWithNativeTheme(
-        base::RepeatingClosure(), kBrowserToolsChromeRefreshIcon,
+        base::RepeatingClosure(),
+        features::IsRoundedIconsEnabled() ? kMoreVertIcon
+                                          : kBrowserToolsChromeRefreshOldIcon,
         /*dip_size=*/
         lp->GetDistanceMetric(DISTANCE_TOAST_BUBBLE_MENU_ICON_SIZE),
+        ui::kColorToastForeground, ui::kColorIconDisabled,
         ui::kColorToastForeground));
     views::InstallCircleHighlightPathGenerator(menu_button_);
     menu_button_->SetProperty(views::kElementIdentifierKey, kToastMenuButton);

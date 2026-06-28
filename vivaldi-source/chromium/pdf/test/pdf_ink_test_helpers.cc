@@ -5,12 +5,15 @@
 #include "pdf/test/pdf_ink_test_helpers.h"
 
 #include <array>
+#include <ostream>
 #include <string_view>
 #include <utility>
 
 #include "base/notreached.h"
+#include "base/strings/to_string.h"
 #include "base/values.h"
 #include "pdf/pdf_ink_conversions.h"
+#include "testing/gtest/include/gtest/gtest.h"
 
 namespace chrome_pdf {
 
@@ -18,27 +21,15 @@ namespace {
 
 // All possible variations of Ink feature params.
 constexpr InkTestVariation kInkTestVariationNoTextSupport{
-    /*use_text_annotations=*/false,
-    /*use_text_highlighting=*/false};
-constexpr InkTestVariation kInkTestVariationTextHighlighting{
-    /*use_text_annotations=*/false,
-    /*use_text_highlighting=*/true};
-constexpr InkTestVariation kInkTestVariationTextHighlightingAndAnnotations{
-    /*use_text_annotations=*/true, /*use_text_highlighting=*/true};
+    /*use_text_annotations=*/false};
+constexpr InkTestVariation kInkTestVariationTextSupport{
+    /*use_text_annotations=*/true};
 
 // Variations of Ink tests to cover all features in development.
 constexpr auto kInkTestVariations = std::to_array<InkTestVariation>({
     kInkTestVariationNoTextSupport,
-    kInkTestVariationTextHighlighting,
-    kInkTestVariationTextHighlightingAndAnnotations,
+    kInkTestVariationTextSupport,
 });
-
-// Variations of Ink tests with text highlighting enabled.
-constexpr auto kInkTestVariationsWithTextHighlighting =
-    std::to_array<InkTestVariation>({
-        kInkTestVariationTextHighlighting,
-        kInkTestVariationTextHighlightingAndAnnotations,
-    });
 
 std::string GetAnnotationModeMessageString(InkAnnotationMode mode) {
   switch (mode) {
@@ -113,8 +104,13 @@ base::span<const InkTestVariation> GetAllInkTestVariations() {
   return kInkTestVariations;
 }
 
-base::span<const InkTestVariation> GetInkTestVariationsWithTextHighlighting() {
-  return kInkTestVariationsWithTextHighlighting;
+void PrintTo(const InkTextInfo& info, std::ostream* os) {
+  *os << "{\n  font_id=" << info.font_id
+      << ", is_horizontal=" << base::ToString(info.is_horizontal)
+      << ",\n  location=" << info.location.ToString()
+      << ",\n  glyphs=" << testing::PrintToString(info.glyphs)
+      << ",\n  glyph_positions=" << testing::PrintToString(info.glyph_positions)
+      << "\n}";
 }
 
 }  // namespace chrome_pdf

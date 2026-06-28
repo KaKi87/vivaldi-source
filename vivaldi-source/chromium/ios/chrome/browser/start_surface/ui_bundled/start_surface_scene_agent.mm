@@ -122,6 +122,16 @@ bool IsEmptyNTP(const web::WebState* web_state) {
   if (level != SceneActivationLevelForegroundActive &&
       self.previousActivationLevel == SceneActivationLevelForegroundActive) {
     SetStartSurfaceSessionObjectForSceneState(sceneState);
+    Browser* browser =
+        sceneState.browserProviderInterface.mainBrowserProvider.browser;
+    if (browser) {
+      web::WebState* activeWebState =
+          browser->GetWebStateList()->GetActiveWebState();
+      if (activeWebState && !IsUrlNtp(activeWebState->GetVisibleURL())) {
+        StartSurfaceRecentTabBrowserAgent::FromBrowser(browser)
+            ->SaveMostRecentTab();
+      }
+    }
   }
   if (level == SceneActivationLevelBackground &&
       self.previousActivationLevel > SceneActivationLevelBackground) {
@@ -157,10 +167,10 @@ bool IsEmptyNTP(const web::WebState* web_state) {
       self.sceneState.browserProviderInterface.mainBrowserProvider.browser;
 
   ProfileIOS* profile = browser->GetProfile();
+
   if (!base::FeatureList::IsEnabled(switches::kBuildExternalPrivacyContext)) {
-    // Capabilities prefetching must happen after
-    // `SystemIdentityManager::BuildExternalPrivacyContext()`. This is handled
-    // by `SigninAccountCapabilitiesSceneAgent` instead.
+    // Capabilities prefetching is no longer necessary; all capabilities fetches
+    // are deferred until External Privacy Contexts are built.
     RunSystemCapabilitiesPrefetch(signin::GetIdentitiesOnDevice(profile));
   }
 

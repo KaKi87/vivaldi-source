@@ -63,12 +63,14 @@ class TestPersistentPermissionContext
       const permissions::PermissionRequestData& request_data,
       permissions::BrowserPermissionCallback callback,
       bool persist,
+      const content::PermissionResult* permission_result,
       const permissions::PermissionPromptDecision& decision) override {
     permission_set_count_++;
     last_permission_set_persisted_ = persist;
     last_set_decision_ = decision.overall_decision;
     PersistentStoragePermissionContext::NotifyPermissionSet(
-        request_data, std::move(callback), persist, decision);
+        request_data, std::move(callback), persist, permission_result,
+        decision);
   }
 
   int permission_set_count_ = 0;
@@ -103,9 +105,8 @@ TEST_F(PersistentStoragePermissionContextTest, Bookmarked) {
 
   permission_context.DecidePermission(
       std::make_unique<permissions::PermissionRequestData>(
-          std::make_unique<permissions::ContentSettingPermissionResolver>(
-              ContentSettingsType::PERSISTENT_STORAGE),
-          id, /*user_gesture=*/true, url, url),
+          /*permission_descriptor=*/nullptr, id, /*user_gesture=*/true, url,
+          url),
       base::DoNothing());
   // Success.
   EXPECT_EQ(1, permission_context.permission_set_count());
@@ -130,9 +131,8 @@ TEST_F(PersistentStoragePermissionContextTest, BookmarkAndIncognitoMode) {
 
   permission_context.DecidePermission(
       std::make_unique<permissions::PermissionRequestData>(
-          std::make_unique<permissions::ContentSettingPermissionResolver>(
-              ContentSettingsType::PERSISTENT_STORAGE),
-          id, /*user_gesture=*/true, url, url),
+          /*permission_descriptor=*/nullptr, id, /*user_gesture=*/true, url,
+          url),
       base::DoNothing());
   // Success.
   EXPECT_EQ(1, permission_context.permission_set_count());
@@ -160,9 +160,8 @@ TEST_F(PersistentStoragePermissionContextTest,
 
   permission_context.DecidePermission(
       std::make_unique<permissions::PermissionRequestData>(
-          std::make_unique<permissions::ContentSettingPermissionResolver>(
-              ContentSettingsType::PERSISTENT_STORAGE),
-          id, /*user_gesture=*/true, url, url),
+          /*permission_descriptor=*/nullptr, id, /*user_gesture=*/true, url,
+          url),
       base::DoNothing());
   // Success.
   EXPECT_EQ(1, permission_context.permission_set_count());
@@ -185,9 +184,8 @@ TEST_F(PersistentStoragePermissionContextTest, NoBookmark) {
 
   permission_context.DecidePermission(
       std::make_unique<permissions::PermissionRequestData>(
-          std::make_unique<permissions::ContentSettingPermissionResolver>(
-              ContentSettingsType::PERSISTENT_STORAGE),
-          id, /*user_gesture=*/true, url, url),
+          /*permission_descriptor=*/nullptr, id, /*user_gesture=*/true, url,
+          url),
       base::DoNothing());
 
   // We shouldn't be granted.
@@ -217,9 +215,8 @@ TEST_F(PersistentStoragePermissionContextTest, CookiesNotAllowed) {
 
   permission_context.DecidePermission(
       std::make_unique<permissions::PermissionRequestData>(
-          std::make_unique<permissions::ContentSettingPermissionResolver>(
-              ContentSettingsType::PERSISTENT_STORAGE),
-          id, /*user_gesture=*/true, url, url),
+          /*permission_descriptor=*/nullptr, id, /*user_gesture=*/true, url,
+          url),
       base::DoNothing());
   // We shouldn't be granted.
   EXPECT_EQ(1, permission_context.permission_set_count());
@@ -244,9 +241,8 @@ TEST_F(PersistentStoragePermissionContextTest, EmbeddedFrame) {
 
   permission_context.DecidePermission(
       std::make_unique<permissions::PermissionRequestData>(
-          std::make_unique<permissions::ContentSettingPermissionResolver>(
-              ContentSettingsType::PERSISTENT_STORAGE),
-          id, /*user_gesture=*/true, requesting_url, url),
+          /*permission_descriptor=*/nullptr, id, /*user_gesture=*/true,
+          requesting_url, url),
       base::DoNothing());
   // We shouldn't be granted.
   EXPECT_EQ(1, permission_context.permission_set_count());

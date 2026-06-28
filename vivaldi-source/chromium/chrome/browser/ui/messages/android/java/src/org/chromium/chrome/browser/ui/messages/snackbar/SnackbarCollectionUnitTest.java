@@ -149,7 +149,7 @@ public class SnackbarCollectionUnitTest {
         }
     }
 
-    // This test is added as a result of crbug.com/1258303.
+    // This test is added as a result of crbug.com/40796914.
     // Test that the action/dismiss callbacks are not invoked when the controller is null.
     @Test
     @Feature({"Browser", "Snackbar"})
@@ -234,6 +234,37 @@ public class SnackbarCollectionUnitTest {
         collection.add(makeNotificationSnackbar());
         collection.add(makeActionSnackbar());
         watcher.assertExpected("Replaced by action snackbar should be recorded.");
+    }
+
+    @Test
+    @Feature({"Browser", "Snackbar"})
+    public void testHighPriorityActionSnackbarNotDiscardedOnTimeout() {
+        SnackbarCollection collection = new SnackbarCollection();
+        assertTrue(collection.isEmpty());
+
+        // High priority snackbar
+        Snackbar highPriorityBar =
+                makeActionSnackbar().setHighPriority(true).setAction("highPriority", null);
+        collection.add(highPriorityBar);
+
+        // Regular action snackbar that will timeout
+        Snackbar actionBar = makeActionSnackbar().setAction("action", null);
+        collection.add(actionBar);
+
+        assertEquals(actionBar, collection.getCurrent());
+
+        // Timeout on actionBar should NOT discard highPriorityBar
+        collection.removeCurrentDueToTimeout();
+        verify(mMockController, times(1)).onDismissNoAction(null);
+        assertFalse(collection.isEmpty());
+        assertEquals(
+                "High priority snackbar should still be in the collection",
+                highPriorityBar,
+                collection.getCurrent());
+
+        collection.removeCurrentDueToTimeout();
+        verify(mMockController, times(2)).onDismissNoAction(null);
+        assertTrue(collection.isEmpty());
     }
 
     private Snackbar makeActionSnackbar(SnackbarController controller) {

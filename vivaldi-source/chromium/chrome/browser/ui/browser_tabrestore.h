@@ -7,6 +7,7 @@
 
 #include <map>
 #include <string>
+#include <optional>
 #include <vector>
 
 #include "base/containers/span.h"
@@ -30,6 +31,8 @@ namespace chrome {
 struct VivExtDataWrap {
   const std::string *ext_data = nullptr;
   bool foreign = false;
+  std::optional<std::string> ext_id_salt;
+  bool workspace_as_tabs = false;
 };
 
 // Add a tab with its session history restored from the SessionRestore and

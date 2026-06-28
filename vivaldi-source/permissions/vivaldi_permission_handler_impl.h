@@ -34,7 +34,8 @@ struct PendingDeviceChooser {
   std::string chooser_type;  // "usb", "serial", "hid", "bluetooth"
   int tab_id;
   std::string origin;  // Origin URL for permission event.
-  content::BrowserContext* browser_context = nullptr;  // Browser context for API access.
+  content::BrowserContext* browser_context =
+      nullptr;  // Browser context for API access.
 };
 
 // Observer that cleans up permission state on navigation.
@@ -89,11 +90,13 @@ class VivaldiPermissionHandlerImpl : public VivaldiPermissionHandlerBase {
       content::RenderFrameHost* owner,
       std::unique_ptr<::permissions::ChooserController>* controller) override;
 
-  /** VB-114658: Respond to a device chooser selection from the sitePermissions API.
-   * Called by SitePermissionsAPI when user selects/denies a device choice.
-   * @param request_id The request ID from FirePermissionRequestEventWithDevices.
+  /** VB-114658: Respond to a device chooser selection from the sitePermissions
+   * API. Called by SitePermissionsAPI when user selects/denies a device choice.
+   * @param request_id The request ID from
+   * FirePermissionRequestEventWithDevices.
    * @param allow Whether the user allowed access (true) or denied (false).
-   * @param device_indices List of device indices the user allowed (only used if allow=true). */
+   * @param device_indices List of device indices the user allowed (only used if
+   * allow=true). */
   void RespondToDeviceChooser(const std::string& request_id,
                               bool allow,
                               const std::vector<int>& device_indices);
@@ -108,8 +111,8 @@ class VivaldiPermissionHandlerImpl : public VivaldiPermissionHandlerBase {
   /** VB-114658: Callback when device enumeration completes.
    * Called by DeviceEnumerationView when enumeration signals completion. */
   void OnEnumerationComplete(const std::string& request_id,
-                            int tab_id,
-                            extensions::SitePermissionsAPI* api);
+                             int tab_id,
+                             extensions::SitePermissionsAPI* api);
 
   /** VB-114658: Clean up all pending device choosers for a tab.
    * Called when a tab is closed or navigated. */

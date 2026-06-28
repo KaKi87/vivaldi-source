@@ -9,21 +9,35 @@
 #import "ios/chrome/browser/toolbar/ui/buttons/toolbar_button.h"
 #import "ios/chrome/browser/toolbar/ui/buttons/toolbar_button_visibility.h"
 #import "ios/chrome/browser/toolbar/ui/buttons/toolbar_buttons_utils.h"
+#import "ios/chrome/browser/toolbar/ui/buttons/toolbar_tab_grid_badge_button.h"
 #import "ios/chrome/browser/toolbar/ui/toolbar_constants.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
+#import "ios/chrome/grit/ios_strings.h"
+#import "ui/base/l10n/l10n_util.h"
 
 namespace {
 // Default point size for toolbar buttons.
-constexpr CGFloat kDefaultSymbolPointSize = 22;
+constexpr CGFloat kDefaultSymbolPointSize = 19;
 }  // namespace
 
-@implementation ToolbarButtonFactory
+@implementation ToolbarButtonFactory {
+  BOOL _incognito;
+}
+
+- (instancetype)initWithIncognito:(BOOL)incognito {
+  if ((self = [super init])) {
+    _incognito = incognito;
+  }
+  return self;
+}
 
 - (ToolbarButton*)makeBackButton {
   ToolbarButton* button = [self toolbarButtonForImageNamed:kBackSymbol
                                               defaultImage:YES];
   button.visibilityMask = ToolbarButtonVisibility::kAlways;
   button.accessibilityIdentifier = kToolbarBackButtonIdentifier;
+  button.accessibilityHint =
+      l10n_util::GetNSString(IDS_IOS_TOOLBAR_ACCESSIBILITY_HINT_BACK);
   return button;
 }
 
@@ -32,6 +46,8 @@ constexpr CGFloat kDefaultSymbolPointSize = 22;
                                               defaultImage:YES];
   button.visibilityMask = ToolbarButtonVisibility::kWhenEnabled;
   button.accessibilityIdentifier = kToolbarForwardButtonIdentifier;
+  button.accessibilityHint =
+      l10n_util::GetNSString(IDS_IOS_TOOLBAR_ACCESSIBILITY_HINT_FORWARD);
   return button;
 }
 
@@ -47,6 +63,12 @@ constexpr CGFloat kDefaultSymbolPointSize = 22;
   [buttonsContainer setContentHuggingPriority:UILayoutPriorityRequired
                                       forAxis:UILayoutConstraintAxisHorizontal];
 
+  UIView* backgroundView = [[UIView alloc] init];
+  backgroundView.translatesAutoresizingMaskIntoConstraints = NO;
+  backgroundView.backgroundColor = ToolbarElementBackgroundColor(_incognito);
+  [buttonsContainer addSubview:backgroundView];
+  AddSameConstraints(backgroundView, buttonsContainer);
+
   // Internal stack view to handle dynamic resizing when the forward button
   // visibility changes.
   UIStackView* buttonsStack = [[UIStackView alloc]
@@ -56,33 +78,29 @@ constexpr CGFloat kDefaultSymbolPointSize = 22;
   buttonsStack.distribution = UIStackViewDistributionFill;
   buttonsStack.alignment = UIStackViewAlignmentFill;
 
-  [buttonsContainer addSubview:buttonsStack];
-  AddSameConstraints(buttonsStack, buttonsContainer);
-
-  backButton.translatesAutoresizingMaskIntoConstraints = NO;
-  forwardButton.translatesAutoresizingMaskIntoConstraints = NO;
+  [backgroundView addSubview:buttonsStack];
+  AddSameConstraints(buttonsStack, backgroundView);
 
   [NSLayoutConstraint activateConstraints:@[
     [buttonsContainer.heightAnchor
         constraintEqualToAnchor:backButton.heightAnchor]
   ]];
 
-  buttonsContainer.backgroundColor = ToolbarButtonColor();
   ConfigureCornerRadiusForToolbarButtonContainer(
-      buttonsContainer, buttonsContainer.traitCollection);
-  buttonsContainer.clipsToBounds = YES;
-  buttonsContainer.layer.masksToBounds = YES;
-  ConfigureShadowForToolbarButton(buttonsContainer);
+      backgroundView, buttonsContainer.traitCollection);
+  backgroundView.clipsToBounds = YES;
+  ConfigureShadowForToolbarElement(buttonsContainer);
 
-  backButton.backgroundColor = [UIColor clearColor];
-  forwardButton.backgroundColor = [UIColor clearColor];
+  // Remove effects from the standalone buttons in the container
+  ConfigureShadowForToolbarElement(backButton, /*remove_shadow*/ YES);
+  ConfigureShadowForToolbarElement(forwardButton, /*remove_shadow*/ YES);
 
   [buttonsContainer
       registerForTraitChanges:
           @[ UITraitVerticalSizeClass.class, UITraitHorizontalSizeClass.class ]
                   withHandler:^(id<UITraitEnvironment>, UITraitCollection*) {
                     ConfigureCornerRadiusForToolbarButtonContainer(
-                        buttonsContainer, buttonsContainer.traitCollection);
+                        backgroundView, buttonsContainer.traitCollection);
                   }];
   return buttonsContainer;
 }
@@ -92,6 +110,7 @@ constexpr CGFloat kDefaultSymbolPointSize = 22;
                                               defaultImage:NO];
   button.visibilityMask = ToolbarButtonVisibility::kWideLayout;
   button.accessibilityIdentifier = kToolbarReloadButtonIdentifier;
+  button.accessibilityLabel = l10n_util::GetNSString(IDS_IOS_ACCNAME_RELOAD);
   return button;
 }
 
@@ -100,6 +119,7 @@ constexpr CGFloat kDefaultSymbolPointSize = 22;
                                               defaultImage:YES];
   button.visibilityMask = ToolbarButtonVisibility::kWideLayout;
   button.accessibilityIdentifier = kToolbarStopButtonIdentifier;
+  button.accessibilityLabel = l10n_util::GetNSString(IDS_IOS_ACCNAME_STOP);
   return button;
 }
 
@@ -111,11 +131,14 @@ constexpr CGFloat kDefaultSymbolPointSize = 22;
   return button;
 }
 
-- (ToolbarButton*)makeTabGridButton {
-  ToolbarButton* button = [self toolbarButtonForImageNamed:kSquareNumberSymbol
-                                              defaultImage:NO];
+- (ToolbarTabGridBadgeButton*)makeTabGridButton {
+  ToolbarTabGridBadgeButton* button =
+      [[ToolbarTabGridBadgeButton alloc] initWithImageLoader:nil
+                                                   incognito:_incognito];
   button.visibilityMask = ToolbarButtonVisibility::kRegularRegular;
   button.accessibilityIdentifier = kToolbarTabGridButtonIdentifier;
+  button.accessibilityHint =
+      l10n_util::GetNSString(IDS_IOS_TOOLBAR_ACCESSIBILITY_HINT_TAB_GRID);
   return button;
 }
 
@@ -140,6 +163,8 @@ constexpr CGFloat kDefaultSymbolPointSize = 22;
 #endif
   button.visibilityMask = ToolbarButtonVisibility::kRegularRegular;
   button.accessibilityIdentifier = kToolbarAssistantButtonIdentifier;
+  button.accessibilityLabel =
+      l10n_util::GetNSString(IDS_IOS_APP_BAR_ASK_GEMINI);
   return button;
 }
 
@@ -150,13 +175,17 @@ constexpr CGFloat kDefaultSymbolPointSize = 22;
 - (ToolbarButton*)toolbarButtonForImageNamed:(NSString*)imageName
                                 defaultImage:(BOOL)defaultImage {
   if (defaultImage) {
-    return [[ToolbarButton alloc] initWithImageLoader:^UIImage* {
-      return DefaultSymbolWithPointSize(imageName, kDefaultSymbolPointSize);
-    }];
+    return [[ToolbarButton alloc]
+        initWithImageLoader:^UIImage* {
+          return DefaultSymbolWithPointSize(imageName, kDefaultSymbolPointSize);
+        }
+                  incognito:_incognito];
   }
-  return [[ToolbarButton alloc] initWithImageLoader:^UIImage* {
-    return CustomSymbolWithPointSize(imageName, kDefaultSymbolPointSize);
-  }];
+  return [[ToolbarButton alloc]
+      initWithImageLoader:^UIImage* {
+        return CustomSymbolWithPointSize(imageName, kDefaultSymbolPointSize);
+      }
+                incognito:_incognito];
 }
 
 @end

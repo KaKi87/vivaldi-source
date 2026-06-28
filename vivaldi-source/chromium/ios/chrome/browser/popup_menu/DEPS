@@ -48,6 +48,7 @@ include_rules = [
   "+ios/chrome/browser/sharing/ui_bundled",
   "+ios/chrome/browser/signin/model/authentication_service.h",
   "+ios/chrome/browser/signin/model/authentication_service_factory.h",
+  "+ios/chrome/browser/signin/model/identity_manager_factory.h",
   "+ios/chrome/browser/supervised_user/model/supervised_user_capabilities.h",
   "+ios/chrome/browser/supervised_user/model/supervised_user_service_factory.h",
   "+ios/chrome/browser/sync/model/sync_service_factory.h",
@@ -63,11 +64,3 @@ include_rules = [
   "+ios/chrome/browser/window_activities/model/window_activity_helpers.h",
   # keep-sorted end
 ]
-
-specific_include_rules = {
-  # web::HttpServer is deprecated in favor of net::EmbeddedTestServer.
-  # TODO:(crbug.com/891834) Remove this exception.
-  "request_desktop_mobile_site_egtest\.mm": [
-    "+ios/web/public/test/http_server",
-  ],
-}

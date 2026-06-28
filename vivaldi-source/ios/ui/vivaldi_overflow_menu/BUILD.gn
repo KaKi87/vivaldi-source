@@ -1,4 +1,3 @@
-
 # Copyright 2023 Vivaldi Technologies. All rights reserved.
 
 source_set("vivaldi_overflow_menu") {
@@ -10,9 +9,9 @@ source_set("vivaldi_overflow_menu") {
   ]
 
   deps = [
-    "//base",
     "resources:assets",
+    "//base",
   ]
 
- frameworks = [ "UIKit.framework" ]
+  frameworks = [ "UIKit.framework" ]
 }

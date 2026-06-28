@@ -9,13 +9,16 @@
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/page_info/web_view_side_panel_throttle.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/page_navigator.h"
+#include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/referrer.h"
 #include "net/base/url_util.h"
@@ -67,7 +70,12 @@ WebViewSidePanelView::WebViewSidePanelView(
 
   loading_indicator_web_view_ =
       AddChildView(CreateWebView(this, browser_context));
-  loading_indicator_web_view_->GetWebContents()->GetController().LoadURL(
+  auto* loading_contents = loading_indicator_web_view_->GetWebContents();
+  loading_contents->SetDelegate(this);
+  loading_contents->SetUserData(
+      kWebViewSidePanelWebContentsUserDataKey,
+      std::make_unique<WebViewSidePanelWebContentsUserData>(AsWeakPtr()));
+  loading_contents->GetController().LoadURL(
       GURL(loading_screen_url), content::Referrer(),
       ui::PAGE_TRANSITION_FROM_API, std::string());
   web_view_ = AddChildView(CreateWebView(this, browser_context));
@@ -121,8 +129,12 @@ void WebViewSidePanelView::DidOpenRequestedURL(
                                 renderer_initiated);
   // If the navigation is initiated by the renderer process, we must set an
   // initiator origin.
-  if (renderer_initiated) {
-    params.initiator_origin = url::Origin::Create(url);
+  if (renderer_initiated && source_render_frame_host) {
+    params.initiator_origin =
+        source_render_frame_host->GetLastCommittedOrigin();
+    params.initiator_frame_token = source_render_frame_host->GetFrameToken();
+    params.initiator_process_id =
+        source_render_frame_host->GetProcess()->GetID().GetUnsafeValue();
   }
 
   // We can't open a new tab while the observer is running because it might
@@ -164,7 +176,9 @@ bool WebViewSidePanelView::HandleKeyboardEvent(
 
 BrowserView* WebViewSidePanelView::outer_browser_view() {
   if (parent_web_contents_) {
-    auto* browser = chrome::FindBrowserWithTab(parent_web_contents_.get());
+    BrowserWindowInterface* browser =
+        GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+            parent_web_contents_.get());
     return browser ? BrowserView::GetBrowserViewForBrowser(browser) : nullptr;
   }
   return nullptr;

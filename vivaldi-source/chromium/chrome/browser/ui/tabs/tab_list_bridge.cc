@@ -148,16 +148,21 @@ void TabListBridge::ActivateTab(tabs::TabHandle tab) {
   tab_strip_->ActivateTabAt(index);
 }
 
-tabs::TabInterface* TabListBridge::OpenTab(const GURL& url, int index) {
-  // If `index` is specified as `TabStripModel::kNoTab`, then the tab is added
-  // to the end of the tab strip.
+tabs::TabInterface* TabListBridge::OpenTab(const GURL& url,
+                                           int index,
+                                           bool foreground) {
+  // If `index` is `TabStripModel::kNoTab` or equals the tab strip size, then
+  // the tab is added to the end of the tab strip.
+  if (index == tab_strip_->count()) {
+    index = TabStripModel::kNoTab;
+  }
   CHECK(index == TabStripModel::kNoTab || tab_strip_->ContainsIndex(index));
 
   // TODO(crbug.com/460650221): It's a bit of a code smell to reach in and grab
   // the delegate from TabStripModel, but it avoids introducing new dependencies
   // here.
   TabStripModelDelegate* delegate = tab_strip_->delegate();
-  delegate->AddTabAt(url, index, /*foreground=*/true);
+  delegate->AddTabAt(url, index, foreground);
   int index_to_retrieve =
       index == TabStripModel::kNoTab ? tab_strip_->count() - 1 : index;
   return tab_strip_->GetTabAtIndex(index_to_retrieve);
@@ -270,7 +275,8 @@ void TabListBridge::CloseTab(tabs::TabHandle tab) {
   const int index = GetIndexOfTab(tab);
   CHECK_NE(index, TabStripModel::kNoTab)
       << "Trying to close a tab that doesn't exist in this tab list.";
-  tab_strip_->CloseWebContentsAt(index, TabCloseTypes::CLOSE_NONE);
+  tab_strip_->CloseWebContentsAt(index,
+                                 TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
 }
 
 std::unique_ptr<content::WebContents> TabListBridge::DetachWebContents(
@@ -512,7 +518,7 @@ void TabListBridge::MoveTabToWindow(tabs::TabHandle tab,
       destination_index, std::move(detached_tab), add_types);
 }
 
-void TabListBridge::MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
+bool TabListBridge::MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
                                          SessionID destination_window_id,
                                          int destination_index) {
   BrowserWindowInterface* target_window =
@@ -526,13 +532,13 @@ void TabListBridge::MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
       static_cast<TabListBridge*>(target_list_interface);
   auto target_tab_strip = target_bridge->tab_strip_;
   if (!target_tab_strip->SupportsTabGroups()) {
-    return;
+    return false;
   }
 
   // Handle the case where `destination_window_id` points to the same window.
   if (this == target_bridge) {
     MoveGroupTo(group_id, destination_index);
-    return;
+    return true;
   }
 
   TabGroup* tab_group = tab_strip_->group_model()->GetTabGroup(group_id);
@@ -571,6 +577,7 @@ void TabListBridge::MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
       tab_strip_->DetachTabGroupForInsertion(group_id);
   target_tab_strip->InsertDetachedTabGroupAt(std::move(detached_group),
                                              target_index);
+  return true;
 }
 
 void TabListBridge::OnTabStripModelChanged(
@@ -609,7 +616,15 @@ void TabListBridge::OnTabStripModelChanged(
                             change.GetMove()->to_index);
       }
       break;
-    case TabStripModelChange::kReplaced:
+    case TabStripModelChange::kReplaced: {
+      auto* replace = change.GetReplace();
+      tabs::TabInterface* tab = tab_strip_->GetTabAtIndex(replace->index);
+      for (auto& observer : observers_) {
+        observer.OnWebContentsReplaced(*this, tab, replace->old_contents,
+                                       replace->new_contents);
+      }
+      break;
+    }
     case TabStripModelChange::kSelectionOnly:
       break;
   }

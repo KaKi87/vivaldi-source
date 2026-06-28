@@ -3,20 +3,19 @@
 <translationbundle lang="da">
 <translation id="1204037785786432551">Download link</translation>
 <translation id="1206892813135768548">Kopiér linktekst</translation>
+<translation id="1328749518742029305"><ph name="TAB_GROUP_TITLE" /> fanestak lukket og gemt</translation>
 <translation id="1397811292916898096">Søg med <ph name="PRODUCT_NAME" /></translation>
 <translation id="1435593198351412143">Åbn PDF-filer automatisk</translation>
 <translation id="1456207338570705181">Tryk og Søg-funktionen er kun tilgængelig, når Google er indstillet som standardsøgemaskine i Vivaldi. Den sender det valgte ord og den aktuelle side som kontekst til Google Søgning. Du kan slå det fra i <ph name="BEGIN_LINK" />Indstillinger<ph name="END_LINK" />.</translation>
 <translation id="1598449788754183301">Skift mellem normale/private faner</translation>
 <translation id="1644574205037202324">Historik</translation>
 <translation id="1829244130665387512">Find på siden</translation>
-<translation id="1910514478706885609">Åbn i ny fanestak</translation>
 <translation id="1925021887439448749">Indtast brugerdefineret webadresse</translation>
 <translation id="2038563949887743358">Slå anmodning om computerside til</translation>
 <translation id="208033313373016095">Læsevisning for websider</translation>
 <translation id="2149973817440762519">Rediger bogmærke</translation>
 <translation id="2306442503286132111">Bogmærke gemt i mappen <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Udseende</translation>
-<translation id="2501278716633472235">Gå tilbage</translation>
 <translation id="2546283357679194313">Cookies og websitedata</translation>
 <translation id="2633278372998075009">Private faner</translation>
 <translation id="2650751991977523696">Hent filen igen?</translation>
@@ -43,7 +42,7 @@
 <translation id="3700829948786686853">Velkommen til Vivaldi</translation>
 <translation id="3719826155360621982">Hjemmeside</translation>
 <translation id="3738139272394829648">Tryk og søg</translation>
-<translation id="385051799172605136">Tilbage</translation>
+<translation id="395421286877117532">Tilpas fanestak og tryk færdig</translation>
 <translation id="3987993985790029246">Kopiér link</translation>
 <translation id="399014816462153200">Læste artikler:</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
@@ -59,16 +58,17 @@
 <translation id="4269820728363426813">Kopiér linkadresse</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Aktivér skærmlås i Android-indstillingerne<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Adgangskodeadministrator</translation>
-<translation id="441100617989818073">Ubrugte eller duplikerede faner og grupper</translation>
+<translation id="4445802392779002787">Tilføj fane til stak</translation>
 <translation id="451872707440238414">Søg i dine bogmærker</translation>
 <translation id="4526803704855831732">Private faner</translation>
 <translation id="4532845899244822526">Vælg mappe</translation>
+<translation id="454284936014822050"><ph name="GROUP_TITLE" /> fanestak</translation>
 <translation id="4699172675775169585">Cachelagrede billeder og filer</translation>
 <translation id="4719086422742491124">Lær om emner på websites uden at forlade siden. Vælg et eller flere ord for at søge efter dem.
 
 Tryk og Søg-funktionen er kun tilgængelig, når Google er indstillet som standardsøgemaskine i Vivaldi.</translation>
 <translation id="4759238208242260848">Downloads</translation>
-<translation id="4777866634702576038">Slet fanegruppe?</translation>
+<translation id="4771820744342013314">Slet fanestak?</translation>
 <translation id="4850886885716139402">Vis</translation>
 <translation id="4883379392681899581">Forlad privat tilstand</translation>
 <translation id="4943872375798546930">Ingen resultater</translation>
@@ -83,6 +83,7 @@ Tryk og Søg-funktionen er kun tilgængelig, når Google er indstillet som stand
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {Henter fil…}
             other {Henter # filer…}}</translation>
+<translation id="5210689723585747462"><ph name="TAB_GROUP_TITLE" /> fanestak lukket</translation>
 <translation id="5233638681132016545">Ny fane</translation>
 <translation id="5375131951310889874">Lær om emner på websites uden at forlade siden. Tryk og Søg-funktionen er kun tilgængelig, når Google er indstillet som standardsøgemaskine i Vivaldi. Den sender et ord og dets omgivende kontekst til Google Søgning og returnerer definitioner, billeder, søgeresultater og andre detaljer.
 
@@ -109,6 +110,7 @@ Hold nede for at justere søgeordet. Træk panelet helt op og tryk på søgefelt
 <translation id="7029995644714925509">Når en side beder om at forudindlæse links privat, krypterer og forudindlæser Vivaldi siderne via Google-servere uden cookies. Dette skjuler din identitet for den forudindlæste side.</translation>
 <translation id="706339621163631076">Browser-privatlivspolitik</translation>
 <translation id="7100573672995171864">Tilpas og kontroller Vivaldi</translation>
+<translation id="7133879160432070247">Bloker og forlad stak?</translation>
 <translation id="732145680195464316">Bogmærke gemt i <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Send en “Spor ikke”-anmodning</translation>
 <translation id="7359002509206457351">Adgang til betalingsmetoder</translation>
@@ -117,6 +119,8 @@ Hold nede for at justere søgeordet. Træk panelet helt op og tryk på søgefelt
 <translation id="7456774706094330779">Udvidet forudindlæsning</translation>
 <translation id="7465104139234185284">Luk alle private faner</translation>
 <translation id="7481312909269577407">Frem</translation>
+<translation id="759273611317559136"><ph name="TAB_GROUP_TITLE" /> fanestak slettet</translation>
+<translation id="7640137753339219124">Slet stak</translation>
 <translation id="7764225426217299476">Tilføj adresse</translation>
 <translation id="7968014550143838305">Føjet til læseliste</translation>
 <translation id="804786196054284061">Slutbrugerlicensaftale</translation>
@@ -128,6 +132,7 @@ Hold nede for at justere søgeordet. Træk panelet helt op og tryk på søgefelt
           other {(#) inaktive elementer}}</translation>
 <translation id="8266862848225348053">Downloadplacering</translation>
 <translation id="8348430946834215779">Brug HTTPS, når muligt, og bliv advaret før indlæsning af ikke-understøttede websites</translation>
+<translation id="8543049482641423692">Tilføj fane til ny stak</translation>
 <translation id="8560602726703398413">Se din læseliste i Bogmærker</translation>
 <translation id="85991616550051997">Gå til hjemmeside</translation>
 <translation id="8738163682604285902">Vis læsetilstand?</translation>

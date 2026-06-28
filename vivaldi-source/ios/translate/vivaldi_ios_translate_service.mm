@@ -125,7 +125,6 @@ void VivaldiIOSTranslateService::SetListInChromium(
   // Never allow LanguageList to make language update call as that is handled
   // by chromium. We update language list in this file.
   language_list->SetResourceRequestsAllowed(false);
-  language_list->DisableUpdate();
   if (language_list) {
     std::vector<std::string> lang_list;
     for (const auto& value : list) {

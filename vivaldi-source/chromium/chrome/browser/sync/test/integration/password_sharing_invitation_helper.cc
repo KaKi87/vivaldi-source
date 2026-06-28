@@ -10,13 +10,13 @@
 
 #include "base/containers/span.h"
 #include "base/uuid.h"
-#include "components/sync/engine/nigori/cross_user_sharing_public_key.h"
+#include "components/sync/nigori/cross_user_sharing_public_key.h"
 #include "components/sync/nigori/cryptographer_impl.h"
 
 namespace password_sharing_helper {
 
 namespace {
-constexpr char kSignonRealm[] = "signon_realm";
+constexpr char kSignonRealm[] = "http://abc.com/";
 constexpr char kOrigin[] = "http://abc.com/";
 constexpr char kUsernameElement[] = "username_element";
 constexpr char kPasswordElement[] = "password_element";

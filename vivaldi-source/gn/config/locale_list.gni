@@ -1,0 +1,56 @@
+import("//build/config/features.gni")
+
+vivaldi_supported_locales_json_ =
+    read_file("//vivaldi/app/locale_list.json", "json")
+
+vivaldi_platform_all_locales = []
+vivaldi_platform_supported_locales = []
+vivaldi_platform_remove_locales = []
+
+if (is_android || is_ios) {
+  if (is_android) {
+    _platform_filter = [ "android" ]
+  } else {  # is_ios
+    _platform_filter = [ "ios" ]
+  }
+  _platform_remove_filter = [ "not-" + _platform_filter[0] ]
+
+  foreach(_locale_config, vivaldi_supported_locales_json_) {
+    _locale = _locale_config[0]
+    if (is_ios) {
+      if (_locale == "es-419") {
+        _locale = "es-MX"
+      } else if (_locale == "pt-BR") {
+        _locale = "pt"
+      }
+    }
+    if (filter_include(_locale_config[1], _platform_filter) != []) {
+      vivaldi_platform_supported_locales += [ _locale ]
+    }
+    if (filter_include(_locale_config[1], _platform_remove_filter) != []) {
+      vivaldi_platform_remove_locales += [ _locale ]
+    }
+    vivaldi_platform_all_locales += [ _locale ]
+  }
+} else {  # desktop
+  foreach(_locale_config, vivaldi_supported_locales_json_) {
+    _locale = _locale_config[0]
+    if (filter_exclude(_locale_config[1],
+                       [
+                         "ios",
+                         "android",
+                         "not-ios",
+                         "not-android",
+                       ]) == []) {
+      vivaldi_platform_supported_locales += [ _locale ]
+    }
+  }
+  vivaldi_platform_all_locales = vivaldi_platform_supported_locales
+}
+
+vivaldi_platform_unsupported_locales =
+    vivaldi_platform_all_locales - vivaldi_platform_supported_locales
+
+if (is_android) {
+  platform_unsupported_locales = []
+}

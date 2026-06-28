@@ -12,12 +12,12 @@ buildflag_header("buildflags") {
 static_library("ui") {
   sources = [
     "vivaldi_browser_window.h",
-    "webui/vivaldi_web_ui_controller_factory.cc",
-    "webui/vivaldi_web_ui_controller_factory.h",
     "webui/game_ui.cc",
     "webui/game_ui.h",
     "webui/privacy_report_ui.cc",
     "webui/privacy_report_ui.h",
+    "webui/vivaldi_web_ui_controller_factory.cc",
+    "webui/vivaldi_web_ui_controller_factory.h",
   ]
   if (is_win) {
     sources += [
@@ -33,43 +33,41 @@ static_library("ui") {
   }
 
   public_configs = [ "//third_party/protobuf:using_proto" ]
-  public_deps = [
-    "//components/renderer_context_menu",
-  ]
+  public_deps = [ "//components/renderer_context_menu" ]
   deps = [
     ":buildflags",
-    "//base:base",
+    "//base",
     "//chrome/browser/devtools",
     "//chrome/common:buildflags",
     "//components/keyed_service/content",
     "//components/translate/content/browser",
     "//content/public/browser",
     "//skia",
+    "//ui/webui/resources/js:build_ts",
     "//vivaldi/components/ad_blocker/public/content",
     "//vivaldi/prefs:prefs_files_generator",
-    "//ui/webui/resources/js:build_ts",
   ]
   if (!is_android) {
     sources += [
-      "lazy_load_service_factory.cc",
-      "lazy_load_service_factory.h",
-      "lazy_load_service.cc",
-      "lazy_load_service.h",
       "devtools/devtools_connector.cc",
       "devtools/devtools_connector.h",
+      "lazy_load_service.cc",
+      "lazy_load_service.h",
+      "lazy_load_service_factory.cc",
+      "lazy_load_service_factory.h",
       "lights/razer_chroma_handler.cc",
       "lights/razer_chroma_handler.h",
       "vivaldi_document_loader.cc",
       "vivaldi_document_loader.h",
       "vivaldi_rootdocument_handler.cc",
       "vivaldi_rootdocument_handler.h",
-      "window_registry_service_factory.cc",
-      "window_registry_service_factory.h",
       "window_registry_service.cc",
       "window_registry_service.h",
+      "window_registry_service_factory.cc",
+      "window_registry_service_factory.h",
     ]
     deps += [
-      "//chrome/browser/extensions:extensions",
+      "//chrome/browser/extensions",
       "//chrome/browser/web_applications",
       "//components/web_modal",
       "//extensions/browser",
@@ -77,9 +75,7 @@ static_library("ui") {
       "//vivaldi/extensions/schema",
     ]
   } else {
-    sources += [
-      "web_ui_native_call_utils.h"
-    ]
+    sources += [ "web_ui_native_call_utils.h" ]
   }
   if (is_mac) {
     sources += [
@@ -91,10 +87,10 @@ static_library("ui") {
 
 static_library("skia_utils") {
   deps = [
-    "//base:base",
-    "//skia:skia",
-    "//ui/gfx/codec:codec",
-    "//ui/gfx:gfx",
+    "//base",
+    "//skia",
+    "//ui/gfx",
+    "//ui/gfx/codec",
   ]
   sources = [
     "vivaldi_skia_utils.cc",

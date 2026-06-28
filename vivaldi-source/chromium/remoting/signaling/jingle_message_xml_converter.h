@@ -15,7 +15,6 @@ class XmlElement;
 namespace remoting {
 struct Attachment;
 class ContentDescription;
-struct IceTransportInfo;
 struct JingleAuthentication;
 class JingleMessage;
 struct JingleMessageReply;
@@ -53,12 +52,6 @@ std::unique_ptr<jingle_xmpp::XmlElement> JingleTransportInfoToXml(
 bool JingleTransportInfoFromXml(const jingle_xmpp::XmlElement* element,
                                 JingleTransportInfo* transport);
 
-// Converts between IceTransportInfo and its XML representation.
-std::unique_ptr<jingle_xmpp::XmlElement> IceTransportInfoToXml(
-    const IceTransportInfo& transport);
-bool IceTransportInfoFromXml(const jingle_xmpp::XmlElement* element,
-                             IceTransportInfo* transport);
-
 // Converts between Attachment and its XML representation.
 std::unique_ptr<jingle_xmpp::XmlElement> AttachmentToXml(
     const Attachment& attachment);
@@ -79,12 +72,14 @@ void SessionInfoToXml(const SessionInfo& session_info,
 bool SessionInfoFromXml(const jingle_xmpp::XmlElement* jingle_element,
                         SessionInfo* session_info);
 
+// Returns true if the given XML string contains a DTD.
+bool XmlContainsDtd(const std::string& xml);
+
 // Converts between ContentDescription and its XML representation.
 std::unique_ptr<jingle_xmpp::XmlElement> ContentDescriptionToXml(
     const ContentDescription& description);
 std::unique_ptr<ContentDescription> ContentDescriptionFromXml(
-    const jingle_xmpp::XmlElement* element,
-    bool webrtc_transport);
+    const jingle_xmpp::XmlElement* element);
 
 }  // namespace remoting
 

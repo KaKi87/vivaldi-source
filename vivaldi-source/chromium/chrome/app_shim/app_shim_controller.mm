@@ -9,6 +9,7 @@
 
 #include <utility>
 
+#include "base/allocator/partition_alloc_support.h"
 #include "base/apple/bundle_locations.h"
 #include "base/apple/foundation_util.h"
 #include "base/apple/mach_logging.h"
@@ -293,7 +294,8 @@ void AppShimController::PreInitFeatureState(
   base::FeatureList::SetEarlyAccessInstance(
       std::move(feature_list),
       {"AppShimLaunchChromeSilently", "AppShimNotificationAttribution",
-       "DcheckIsFatal", "DisallowSpaceCharacterInURLHostParsing",
+       "CacheGurlSchemeIsHttpOrHttpsResult", "DcheckIsFatal",
+       "DisallowSpaceCharacterInURLHostParsing",
        "NonSpecialLeadingSlashHandling", "PreservePercentEncodedDotInPath",
        "UseIDNAContextJRules", "MojoBindingsInlineSLS", "MojoIpcz",
        "MojoIpczMemV2", "MojoFixGeometricBufferGrowth",
@@ -374,7 +376,7 @@ bool AppShimController::FindOrLaunchChrome() {
       // Sometimes runningApplicationWithProcessIdentifier fails to return the
       // application, even though it exists. If that happens, try to find the
       // running application in the full list of running applications manually.
-      // See https://crbug.com/1426897.
+      // See https://crbug.com/40261534.
       NSArray<NSRunningApplication*>* apps =
           NSWorkspace.sharedWorkspace.runningApplications;
       for (unsigned i = 0; i < apps.count; ++i) {
@@ -690,7 +692,17 @@ void AppShimController::OnShimConnectedResponse(
   // Finalize feature state and finish up initialization that was deferred for
   // feature state to be fully setup.
   FinalizeFeatureState(feature_state, params_.io_thread_runner);
+
+  // Reconfigure PartitionAlloc with the finalized feature list.
+  base::allocator::PartitionAllocSupport::Get()
+      ->ReconfigureAfterFeatureListInit(switches::kAppShim);
+
   base::ThreadPoolInstance::Get()->StartWithDefaultParams();
+
+  // Reconfigure PartitionAlloc after task runner / ThreadPool initialization.
+  base::allocator::PartitionAllocSupport::Get()->ReconfigureAfterTaskRunnerInit(
+      switches::kAppShim);
+
   SetUpMenu();
 
   if (result != chrome::mojom::AppShimLaunchResult::kSuccess) {
@@ -862,7 +874,8 @@ void AppShimController::BindNotificationService(
     notification_service_un()->RequestPermission(base::DoNothing());
   } else {
     // NSUserNotificationCenter is in the process of being replaced, and
-    // warnings about its deprecation are not helpful. https://crbug.com/1127306
+    // warnings about its deprecation are not helpful.
+    // https://crbug.com/40148499
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     notification_service_ =

@@ -451,6 +451,9 @@ Touch to Search is a feature that is only available when Google is set as the de
       <message name="IDS_TIPS_PROMO_BOTTOM_SHEET_THIRD_STEP_CREATE_TAB_GROUPS" desc="Description of the Create Tab Groups feature tip third step detail page promo.">
         Customize tab stack and tap done
       </message>
+      <message name="IDS_HUB_SEARCH_EMPTY_HINT_INCOGNITO" desc="The text displayed in the private search box when it's empty.">
+        Search your private tabs
+      </message>
     </messages>
   </release>
 </grit>

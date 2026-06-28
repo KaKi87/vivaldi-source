@@ -30,6 +30,8 @@ import org.chromium.ui.widget.AnchoredPopupWindow;
 import org.chromium.ui.widget.FlyoutPopupSpecCalculator;
 import org.chromium.ui.widget.RectProvider;
 
+import java.util.List;
+
 /**
  * The host class that makes a view capable of triggering list menu. The core logic is extracted
  * from ListMenuButton.
@@ -70,7 +72,7 @@ public class ListMenuHost
 
     private int mMenuMaxWidth;
 
-    private final HierarchicalMenuController mHierarchicalMenuController;
+    private final HierarchicalMenuController<AnchoredPopupWindow> mHierarchicalMenuController;
 
     private @Nullable ListMenuDelegate mDelegate;
     private final ObserverList<PopupMenuShownListener> mPopupListeners = new ObserverList<>();
@@ -247,7 +249,8 @@ public class ListMenuHost
         if (sPopupMenuHelperForTesting != null) {
             AnchoredPopupWindow spiedPopupMenu =
                     sPopupMenuHelperForTesting.injectPopupMenu(popupMenu);
-            FlyoutController flyoutController = mHierarchicalMenuController.getFlyoutController();
+            FlyoutController<AnchoredPopupWindow> flyoutController =
+                    mHierarchicalMenuController.getFlyoutController();
             assert flyoutController != null;
             flyoutController.setMainPopupForTest(spiedPopupMenu);
         }
@@ -271,9 +274,9 @@ public class ListMenuHost
 
     @Override
     public AnchoredPopupWindow createAndShowFlyoutPopup(
-            ListItem item, View view, Runnable dismissRunnable) {
+            List<ListItem> items, View view, Runnable dismissRunnable) {
         if (mDelegate == null) throw new IllegalStateException("Delegate was not set.");
-        ListMenu menu = mDelegate.getListMenuFromParentListItem(item);
+        ListMenu menu = mDelegate.getListMenuFromItems(items);
         assert menu != null;
 
         final View contentView = menu.getContentView();
@@ -377,7 +380,7 @@ public class ListMenuHost
      * @param shown Whether the popup menu was shown or dismissed.
      */
     private void notifyPopupListeners(boolean shown) {
-        for (var l : mPopupListeners.mObservers) {
+        for (var l : mPopupListeners) {
             if (shown) {
                 l.onPopupMenuShown();
             } else {

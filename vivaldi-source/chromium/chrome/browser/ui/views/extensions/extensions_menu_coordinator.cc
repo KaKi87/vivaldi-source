@@ -9,7 +9,9 @@
 #include "base/check_deref.h"
 #include "base/feature_list.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/extensions/extensions_menu_view_model.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/extensions/extensions_menu_delegate_desktop.h"
 #include "extensions/browser/permissions_manager.h"
@@ -22,7 +24,7 @@
 #include "ui/views/widget/widget.h"
 
 ExtensionsMenuCoordinator::ExtensionsMenuCoordinator(
-    Browser* browser,
+    BrowserWindowInterface* browser,
     ExtensionsContainer* extensions_container)
     : browser_(browser),
       extensions_container_(CHECK_DEREF(extensions_container)) {}
@@ -44,17 +46,25 @@ void ExtensionsMenuCoordinator::Show(
       CreateExtensionsMenuBubbleDialogDelegate(anchor,
                                                extensions_container_views);
 
-  views::BubbleDialogDelegate::CreateBubble(std::move(bubble_delegate))->Show();
+  views::BubbleDialogDelegate::CreateBubbleDeprecated(
+      std::move(bubble_delegate),
+      views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET)
+      ->Show();
 }
 
 void ExtensionsMenuCoordinator::Hide() {
   DCHECK(base::FeatureList::IsEnabled(
       extensions_features::kExtensionsMenuAccessControl));
   if (views::Widget* const menu = GetExtensionsMenuWidget()) {
-    menu->Close();
-    // Immediately stop tracking the view. Widget will be destroyed
-    // asynchronously.
-    bubble_tracker_.SetView(nullptr);
+    if (base::FeatureList::IsEnabled(
+            features::kEnableExtensionsMenuTeardownFix)) {
+      menu->CloseNow();
+    } else {
+      menu->Close();
+      // Immediately stop tracking the view. Widget will be destroyed
+      // asynchronously.
+      bubble_tracker_.SetView(nullptr);
+    }
   }
 }
 

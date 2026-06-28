@@ -132,7 +132,7 @@ class SadTabViewInteractiveUITest : public InProcessBrowserTest {
 };
 
 #if BUILDFLAG(IS_MAC)
-// Focusing or input is not completely working on Mac: http://crbug.com/824418
+// Focusing or input is not completely working on Mac: http://crbug.com/41378108
 #define MAYBE_SadTabKeyboardAccessibility DISABLED_SadTabKeyboardAccessibility
 #else
 #define MAYBE_SadTabKeyboardAccessibility SadTabKeyboardAccessibility
@@ -193,7 +193,7 @@ IN_PROC_BROWSER_TEST_F(SadTabViewInteractiveUITest,
   KillRendererForActiveWebContentsSync();
 
   // Create a second tab, navigate to a second url.
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   GURL url2(embedded_test_server()->GetURL("/simple.html"));
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url2));
 

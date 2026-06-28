@@ -32,6 +32,11 @@ struct ImporterIE7PasswordInfo;
 [Native]
 enum ImportItem;
 
+// Raw (encrypted) password form sent from the importer process for decryption
+// in the browser process.
+[Native]
+struct ImportedRawPasswordForm;
+
 // Represents information about an imported password form. Typemapped to
 // importer::ImportedPasswordForm.
 struct ImportedPasswordForm {
@@ -102,6 +107,12 @@ interface ProfileImportObserver {
   OnExtensionsImportGroup(array<string> group);
   OnTabImportStart(uint32 total_count);
   OnTabImportGroup(array<ImportedTabEntry> group);
+
+  // Raw (encrypted) password forms sent from the importer process for
+  // decryption in the browser process (Linux keyring access requires a
+  // running message loop which only exists in the browser).
+  OnRawPasswordsImportStart(uint32 total_count);
+  OnRawPasswordsImportGroup(array<ImportedRawPasswordForm> group);
 };
 
 // This interface is used to control the import process.

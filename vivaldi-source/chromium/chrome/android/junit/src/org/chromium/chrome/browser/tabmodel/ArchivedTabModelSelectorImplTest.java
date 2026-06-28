@@ -86,21 +86,18 @@ public class ArchivedTabModelSelectorImplTest {
                         realAsyncTabParamsManager);
         assertTrue(currentTabModelSupplierHasObservers());
         assertNull(mTabModelSelector.getCurrentTabModelSupplier().get());
-        assertNull(mTabModelSelector.getCurrentTabGroupModelFilter());
 
         mTabCreatorManager.initialize(mTabModelSelector);
         TabRemover regularTabRemover =
-                new PassthroughTabRemover(() -> mTabModelSelector.getTabGroupModelFilter(false));
+                new PassthroughTabRemover(() -> mTabModelSelector.getModel(false));
         MockTabModel regularTabModel = new MockTabModel(mProfile, null);
         regularTabModel.setTabRemoverForTesting(regularTabRemover);
         TabRemover incognitoTabRemover =
-                new PassthroughTabRemover(() -> mTabModelSelector.getTabGroupModelFilter(true));
+                new PassthroughTabRemover(() -> mTabModelSelector.getModel(true));
         MockTabModel incognitoTabModel = new MockTabModel(mIncognitoProfile, null);
         incognitoTabModel.setTabRemoverForTesting(incognitoTabRemover);
         mTabModelSelector.onNativeLibraryReadyInternal(
-                mMockTabContentManager,
-                TabModelHolderFactory.createTabModelHolderForTesting(regularTabModel),
-                TabModelHolderFactory.createIncognitoTabModelHolderForTesting(incognitoTabModel));
+                mMockTabContentManager, regularTabModel, incognitoTabModel);
 
         assertEquals(
                 mTabModelSelector.getModel(/* incognito= */ false),
@@ -108,9 +105,6 @@ public class ArchivedTabModelSelectorImplTest {
         assertEquals(
                 mTabModelSelector.getCurrentModel(),
                 mTabModelSelector.getCurrentTabModelSupplier().get());
-        assertEquals(
-                mTabModelSelector.getCurrentModel(),
-                mTabModelSelector.getCurrentTabGroupModelFilter().getTabModel());
     }
 
     @After
@@ -137,9 +131,7 @@ public class ArchivedTabModelSelectorImplTest {
         mTabModelSelector.getModel(false).setIndex(0, TabSelectionType.FROM_USER);
         assertEquals(normalTab, mTabModelSelector.getModel(false).getCurrentTabSupplier().get());
         assertEquals(normalTab, mTabModelSelector.getCurrentTabSupplier().get());
-        assertEquals(
-                mTabModelSelector.getModel(false),
-                mTabModelSelector.getCurrentTabGroupModelFilter().getTabModel());
+        assertEquals(mTabModelSelector.getModel(false), mTabModelSelector.getCurrentModel());
         RobolectricUtil.runAllBackgroundAndUi();
         verify(mTabSupplierObserverMock).onResult(eq(normalTab));
         mTabModelSelector.getCurrentTabSupplier().removeObserver(mTabSupplierObserverMock);

@@ -29,7 +29,7 @@ namespace ynn {
 template <typename T, typename Rng>
 void fill_uniform_random_bits(T* data, size_t size, Rng& rng) {
   using RngT = decltype(rng());
-  size_t size_bytes = size * sizeof(T);
+  size_t size_bytes = ceil_div(size, type_info<T>::element_count()) * sizeof(T);
   // Fill with as many RngT as we can.
   while (size_bytes >= sizeof(RngT)) {
     RngT bits = rng();
@@ -38,8 +38,10 @@ void fill_uniform_random_bits(T* data, size_t size, Rng& rng) {
     size_bytes -= sizeof(RngT);
   }
   // Fill the remaining bytes.
-  RngT bits = rng();
-  memcpy(data, &bits, size_bytes);
+  if (size_bytes > 0) {
+    RngT bits = rng();
+    memcpy(data, &bits, size_bytes);
+  }
 }
 
 // Generate a random shape of the given rank, where each dim is in [min_dim,
@@ -71,6 +73,25 @@ std::vector<size_t> random_shape(Rng& rng) {
   return random_shape(rng, 1, 9);
 }
 
+// Generate a random shape using the input `shape` as a template: non-zero
+// values are preserved, zero values are given a random non-zero value.
+template <typename Rng>
+std::vector<size_t> random_shape(Rng& rng, std::vector<size_t> shape,
+                                 size_t min_dim, size_t max_dim) {
+  std::uniform_int_distribution<size_t> dim_dist(min_dim, max_dim);
+  for (size_t& i : shape) {
+    if (i == 0) {
+      i = dim_dist(rng);
+    }
+  }
+  return shape;
+}
+
+template <typename Rng>
+std::vector<size_t> random_shape(Rng& rng, std::vector<size_t> shape) {
+  return random_shape(rng, shape, 1, 9);
+}
+
 // Generate random quantization parameters for a given type.
 template <typename T, typename Rng>
 quantization_params random_quantization(T, Rng& rng, float min_scale = 0.25f,
@@ -91,12 +112,23 @@ quantization_params random_quantization(quantized<T>, Rng& rng,
 // Bitcast a random number generator to type T.
 template <typename T, typename Rng>
 T random_bits(Rng& rng) {
+  // Do this 32 bits at a time, because Rng::max() might not fully fill a 64-bit
+  // type.
   static_assert(Rng::min() == 0, "");
-  static_assert(Rng::max() >= (1ull << (sizeof(T) * 8)) - 1, "");
-  auto bits = rng();
+  static_assert(Rng::max() >= (1ull << 31) - 1, "");
   T result;
-  static_assert(sizeof(result) <= sizeof(bits), "");
-  memcpy(&result, &bits, sizeof(T));
+  size_t size_bytes = sizeof(T);
+  char* result_bytes = reinterpret_cast<char*>(&result);
+  while (size_bytes >= 4) {
+    auto bits = rng();
+    memcpy(result_bytes, &bits, 4);
+    size_bytes -= 4;
+    result_bytes += 4;
+  }
+  if (size_bytes > 0) {
+    auto bits = rng();
+    memcpy(result_bytes, &bits, size_bytes);
+  }
   return result;
 }
 
@@ -119,11 +151,11 @@ void replace_denormals_and_nans(T* data, size_t size) {
     return;
   }
   for (size_t i = 0; i < size; ++i) {
-    if (std::abs(static_cast<float>(data[i])) >=
-        type_info<T>::smallest_normal()) {
+    float data_i = static_cast<float>(type_info<T>::get(data, i));
+    if (std::abs(data_i) >= type_info<T>::smallest_normal()) {
       // This is a normal float, or infinity.
     } else {
-      data[i] = static_cast<T>(0);
+      type_info<T>::set(data, i, static_cast<T>(0));
     }
   }
 }
@@ -139,6 +171,7 @@ inline void replace_denormals_and_nans(double* data, size_t size) {
 }
 
 inline void replace_denormals_and_nans(int4x2*, size_t) {}
+inline void replace_denormals_and_nans(int2x4*, size_t) {}
 
 // Fill `[data, data + size)` with uniform random bits, excluding denormals and
 // NaNs for floating point types.
@@ -158,14 +191,14 @@ void fill_random(T* data, size_t size, Rng& rng, double min, double max,
     // [min, max] exceeds the range of T, just fill it with random bits.
     fill_random(data, size, rng);
   } else {
-    if constexpr (std::is_integral_v<T>) {
+    if constexpr (is_integral<T>::value || is_quantized<T>::value) {
       std::uniform_int_distribution<int> dist(
-          std::max<int>(round_float_to_int<int>(static_cast<float>(min)),
+          std::max<int>(cast<int>(static_cast<float>(min)),
                         type_info<T>::min()),
-          std::min<int>(round_float_to_int<int>(static_cast<float>(max)),
+          std::min<int>(cast<int>(static_cast<float>(max)),
                         type_info<T>::max()));
       for (size_t i = 0; i < size; ++i) {
-        data[i] = static_cast<T>(dist(rng));
+        type_info<T>::set(data, i, dist(rng));
       }
     } else {
       // Floating point types
@@ -174,26 +207,8 @@ void fill_random(T* data, size_t size, Rng& rng, double min, double max,
       std::uniform_real_distribution<DistT> dist(static_cast<DistT>(min),
                                                  static_cast<DistT>(max));
       for (size_t i = 0; i < size; ++i) {
-        data[i] = static_cast<T>(dist(rng));
+        type_info<T>::set(data, i, dist(rng));
       }
-    }
-  }
-}
-
-// A specialization of the above for int4x2, which needs to set two values at
-// once.
-template <typename Rng>
-void fill_random(int4x2* data, size_t size, Rng& rng, double min, double max,
-                 const quantization_params& = {}) {
-  if (min <= type_info<int4x2>::min() && max >= type_info<int4x2>::max()) {
-    fill_random(data, size, rng);
-  } else {
-    std::uniform_int_distribution<int> dist(
-        std::max<int>(round_float_to_int<int>(min), type_info<int4x2>::min()),
-        std::min<int>(round_float_to_int<int>(max), type_info<int4x2>::max()));
-    for (size_t i = 0; i < size; ++i) {
-      data[i] = int4x2{static_cast<int8_t>(dist(rng)),
-                       static_cast<int8_t>(dist(rng))};
     }
   }
 }
@@ -227,9 +242,10 @@ void fill_random(quantized<int32_t>* data, size_t size, Rng& rng,
 
 // Return a single random value of type T.
 template <typename T, typename Rng, typename... Args>
-T random_value(Rng& rng, Args&&... args) {
+T random_value(Rng& rng, Args... args) {
   T result;
-  fill_random(&result, 1, rng, std::forward<Args>(args)...);
+  fill_random(&result, type_info<T>::element_count(), rng,
+              std::forward<Args>(args)...);
   return result;
 }
 

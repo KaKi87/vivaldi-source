@@ -106,7 +106,7 @@ public class PasswordManagerHelper {
             sProfileMap =
                     new ProfileKeyedMap<>(
                             ProfileKeyedMap.ProfileSelection.REDIRECTED_TO_ORIGINAL,
-                            ProfileKeyedMap.NO_REQUIRED_CLEANUP_ACTION);
+                            ProfileKeyedMap.noRequiredCleanupAction());
         }
         return sProfileMap.getForProfile(profile, PasswordManagerHelper::new);
     }

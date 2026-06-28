@@ -13,7 +13,6 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/time/time.h"
 #include "chrome/browser/sync/test/integration/multi_client_status_change_checker.h"
-#include "chrome/browser/sync/test/integration/secondary_account_helper.h"
 #include "chrome/browser/sync/test/integration/sync_datatype_helper.h"
 #include "chrome/browser/sync/test/integration/sync_integration_test_util.h"
 #include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
@@ -109,7 +108,8 @@ CreateEntityWithCustomClientTagHash(
   *entity.mutable_webauthn_credential() = specifics;
   return std::make_unique<syncer::PersistentUniqueClientEntity>(
       syncer::LoopbackServerEntity::CreateId(syncer::WEBAUTHN_CREDENTIAL,
-                                             client_tag_hash),
+                                             client_tag_hash,
+                                             /*migration_version=*/0),
       syncer::WEBAUTHN_CREDENTIAL, /*version=*/0,
       /*non_unique_name=*/"", client_tag_hash, entity, /*creation_time=*/0,
       /*last_modified_time=*/0,
@@ -1135,7 +1135,7 @@ IN_PROC_BROWSER_TEST_P(SingleClientWebAuthnCredentialsSyncTest,
 
 // Tests that disabling sync before sync startup correctly clears the passkey
 // cache.
-// Regression test for crbug.com/1476895.
+// Regression test for crbug.com/40280127.
 IN_PROC_BROWSER_TEST_P(SingleClientWebAuthnCredentialsSyncTest,
                        PRE_ClearingModelDataOnSyncStartup) {
   ASSERT_TRUE(SetupSync());
@@ -1192,13 +1192,8 @@ IN_PROC_BROWSER_TEST_P(SingleClientWebAuthnCredentialsSyncParamTest,
     GTEST_SKIP() << "This test only applies to transport mode.";
   }
   const std::string sync_id = InjectPasskeyToFakeServer(NewPasskey());
-  ASSERT_TRUE(SetupClients());
 
-  const char kTestEmail[] = "user@email.com";
-  AccountInfo account_info = secondary_account_helper::SignInUnconsentedAccount(
-      GetProfile(0), &test_url_loader_factory_, kTestEmail);
-  ASSERT_TRUE(GetClient(0)->AwaitSyncTransportActive());
-  ASSERT_FALSE(GetSyncService(0)->IsSyncFeatureEnabled());
+  ASSERT_TRUE(SignIn());
 
   PasskeySyncActiveChecker(GetSyncService(0)).Wait();
   EXPECT_TRUE(LocalPasskeysMatchChecker(kSingleProfile,

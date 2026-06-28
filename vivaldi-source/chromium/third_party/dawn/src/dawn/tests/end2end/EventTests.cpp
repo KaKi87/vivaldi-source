@@ -35,17 +35,15 @@
 #include <utility>
 #include <vector>
 
-#include "dawn/common/FutureUtils.h"
-#include "dawn/tests/DawnTest.h"
-#include "dawn/utils/SystemUtils.h"
-#include "dawn/utils/WGPUHelpers.h"
-#include "dawn/utils/WireHelper.h"
+#include "src/dawn/common/FutureUtils.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/utils/SystemUtils.h"
+#include "src/dawn/utils/WGPUHelpers.h"
+#include "src/dawn/utils/WireHelper.h"
 
 namespace dawn {
 namespace {
 
-using testing::AnyOf;
-using testing::Eq;
 
 wgpu::Device CreateExtraDevice(utils::WireHelper* wireHelper, wgpu::Instance instance) {
     // IMPORTANT: DawnTest overrides RequestAdapter and RequestDevice and mixes
@@ -148,12 +146,11 @@ class EventCompletionTests : public DawnTestWithParams<EventCompletionTestParams
     void SetUp() override {
         DawnTestWithParams::SetUp();
         WaitTypeAndCallbackMode mode = GetParam().mWaitTypeAndCallbackMode;
-        if (!BackendDeviceHasFeature(wgpu::FeatureName::DawnNativeSpontaneousQueueEvents)) {
-            // Spontaneous is only supported on backends with the DawnSpontaneousEvents feature.
+        if (!HasToggleEnabled("spontaneous_queue_events")) {
             DAWN_TEST_UNSUPPORTED_IF(mode == WaitTypeAndCallbackMode::Spin_AllowSpontaneous);
             if (UsesWire()) {
-                // Timed wait any in tests is only supported on the wire if the native backend
-                // supports spontaneous.
+                // Timed wait any is only supported on the wire if the native backend supports
+                // spontaneous.
                 DAWN_TEST_UNSUPPORTED_IF(
                     mode == WaitTypeAndCallbackMode::TimedWaitAny_WaitAnyOnly ||
                     mode == WaitTypeAndCallbackMode::TimedWaitAny_AllowSpontaneous);
@@ -575,10 +572,10 @@ TEST_P(WaitAnyTests, UnsupportedMixedSources) {
 // Test that submitting multiple heavy works then waiting one by one works.
 // This is a regression test for crbug.com/dawn/415561579
 TEST_P(WaitAnyTests, WaitHeavyWorksOneByOne) {
-    // Wire doesn't support timeouts in tests unless the backend supports spontaneous events.
-    DAWN_TEST_UNSUPPORTED_IF(
-        UsesWire() &&
-        !BackendDeviceHasFeature(wgpu::FeatureName::DawnNativeSpontaneousQueueEvents));
+    // Wire doesn't support timeouts unless its the Metal backend.
+    // TODO(crbug.com/412761228): Once spontaneous events are supported in the other backends,
+    // enable this test for them as well.
+    DAWN_TEST_UNSUPPORTED_IF(UsesWire() && !HasToggleEnabled("spontaneous_queue_events"));
 
     wgpu::Buffer countBuffer;
     wgpu::Buffer ssbo;

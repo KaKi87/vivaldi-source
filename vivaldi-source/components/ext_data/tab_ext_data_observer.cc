@@ -7,7 +7,6 @@ namespace vivaldi {
 TabExtDataObserver::TabExtDataObserver(content::WebContents* web_contents,
                                        OnKeysChangedCallback callback)
     : web_contents_(web_contents), callback_(std::move(callback)) {
-
   if (!vivaldi::IsVivaldiRunning())
     return;
 
@@ -15,7 +14,6 @@ TabExtDataObserver::TabExtDataObserver(content::WebContents* web_contents,
 }
 
 TabExtDataObserver::~TabExtDataObserver() {
-
   if (!vivaldi::IsVivaldiRunning())
     return;
 
@@ -27,7 +25,6 @@ TabExtDataObserver::~TabExtDataObserver() {
 void TabExtDataObserver::OnKeysChanged(
     vivaldi::TabExtData* tab_ext_data,
     const std::set<std::string>& changed_keys) {
-
   if (!vivaldi::IsVivaldiRunning())
     return;
 

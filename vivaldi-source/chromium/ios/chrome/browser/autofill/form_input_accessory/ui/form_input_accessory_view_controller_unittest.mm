@@ -26,7 +26,6 @@ namespace {
 bool IsAvailableOnIos(autofill::FillingProduct filling_product) {
   switch (filling_product) {
     case autofill::FillingProduct::kAddress:
-    case autofill::FillingProduct::kPlusAddresses:
     case autofill::FillingProduct::kCreditCard:
     case autofill::FillingProduct::kIban:
     case autofill::FillingProduct::kPassword:
@@ -90,8 +89,8 @@ class FormInputAccessoryViewControllerTest : public PlatformTest {
 // Tests FormInputAccessoryViewController can press the manual fill button with
 // any filling product that's available on iOS when that button is accessible.
 TEST_F(FormInputAccessoryViewControllerTest, ManualFillButtonPress) {
-  base::test::ScopedFeatureList scoped_featurelist;
-  scoped_featurelist.InitWithFeatures(
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitWithFeatures(
       /*enabled_features=*/{autofill::features::kAutofillAiWithDataSchema},
       /*disabled_features=*/{});
 
@@ -102,10 +101,8 @@ TEST_F(FormInputAccessoryViewControllerTest, ManualFillButtonPress) {
   NSArray<FormSuggestion*>* suggestions = @[ SimpleFormSuggestion(
       u"", autofill::SuggestionType::kAutocompleteEntry) ];
 
-  for (int i = static_cast<int>(autofill::FillingProduct::kNone);
-       i <= static_cast<int>(autofill::FillingProduct::kMaxValue); ++i) {
-    autofill::FillingProduct filling_product =
-        static_cast<autofill::FillingProduct>(i);
+  for (autofill::FillingProduct filling_product :
+       autofill::FillingProductSet::all()) {
     if (IsAvailableOnIos(filling_product)) {
       view_controller_.mainFillingProduct = filling_product;
       [view_controller_ showAccessorySuggestions:suggestions];
@@ -118,13 +115,9 @@ TEST_F(FormInputAccessoryViewControllerTest, ManualFillButtonPress) {
 }
 
 // Tests that the number of suggestions to show is capped at
-// kKeyboardAccessorySuggestionsLimit when
-// kIOSKeyboardAccessorySuggestionsCutOffLimit is enabled.
+// kKeyboardAccessorySuggestionsLimit.
 TEST_F(FormInputAccessoryViewControllerTest,
-       ShowAccessorySuggestions_CutOffLimitEnabled) {
-  base::test::ScopedFeatureList scoped_feature_list(
-      kIOSKeyboardAccessorySuggestionsCutOffLimit);
-
+       ShowAccessorySuggestions_CappedAtLimit) {
   id mock_view_controller = OCMPartialMock(view_controller_);
 
   NSArray<FormSuggestion*>* manySuggestions =
@@ -134,30 +127,6 @@ TEST_F(FormInputAccessoryViewControllerTest,
       updateFormSuggestionView:[OCMArg checkWithBlock:^BOOL(
                                            NSArray* suggestions) {
         return suggestions.count == kKeyboardAccessorySuggestionsLimit;
-      }]]);
-
-  [mock_view_controller showAccessorySuggestions:manySuggestions];
-
-  EXPECT_OCMOCK_VERIFY(mock_view_controller);
-}
-
-// Tests that the number of suggestions shown is NOT capped when
-// kIOSKeyboardAccessorySuggestionsCutOffLimit is disabled.
-TEST_F(FormInputAccessoryViewControllerTest,
-       ShowAccessorySuggestions_CutOffLimitDisabled) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndDisableFeature(
-      kIOSKeyboardAccessorySuggestionsCutOffLimit);
-
-  id mock_view_controller = OCMPartialMock(view_controller_);
-
-  NSArray<FormSuggestion*>* manySuggestions =
-      SimpleFormSuggestions(kKeyboardAccessorySuggestionsLimit + 1);
-
-  OCMExpect([mock_view_controller
-      updateFormSuggestionView:[OCMArg checkWithBlock:^BOOL(
-                                           NSArray* suggestions) {
-        return suggestions.count == manySuggestions.count;
       }]]);
 
   [mock_view_controller showAccessorySuggestions:manySuggestions];

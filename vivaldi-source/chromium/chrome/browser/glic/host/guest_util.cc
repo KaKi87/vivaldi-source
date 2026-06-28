@@ -5,26 +5,37 @@
 #include "chrome/browser/glic/host/guest_util.h"
 
 #include "base/command_line.h"
+#include "base/memory/ptr_util.h"
+#include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/supports_user_data.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/host/host.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
+#include "chrome/browser/glic/public/service/glic_instance_coordinator.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/webui_url_constants.h"
+#include "components/google/core/common/google_util.h"
+#include "components/guest_view/browser/guest_view_base.h"
+#include "components/guest_view/browser/guest_view_manager.h"
 #include "components/guest_view/buildflags/buildflags.h"
-#include "components/language/core/common/language_util.h"
 #include "components/prefs/pref_service.h"
+#include "content/public/browser/media_session.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/browser/web_contents_observer.h"
+#include "content/public/browser/web_contents_user_data.h"
 #include "extensions/buildflags/buildflags.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "net/base/url_util.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
+#include "third_party/blink/public/common/web_preferences/web_preferences.h"
 #include "third_party/blink/public/mojom/autoplay/autoplay.mojom.h"
 #include "third_party/blink/public/mojom/page/draggable_region.mojom.h"
 #include "third_party/skia/include/core/SkColor.h"
@@ -32,11 +43,10 @@
 #include "ui/gfx/geometry/skia_conversions.h"
 #include "url/gurl.h"
 
-// Note: guest_view isn't available on android mobile yet. Once it is, we can
-// include these unconditionally.
-#if BUILDFLAG(ENABLE_GUEST_VIEW)
-#include "components/guest_view/browser/guest_view_base.h"
+#if BUILDFLAG(IS_ANDROID)
+#include "base/android/device_info.h"
 #endif
+
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "extensions/browser/guest_view/web_view/web_view_guest.h"
 #else
@@ -48,6 +58,83 @@ namespace glic {
 BASE_FEATURE(kGlicGuestUrlMultiInstanceParam, base::FEATURE_ENABLED_BY_DEFAULT);
 
 namespace {
+
+// Attached to the WebUI WebContents using WebContentsUserData.
+// Acts as both a marker for Glic WebUI and a link to its guest WebContents.
+class GlicWebUiData : public content::WebContentsUserData<GlicWebUiData>,
+                      public content::WebContentsObserver {
+ public:
+  ~GlicWebUiData() override = default;
+
+  // Call this when the guest is attached to establish the link.
+  void SetGuestContents(content::WebContents* guest_contents) {
+    Observe(guest_contents);
+  }
+
+  // Returns the guest WebContents if it is attached and valid, nullptr
+  // otherwise.
+  content::WebContents* guest_contents() const {
+    content::WebContents* guest = web_contents();
+    if (!guest) {
+      return nullptr;
+    }
+    auto* guest_view = guest_view::GuestViewBase::FromWebContents(guest);
+    if (guest_view && !guest_view->attached()) {
+      return nullptr;
+    }
+    return guest;
+  }
+
+ private:
+  explicit GlicWebUiData(content::WebContents* webui_contents)
+      : content::WebContentsUserData<GlicWebUiData>(*webui_contents),
+        content::WebContentsObserver(nullptr),
+        webui_contents_(webui_contents) {}
+  friend class content::WebContentsUserData<GlicWebUiData>;
+  WEB_CONTENTS_USER_DATA_KEY_DECL();
+
+  using WebContentsObserver::web_contents;
+
+  raw_ptr<content::WebContents> webui_contents_;
+};
+
+WEB_CONTENTS_USER_DATA_KEY_IMPL(GlicWebUiData);
+
+// Attached to RenderProcessHost to identify Glic processes.
+class GlicProcessUserData : public base::SupportsUserData::Data {
+ public:
+  static constexpr char kKey[] = "glic::GlicProcessUserData";
+
+  ~GlicProcessUserData() override = default;
+
+  static GlicProcessUserData* FromProcessHost(content::RenderProcessHost* rph) {
+    return rph ? static_cast<GlicProcessUserData*>(rph->GetUserData(kKey))
+               : nullptr;
+  }
+
+  static void MarkProcess(content::RenderProcessHost* rph) {
+    if (rph && !FromProcessHost(rph)) {
+      rph->SetUserData(kKey, base::WrapUnique(new GlicProcessUserData()));
+    }
+  }
+
+ private:
+  GlicProcessUserData() = default;
+};
+
+// Attached to Guest WebContents to identify it directly.
+class GlicGuestMarker : public content::WebContentsUserData<GlicGuestMarker> {
+ public:
+  ~GlicGuestMarker() override = default;
+
+ private:
+  explicit GlicGuestMarker(content::WebContents* web_contents)
+      : content::WebContentsUserData<GlicGuestMarker>(*web_contents) {}
+  friend class content::WebContentsUserData<GlicGuestMarker>;
+  WEB_CONTENTS_USER_DATA_KEY_DECL();
+};
+
+WEB_CONTENTS_USER_DATA_KEY_IMPL(GlicGuestMarker);
 
 // LINT.IfChange(WebViewAutoPlayProgress)
 enum class WebViewAutoPlayProgress {
@@ -84,6 +171,23 @@ class WebviewWebContentsObserver : public content::WebContentsObserver,
 };
 
 }  // namespace
+
+bool IsGlicGuest(content::WebContents* web_contents) {
+  if (!web_contents ||
+      GlicGuestMarker::FromWebContents(web_contents) == nullptr) {
+    return false;
+  }
+  auto* guest_view = guest_view::GuestViewBase::FromWebContents(web_contents);
+  return guest_view && guest_view->attached();
+}
+
+void MarkProcessAsGlic(content::RenderProcessHost* rph) {
+  GlicProcessUserData::MarkProcess(rph);
+}
+
+void CreateGlicWebUiData(content::WebContents* webui_contents) {
+  GlicWebUiData::CreateForWebContents(webui_contents);
+}
 
 GURL GetGuestURL() {
   auto* command_line = base::CommandLine::ForCurrentProcess();
@@ -150,14 +254,13 @@ GURL GetLocalizedGuestURL(const GURL& guest_url) {
   if (net::GetValueForKeyInQuery(guest_url, "hl", &unused_output)) {
     return guest_url;
   }
-  std::string locale = g_browser_process->GetApplicationLocale();
-  language::ToTranslateLanguageSynonym(&locale);
-  return net::AppendQueryParameter(guest_url, "hl", locale);
+  std::string application_locale = g_browser_process->GetApplicationLocale();
+  std::string google_locale = google_util::GetGoogleLocale(application_locale);
+  return net::AppendQueryParameter(guest_url, "hl", google_locale);
 }
 
 GURL MaybeAddMultiInstanceParameter(const GURL& guest_url) {
-  if (GlicEnabling::IsMultiInstanceEnabled() &&
-      base::FeatureList::IsEnabled(kGlicGuestUrlMultiInstanceParam)) {
+  if (base::FeatureList::IsEnabled(kGlicGuestUrlMultiInstanceParam)) {
     return net::AppendOrReplaceQueryParameter(guest_url, "mode", "mi");
   }
   return guest_url;
@@ -165,28 +268,21 @@ GURL MaybeAddMultiInstanceParameter(const GURL& guest_url) {
 
 bool IsGlicWebUI(const content::WebContents* web_contents) {
   return web_contents &&
-         web_contents->GetLastCommittedURL() == chrome::kChromeUIGlicURL;
+         GlicWebUiData::FromWebContents(web_contents) != nullptr;
+}
+
+bool IsProcessHostForGlic(content::RenderProcessHost* process_host) {
+  return process_host &&
+         GlicProcessUserData::FromProcessHost(process_host) != nullptr;
 }
 
 content::WebContents* GetGlicGuestWebContents(
-    content::WebContents* web_contents) {
-  if (!web_contents) {
+    content::WebContents* webui_contents) {
+  if (!webui_contents) {
     return nullptr;
   }
-  GlicKeyedService* service = GlicKeyedServiceFactory::GetGlicKeyedService(
-      web_contents->GetBrowserContext());
-  if (!service) {
-    return nullptr;
-  }
-
-  for (Host* host : service->host_manager().GetAllHosts()) {
-    if (host->webui_contents() == web_contents) {
-      content::RenderFrameHost* guest_rfh = host->GetGuestMainFrame();
-      return guest_rfh ? content::WebContents::FromRenderFrameHost(guest_rfh)
-                       : nullptr;
-    }
-  }
-  return nullptr;
+  auto* data = GlicWebUiData::FromWebContents(webui_contents);
+  return data ? data->guest_contents() : nullptr;
 }
 
 bool OnGuestAdded(content::WebContents* guest_contents) {
@@ -206,8 +302,8 @@ bool OnGuestAdded(content::WebContents* guest_contents) {
   if (!IsGlicWebUI(top)) {
     return false;
   }
-  GlicKeyedService* service =
-      GlicKeyedServiceFactory::GetGlicKeyedService(top->GetBrowserContext());
+  GlicKeyedService* service = GlicKeyedServiceFactory::GetGlicKeyedService(
+      top->GetBrowserContext(), /*create=*/false);
   if (!service) {
     return false;
   }
@@ -216,7 +312,22 @@ bool OnGuestAdded(content::WebContents* guest_contents) {
   guest_contents->SetSupportsDraggableRegions(true);
 #endif  // !BUILDFLAG(IS_ANDROID)
 
-  service->GuestAdded(guest_contents);
+  if (auto* data = GlicWebUiData::FromWebContents(top)) {
+    data->SetGuestContents(guest_contents);
+    GlicGuestMarker::CreateForWebContents(guest_contents);
+    GlicProcessUserData::MarkProcess(
+        guest_contents->GetPrimaryMainFrame()->GetProcess());
+
+#if !BUILDFLAG(IS_ANDROID)
+    // TODO(harringtond): This looks wrong, either fix or document this.
+    blink::web_pref::WebPreferences prefs(top->GetOrCreateWebPreferences());
+    prefs.default_font_size =
+        top->GetOrCreateWebPreferences().default_font_size;
+    top->SetWebPreferences(prefs);
+#else
+    // TODO(b/470059315): What do we do for Android?
+#endif
+  }
 
   guest_contents->SetUserData(
       "glic::WebviewWebContentsObserver",
@@ -228,6 +339,37 @@ bool OnGuestAdded(content::WebContents* guest_contents) {
       "Glic.Host.WebView.AutoPlay",
       WebViewAutoPlayProgress::kWebContentsObserverRegistered);
   return true;
+}
+
+bool IsMediaRequestFromGlic(content::BrowserContext* browser_context,
+                            const std::string& request_id) {
+  content::WebContents* web_contents =
+      content::MediaSession::GetWebContentsFromRequestId(request_id);
+  return web_contents && web_contents->GetBrowserContext() == browser_context &&
+         IsGlicGuest(web_contents);
+}
+
+mojom::FormFactor GetGlicFormFactor(ui::DeviceFormFactor form_factor) {
+#if BUILDFLAG(IS_ANDROID)
+  // TODO(b/512144892): Foldable is currently grouped with phone. We need
+  // transition between bottom sheet and side panel, to match tablet UI.
+  if (base::android::device_info::is_foldable()) {
+    return mojom::FormFactor::kPhone;
+  }
+#endif
+  switch (form_factor) {
+    case ui::DEVICE_FORM_FACTOR_DESKTOP:
+      return mojom::FormFactor::kDesktop;
+    // TODO(b/512144892): Foldable is currently grouped with phone. We need
+    // transition between bottom sheet and side panel, to match tablet UI.
+    case ui::DEVICE_FORM_FACTOR_FOLDABLE:
+    case ui::DEVICE_FORM_FACTOR_PHONE:
+      return mojom::FormFactor::kPhone;
+    case ui::DEVICE_FORM_FACTOR_TABLET:
+      return mojom::FormFactor::kTablet;
+    default:
+      return mojom::FormFactor::kUnknown;
+  }
 }
 
 }  // namespace glic

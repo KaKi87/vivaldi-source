@@ -25,13 +25,14 @@
 #include "ui/aura/window.h"
 #include "ui/aura/window_delegate.h"
 #include "ui/aura/window_event_dispatcher.h"
-#include "ui/aura/window_tracker.h"
 #include "ui/aura/window_tree_host.h"
 #include "ui/base/cursor/mojom/cursor_type.mojom-shared.h"
 #include "ui/base/hit_test.h"
 #include "ui/display/manager/display_manager_observer.h"
 #include "ui/display/screen.h"
 #include "ui/events/event.h"
+#include "ui/gfx/geometry/point_f.h"
+#include "ui/gfx/geometry/vector2d_f.h"
 #include "ui/views/widget/widget.h"
 #include "ui/wm/core/coordinate_conversion.h"
 
@@ -606,21 +607,15 @@ wm::WindowMoveResult ToplevelWindowEventHandler::RunMoveLoop(
   DCHECK(!in_move_loop_);  // Can only handle one nested loop at a time.
   aura::Window* root_window = source->GetRootWindow();
   DCHECK(root_window);
-  gfx::PointF drag_location;
-  if (move_source == ::wm::WINDOW_MOVE_SOURCE_TOUCH &&
-      aura::Env::GetInstance()->is_touch_down()) {
-    gfx::PointF drag_location_f;
-    bool has_point = aura::Env::GetInstance()
-                         ->gesture_recognizer()
-                         ->GetLastTouchPointForTarget(source, &drag_location_f);
-    drag_location = drag_location_f;
-    DCHECK(has_point);
-  } else {
-    drag_location = gfx::PointF(
-        root_window->GetHost()->dispatcher()->GetLastMouseLocationInRoot());
-    aura::Window::ConvertPointToTarget(root_window, source->parent(),
-                                       &drag_location);
-  }
+
+  // Calculate the drag location by using the drag_offset. `drag_offset` is the
+  // mouse position's offset from the source window's origin when drag is
+  // initiated.
+  gfx::PointF location_in_source =
+      gfx::PointF(drag_offset.x(), drag_offset.y());
+  gfx::PointF drag_location = location_in_source;
+  aura::Window::ConvertPointToTarget(source, source->parent(), &drag_location);
+
   // Set the cursor before calling AttemptToStartDrag(), as that will
   // eventually call LockCursor() and prevent the cursor from changing.
   aura::client::CursorClient* cursor_client =
@@ -646,7 +641,7 @@ wm::WindowMoveResult ToplevelWindowEventHandler::RunMoveLoop(
   WindowState* window_state = WindowState::Get(source);
   const bool window_position_managed = window_state->GetWindowPositionManaged();
   window_state->SetWindowPositionManaged(false);
-  aura::WindowTracker tracker({source});
+  base::WeakPtr<aura::Window> source_weak = source->GetWeakPtrAsWindow();
 
   run_loop.Run();
 
@@ -654,8 +649,9 @@ wm::WindowMoveResult ToplevelWindowEventHandler::RunMoveLoop(
     return ::wm::MOVE_CANCELED;
 
   // Make sure the window hasn't been deleted.
-  if (tracker.Contains(source))
+  if (source_weak) {
     window_state->SetWindowPositionManaged(window_position_managed);
+  }
 
   in_move_loop_ = false;
   return result == DragResult::SUCCESS ? ::wm::MOVE_SUCCESSFUL

@@ -23,8 +23,10 @@ import org.chromium.ui.base.ViewUtils;
 
 // Vivaldi
 import android.view.MotionEvent;
-import org.chromium.chrome.browser.ChromeApplicationImpl;
 import org.chromium.build.BuildConfig;
+import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.ui.KeyboardVisibilityDelegate;
+import org.vivaldi.browser.common.TopCropImageView;
 
 /** The New Tab Page for use in the incognito profile. */
 @NullMarked
@@ -38,6 +40,10 @@ public class IncognitoNewTabPageView extends FrameLayout {
     private int mSnapshotWidth;
     private int mSnapshotHeight;
     private int mSnapshotScrollY;
+
+    // Vivaldi
+    private TopCropImageView mImageView;
+    private KeyboardVisibilityDelegate.KeyboardVisibilityListener mKeyboardVisibilityListener;
 
     /** Manages the view interaction with the rest of the system. */
     interface IncognitoNewTabPageManager {
@@ -85,8 +91,16 @@ public class IncognitoNewTabPageView extends FrameLayout {
                                 mScrollView.canScrollVertically(1) ? View.VISIBLE : View.GONE);
                     }
                 });
-        } // End Vivaldi
+        } // Vivaldi
+        mImageView = findViewById(R.id.vivaldi_image_view);
+        mKeyboardVisibilityListener = isShowing -> {
+            if (mImageView != null) {
+                mImageView.setSuppressLayout(isShowing);
+            }
+        };
+        // End Vivaldi
     }
+
 
     /**
      * Initialize the incognito New Tab Page.
@@ -127,6 +141,11 @@ public class IncognitoNewTabPageView extends FrameLayout {
         if (mFirstShow) {
             mManager.onLoadingComplete();
             mFirstShow = false;
+        }
+        // Vivaldi
+        if (ChromeApplicationImpl.isVivaldi()) {
+            KeyboardVisibilityDelegate.getInstance().addKeyboardVisibilityListener(
+                    mKeyboardVisibilityListener);
         }
     }
 
@@ -172,6 +191,14 @@ public class IncognitoNewTabPageView extends FrameLayout {
         // tabs and we want to dismiss the keyboard.
         requestFocus();
         return super.onInterceptTouchEvent(e);
+    }
+
+    /** Vivaldi **/
+    @Override
+    public void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        KeyboardVisibilityDelegate.getInstance().removeKeyboardVisibilityListener(
+                mKeyboardVisibilityListener);
     }
     // End Vivaldi
 }

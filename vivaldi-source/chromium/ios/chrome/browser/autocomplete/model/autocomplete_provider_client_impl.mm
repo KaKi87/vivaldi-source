@@ -21,6 +21,7 @@
 #import "components/omnibox/common/omnibox_features.h"
 #import "components/prefs/pref_service.h"
 #import "components/saved_tab_groups/public/tab_group_sync_service.h"
+#import "components/signin/public/base/consent_level.h"
 #import "components/signin/public/identity_manager/identity_manager.h"
 #import "components/sync/service/sync_service.h"
 #import "components/unified_consent/url_keyed_data_collection_consent_helper.h"
@@ -48,6 +49,7 @@
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
+#import "ios/chrome/browser/sync/model/session_sync_service_factory.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
 #import "ios/components/webui/web_ui_url_constants.h"
 #import "services/network/public/cpp/shared_url_loader_factory.h"
@@ -209,6 +211,11 @@ AutocompleteProviderClientImpl::GetLensSuggestInputsWhenReady(
 tab_groups::TabGroupSyncService*
 AutocompleteProviderClientImpl::GetTabGroupSyncService() const {
   return nullptr;
+}
+
+sync_sessions::SessionSyncService*
+AutocompleteProviderClientImpl::GetSessionSyncService() const {
+  return SessionSyncServiceFactory::GetForProfile(profile_);
 }
 
 AimEligibilityService*

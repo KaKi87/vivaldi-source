@@ -7,13 +7,16 @@
 #import <StoreKit/StoreKit.h>
 
 #import "base/metrics/user_metrics.h"
+#import "components/signin/public/identity_manager/account_info.h"
 #import "components/signin/public/identity_manager/identity_manager.h"
 #import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/account_picker/ui_bundled/account_picker_coordinator.h"
 #import "ios/chrome/browser/account_picker/ui_bundled/account_picker_coordinator_delegate.h"
 #import "ios/chrome/browser/account_picker/ui_bundled/account_picker_logger.h"
+#import "ios/chrome/browser/authentication/signin/reauth/coordinator/signin_reauth_coordinator.h"
 #import "ios/chrome/browser/authentication/ui_bundled/continuation.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_coordinator.h"
+#import "ios/chrome/browser/authentication/ui_bundled/signin/signin_utils.h"
 #import "ios/chrome/browser/photos/model/photos_service_factory.h"
 #import "ios/chrome/browser/save_to_photos/ui_bundled/save_to_photos_mediator.h"
 #import "ios/chrome/browser/save_to_photos/ui_bundled/save_to_photos_mediator_delegate.h"
@@ -27,6 +30,7 @@
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/show_signin_command.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/signin/model/authentication_service_factory.h"
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service.h"
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service_factory.h"
@@ -43,6 +47,7 @@
                                        AccountPickerLogger,
                                        ManageStorageAlertCommands,
                                        SaveToPhotosMediatorDelegate,
+                                       SigninReauthCoordinatorDelegate,
                                        StoreKitCoordinatorDelegate>
 
 @end
@@ -55,6 +60,8 @@
   UIAlertController* _alertController;
   StoreKitCoordinator* _storeKitCoordinator;
   AccountPickerCoordinator* _accountPickerCoordinator;
+  SigninReauthCoordinator* _reauthCoordinator;
+  SigninCoordinator* _signinCoordinator;
 }
 
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
@@ -118,6 +125,9 @@
   _storeKitCoordinator = nil;
   [_accountPickerCoordinator stopAnimated:NO];
   _accountPickerCoordinator = nil;
+  [self stopReauthCoordinator];
+  [_signinCoordinator stop];
+  _signinCoordinator = nil;
 }
 
 #pragma mark - SaveToPhotosMediatorDelegate
@@ -340,6 +350,86 @@
   [alertBaseViewController presentViewController:_alertController
                                         animated:YES
                                       completion:nil];
+}
+
+- (void)showReauthForIdentity:(id<SystemIdentity>)identity {
+  signin::IdentityManager* identityManager =
+      IdentityManagerFactory::GetForProfile(self.profile);
+  CoreAccountInfo account =
+      identityManager->FindExtendedAccountInfoByGaiaId(identity.gaiaId);
+  if (account.IsEmpty()) {
+    // In case the account has been removed asynchronously.
+    return;
+  }
+
+  _reauthCoordinator = [[SigninReauthCoordinator alloc]
+      initWithBaseViewController:self.baseViewController
+                         browser:self.browser
+                         account:account
+               reauthAccessPoint:signin_metrics::ReauthAccessPoint::
+                                     kAccountSettings];
+  _reauthCoordinator.delegate = self;
+  [_reauthCoordinator start];
+}
+
+- (void)stopReauthCoordinator {
+  [_reauthCoordinator stop];
+  _reauthCoordinator.delegate = nil;
+  _reauthCoordinator = nil;
+}
+
+#pragma mark - SigninReauthCoordinatorDelegate
+
+- (void)reauthFinishedWithResult:(ReauthResult)result
+                          gaiaID:(const GaiaId*)gaiaID {
+  [self stopReauthCoordinator];
+  if (result != ReauthResult::kSuccess) {
+    [self hideSaveToPhotos];
+    return;
+  }
+  [_mediator userIsReauth];
+}
+
+#pragma mark - Private
+
+- (void)openSignIn {
+  CHECK(base::FeatureList::IsEnabled(kIOSSaveToPhotosSignedOut));
+  if (_signinCoordinator.viewWillPersist) {
+    return;
+  }
+  [_signinCoordinator stop];
+  _signinCoordinator = [SigninCoordinator
+      consistencyPromoSigninCoordinatorWithBaseViewController:
+          self.baseViewController
+                                                      browser:self.browser
+                                                 contextStyle:
+                                                     SigninContextStyle::
+                                                         kDefault
+                                                  accessPoint:
+                                                      signin_metrics::
+                                                          AccessPoint::
+                                                              kSaveToPhotosIos
+                                         prepareChangeProfile:nil
+                                         continuationProvider:
+                                             // TODO(crbug.com/484919846):
+                                             // Handle profile switching.
+                                             DoNothingContinuationProvider()];
+  __weak __typeof(self) weakSelf = self;
+  _signinCoordinator.signinCompletion =
+      ^(SigninCoordinator* coordinator, SigninCoordinatorResult result,
+        id<SystemIdentity> identity) {
+        [weakSelf handleSigninResult:result identity:identity];
+      };
+  [_signinCoordinator start];
+}
+
+- (void)handleSigninResult:(SigninCoordinatorResult)result
+                  identity:(id<SystemIdentity>)identity {
+  [_signinCoordinator stop];
+  _signinCoordinator = nil;
+  if (result == SigninCoordinatorResultSuccess) {
+    [_mediator userSignedInToSaveImageWithIdentity:identity];
+  }
 }
 
 @end

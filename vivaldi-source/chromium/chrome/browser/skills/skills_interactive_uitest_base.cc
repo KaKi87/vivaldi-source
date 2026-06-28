@@ -12,6 +12,7 @@
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/skills/skills_glic_mojom_util.h"
 #include "chrome/browser/skills/skills_service_factory.h"
 #include "chrome/browser/skills/skills_ui_window_controller.h"
@@ -56,10 +57,8 @@ SkillsInteractiveUiTestBase::SkillsInteractiveUiTestBase() {
       /*enabled_features=*/{features::kGlic, features::kGlicRollout,
                             features::kSkillsEnabled,
                             features::kGlicMultitabUnderlines},
-      /*disabled_features=*/{features::kGlicWarming,
-                             features::kGlicTrustFirstOnboarding});
-  // Ensure that we open the FRE.
-  glic_test_environment().SetFreStatusForNewProfiles(std::nullopt);
+      /*disabled_features=*/{features::kGlicWarming});
+  // TODO(b:504651450): Consider adding support for the new FRE.
 }
 
 SkillsInteractiveUiTestBase::~SkillsInteractiveUiTestBase() = default;
@@ -135,8 +134,9 @@ std::unique_ptr<KeyedService> SkillsInteractiveUiTestBase::CreateSkillsService(
     content::BrowserContext* context) {
   Profile* profile = Profile::FromBrowserContext(context);
   return std::make_unique<skills::SkillsServiceImpl>(
+      profile->GetPrefs(),
       OptimizationGuideKeyedServiceFactory::GetForProfile(profile),
-      chrome::GetChannel(),
+      IdentityManagerFactory::GetForProfile(profile), chrome::GetChannel(),
       DataTypeStoreServiceFactory::GetForProfile(profile)->GetStoreFactory(),
       base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(
           &test_url_loader_factory_));
@@ -147,10 +147,8 @@ SkillsInteractiveUiTestBase::UpdateContextualSkillPreviews(
     std::vector<glic::mojom::SkillPreviewPtr> contextual_skill_previews) {
   return Steps(Do([this, contextual_skill_previews =
                              std::move(contextual_skill_previews)]() mutable {
-    glic_service()
-        ->GetInstanceForTab(browser()->GetActiveTabInterface())
-        ->host()
-        .NotifyContextualSkillsChanged(std::move(contextual_skill_previews));
+    GetGlicInstanceImpl()->host().NotifyContextualSkillsChanged(
+        std::move(contextual_skill_previews));
   }));
 }
 
@@ -315,21 +313,8 @@ SkillsInteractiveUiTestBase::ClickOnGlicClientElement(DeepQuery where) {
 }
 
 ui::test::InteractiveTestApi::MultiStep
-SkillsInteractiveUiTestBase::PollForAndAcceptFre() {
-  return Steps(
-      PollUntil(
-          [this]() {
-            return glic_service()->fre_controller().GetWebUiState() ==
-                   glic::mojom::FreWebUiState::kReady;
-          },
-          "polling until the fre is ready"),
-      Do([this]() { glic_service()->fre_controller().AcceptFre(nullptr); }));
-}
-
-ui::test::InteractiveTestApi::MultiStep
-SkillsInteractiveUiTestBase::OpenGlicAcceptFreAndInstrument() {
+SkillsInteractiveUiTestBase::OpenGlicAndInstrument() {
   return Steps(ToggleGlicWindow(GlicWindowMode::kAttached),
-               PollForAndAcceptFre(),
                WaitForAndInstrumentGlic(GlicInstrumentMode::kHostAndContents));
 }
 

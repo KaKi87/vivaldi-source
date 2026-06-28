@@ -51,7 +51,6 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.hub.HubToolbarProperties.PaneButtonLookup;
 import org.chromium.chrome.browser.toolbar.menu_button.MenuButton;
 import org.chromium.chrome.browser.ui.actions.button.FullButtonData;
-import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.ui.animation.AnimationHandler;
 import org.chromium.ui.interpolators.Interpolators;
 
@@ -123,13 +122,8 @@ public class HubToolbarView extends RelativeLayout { // Vivaldi
                     = ((View) getParent().getParent()).findViewById(R.id.menu_button_container_top);
             assertNonNull(menuButtonContainer);
             menuButtonContainer.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
-        } else
-        if (OmniboxFeatures.sAndroidHubSearchTabGroups.isEnabled()
-                && OmniboxFeatures.sAndroidHubSearchEnableOnTabGroupsPane.getValue()) {
-            mMenuButtonWrapper.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
-        } else {
-            mMenuButtonContainer.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
-        }
+        } else // End Vivaldi
+        mMenuButtonWrapper.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
     }
 
     void setPaneSwitcherButtonData(
@@ -595,11 +589,7 @@ public class HubToolbarView extends RelativeLayout { // Vivaldi
 
     private void updateSearchBoxElements(boolean isIncognito) {
         Context context = getContext();
-        @StringRes
-        int regularEmptyHintRes =
-                OmniboxFeatures.sAndroidHubSearchEnableTabGroupStrings.getValue()
-                        ? R.string.hub_search_empty_hint_with_tab_groups
-                        : R.string.hub_search_empty_hint;
+        @StringRes int regularEmptyHintRes = R.string.hub_search_empty_hint;
         @StringRes
         int emptyHintRes =
                 isIncognito ? R.string.hub_search_empty_hint_incognito : regularEmptyHintRes;

@@ -6,9 +6,7 @@ source_set("vivaldi_location_bar") {
     "location_bar_constants+vivaldi.mm",
   ]
 
-  deps = [
-    "resources:location_bar_assets",
-  ]
+  deps = [ "resources:location_bar_assets" ]
 
- frameworks = [ "UIKit.framework" ]
+  frameworks = [ "UIKit.framework" ]
 }

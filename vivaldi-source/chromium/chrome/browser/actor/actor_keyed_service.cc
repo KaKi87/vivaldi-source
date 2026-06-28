@@ -14,16 +14,15 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/trace_event/trace_event.h"
 #include "base/types/pass_key.h"
-#include "chrome/browser/actor/actor_features.h"
 #include "chrome/browser/actor/actor_keyed_service_factory.h"
 #include "chrome/browser/actor/actor_metrics.h"
 #include "chrome/browser/actor/actor_proto_conversion.h"
 #include "chrome/browser/actor/actor_tab_data.h"
 #include "chrome/browser/actor/actor_task.h"
 #include "chrome/browser/actor/actor_task_metadata.h"
-#include "chrome/browser/actor/aggregated_journal.h"
-#include "chrome/browser/actor/enterprise_policy_url_checker.h"
+#include "chrome/browser/actor/enterprise_policy_checker.h"
 #include "chrome/browser/actor/execution_engine.h"
+#include "chrome/browser/actor/tab_observation_strategy.h"
 #include "chrome/browser/actor/tools/tool_request.h"
 #include "chrome/browser/actor/ui/actor_ui_state_manager.h"
 #include "chrome/browser/actor/ui/event_dispatcher.h"
@@ -31,14 +30,17 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search/search.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
-#include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/common/actor.mojom.h"
 #include "chrome/common/actor/action_result.h"
-#include "chrome/common/actor/journal_details_builder.h"
-#include "chrome/common/actor/task_id.h"
 #include "chrome/common/webui_url_constants.h"
+#include "components/actor/core/actor_features.h"
+#include "components/actor/core/aggregated_journal.h"
+#include "components/actor/core/journal_details_builder.h"
+#include "components/actor/core/task_id.h"
+#include "components/actor/public/mojom/actor_types.mojom.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/download_item_utils.h"
 #include "content/public/browser/navigation_handle.h"
@@ -66,6 +68,7 @@ void OnCreateActorTabComplete(
   if (base::FeatureList::IsEnabled(actor::kActorBindCreatedTabToTask) && tab) {
     task.AddTab(
         tab->GetHandle(),
+        /*stop_task_on_detach=*/true,
         base::BindOnce(
             [](actor::ActorKeyedService::CreateActorTabCallback callback,
                tabs::TabHandle handle, actor::TaskId task_id,
@@ -335,20 +338,24 @@ size_t ActorKeyedService::GetActiveTasksCount() const {
 
 void ActorKeyedService::ResetForTesting() {
   for (auto it = active_tasks_.begin(); it != active_tasks_.end();) {
-    StopTask((it++)->first, ActorTask::StoppedReason::kTaskComplete);
+    if (!it->second->IsCompleted()) {
+      StopTask((it++)->first, ActorTask::StoppedReason::kTaskComplete);
+    } else {
+      ++it;
+    }
   }
   active_tasks_.clear();
 }
 
 TaskId ActorKeyedService::CreateTask(
     const TaskSourceInfo& source_info,
-    const EnterprisePolicyUrlChecker* policy_checker) {
+    const EnterprisePolicyChecker* policy_checker) {
   return CreateTaskWithOptions(source_info, policy_checker, nullptr, nullptr);
 }
 
 TaskId ActorKeyedService::CreateTaskWithOptions(
     const TaskSourceInfo& source_info,
-    const EnterprisePolicyUrlChecker* policy_checker,
+    const EnterprisePolicyChecker* policy_checker,
     webui::mojom::TaskOptionsPtr options,
     base::WeakPtr<ActorTaskDelegate> delegate) {
   return CreateTaskImpl(ui::NewUiEventDispatcher(GetActorUiStateManager()),
@@ -359,7 +366,7 @@ TaskId ActorKeyedService::CreateTaskWithOptions(
 TaskId ActorKeyedService::CreateTaskForTesting(
     std::unique_ptr<actor::ui::UiEventDispatcher> ui_event_dispatcher,
     const TaskSourceInfo& source_info,
-    const EnterprisePolicyUrlChecker* policy_checker,
+    const EnterprisePolicyChecker* policy_checker,
     webui::mojom::TaskOptionsPtr options,
     base::WeakPtr<ActorTaskDelegate> delegate) {
   return CreateTaskImpl(std::move(ui_event_dispatcher), source_info,
@@ -370,7 +377,7 @@ TaskId ActorKeyedService::CreateTaskForTesting(
 TaskId ActorKeyedService::CreateTaskImpl(
     std::unique_ptr<actor::ui::UiEventDispatcher> ui_event_dispatcher,
     const TaskSourceInfo& source_info,
-    const EnterprisePolicyUrlChecker* policy_checker,
+    const EnterprisePolicyChecker* policy_checker,
     webui::mojom::TaskOptionsPtr options,
     base::WeakPtr<ActorTaskDelegate> delegate) {
   TRACE_EVENT0("actor", "ActorKeyedService::CreateTask");
@@ -429,17 +436,19 @@ void ActorKeyedService::RequestTabObservation(
       "RequestTabObservation", {});
   page_content_annotations::FetchPageContextOptions options;
 
-  options.screenshot_options =
-      kFullPageScreenshot.Get()
-          // It's safe to dereference the optional here because
-          // kFullPageScreenshot being true implies
-          // kGlicTabScreenshotPaintPreviewBackend is enabled.
-          ? page_content_annotations::ScreenshotOptions::FullPage(
-                CreateOptionalPaintPreviewOptions().value(),
-                std::move(screenshot_collection_options))
-          : page_content_annotations::ScreenshotOptions::ViewportOnly(
-                CreateOptionalPaintPreviewOptions(),
-                std::move(screenshot_collection_options));
+  if (!base::FeatureList::IsEnabled(actor::kGlicActorSkipScreenshot)) {
+    options.screenshot_options =
+        kFullPageScreenshot.Get()
+            // It's safe to dereference the optional here because
+            // kFullPageScreenshot being true implies
+            // kGlicTabScreenshotPaintPreviewBackend is enabled.
+            ? page_content_annotations::ScreenshotOptions::FullPage(
+                  CreateOptionalPaintPreviewOptions().value(),
+                  std::move(screenshot_collection_options))
+            : page_content_annotations::ScreenshotOptions::ViewportOnly(
+                  CreateOptionalPaintPreviewOptions(),
+                  std::move(screenshot_collection_options));
+  }
 
   options.annotated_page_content_options =
       optimization_guide::ActionableAIPageContentOptions(
@@ -469,8 +478,7 @@ void ActorKeyedService::RequestTabObservation(
             }
 
             if (result.has_value() &&
-                result.value()->annotated_page_content_result.has_value() &&
-                result.value()->screenshot_result.has_value()) {
+                result.value()->annotated_page_content_result.has_value()) {
               auto& fetch_result = **result;
               size_t size = fetch_result.annotated_page_content_result->proto
                                 .ByteSizeLong();
@@ -481,14 +489,18 @@ void ActorKeyedService::RequestTabObservation(
                   last_committed_url, pending_journal_entry->GetTaskId(),
                   buffer);
 
-              auto& data = fetch_result.screenshot_result->screenshot_data;
-              pending_journal_entry->GetJournal().LogScreenshot(
-                  last_committed_url, pending_journal_entry->GetTaskId(),
-                  fetch_result.screenshot_result->mime_type,
-                  base::as_byte_span(data));
+              if (fetch_result.screenshot_result.has_value()) {
+                auto& data = fetch_result.screenshot_result->screenshot_data;
+                pending_journal_entry->GetJournal().LogScreenshot(
+                    last_committed_url, pending_journal_entry->GetTaskId(),
+                    fetch_result.screenshot_result->mime_type,
+                    base::as_byte_span(data));
+              }
+
               if (tab) {
                 actor::ActorTabData::From(tab.get())->DidObserveContent(
-                    fetch_result.annotated_page_content_result->proto);
+                    fetch_result.annotated_page_content_result->proto,
+                    actor::ApcSource::kActor);
               }
             }
 
@@ -510,11 +522,13 @@ std::optional<std::string> ActorKeyedService::ExtractErrorMessageIfFailed(
 
   page_content_annotations::FetchPageContextResult& fetch_result = **result;
 
-  // Context for actor observations should always have an APC and a screenshot,
-  // return failure if either is missing.
+  // Context for actor observations should always have an APC. It should also
+  // have a screenshot unless it was skipped.
   bool has_apc = fetch_result.annotated_page_content_result.has_value();
   bool has_screenshot = fetch_result.screenshot_result.has_value();
-  if (!has_apc || !has_screenshot) {
+  bool screenshot_required =
+      !base::FeatureList::IsEnabled(actor::kGlicActorSkipScreenshot);
+  if (!has_apc || (screenshot_required && !has_screenshot)) {
     return absl::StrFormat(
         "Fetch Error: APC[%s] screenshot[%s]",
         has_apc ? std::string("OK")
@@ -540,9 +554,10 @@ void ActorKeyedService::PerformActions(
                          .Add("task_id", task_id)
                          .AddError("Invalid Task")
                          .Build());
-    RunLater(base::BindOnce(
-        std::move(callback),
-        MakeResultVector(mojom::ActionResultCode::kTaskWentAway)));
+    RunLater(
+        base::BindOnce(std::move(callback),
+                       MakeResultVector(mojom::ActionResultCode::kTaskWentAway),
+                       TabObservationStrategy()));
     return;
   }
 
@@ -552,12 +567,16 @@ void ActorKeyedService::PerformActions(
         JournalDetailsBuilder().AddError("Empty Actions List").Build());
     RunLater(base::BindOnce(
         std::move(callback),
-        MakeResultVector(mojom::ActionResultCode::kEmptyActionSequence)));
+        MakeResultVector(mojom::ActionResultCode::kEmptyActionSequence),
+        TabObservationStrategy()));
     return;
   }
 
   task->GetExecutionEngine().AddWritableMainframeOrigins(
       task_metadata.added_writable_mainframe_origins());
+  task->GetExecutionEngine().actor_container_config().Assign(
+      task_metadata.agent_container_config());
+
   task->Act(
       std::move(actions),
       base::BindOnce(&ActorKeyedService::OnActionsFinished,
@@ -566,16 +585,19 @@ void ActorKeyedService::PerformActions(
 
 void ActorKeyedService::OnActionsFinished(
     PerformActionsCallback callback,
-    std::vector<ActionResultWithLatencyInfo> action_results) {
+    std::vector<ActionResultWithLatencyInfo> action_results,
+    TabObservationStrategy observation_strategy) {
   TRACE_EVENT0("actor", "ActorKeyedService::OnActionsFinished");
 
   if (base::FeatureList::IsEnabled(
           actor::kGlicPerformActionsReturnsBeforeStateChange)) {
-    std::move(callback).Run(std::move(action_results));
+    std::move(callback).Run(std::move(action_results),
+                            std::move(observation_strategy));
   } else {
     // RunLater is load bearing. See:
     // https://chromium-review.googlesource.com/c/chromium/src/+/7552225/comment/b0b7f011_71da3233/
-    RunLater(base::BindOnce(std::move(callback), std::move(action_results)));
+    RunLater(base::BindOnce(std::move(callback), std::move(action_results),
+                            std::move(observation_strategy)));
   }
 }
 

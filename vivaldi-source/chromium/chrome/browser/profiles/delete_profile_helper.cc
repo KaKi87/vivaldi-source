@@ -23,6 +23,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/download/download_core_service.h"
 #include "chrome/browser/download/download_core_service_factory.h"
+#include "chrome/browser/lifetime/application_lifetime_desktop.h"
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
 #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "chrome/browser/profiles/nuke_profile_directory_utils.h"
@@ -33,9 +34,9 @@
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/web_applications/os_integration/web_app_shortcut.h"
 #include "chrome/common/pref_names.h"
 #include "components/keep_alive_registry/keep_alive_types.h"
@@ -173,8 +174,9 @@ void DeleteProfileHelper::ScheduleEphemeralProfileForDeletion(
     std::unique_ptr<ScopedProfileKeepAlive> keep_alive) {
   DCHECK(IsRegisteredAsEphemeral(
       &profile_manager_->GetProfileAttributesStorage(), profile_dir));
-  DCHECK_EQ(0u, chrome::GetBrowserCount(
-                    profile_manager_->GetProfileByPath(profile_dir)));
+  auto* browser_collection = ProfileBrowserCollection::GetForProfile(
+      profile_manager_->GetProfileByPath(profile_dir));
+  DCHECK_EQ(0u, browser_collection ? browser_collection->GetSize() : 0u);
   std::optional<base::FilePath> new_active_profile_dir =
       profile_manager_->FindLastActiveProfile(base::BindRepeating(
           [](const base::FilePath& profile_dir, ProfileAttributesEntry* entry) {

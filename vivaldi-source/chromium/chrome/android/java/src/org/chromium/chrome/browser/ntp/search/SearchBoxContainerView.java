@@ -5,20 +5,22 @@
 package org.chromium.chrome.browser.ntp.search;
 
 import android.content.Context;
+import android.content.res.Resources;
+import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.RippleDrawable;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
+import android.view.TouchDelegate;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import androidx.annotation.DrawableRes;
+import androidx.annotation.Px;
 import androidx.core.widget.ImageViewCompat;
 
-import org.chromium.base.Log;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
@@ -28,9 +30,14 @@ import org.chromium.components.browser_ui.widget.RoundedCornerOutlineProvider;
 /** Provides the additional capabilities needed for the SearchBox container layout. */
 @NullMarked
 public class SearchBoxContainerView extends LinearLayout {
-    private static final String TAG = "SearchBoxContainer";
+    TextView mHintTextView;
+    ImageView mDseIconView;
+    ImageView mVoiceSearchButton;
+    ImageView mLensButton;
+    ImageView mPlusButton;
 
-    private ImageView mDseIconView;
+    private @Nullable TouchDelegate mTouchDelegate;
+    private @Nullable Rect mLastTouchDelegateRect;
 
     /** Constructor for inflating from XML. */
     public SearchBoxContainerView(Context context, AttributeSet attrs) {
@@ -41,42 +48,53 @@ public class SearchBoxContainerView extends LinearLayout {
     protected void onFinishInflate() {
         super.onFinishInflate();
 
-        // TODO(crbug.com/347509698): Remove the log statements after fixing the bug.
-        Log.i(TAG, "SearchBoxContainerView.onFinishInflate before set typeface");
-
-        TextView searchBoxTextView = findViewById(R.id.search_box_text);
-        Typeface typeface = Typeface.create("google-sans-medium", Typeface.NORMAL);
-        searchBoxTextView.setTypeface(typeface);
-
+        mHintTextView = findViewById(R.id.search_box_text);
         mDseIconView = findViewById(R.id.search_box_engine_icon);
-        mDseIconView.setOutlineProvider(
-                new RoundedCornerOutlineProvider(
-                        getResources()
-                                        .getDimensionPixelSize(
-                                                R.dimen.omnibox_search_engine_logo_composed_size)
-                                / 2));
-        mDseIconView.setClipToOutline(true);
-        ImageViewCompat.setImageTintList(mDseIconView, null);
+        mVoiceSearchButton = findViewById(R.id.voice_search_button);
+        mLensButton = findViewById(R.id.lens_camera_button);
+        mPlusButton = findViewById(R.id.search_box_plus_button);
+        mPlusButton.addOnLayoutChangeListener(
+                (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+                    updateTouchDelegate();
+                });
 
-        Log.i(TAG, "SearchBoxContainerView.onFinishInflate after set typeface");
+        Typeface typeface = Typeface.create("google-sans-medium", Typeface.NORMAL);
+        mHintTextView.setTypeface(typeface);
+        Resources res = getResources();
+        @Px int size = res.getDimensionPixelSize(R.dimen.omnibox_search_engine_logo_composed_size);
+        @Px int radius = size / 2;
+        mDseIconView.setOutlineProvider(new RoundedCornerOutlineProvider(radius));
+        mDseIconView.setClipToOutline(true);
+        ImageViewCompat.setImageTintList(mDseIconView, /* tintList= */ null);
     }
 
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
         if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) {
             if (getBackground() instanceof RippleDrawable) {
-                ((RippleDrawable) getBackground()).setHotspot(ev.getX(), ev.getY());
+                getBackground().setHotspot(ev.getX(), ev.getY());
             }
         }
         return super.onInterceptTouchEvent(ev);
     }
 
-    void setDseIconResource(@DrawableRes int resId) {
-        mDseIconView.setImageResource(resId);
-    }
-
     void setDseIconDrawable(@Nullable Drawable drawable) {
         mDseIconView.setImageDrawable(drawable);
+    }
+
+    void setPlusButtonClickListener(@Nullable OnClickListener listener) {
+        mPlusButton.setOnClickListener(listener);
+    }
+
+    /**
+     * Updates the visibility of the plus button and DSE icon, synchronizing the touch delegate.
+     *
+     * @param visible Whether the plus button should be visible.
+     */
+    void updateStartIconVisibility(boolean visible) {
+        mPlusButton.setVisibility(visible ? View.VISIBLE : View.GONE);
+        mDseIconView.setVisibility(visible ? View.GONE : View.VISIBLE);
+        updateTouchDelegate();
     }
 
     /**
@@ -85,11 +103,33 @@ public class SearchBoxContainerView extends LinearLayout {
      * @param apply Whether to apply a white background color to the fake search box.
      */
     void applyWhiteBackground(boolean apply) {
-        Context context = getContext();
+        ComposeplateUtils.applyWhiteBackground(getContext(), this, apply);
+    }
 
-        View searchBoxContainerView = findViewById(R.id.search_box_container);
-        if (searchBoxContainerView != null) {
-            ComposeplateUtils.applyWhiteBackground(context, searchBoxContainerView, apply);
+    private void updateTouchDelegate() {
+        if (mPlusButton.getVisibility() != View.VISIBLE) {
+            if (mTouchDelegate != null) {
+                setTouchDelegate(null);
+                mTouchDelegate = null;
+                mLastTouchDelegateRect = null;
+            }
+            return;
         }
+
+        Rect bounds = new Rect();
+        mPlusButton.getHitRect(bounds);
+        if (bounds.isEmpty()) return;
+
+        int minTargetSize = getResources().getDimensionPixelSize(R.dimen.min_touch_target_size);
+        int widthDelta = Math.max(0, minTargetSize - bounds.width()) / 2;
+        int heightDelta = Math.max(0, minTargetSize - bounds.height()) / 2;
+        bounds.inset(-widthDelta, -heightDelta);
+
+        if (bounds.equals(mLastTouchDelegateRect)) return;
+        mLastTouchDelegateRect = bounds;
+
+        mLastTouchDelegateRect = bounds;
+        mTouchDelegate = new TouchDelegate(bounds, mPlusButton);
+        setTouchDelegate(mTouchDelegate);
     }
 }

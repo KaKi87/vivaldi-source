@@ -11,12 +11,13 @@
 #import "base/strings/sys_string_conversions.h"
 #import "components/autofill/core/browser/filling/filling_product.h"
 #import "components/autofill/core/common/autofill_features.h"
+#import "components/webauthn/ios/features.h"
 #import "ios/chrome/browser/autofill/form_input_accessory/ui/form_input_accessory_view_controller_delegate.h"
 #import "ios/chrome/browser/autofill/form_input_accessory/ui/form_suggestion_view.h"
+#import "ios/chrome/browser/autofill/manual_fill/public/manual_fill_constants.h"
 #import "ios/chrome/browser/autofill/model/features.h"
 #import "ios/chrome/browser/autofill/model/form_suggestion_client.h"
 #import "ios/chrome/browser/autofill/ui_bundled/branding/branding_view_controller.h"
-#import "ios/chrome/browser/autofill/ui_bundled/manual_fill/manual_fill_constants.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
@@ -28,6 +29,10 @@
 #import "ios/chrome/grit/ios_strings.h"
 #import "ui/base/device_form_factor.h"
 #import "ui/base/l10n/l10n_util.h"
+
+// Vivaldi
+#import "app/vivaldi_apptools.h"
+// End Vivaldi
 
 using autofill::FillingProduct;
 using manual_fill::ManualFillDataType;
@@ -52,7 +57,7 @@ constexpr CGFloat kManualFillSymbolPointSize = 20;
 void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
                                              NSInteger suggestion_count) {
   switch (data_type) {
-    case ManualFillDataType::kPassword:
+    case ManualFillDataType::kCredential:
       base::RecordAction(
           base::UserMetricsAction("ManualFallback_ExpandIcon_OpenPassword"));
       UMA_HISTOGRAM_COUNTS_100(
@@ -221,9 +226,7 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
                     ? FormInputAccessoryViewSubitemGroup::kExpandButton
                     : FormInputAccessoryViewSubitemGroup::kManualFillButtons];
 
-  if (suggestions.count > kKeyboardAccessorySuggestionsLimit &&
-      base::FeatureList::IsEnabled(
-          kIOSKeyboardAccessorySuggestionsCutOffLimit)) {
+  if (suggestions.count > kKeyboardAccessorySuggestionsLimit) {
     suggestions = [suggestions
         subarrayWithRange:NSMakeRange(0, kKeyboardAccessorySuggestionsLimit)];
   }
@@ -247,10 +250,8 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
 
 - (void)passwordManualFillButtonPressed:(UIButton*)button {
   base::RecordAction(base::UserMetricsAction("ManualFallback_OpenPassword"));
-  UMA_HISTOGRAM_COUNTS_100("ManualFallback.VisibleSuggestions.OpenPasswords",
-                           self.formSuggestionView.suggestions.count);
   [self manualFillButtonPressed:button
-                    forDataType:ManualFillDataType::kPassword];
+                    forDataType:ManualFillDataType::kCredential];
 }
 
 - (void)creditCardManualFillButtonPressed:(UIButton*)button {
@@ -263,8 +264,6 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
 
 - (void)addressManualFillButtonPressed:(UIButton*)button {
   base::RecordAction(base::UserMetricsAction("ManualFallback_OpenProfile"));
-  UMA_HISTOGRAM_COUNTS_100("ManualFallback.VisibleSuggestions.OpenProfiles",
-                           self.formSuggestionView.suggestions.count);
   [self manualFillButtonPressed:button
                     forDataType:ManualFillDataType::kAddress];
 }
@@ -413,12 +412,32 @@ UIImage* GetManualFillSymbol() {
   // can supply a parameter to use the keyboard down symbol.
   bool useKeyboardDownSymbol =
       !IsLiquidGlassEffectEnabled() ||
-      kIOSKeyboardAccessoryTwoBubbleKeyboardIconParam.Get();
+      (IsIOSKeyboardAccessoryTwoBubbleEnabled() &&
+       kIOSKeyboardAccessoryTwoBubbleKeyboardIconParam.Get());
   if (useKeyboardDownSymbol) {
     closeButtonSymbol =
         DefaultSymbolWithPointSize(kKeyboardDownSymbol, kSymbolActionPointSize);
   }
 
+  if (vivaldi::IsVivaldiRunning()) {
+    [formInputAccessoryView
+              setUpWithLeadingView:self.leadingView
+                navigationDelegate:self.navigationDelegate
+                  manualFillSymbol:GetManualFillSymbol()
+          passwordManualFillSymbol:CustomSymbolWithPointSize(
+                                       @"vivaldi_autofill_passwords",
+                                       kSymbolActionPointSize)
+        creditCardManualFillSymbol:CustomSymbolWithPointSize(
+                                       @"vivaldi_autofill_credit_card",
+                                       kSymbolActionPointSize)
+           addressManualFillSymbol:CustomSymbolWithPointSize(
+                                       @"vivaldi_autofill_place",
+                                       kSymbolActionPointSize)
+                 closeButtonSymbol:[UIImage
+                                       imageNamed:@"vivaldi_autofill_keyboards"]
+                  splitViewEnabled:IsIOSKeyboardAccessoryTwoBubbleEnabled()
+                isTabletFormFactor:isTabletFormFactor];
+  } else {
   [formInputAccessoryView
             setUpWithLeadingView:self.leadingView
               navigationDelegate:self.navigationDelegate
@@ -432,6 +451,8 @@ UIImage* GetManualFillSymbol() {
                closeButtonSymbol:closeButtonSymbol
                 splitViewEnabled:IsIOSKeyboardAccessoryTwoBubbleEnabled()
               isTabletFormFactor:isTabletFormFactor];
+  } // End Vivaldi
+
   [formInputAccessoryView setIsCompact:[self isCompact]];
 
   if (IsIOSKeyboardAccessoryDefaultViewEnabled() && !isTabletFormFactor) {
@@ -451,6 +472,9 @@ UIImage* GetManualFillSymbol() {
   self.formInputAccessoryTapRecognizer.cancelsTouchesInView = NO;
   [formInputAccessoryView
       addGestureRecognizer:self.formInputAccessoryTapRecognizer];
+
+  formInputAccessoryView.passThroughTouchesEnabled =
+      base::FeatureList::IsEnabled(kFormInputAccessoryPassThroughTouches);
 
   self.formInputAccessoryView = formInputAccessoryView;
 }
@@ -530,14 +554,24 @@ UIImage* GetManualFillSymbol() {
     std::u16string mainFillingProductString;
     switch (_mainFillingProduct) {
       case FillingProduct::kAddress:
-      case FillingProduct::kPlusAddresses:
         mainFillingProductString = l10n_util::GetPluralStringFUTF16(
             IDS_IOS_AUTOFILL_ADDRESS_OPTIONS_AVAILABLE_ACCESSIBILITY_ANNOUNCEMENT,
             suggestionCount);
         break;
+      case FillingProduct::kPasskey:
+        // Passkey suggestions are only fetched and displayed if conditional
+        // passkey login is enabled. If conditional passkeys are disabled, we
+        // should never receive passkey suggestions. If we do, trigger an
+        // assertion. Otherwise, fall through to process the announcement.
+        if (!IsConditionalPasskeyLoginEnabled()) {
+          NOTREACHED();
+        }
+        [[fallthrough]];
       case FillingProduct::kPassword:
         mainFillingProductString = l10n_util::GetPluralStringFUTF16(
-            IDS_IOS_AUTOFILL_PASSWORD_OPTIONS_AVAILABLE_ACCESSIBILITY_ANNOUNCEMENT,
+            IsConditionalPasskeyLoginEnabled()
+                ? IDS_IOS_AUTOFILL_CREDENTIAL_OPTIONS_AVAILABLE_ACCESSIBILITY_ANNOUNCEMENT
+                : IDS_IOS_AUTOFILL_PASSWORD_OPTIONS_AVAILABLE_ACCESSIBILITY_ANNOUNCEMENT,
             suggestionCount);
         break;
       case FillingProduct::kCreditCard:
@@ -567,7 +601,6 @@ UIImage* GetManualFillSymbol() {
       case FillingProduct::kIdentityCredential:
       case FillingProduct::kDataList:
       case FillingProduct::kOneTimePassword:
-      case FillingProduct::kPasskey:
       case FillingProduct::kAtMemory:
       case FillingProduct::kNone:
         // These FillingProduct types are currently not available
@@ -644,8 +677,9 @@ UIImage* GetManualFillSymbol() {
     // tint color.
     self.formSuggestionView.overrideUserInterfaceStyle =
         self.traitCollection.userInterfaceStyle;
-    self.formInputAccessoryView.trailingView.overrideUserInterfaceStyle =
-        self.traitCollection.userInterfaceStyle;
+    [self.formInputAccessoryView
+        setSubviewsOverrideUserInterfaceStyle:self.traitCollection
+                                                  .userInterfaceStyle];
   }
 }
 

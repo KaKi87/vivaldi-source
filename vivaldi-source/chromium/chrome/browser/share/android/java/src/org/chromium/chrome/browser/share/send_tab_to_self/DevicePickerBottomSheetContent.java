@@ -18,6 +18,7 @@ import androidx.annotation.StringRes;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
@@ -168,14 +169,25 @@ class DevicePickerBottomSheetContent implements BottomSheetContent, OnItemClickL
         SendTabToSelfMetricsRecorder.recordCrossDeviceTabJourney();
         TargetDeviceInfo targetDeviceInfo = mAdapter.getItem(position);
 
-        String toastMessage =
-                mContext.getString(R.string.send_tab_to_self_toast, targetDeviceInfo.deviceName);
-        Toast.makeText(mContext, toastMessage, Toast.LENGTH_SHORT).show();
+        // TODO(crbug.com/492072882): Remove the optimistic toast completely once the
+        // SendTabToSelfPostSendToast feature has fully launched.
+        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.SEND_TAB_TO_SELF_POST_SEND_TOAST)) {
+            String toastMessage =
+                    mContext.getString(
+                            R.string.send_tab_to_self_toast, targetDeviceInfo.deviceName);
+            Toast.makeText(mContext, toastMessage, Toast.LENGTH_SHORT).show();
+        }
 
         Tab tab = mTabProvider.get();
         WebContents webContents = (tab != null) ? tab.getWebContents() : null;
 
         SendTabToSelfAndroidBridge.sendTabToDevice(
-                webContents, targetDeviceInfo.cacheGuid, mUrl, mTitle);
+                mProfile,
+                webContents,
+                targetDeviceInfo.cacheGuid,
+                targetDeviceInfo.deviceName,
+                mUrl,
+                mTitle,
+                null);
     }
 }

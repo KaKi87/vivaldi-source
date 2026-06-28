@@ -208,7 +208,7 @@ static void JNI_NotificationSettingsBridge_OnGetSiteChannelsDone(
     int64_t callback_id,
     const JavaRef<jobjectArray>& j_channels) {
   std::vector<NotificationChannel> channels;
-  for (auto jchannel : j_channels.ReadElements<jobject>()) {
+  for (auto jchannel : j_channels.CreateView(env)) {
     channels.emplace_back(Java_SiteChannel_getId(env, jchannel),
                           Java_SiteChannel_getOrigin(env, jchannel),
                           base::Time::FromInternalValue(
@@ -474,7 +474,7 @@ bool NotificationChannelsProviderAndroid::SetWebsiteSetting(
     const ContentSettingsPattern& primary_pattern,
     const ContentSettingsPattern& secondary_pattern,
     ContentSettingsType content_type,
-    base::Value&& value,
+    const base::Value& value,
     const content_settings::ContentSettingConstraints& constraints) {
   if (content_type != ContentSettingsType::NOTIFICATIONS) {
     return false;
@@ -515,7 +515,6 @@ bool NotificationChannelsProviderAndroid::SetWebsiteSetting(
   if (setting == CONTENT_SETTING_DEFAULT) {
     return false;
   }
-  value = base::Value();
   return true;
 }
 

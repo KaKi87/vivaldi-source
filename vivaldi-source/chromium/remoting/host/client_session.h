@@ -27,6 +27,7 @@
 #include "remoting/base/errors.h"
 #include "remoting/base/local_session_policies_provider.h"
 #include "remoting/base/session_policies.h"
+#include "remoting/host/audio_injector.h"
 #include "remoting/host/base/desktop_environment_options.h"
 #include "remoting/host/client_session_control.h"
 #include "remoting/host/client_session_details.h"
@@ -40,6 +41,7 @@
 #include "remoting/host/mojom/webauthn_proxy.mojom.h"
 #include "remoting/host/remote_input_filter.h"
 #include "remoting/proto/action.pb.h"
+#include "remoting/protocol/audio_sample_info.h"
 #include "remoting/protocol/clipboard_echo_filter.h"
 #include "remoting/protocol/clipboard_filter.h"
 #include "remoting/protocol/clipboard_stub.h"
@@ -90,6 +92,7 @@ class ClientSession : public protocol::HostStub,
                       public ClientSessionDetails,
                       public ClientSessionEvents,
                       public CursorVisibilityNotifier::EventHandler,
+                      public AudioInjector::Delegate,
                       public protocol::MouseCursorMonitor::Callback,
                       public mojom::ChromotingSessionServices {
  public:
@@ -177,6 +180,9 @@ class ClientSession : public protocol::HostStub,
   void OnIncomingDataChannel(
       const std::string& channel_name,
       std::unique_ptr<protocol::MessagePipe> pipe) override;
+  void OnIncomingAudioFormatChanged(
+      const protocol::AudioSampleInfo& info,
+      base::OnceCallback<void(bool)> done) override;
 
   // ClientSessionControl interface.
   const std::string& client_jid() const override;
@@ -189,9 +195,11 @@ class ClientSession : public protocol::HostStub,
   void SetDisableInputs(bool disable_inputs) override;
   void OnDesktopDisplayChanged(
       std::unique_ptr<protocol::VideoLayout> layout) override;
+  void OnMicrophoneControl(const protocol::MicrophoneControl& control) override;
 
   // ClientSessionEvents interface.
-  void OnDesktopAttached(std::uint32_t session_id) override;
+  void OnDesktopAttached() override;
+
   void OnDesktopDetached() override;
   void OnSecurityKeyConnection(
       mojo::PendingReceiver<mojom::SecurityKeyForwarder> receiver) override;
@@ -200,7 +208,6 @@ class ClientSession : public protocol::HostStub,
       override;
 
   // ClientSessionDetails interface.
-  std::uint32_t desktop_session_id() const override;
   ClientSessionControl* session_control() override;
 
   // CursorVisibilityNotifier::EventHandler interface
@@ -251,6 +258,8 @@ class ClientSession : public protocol::HostStub,
   void OnDesktopEnvironmentCreated(
       std::unique_ptr<DesktopEnvironment> desktop_environment);
 
+  void CreateAudioInjectorAndBuffer();
+
   void OnLocalSessionPoliciesChanged(const SessionPolicies& new_policies);
 
   // Creates a proxy for sending clipboard events to the client.
@@ -262,6 +271,9 @@ class ClientSession : public protocol::HostStub,
   void OnVideoSizeChanged(protocol::VideoStream* stream,
                           const webrtc::DesktopSize& size,
                           const webrtc::DesktopVector& dpi) override;
+
+  // AudioInjector::Delegate interface.
+  void OnAudioInjectorConsumersChanged(bool has_consumers) override;
 
   void CreateActionMessageHandler(
       std::vector<protocol::ActionRequest::Action> capabilities,
@@ -363,6 +375,9 @@ class ClientSession : public protocol::HostStub,
   // Filters used to manage enabling & disabling of input.
   protocol::InputFilter disable_input_filter_;
 
+  // Injects microphone input received from the client.
+  std::unique_ptr<AudioInjector> audio_injector_;
+
   // Used to enable/disable clipboard sync and to restrict payload size.
   protocol::ClipboardFilter host_clipboard_filter_;
   protocol::ClipboardFilter client_clipboard_filter_;
@@ -380,6 +395,12 @@ class ClientSession : public protocol::HostStub,
   std::map<webrtc::ScreenId, std::unique_ptr<protocol::VideoStream>>
       video_streams_;
   std::unique_ptr<protocol::AudioStream> audio_stream_;
+  std::unique_ptr<FifoBufferWriter> pending_audio_writer_
+      GUARDED_BY_CONTEXT(sequence_checker_);
+  std::optional<protocol::AudioSampleInfo> pending_audio_sample_info_
+      GUARDED_BY_CONTEXT(sequence_checker_);
+  base::OnceCallback<void(bool)> pending_audio_format_ack_callback_
+      GUARDED_BY_CONTEXT(sequence_checker_);
 
   // The set of all capabilities supported by the client.
   std::unique_ptr<std::string> client_capabilities_;

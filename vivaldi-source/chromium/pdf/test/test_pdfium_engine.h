@@ -114,6 +114,22 @@ class TestPDFiumEngine : public PDFiumEngine {
               (override));
 
 #if BUILDFLAG(ENABLE_PDF_INK2)
+  MOCK_METHOD(void, AddFont, (FontId, base::span<const uint8_t>), (override));
+
+  MOCK_METHOD(void,
+              DrawText,
+              (int,
+               InkTextId,
+               base::span<const InkTextInfo>,
+               double,
+               const InkTextBoxAttributes&),
+              (override));
+
+  MOCK_METHOD(void,
+              UpdateTextActiveAndInvalidate,
+              (InkTextId, bool),
+              (override));
+
   MOCK_METHOD(gfx::Size, GetThumbnailSize, (int, float), (override));
 
   MOCK_METHOD(void,
@@ -124,6 +140,8 @@ class TestPDFiumEngine : public PDFiumEngine {
   MOCK_METHOD(void, UpdateStrokeActive, (int, InkStrokeId, bool), (override));
 
   MOCK_METHOD(void, DiscardStroke, (int, InkStrokeId), (override));
+
+  MOCK_METHOD(void, DiscardText, (InkTextId), (override));
 
   MOCK_METHOD(PDFLoadedWithV2InkAnnotations,
               ContainsV2InkPath,

@@ -9,14 +9,12 @@
 <translation id="1598449788754183301">Comutați filele normale/private</translation>
 <translation id="1644574205037202324">Istoric</translation>
 <translation id="1829244130665387512">Caută în pagină</translation>
-<translation id="1910514478706885609">Deschideți într-o filă nouă suprapusă</translation>
 <translation id="1925021887439448749">Introduceți adresa web personalizată</translation>
 <translation id="2038563949887743358">Activați solicitarea pentru versiunea desktop</translation>
 <translation id="208033313373016095">Mod de lectură pentru paginile web</translation>
 <translation id="2149973817440762519">Editare semn de carte</translation>
 <translation id="2306442503286132111">Semnul de carte a fost salvat în dosarul <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Aspect</translation>
-<translation id="2501278716633472235">Mergi înapoi</translation>
 <translation id="2546283357679194313">Module cookies și datele site-ului</translation>
 <translation id="2633278372998075009">File private</translation>
 <translation id="2650751991977523696">Descărcați din nou fișierul?</translation>
@@ -43,7 +41,6 @@
 <translation id="3700829948786686853">Bun venit la Vivaldi</translation>
 <translation id="3719826155360621982">Pagina principală</translation>
 <translation id="3738139272394829648">Atingeți pentru a căuta</translation>
-<translation id="385051799172605136">Înapoi</translation>
 <translation id="3987993985790029246">Copiază linkul</translation>
 <translation id="399014816462153200">Articole citite:</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
@@ -61,7 +58,6 @@
 <translation id="4269820728363426813">Copiază adresa linkului</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Activează blocarea ecranului în setările Android<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Gestionar de parole</translation>
-<translation id="441100617989818073">File și grupuri nefolosite sau duplicate</translation>
 <translation id="451872707440238414">Căutați în semnele de carte</translation>
 <translation id="4526803704855831732">File private</translation>
 <translation id="4532845899244822526">Alegere dosar</translation>
@@ -70,7 +66,6 @@
 
 Atingeți pentru a căuta este o funcție care este disponibilă numai atunci când Google este stabilit ca motor de căutare implicit în Vivaldi.</translation>
 <translation id="4759238208242260848">Descărcări</translation>
-<translation id="4777866634702576038">Ștergeți grupul de file?</translation>
 <translation id="4850886885716139402">Vizualizați</translation>
 <translation id="4883379392681899581">Părăsiți modul privat</translation>
 <translation id="4943872375798546930">Niciun rezultat</translation>

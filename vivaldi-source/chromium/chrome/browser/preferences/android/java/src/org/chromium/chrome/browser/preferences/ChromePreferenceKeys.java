@@ -236,6 +236,18 @@ public final class ChromePreferenceKeys {
     public static final String NTP_CUSTOMIZATION_CHROME_COLOR_DAILY_REFRESH_ENABLED =
             "Chrome.NtpCustomization.ChromeColorDailyRefreshEnabled";
 
+    /** The timestamp of when the theme tip bottom sheet has been shown. */
+    public static final String NTP_CUSTOMIZATION_THEME_TIP_BOTTOM_SHEET_SHOWN_TIMESTAMP_MS =
+            "Chrome.NtpCustomization.ThemeTipBottomSheetShownTimestampMs";
+
+    /** Whether the customized NTP theme snackbar has been shown. */
+    public static final String NTP_CUSTOMIZATION_THEME_IS_SNACKBAR_SHOWN =
+            "Chrome.NtpCustomization.ThemeIsSnackbarShown";
+
+    /** The timestamp of when a customized theme is last applied. */
+    public static final String NTP_CUSTOMIZATION_LAST_APPLY_THEME_TIMESTAMP_MS =
+            "Chrome.NtpCustomization.LastApplyThemeTimestampMs";
+
     /**
      * The timestamp of the last time when a daily refreshed theme color or background image is set.
      */
@@ -315,6 +327,13 @@ public final class ChromePreferenceKeys {
     public static final String DEFAULT_BROWSER_PROMO_PROMOED_BY_SYSTEM_SETTINGS =
             "Chrome.DefaultBrowserPromo.PromoedBySystemSettings";
 
+    /**
+     * Indicates whether we should check the default browser state on the next Activity's onResume
+     * after deep-linking to Settings OS and returning to Chrome.
+     */
+    public static final String DEFAULT_BROWSER_PROMO_DEEP_LINK_COMPARE_OUTCOME_SOURCE =
+            "Chrome.DefaultBrowserPromo.DeepLinkCompareOutcomeSource";
+
     /** Indicates whether the desktop site global setting was enabled by default for a device. */
     public static final String DEFAULT_ENABLED_DESKTOP_SITE_GLOBAL_SETTING =
             "Chrome.RequestDesktopSiteGlobalSetting.DefaultEnabled";
@@ -391,9 +410,6 @@ public final class ChromePreferenceKeys {
     public static final String FLAGS_LAST_CACHED_MINIMAL_BROWSER_FLAGS_TIME_MILLIS =
             "Chrome.Flags.LastCachedMinimalBrowserFlagsTimeMillis";
 
-    /** Whether the Glic button is pinned in the tab strip. */
-    public static final String GLIC_BUTTON_PINNED = "Chrome.Glic.ButtonPinned";
-
     /** Whether the precise location setting is enabled for Glic */
     public static final String GLIC_PRECISE_LOCATION_SETTING_ENABLED =
             "Chrome.Glic.PreciseLocationSettingEnabled";
@@ -405,6 +421,9 @@ public final class ChromePreferenceKeys {
     /** Whether the auto-browse setting is enabled for Glic */
     public static final String GLIC_AUTO_BROWSE_SETTING_ENABLED =
             "Chrome.Glic.AutoBrowseSettingEnabled";
+
+    /** Whether the Glic button should be shown. */
+    public static final String GLIC_PROMO_ACCEPTED = "Chrome.Glic.PromoAccepted";
 
     public static final String HISTORY_SHOW_HISTORY_INFO = "history_home_show_info";
 
@@ -644,6 +663,10 @@ public final class ChromePreferenceKeys {
     public static final KeyPrefix TAB_PERSISTENCE_SHADOW_WRITTEN_STORE =
             new KeyPrefix("Chrome.TabPersistence.ShadowWrittenStore.*");
 
+    /** The version of the PersistentStoreManager. */
+    public static final String TAB_PERSISTENCE_STORE_MANAGER_VERSION =
+            "Chrome.TabPersistence.StoreManagerVersion";
+
     /**
      * Indicates whether or not there is any persistent (i.e. non-transient) content in chrome that
      * can be viewed offline.
@@ -681,6 +704,13 @@ public final class ChromePreferenceKeys {
 
     /**
      * The number at the end should be consistent with {@link
+     * org.chromium.chrome.browser.ntp_customization.theme_sync.data.NtpBackgroundDataBase.PlatformType}
+     */
+    public static final KeyPrefix NTP_CUSTOMIZATION_SYNC_HISTORY_DATA =
+            new KeyPrefix("Chrome.NtpCustomizationSync.HistoryData.*");
+
+    /**
+     * The number at the end should be consistent with {@link
      * org.chromium.chrome.browser.magic_stack.ModuleDelegate.ModuleType}
      */
     public static final KeyPrefix HOME_MODULES_FRESHNESS_COUNT =
@@ -700,6 +730,8 @@ public final class ChromePreferenceKeys {
      */
     public static final KeyPrefix HOME_MODULES_IMPRESSION_COUNT_BEFORE_INTERACTION =
             new KeyPrefix("Chrome.HomeModules.ImpressionCountBeforeInteraction.*");
+
+    public static final String POLICY_USER_FEEDBACK_ALLOWED = "Chrome.Policy.UserFeedbackAllowed";
 
     /**
      * Save the timestamp of the last time that we record metrics on whether user enables the price
@@ -744,11 +776,28 @@ public final class ChromePreferenceKeys {
     public static final String PRIVACY_IN_SAMPLE_FOR_CRASHES =
             "Chrome.Privacy.InSampleForCrashReporting";
 
+    // TODO(b/483043192): Remove this preference once metrics reporting migration is complete.
     public static final String PRIVACY_METRICS_REPORTING_PERMITTED_BY_USER =
             "Chrome.Privacy.UsageAndCrashReportingPermittedByUser";
 
+    // TODO(b/483043192): Remove this preference once metrics reporting migration is complete.
     public static final String PRIVACY_METRICS_REPORTING_PERMITTED_BY_POLICY =
             "Chrome.Privacy.UsageAndCrashReportingPermittedByPolicy";
+
+    /**
+     * The metrics reporting level as set by the user. Value is from {@link
+     * org.chromium.components.metrics.MetricsReportingLevel}.
+     */
+    public static final String PRIVACY_METRICS_REPORTING_LEVEL =
+            "Chrome.Privacy.MetricsReportingLevel";
+
+    /** Whether metrics reporting is disabled by policy. */
+    public static final String PRIVACY_METRICS_REPORTING_DISABLED_BY_POLICY =
+            "Chrome.Privacy.MetricsReportingDisabledByPolicy";
+
+    /** Whether to use metrics consent restructure. */
+    public static final String PRIVACY_SHOULD_USE_METRICS_CHOICE_RESTRUCTURE =
+            "Chrome.Privacy.ShouldUseMetricsChoiceRestructure";
 
     public static final String PROFILES_BOOT_TIMESTAMP =
             "com.google.android.apps.chrome.ChromeMobileApplication.BOOT_TIMESTAMP";
@@ -836,17 +885,17 @@ public final class ChromePreferenceKeys {
             "Chrome.SearchEngineChoice.PendingOsChoiceDialogShownAttempts";
 
     public static final String SEARCH_WIDGET_IS_VOICE_SEARCH_AVAILABLE =
-            "org.chromium.chrome.browser.searchwidget.IS_VOICE_SEARCH_AVAILABLE";
+            "Chrome.Widget.IsVoiceSearchAvailable";
     public static final String SEARCH_WIDGET_NUM_CONSECUTIVE_CRASHES =
-            "org.chromium.chrome.browser.searchwidget.NUM_CONSECUTIVE_CRASHES";
+            "Chrome.Widget.NumConsecutiveCrashes";
     public static final String SEARCH_WIDGET_SEARCH_ENGINE_SHORTNAME =
-            "org.chromium.chrome.browser.searchwidget.SEARCH_ENGINE_SHORTNAME";
-    public static final String SEARCH_WIDGET_SEARCH_ENGINE_URL =
-            "org.chromium.chrome.browser.searchwidget.SEARCH_ENGINE_URL";
+            "Chrome.Widget.SearchEngineShortName";
+    public static final String SEARCH_WIDGET_SEARCH_ENGINE_URL = "Chrome.Widget.SearchEngineUrl";
+    public static final String SEARCH_WIDGET_ACCOUNT_EMAIL = "Chrome.Widget.AccountEmail";
     public static final String SEARCH_WIDGET_IS_GOOGLE_LENS_AVAILABLE =
-            "org.chromium.chrome.browser.searchwidget.IS_GOOGLE_LENS_AVAILABLE";
+            "Chrome.Widget.IsGoogleLensAvailable";
     public static final String SEARCH_WIDGET_IS_INCOGNITO_AVAILABLE =
-            "org.chromium.chrome.browser.searchwidget.IS_INCOGNITO_AVAILABLE";
+            "Chrome.Widget.IsIncognitoAvailable";
 
     // Segmentation platform related prefs.
     public static final String SEGMENTATION_FEED_ACTIVE_USER = "Chrome.Segmentation.FeedActiveUser";
@@ -909,9 +958,9 @@ public final class ChromePreferenceKeys {
     public static final String SIGNIN_PROMO_LAST_SHOWN_MAJOR_VERSION =
             "signin_promo_last_shown_chrome_version";
 
-    /** Holds the time when the fullscreen signin promo should be shown again. */
-    public static final String SIGNIN_PROMO_NEXT_SHOW_TIME =
-            "Chrome.FullscreenSigninPromo.NextShowTime";
+    /** Holds last promo shown time with a random time offset. */
+    public static final String SIGNIN_PROMO_LAST_SHOWN_TIME_WITH_RANDOM_OFFSET =
+            "Chrome.FullscreenSigninPromo.LastShownTimeWithRandomTimeOffset";
 
     /**
      * Whether the user dismissed the personalized sign in promo from the new tab page. Default
@@ -926,6 +975,9 @@ public final class ChromePreferenceKeys {
             "Chrome.SigninPromoNTP.FirstShownTime";
     public static final String SIGNIN_PROMO_NTP_LAST_SHOWN_TIME =
             "Chrome.SigninPromoNTP.LastShownTime";
+
+    public static final String SIGNIN_PROMO_AUTOFILL_AND_PASSWORDS_DISMISSED =
+            "Chrome.SigninPromoAutofillAndPasswords.Dismissed";
 
     /** Personalized signin promo preference. */
     public static final String SIGNIN_PROMO_BOOKMARKS_DECLINED = "signin_promo_bookmarks_declined";
@@ -998,13 +1050,17 @@ public final class ChromePreferenceKeys {
     public static final String TAB_OR_GROUP_TEARING_MAX_INSTANCES_FAILURE_COUNT =
             "Chrome.TabOrGroupTearing.MaxInstancesFailureCount";
 
-    // Whether the Tips Notifications Channel Setting is enabled.
-    public static final String TIPS_NOTIFICATIONS_CHANNEL_ENABLED =
-            "Chrome.TipsNotifications.ChannelEnabled";
+    // Whether the Tips Notifications Opt In promo has been accepted.
+    public static final String TIPS_NOTIFICATIONS_OPT_IN_PROMO_ACCEPTED =
+            "Chrome.TipsNotifications.OptInAccepted";
 
-    // Whether the Tips Notifications Opt In promo has been shown.
-    public static final String TIPS_NOTIFICATIONS_OPT_IN_PROMO_SHOWN =
-            "Chrome.TipsNotifications.OptInShown";
+    // The number of times the Tips Notifications Opt In promo has been shown.
+    public static final String TIPS_NOTIFICATIONS_OPT_IN_PROMO_SHOW_COUNT =
+            "Chrome.TipsNotifications.OptInShowCount";
+
+    // The timestamp of when the Tips Notifications Opt In promo was last shown.
+    public static final String TIPS_NOTIFICATIONS_OPT_IN_PROMO_LAST_SHOWN_TIMESTAMP =
+            "Chrome.TipsNotifications.OptInLastShownTimestamp";
 
     // If the toolbar should be shown on top.
     public static final String TOOLBAR_TOP_ANCHORED = "Chrome.Toolbar.TopAnchored";
@@ -1039,28 +1095,14 @@ public final class ChromePreferenceKeys {
 
     public static final String VERIFIED_DIGITAL_ASSET_LINKS = "verified_digital_asset_links";
 
+    /** Stores the user preference for displaying vertical tabs. */
+    public static final String VERTICAL_TABS_ENABLED = "Chrome.VerticalTabs.Enabled";
+
     /** Key for deferred recording of list of uninstalled WebAPK packages. */
     public static final String WEBAPK_UNINSTALLED_PACKAGES = "webapk_uninstalled_packages";
 
-    /**
-     * Key used to save the time in milliseconds since epoch that the WebFeed intro was last shown.
-     */
-    public static final String WEB_FEED_INTRO_LAST_SHOWN_TIME_MS =
-            "Chrome.WebFeed.IntroLastShownTimeMs";
-
     public static final String WEB_SIGNIN_ACCOUNT_PICKER_ACTIVE_DISMISSAL_COUNT =
             "Chrome.AccountPickerBottomSheet.ConsecutiveActiveDismissalCount";
-
-    /**
-     * Key used to save the time in milliseconds since epoch that the WebFeed intro for the WebFeed
-     * ID was last shown.
-     */
-    public static final KeyPrefix WEB_FEED_INTRO_WEB_FEED_ID_SHOWN_TIME_MS_PREFIX =
-            new KeyPrefix("Chrome.WebFeed.IntroWebFeedIdShownTimeMs.*");
-
-    /** Key used to save the number of times the WebFeed intro for the WebFeed ID was shown. */
-    public static final KeyPrefix WEB_FEED_INTRO_WEB_FEED_ID_SHOWN_COUNT_PREFIX =
-            new KeyPrefix("Chrome.WebFeed.IntroWebFeedIdShownCount.*");
 
     /**
      * Key used to track the names of client packages that requested the Window Controls Overlay
@@ -1155,6 +1197,9 @@ public final class ChromePreferenceKeys {
                 NTP_BACKGROUND_IMAGE_LANDSCAPE_INFO,
                 NTP_CUSTOMIZATION_BACKGROUND_INFO,
                 NTP_CUSTOMIZATION_CHROME_COLOR_DAILY_REFRESH_ENABLED,
+                NTP_CUSTOMIZATION_THEME_TIP_BOTTOM_SHEET_SHOWN_TIMESTAMP_MS,
+                NTP_CUSTOMIZATION_THEME_IS_SNACKBAR_SHOWN,
+                NTP_CUSTOMIZATION_LAST_APPLY_THEME_TIMESTAMP_MS,
                 NTP_CUSTOMIZATION_LAST_DAILY_REFRESH_TIMESTAMP,
                 NTP_CUSTOMIZATION_PRIMARY_COLOR_FOR_DAILY_REFRESH,
                 NTP_BACKGROUND_IMAGE_PORTRAIT_INFO_FOR_DAILY_REFRESH,
@@ -1170,6 +1215,7 @@ public final class ChromePreferenceKeys {
                 DEFAULT_BROWSER_PROMO_LAST_SESSION_COUNT,
                 DEFAULT_BROWSER_PROMO_LAST_PROMO_TIME,
                 DEFAULT_BROWSER_PROMO_PROMOED_BY_SYSTEM_SETTINGS,
+                DEFAULT_BROWSER_PROMO_DEEP_LINK_COMPARE_OUTCOME_SOURCE,
                 DEFAULT_BROWSER_PROMO_PROMOED_COUNT,
                 DEFAULT_BROWSER_PROMO_SESSION_COUNT,
                 DEFAULT_ENABLED_DESKTOP_SITE_GLOBAL_SETTING,
@@ -1185,13 +1231,14 @@ public final class ChromePreferenceKeys {
                 FIRST_RUN_SKIPPED_BY_POLICY,
                 FIRST_CTA_START_TIMESTAMP,
                 FLAGS_LAST_CACHED_MINIMAL_BROWSER_FLAGS_TIME_MILLIS,
-                GLIC_BUTTON_PINNED,
                 GLIC_PRECISE_LOCATION_SETTING_ENABLED,
                 GLIC_SHARE_CURRENT_TAB_DEFAULT_ACCESS_ENABLED,
                 GLIC_AUTO_BROWSE_SETTING_ENABLED,
+                GLIC_PROMO_ACCEPTED,
                 HISTORY_APP_SPECIFIC_INFO_SEEN,
                 HOME_MODULE_CARDS_ENABLED,
                 HOME_MODULES_MODULE_TYPE.pattern(),
+                NTP_CUSTOMIZATION_SYNC_HISTORY_DATA.pattern(),
                 HOME_MODULES_FRESHNESS_COUNT.pattern(),
                 HOME_MODULES_FRESHNESS_TIMESTAMP_MS.pattern(),
                 HOMEPAGE_CUSTOM_GURL,
@@ -1237,6 +1284,7 @@ public final class ChromePreferenceKeys {
                 PIH_PRIVACY_NOTICE_CLOSED,
                 PIH_PRIVACY_NOTICE_LAST_SHOWN_TIMESTAMP,
                 PIH_PRIVACY_NOTICE_SHOWN_TOTAL_COUNT,
+                POLICY_USER_FEEDBACK_ALLOWED,
                 PRICE_TRACKING_ANNOTATIONS_ENABLED_METRICS_TIMESTAMP,
                 PRICE_TRACKING_CHROME_MANAGED_NOTIFICATIONS_TIMESTAMPS,
                 PRICE_TRACKING_IDS_FOR_TABS_WITH_PRICE_DROP,
@@ -1247,6 +1295,9 @@ public final class ChromePreferenceKeys {
                 PRIVACY_IN_SAMPLE_FOR_CRASHES,
                 PRIVACY_METRICS_REPORTING_PERMITTED_BY_USER,
                 PRIVACY_METRICS_REPORTING_PERMITTED_BY_POLICY,
+                PRIVACY_METRICS_REPORTING_LEVEL,
+                PRIVACY_METRICS_REPORTING_DISABLED_BY_POLICY,
+                PRIVACY_SHOULD_USE_METRICS_CHOICE_RESTRUCTURE,
                 PROMO_IS_DISMISSED.pattern(),
                 PROMO_TIMES_SEEN.pattern(),
                 PWA_RESTORE_APPS_AVAILABLE,
@@ -1257,6 +1308,13 @@ public final class ChromePreferenceKeys {
                 READER_MODE_ACTION_SUPPRESSION_END_TIMESTAMP,
                 SEARCH_ENGINE_CHOICE_OS_CHOICE_APPLIED_TIMESTAMP,
                 SEARCH_ENGINE_CHOICE_PENDING_OS_CHOICE_DIALOG_SHOWN_ATTEMPTS,
+                SEARCH_WIDGET_ACCOUNT_EMAIL,
+                SEARCH_WIDGET_IS_GOOGLE_LENS_AVAILABLE,
+                SEARCH_WIDGET_IS_INCOGNITO_AVAILABLE,
+                SEARCH_WIDGET_IS_VOICE_SEARCH_AVAILABLE,
+                SEARCH_WIDGET_NUM_CONSECUTIVE_CRASHES,
+                SEARCH_WIDGET_SEARCH_ENGINE_SHORTNAME,
+                SEARCH_WIDGET_SEARCH_ENGINE_URL,
                 SEGMENTATION_FEED_ACTIVE_USER,
                 SERIAL_NOTIFICATION_IDS,
                 SETUP_LIST_COMPLETED_KEY_PREFIX.pattern(),
@@ -1267,7 +1325,8 @@ public final class ChromePreferenceKeys {
                 SHARING_TABS_WITH_OS,
                 SHOW_HOME_BUTTON_POLICY_STATE,
                 SYNC_PROMO_SHOW_COUNT.pattern(),
-                SIGNIN_PROMO_NEXT_SHOW_TIME,
+                SIGNIN_PROMO_AUTOFILL_AND_PASSWORDS_DISMISSED,
+                SIGNIN_PROMO_LAST_SHOWN_TIME_WITH_RANDOM_OFFSET,
                 SIGNIN_PROMO_HISTORY_PAGE_DECLINED,
                 SIGNIN_PROMO_HISTORY_PAGE_LAST_SHOWN_TIME,
                 SIGNIN_PROMO_NTP_FIRST_SHOWN_TIME,
@@ -1287,17 +1346,17 @@ public final class ChromePreferenceKeys {
                 TAB_OR_GROUP_TEARING_MAX_INSTANCES_FAILURE_COUNT,
                 TAB_PERSISTENCE_CURRENT_AUTHORITATIVE_STORE.pattern(),
                 TAB_PERSISTENCE_SHADOW_WRITTEN_STORE.pattern(),
-                TIPS_NOTIFICATIONS_CHANNEL_ENABLED,
-                TIPS_NOTIFICATIONS_OPT_IN_PROMO_SHOWN,
+                TAB_PERSISTENCE_STORE_MANAGER_VERSION,
+                TIPS_NOTIFICATIONS_OPT_IN_PROMO_ACCEPTED,
+                TIPS_NOTIFICATIONS_OPT_IN_PROMO_SHOW_COUNT,
+                TIPS_NOTIFICATIONS_OPT_IN_PROMO_LAST_SHOWN_TIMESTAMP,
                 TOOLBAR_TOP_ANCHORED,
                 TWA_DISCLOSURE_SEEN_PACKAGES,
                 UMA_ON_POSTCREATE_COUNTER,
                 UMA_ON_RESUME_COUNTER,
                 USB_NOTIFICATION_IDS,
                 USER_ENABLED_DESKTOP_SITE_GLOBAL_SETTING_PREFERENCE_KEY,
-                WEB_FEED_INTRO_LAST_SHOWN_TIME_MS,
-                WEB_FEED_INTRO_WEB_FEED_ID_SHOWN_TIME_MS_PREFIX.pattern(),
-                WEB_FEED_INTRO_WEB_FEED_ID_SHOWN_COUNT_PREFIX.pattern(),
+                VERTICAL_TABS_ENABLED,
                 WEB_SIGNIN_ACCOUNT_PICKER_ACTIVE_DISMISSAL_COUNT,
                 WINDOW_CONTROLS_OVERLAY_ENABLED_PACKAGES);
     }

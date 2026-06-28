@@ -588,7 +588,14 @@ NSMutableArray<TabStripItemIdentifier*>* CreateItemIdentifiers(
       // Vivaldi
       const WebStateListChangeStatusOnly& selectionOnlyChange =
           change.As<WebStateListChangeStatusOnly>();
-      if (selectionOnlyChange.pinned_state_changed()) {
+      // When a pinned-state change also changes group membership,
+      // `moveItemForWebState` already updates the item. Repopulating here can
+      // remove an empty group before WebStateList emits its follow-up
+      // group-delete notification. For example, if there is only one group
+      // (stack) with one tab, trying to pin that tab will emit incorrect
+      // snapshot update for the tab strip data source and trigger a crash.
+      if (selectionOnlyChange.pinned_state_changed() &&
+          selectionOnlyChange.old_group() == selectionOnlyChange.new_group()) {
         [self populateConsumerItems];
       }
       // End Vivaldi

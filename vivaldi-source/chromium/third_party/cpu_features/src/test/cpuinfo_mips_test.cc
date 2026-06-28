@@ -25,15 +25,16 @@ namespace cpu_features {
 namespace {
 
 TEST(CpuinfoMipsTest, MipsFeaturesEnum) {
-   const char *last_name = GetMipsFeaturesEnumName(MIPS_LAST_);
-   EXPECT_STREQ(last_name, "unknown_feature");
-   for (int i = static_cast<int>(MIPS_MSA); i != static_cast<int>(MIPS_LAST_); ++i) {
-      const auto feature = static_cast<MipsFeaturesEnum>(i);
-      const char *name = GetMipsFeaturesEnumName(feature);
-      ASSERT_FALSE(name == nullptr);
-      EXPECT_STRNE(name, "");
-      EXPECT_STRNE(name, last_name);
-   }
+  const char* last_name = GetMipsFeaturesEnumName(MIPS_LAST_);
+  EXPECT_STREQ(last_name, "unknown_feature");
+  for (int i = static_cast<int>(MIPS_MSA); i != static_cast<int>(MIPS_LAST_);
+       ++i) {
+    const auto feature = static_cast<MipsFeaturesEnum>(i);
+    const char* name = GetMipsFeaturesEnumName(feature);
+    ASSERT_FALSE(name == nullptr);
+    EXPECT_STRNE(name, "");
+    EXPECT_STRNE(name, last_name);
+  }
 }
 
 TEST(CpuinfoMipsTest, FromHardwareCapBoth) {
@@ -121,7 +122,7 @@ TEST(CpuinfoMipsTest, Goldfish) {
   auto& fs = GetEmptyFilesystem();
   fs.CreateFile("/proc/cpuinfo", R"(system type		: MIPS-Goldfish
 Hardware		: goldfish
-Revison		: 1
+Revision		: 1
 processor		: 0
 cpu model		: MIPS 24Kc V0.0  FPU V0.0
 BogoMIPS		: 1042.02
@@ -144,7 +145,8 @@ VCEI exceptions		: not available
 TEST(CpuinfoMipsTest, BCM1250) {
   ResetHwcaps();
   auto& fs = GetEmptyFilesystem();
-  fs.CreateFile("/proc/cpuinfo", R"(system type		: SiByte BCM91250A (SWARM)
+  fs.CreateFile("/proc/cpuinfo",
+                R"(system type		: SiByte BCM91250A (SWARM)
 processor		: 0
 cpu model               : SiByte SB1 V0.2  FPU V0.2
 BogoMIPS                : 532.48

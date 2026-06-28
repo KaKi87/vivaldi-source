@@ -20,7 +20,6 @@
           =1 {북마크 탭}
           other {북마크 탭}
         }</translation>
-<translation id="2498435670446402865">탭 그룹 이름 변경</translation>
 <translation id="2734252994837336591">{NUM_WEEKS, plural,
           =1 {<ph name="NUM_WEEKS_ONE" />주 전에 업데이트됨}
           other {<ph name="NUM_WEEKS_MANY" />주 전에 업데이트됨}
@@ -56,7 +55,6 @@
           =1 {<ph name="NUM_YEARS_ONE" />년 전에 업데이트됨}
           other {<ph name="NUM_YEARS_MANY" />년 전에 업데이트됨}
         }</translation>
-<translation id="7825973332242257878">탭 그룹</translation>
 <translation id="8207688828622594111">{NUM_MINS, plural,
           =1 {<ph name="NUM_MINS_ONE" />분 전에 업데이트됨}
           other {<ph name="NUM_MINS_MANY" />분 전에 업데이트됨}
@@ -72,5 +70,4 @@
                 other {<ph name="NUM_MONTHS_MANY" />개월 전에 생성됨}
               }</translation>
 <translation id="8851621822786801079">스택에서 제거</translation>
-<translation id="8887921976452567404">닫은 탭과 그룹은 최근 탭 및 탭 그룹 화면에서 다시 열 수 있습니다.</translation>
 </translationbundle>

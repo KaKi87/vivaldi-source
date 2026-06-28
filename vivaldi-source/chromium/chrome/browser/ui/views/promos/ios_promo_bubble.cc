@@ -14,7 +14,6 @@
 #include "build/branding_buildflags.h"
 #include "chrome/browser/desktop_to_mobile_promos/promos_pref_names.h"
 #include "chrome/browser/desktop_to_mobile_promos/promos_utils.h"
-#include "chrome/browser/feature_engagement/tracker_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/ui_features.h"
@@ -27,8 +26,6 @@
 #include "components/autofill/core/common/autofill_payments_features.h"
 #include "components/desktop_to_mobile_promos/features.h"
 #include "components/desktop_to_mobile_promos/promos_types.h"
-#include "components/feature_engagement/public/feature_constants.h"
-#include "components/feature_engagement/public/tracker.h"
 #include "components/prefs/pref_service.h"
 #include "components/qr_code_generator/bitmap_generator.h"
 #include "components/strings/grit/components_strings.h"
@@ -266,10 +263,8 @@ IOSPromoConstants::IOSPromoTypeConfigs SetUpTabGroupsBubble(
           IDS_IOS_DESKTOP_TAB_GROUPS_PROMO_BUBBLE_DESCRIPTION_REMINDER;
       config.accept_button_text_id =
           IDS_IOS_DESKTOP_PROMO_BUBBLE_BUTTON_ACCEPT_REMINDER;
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
       config.promo_image =
           ui::ImageModel::FromResourceId(IDR_TAB_GROUPS_ON_IOS_ICON);
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
       break;
     case BubbleType::kReminderConfirmation: {
       SetUpBaseReminderConfirmationConfig(config);
@@ -306,10 +301,8 @@ IOSPromoConstants::IOSPromoTypeConfigs SetUpPriceTrackingBubble(
           IDS_IOS_DESKTOP_PRICE_TRACKING_PROMO_BUBBLE_DESCRIPTION_REMINDER;
       config.accept_button_text_id =
           IDS_IOS_DESKTOP_PROMO_BUBBLE_BUTTON_ACCEPT_REMINDER;
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
       config.promo_image =
           ui::ImageModel::FromResourceId(IDR_PRICE_TRACKING_ON_IOS_ICON);
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
       break;
     case BubbleType::kReminderConfirmation: {
       SetUpBaseReminderConfirmationConfig(config);
@@ -342,11 +335,6 @@ class IOSPromoBubble::IOSPromoBubbleDelegate : public ui::DialogModelDelegate {
 
   // Callback for when the bubble is dismissed.
   void OnDismissal() {
-    feature_engagement::Tracker* tracker =
-        feature_engagement::TrackerFactory::GetForBrowserContext(profile_);
-    if (tracker && ios_promo_prefs_config_.promo_feature) {
-      tracker->Dismissed(*ios_promo_prefs_config_.promo_feature);
-    }
     // Don't record a histogram if either of the buttons' callbacks have run
     // and a histogram has already been recorded.
     if (!impression_histogram_already_recorded_) {
@@ -626,7 +614,9 @@ void IOSPromoBubble::ShowPromoBubble(
   }
 
   views::Widget* const widget =
-      views::BubbleDialogDelegate::CreateBubble(std::move(promo_bubble));
+      views::BubbleDialogDelegate::CreateBubbleDeprecated(
+          std::move(promo_bubble),
+          views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET);
   widget->Show();
   widget->GetContentsView()->SetProperty(views::kElementIdentifierKey,
                                          kIOSPromoBubbleElementId);

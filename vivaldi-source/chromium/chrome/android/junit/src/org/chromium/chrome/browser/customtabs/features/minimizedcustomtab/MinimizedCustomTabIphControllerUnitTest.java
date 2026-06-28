@@ -11,7 +11,6 @@ import static org.mockito.Mockito.when;
 
 import android.app.Activity;
 import android.view.View;
-import android.view.ViewStub;
 
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 
@@ -44,6 +43,7 @@ import org.chromium.components.browser_ui.widget.highlight.ViewHighlighter.Highl
 import org.chromium.components.feature_engagement.EventConstants;
 import org.chromium.components.feature_engagement.FeatureConstants;
 import org.chromium.components.feature_engagement.Tracker;
+import org.chromium.ui.test.util.MockitoHelper;
 import org.chromium.url.JUnitTestGURLs;
 
 import java.util.function.Supplier;
@@ -92,11 +92,7 @@ public class MinimizedCustomTabIphControllerUnitTest {
         mController =
                 new MinimizedCustomTabIphController(
                         mActivity, mActivityTabProvider, mUserEducationHelper, mProfileSupplier);
-        ViewStub minimizeStub = mActivity.findViewById(R.id.minimize_button_stub);
-        View minimizeView =
-                minimizeStub != null
-                        ? minimizeStub.inflate()
-                        : mActivity.findViewById(R.id.custom_tabs_minimize_button);
+        View minimizeView = mActivity.findViewById(R.id.custom_tabs_minimize_button);
         minimizeView.setVisibility(View.VISIBLE);
     }
 
@@ -122,7 +118,7 @@ public class MinimizedCustomTabIphControllerUnitTest {
 
     @Test
     public void testNotifyUserEngaged() {
-        var captor = ArgumentCaptor.forClass(Callback.class);
+        ArgumentCaptor<Callback<Boolean>> captor = MockitoHelper.callbackCaptor();
         mController.notifyUserEngaged();
         verify(mTracker).addOnInitializedCallback(captor.capture());
         captor.getValue().onResult(true);

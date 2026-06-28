@@ -111,10 +111,10 @@ public class Snackbar {
     public static final int UMA_INCOGNITO_REAUTH_ENABLED_FROM_PROMO = 53;
     public static final int UMA_PRIVACY_SANDBOX_ADD_SITE = 54;
     public static final int UMA_PRIVACY_SANDBOX_REMOVE_SITE = 55;
-    public static final int UMA_CREATOR_FOLLOW_SUCCESS = 56;
-    public static final int UMA_CREATOR_FOLLOW_FAILURE = 57;
-    public static final int UMA_CREATOR_UNFOLLOW_SUCCESS = 58;
-    public static final int UMA_CREATOR_UNFOLLOW_FAILURE = 59;
+    // Obsolete; don't use: UMA_CREATOR_FOLLOW_SUCCESS = 56;
+    // Obsolete; don't use: UMA_CREATOR_FOLLOW_FAILURE = 57;
+    // Obsolete; don't use: UMA_CREATOR_UNFOLLOW_SUCCESS = 58;
+    // Obsolete; don't use: UMA_CREATOR_UNFOLLOW_FAILURE = 59;
     public static final int UMA_QUICK_DELETE = 60;
     public static final int UMA_AUTO_TRANSLATE = 61;
     public static final int UMA_BOOKMARK_MOVED = 62;
@@ -142,6 +142,12 @@ public class Snackbar {
     public static final int UMA_CROSS_DEVICE_SETTING_REDO = 84;
     public static final int UMA_CHROME_FINDS_OPT_IN = 85;
     public static final int UMA_AUTOFILL_AI_LOCAL_SAVE_FALLBACK = 86;
+    public static final int UMA_EXCLUSIVE_ACCESS_BUBBLE = 87;
+    public static final int UMA_CONTEXTUAL_TASKS_BOTTOM_SHEET_CLOSED_UNDO = 88;
+    public static final int UMA_ACTOR = 89;
+    public static final int UMA_GLIC = 90;
+    public static final int UMA_TIPS_OPT_IN = 91;
+    public static final int UMA_NTP_THEME_TIP = 92;
     // LINT.ThenChange(//tools/metrics/histograms/metadata/ui/enums.xml:SnackbarIdentifier)
 
     private final @Nullable SnackbarController mController;
@@ -152,6 +158,7 @@ public class Snackbar {
     private int mBackgroundColor;
     private int mTextAppearanceResId;
     private boolean mDefaultLines = true;
+    private boolean mIsHighPriority;
     private int mDurationMs;
     private @Nullable Drawable mProfileImage;
     private final int mType;
@@ -196,8 +203,18 @@ public class Snackbar {
     }
 
     /**
-     * Sets the template text to show on the snackbar, e.g. "Closed %s". See
-     * {@link TemplatePreservingTextView} for details on how the template text is used.
+     * Sets whether the snackbar is high priority. High priority snackbars are shielded from being
+     * discarded by the timeout of other action-type snackbars in the queue (e.g. for security-
+     * critical notices).
+     */
+    public Snackbar setHighPriority(boolean highPriority) {
+        mIsHighPriority = highPriority;
+        return this;
+    }
+
+    /**
+     * Sets the template text to show on the snackbar, e.g. "Closed %s". See {@link
+     * TemplatePreservingTextView} for details on how the template text is used.
      */
     public Snackbar setTemplateText(String templateText) {
         mTemplateText = templateText;
@@ -346,6 +363,13 @@ public class Snackbar {
      */
     boolean isTypePersistent() {
         return mType == TYPE_PERSISTENT;
+    }
+
+    /**
+     * @return Whether the snackbar is high priority.
+     */
+    boolean isHighPriority() {
+        return mIsHighPriority;
     }
 
     public int getIdentifierForTesting() {

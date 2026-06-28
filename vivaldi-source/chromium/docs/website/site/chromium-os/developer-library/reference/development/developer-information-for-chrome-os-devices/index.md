@@ -139,6 +139,21 @@ such as the auto update until date, first release, and more.
   </tr>
   <tr>
     <td></td>
+    <td>HP</td>
+    <td><a href="https://www.hp.com/us-en/shop/pdp/elite-6-g2i-14-inch-chromebook-plus-customizable-c51bjav-mb">HP Elite 6 G2i 14-inch Chromebook Plus</a></td>
+    <td>caboc</td>
+    <td>brox</td>
+    <td>brox</td>
+    <td>x86_64</td>
+    <td>6.6</td>
+    <td>x86_64</td>
+    <td>RaptorLake-R</td>
+    <td>Clamshell</td>
+    <td></td>
+    <td>Yes</td>
+  </tr>
+  <tr>
+    <td></td>
     <td>FCCL</td>
     <td><a href="https://www.fujitsu.com/jp/group/fccl/about/resources/news/press-releases/2024/1029.html">FMV Chromebook 11K</a></td>
     <td>kyogre</td>
@@ -4647,6 +4662,7 @@ such as the auto update until date, first release, and more.
     <td>Yes</td>
     <td>Yes</td>
   </tr>
+
   <tr>
     <td>2026-01-20</td>
     <td>Asus</td>
@@ -4663,5 +4679,51 @@ such as the auto update until date, first release, and more.
     <td>Yes</td>
   </tr>
 
+  <tr>
+    <td>2026-04-17</td>
+    <td>Asus</td>
+    <td><a href="https://www.asus.com/laptops/for-home/chromebook/asus-chromebook-cm32-detachable-cm3206/">ASUS Chromebook CM32 Detachable / ASUS Chromebook CL32 Detachable</a></td>
+    <td>Padme</td>
+    <td>Jedi</td>
+    <td>Jedi</td>
+    <td>aarch64</td>
+    <td>6.6</td>
+    <td>aarch64</td>
+    <td>MT8189</td>
+    <td>Detachable</td>
+    <td>Yes</td>
+    <td>Yes</td>
+  </tr>
+
+  <tr>
+    <td>2026-03-15</td>
+    <td>Asus</td>
+    <td><a href="https://www.asus.com/laptops/for-home/chromebook/asus-chromebook-cm14-cm1405/techspec/">ASUS Chromebook CM14 (CM1405)</a></td>
+    <td>Tarkin</td>
+    <td>Skywalker</td>
+    <td>Skywalker</td>
+    <td>aarch64</td>
+    <td>6.6</td>
+    <td>aarch64</td>
+    <td>MT8189</td>
+    <td>Clamshell</td>
+    <td>Yes</td>
+    <td>Yes</td>
+  </tr>
+  <tr>
+    <td>2026-03-15</td>
+    <td>Asus</td>
+    <td><a href="https://www.asus.com/laptops/for-home/chromebook/asus-chromebook-cm15-cm1505/techspec/">ASUS Chromebook CM15 (CM1505)</a></td>
+    <td>Phasma</td>
+    <td>Skywalker</td>
+    <td>Skywalker</td>
+    <td>aarch64</td>
+    <td>6.6</td>
+    <td>aarch64</td>
+    <td>MT8189</td>
+    <td>Clamshell</td>
+    <td>Yes</td>
+    <td>Yes</td>
+  </tr>
 
 </table>

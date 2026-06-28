@@ -14,6 +14,7 @@ import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.bookmarks.TabBookmarker;
 import org.chromium.chrome.browser.compositor.CompositorViewHolder;
 import org.chromium.chrome.browser.compositor.layouts.phone.NewTabAnimationLayout;
 import org.chromium.chrome.browser.hub.HubLayoutDependencyHolder;
@@ -24,7 +25,7 @@ import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tab_ui.TabSwitcher;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
-import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
+import org.chromium.chrome.browser.theme.ToolbarThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.ControlContainer;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
 import org.chromium.chrome.browser.ui.edge_to_edge.TopInsetProvider;
@@ -81,7 +82,7 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
      *     layout.
      * @param tabModelSelectorSupplier Supplier for an interface to talk to the Tab Model Selector.
      * @param tabContentManagerSupplier Supplier of the {@link TabContentManager} instance.
-     * @param topUiThemeColorProvider {@link ThemeColorProvider} for top UI.
+     * @param toolbarThemeColorProvider {@link ThemeColorProvider} for the toolbar.
      * @param hubLayoutDependencyHolder The dependency holder for creating {@link HubLayout}.
      * @param compositorViewHolderSupplier Supplier of the {@link CompositorViewHolder} instance.
      * @param contentView The base content view.
@@ -97,7 +98,7 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
             Supplier<TabSwitcher> tabSwitcherSupplier,
             Supplier<TabModelSelector> tabModelSelectorSupplier,
             MonotonicObservableSupplier<TabContentManager> tabContentManagerSupplier,
-            Supplier<TopUiThemeColorProvider> topUiThemeColorProvider,
+            Supplier<ToolbarThemeColorProvider> toolbarThemeColorProvider,
             HubLayoutDependencyHolder hubLayoutDependencyHolder,
             Supplier<@Nullable CompositorViewHolder> compositorViewHolderSupplier,
             ViewGroup contentView,
@@ -121,6 +122,7 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
             DataSharingTabManager dataSharingTabManager, // Vivaldi
             BottomSheetController bottomSheetController, // Vivaldi
             MonotonicObservableSupplier<ShareDelegate> shareDelegateSupplier, // Vivaldi
+            Supplier<TabBookmarker> tabBookmarkerSupplier, // Vivaldi
             BackPressManager backPressManager,
             SnackbarManager snackbarManager) { // Vivaldi
         super(
@@ -129,7 +131,7 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
                 tabSwitcherSupplier,
                 tabModelSelectorSupplier,
                 tabContentManagerSupplier,
-                topUiThemeColorProvider,
+                toolbarThemeColorProvider,
                 hubLayoutDependencyHolder);
         mCompositorViewHolderSupplier = compositorViewHolderSupplier;
         mContentView = contentView;
@@ -162,6 +164,7 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
                             dataSharingTabManager,
                             bottomSheetController,
                             shareDelegateSupplier,
+                            tabBookmarkerSupplier,
                             null,
                             backPressManager,
                             snackbarManager,
@@ -189,7 +192,7 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
             TabCreatorManager creator,
             @Nullable ControlContainer controlContainer,
             DynamicResourceLoader dynamicResourceLoader,
-            TopUiThemeColorProvider topUiColorProvider,
+            ToolbarThemeColorProvider toolbarColorProvider,
             NonNullObservableSupplier<Integer> bottomControlsOffsetSupplier) {
         Context context = mHost.getContext();
         LayoutRenderHost renderHost = mHost.getLayoutRenderHost();
@@ -213,7 +216,7 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
                 creator,
                 controlContainer,
                 dynamicResourceLoader,
-                topUiColorProvider,
+                toolbarColorProvider,
                 bottomControlsOffsetSupplier);
 
         // Initialize Layouts

@@ -414,7 +414,7 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
   GridSnapshot* snapshot = self.diffableDataSource.snapshot;
   [self updateSnapshotForModeUpdate:snapshot];
   [snapshot reconfigureItemsWithIdentifiers:snapshot.itemIdentifiers];
-  [self.diffableDataSource applySnapshot:snapshot animatingDifferences:NO];
+  [self.diffableDataSource applySnapshot:snapshot animatingDifferences:YES];
   [self.gridLayout invalidateLayout];
 
   NSUInteger selectedIndex = self.selectedIndex;
@@ -1017,6 +1017,9 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
 
     GridItemIdentifier* sourceItem =
         [self.diffableDataSource itemIdentifierForIndexPath:sourceIndexPath];
+    if (!sourceItem) {
+      return;
+    }
     GridItemIdentifier* destinationItem = [self.diffableDataSource
         itemIdentifierForIndexPath:destinationIndexPath];
 

@@ -25,28 +25,28 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "dawn/native/opengl/ShaderModuleGL.h"
+#include "src/dawn/native/opengl/ShaderModuleGL.h"
 
 #include <sstream>
 #include <unordered_map>
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
-#include "dawn/common/Enumerator.h"
-#include "dawn/common/MatchVariant.h"
-#include "dawn/native/Adapter.h"
-#include "dawn/native/BindGroupLayoutInternal.h"
-#include "dawn/native/CacheRequest.h"
-#include "dawn/native/ImmediateConstantsLayout.h"
-#include "dawn/native/Pipeline.h"
-#include "dawn/native/TintUtils.h"
-#include "dawn/native/opengl/BindGroupLayoutGL.h"
-#include "dawn/native/opengl/DeviceGL.h"
-#include "dawn/native/opengl/PipelineGL.h"
-#include "dawn/native/opengl/PipelineLayoutGL.h"
-#include "dawn/native/opengl/UtilsGL.h"
 #include "dawn/platform/DawnPlatform.h"
-#include "dawn/platform/tracing/TraceEvent.h"
+#include "src/dawn/common/Enumerator.h"
+#include "src/dawn/common/MatchVariant.h"
+#include "src/dawn/native/Adapter.h"
+#include "src/dawn/native/BindGroupLayoutInternal.h"
+#include "src/dawn/native/CacheRequest.h"
+#include "src/dawn/native/Pipeline.h"
+#include "src/dawn/native/TintUtils.h"
+#include "src/dawn/native/opengl/BindGroupLayoutGL.h"
+#include "src/dawn/native/opengl/DeviceGL.h"
+#include "src/dawn/native/opengl/ImmediatesLayoutGL.h"
+#include "src/dawn/native/opengl/PipelineGL.h"
+#include "src/dawn/native/opengl/PipelineLayoutGL.h"
+#include "src/dawn/native/opengl/UtilsGL.h"
+#include "src/dawn/platform/tracing/TraceEvent.h"
 #include "tint/tint.h"
 
 namespace dawn::native::opengl {
@@ -273,6 +273,7 @@ void GenerateTextureBuiltinFromUniformData(
 bool GenerateArrayLengthFromuniformData(
     const BindingInfoArray& moduleBindingInfo,
     const PipelineLayout* layout,
+    SingleShaderStage stage,
     tint::glsl::writer::ArrayLengthFromUniformOptions& options) {
     const PipelineLayout::BindingIndexInfo& indexInfo = layout->GetBindingIndexInfo();
 
@@ -281,6 +282,11 @@ bool GenerateArrayLengthFromuniformData(
 
         for (BindingIndex binding : bgl->GetBufferIndices()) {
             const BindingInfo& bindingInfo = bgl->GetBindingInfo(binding);
+
+            // Skip bindings that aren't visible to this stage.
+            if (!(bindingInfo.visibility & StageBit(stage))) {
+                continue;
+            }
 
             switch (std::get<BufferBindingInfo>(bindingInfo.bindingLayout).type) {
                 case wgpu::BufferBindingType::Storage:
@@ -349,7 +355,7 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
     const OpenGLFunctions& gl,
     const ProgrammableStage& programmableStage,
     SingleShaderStage stage,
-    const ImmediateConstantMask& pipelineImmediateMask,
+    const ImmediateMask& pipelineImmediateMask,
     VertexAttributeMask bgraSwizzleAttributes,
     std::vector<CombinedSampler>* combinedSamplersOut,
     const PipelineLayout* layout,
@@ -409,7 +415,7 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
 
     if (GetDevice()->IsToggleEnabled(Toggle::GLUseArrayLengthFromUniform)) {
         *needsSSBOLengthUniformBuffer = GenerateArrayLengthFromuniformData(
-            moduleBindingInfo, layout, req.tintOptions.array_length_from_uniform);
+            moduleBindingInfo, layout, stage, req.tintOptions.array_length_from_uniform);
         if (*needsSSBOLengthUniformBuffer) {
             req.tintOptions.use_array_length_from_uniform = true;
             req.tintOptions.array_length_from_uniform.ubo_binding = {
@@ -446,22 +452,22 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
     // element byte size and pass that to Tint.
     auto immediateCount = RoundUp(pipelineImmediateMask.count(), 4u);
 
-    req.tintOptions.minimum_immediate_size = immediateCount * kImmediateConstantElementByteSize;
-    if (HasImmediateConstants(&RenderImmediateConstants::firstVertex, pipelineImmediateMask)) {
+    req.tintOptions.minimum_immediate_size = immediateCount * kImmediateElementByteSize;
+    if (HasImmediates(&RenderImmediates::firstVertex, pipelineImmediateMask)) {
         req.tintOptions.first_vertex_offset = GetImmediateByteOffsetInPipelineIfAny(
-            &RenderImmediateConstants::firstVertex, pipelineImmediateMask);
+            &RenderImmediates::firstVertex, pipelineImmediateMask);
     }
 
-    if (HasImmediateConstants(&RenderImmediateConstants::firstInstance, pipelineImmediateMask)) {
+    if (HasImmediates(&RenderImmediates::firstInstance, pipelineImmediateMask)) {
         req.tintOptions.first_instance_offset = GetImmediateByteOffsetInPipelineIfAny(
-            &RenderImmediateConstants::firstInstance, pipelineImmediateMask);
+            &RenderImmediates::firstInstance, pipelineImmediateMask);
     }
 
-    if (HasImmediateConstants(&RenderImmediateConstants::clampFragDepth, pipelineImmediateMask)) {
+    if (HasImmediates(&RenderImmediates::clampFragDepth, pipelineImmediateMask)) {
         uint32_t offsetStartBytes = GetImmediateByteOffsetInPipeline(
-            &RenderImmediateConstants::clampFragDepth, pipelineImmediateMask);
-        req.tintOptions.depth_range_offsets = {
-            offsetStartBytes, offsetStartBytes + kImmediateConstantElementByteSize};
+            &RenderImmediates::clampFragDepth, pipelineImmediateMask);
+        req.tintOptions.depth_range_offsets = {offsetStartBytes,
+                                               offsetStartBytes + kImmediateElementByteSize};
     }
 
     if (stage == SingleShaderStage::Vertex) {

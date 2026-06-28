@@ -43,7 +43,6 @@ import org.chromium.components.messages.MessageIdentifier;
 import org.chromium.components.messages.PrimaryActionClickBehavior;
 import org.chromium.components.signin.AccountManagerFacadeProvider;
 import org.chromium.components.signin.base.CoreAccountInfo;
-import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.sync.BookmarksLimitExceededHelpClickedSource;
 import org.chromium.components.sync.SyncService;
@@ -211,7 +210,6 @@ public class SyncErrorMessage implements SyncService.SyncStateChangedListener {
                 startUpdateCredentialsFlow(mActivity);
                 break;
             case UserActionableError.NEEDS_PASSPHRASE:
-            case UserActionableError.NEEDS_SETTINGS_CONFIRMATION:
             case UserActionableError.NEEDS_CLIENT_UPGRADE:
                 openSettings();
                 break;
@@ -263,31 +261,12 @@ public class SyncErrorMessage implements SyncService.SyncStateChangedListener {
     private void recordHistogram(@ErrorUiAction int action) {
         assert mError != UserActionableError.NONE;
         String name =
-                (mSyncService.hasSyncConsent()
-                                ? "Signin.SyncErrorMessage"
-                                : "Sync.IdentityErrorMessage")
-                        + SyncSettingsUtils.getHistogramSuffixForError(mError);
+                "Sync.IdentityErrorMessage" + SyncSettingsUtils.getHistogramSuffixForError(mError);
         RecordHistogram.recordEnumeratedHistogram(name, action, ErrorUiAction.NUM_ENTRIES);
     }
 
     private String getPrimaryButtonText(Context context) {
         assert mError != UserActionableError.NONE;
-        // Check if this is for a sync error.
-        if (mSyncService.hasSyncConsent()) {
-            switch (mError) {
-                case UserActionableError.SIGN_IN_NEEDS_UPDATE:
-                    return context.getString(R.string.password_error_sign_in_button_title);
-                case UserActionableError.NEEDS_TRUSTED_VAULT_KEY_FOR_EVERYTHING:
-                case UserActionableError.NEEDS_TRUSTED_VAULT_KEY_FOR_PASSWORDS:
-                case UserActionableError.TRUSTED_VAULT_RECOVERABILITY_DEGRADED_FOR_EVERYTHING:
-                case UserActionableError.TRUSTED_VAULT_RECOVERABILITY_DEGRADED_FOR_PASSWORDS:
-                    return context.getString(R.string.trusted_vault_error_card_button);
-                case UserActionableError.BOOKMARKS_LIMIT_EXCEEDED:
-                    return context.getString(R.string.learn_more);
-                default:
-                    return context.getString(R.string.open_settings_button);
-            }
-        }
 
         // Strings for identity error.
         switch (mError) {
@@ -306,8 +285,6 @@ public class SyncErrorMessage implements SyncService.SyncStateChangedListener {
                 return context.getString(R.string.identity_error_message_button_verify);
             case UserActionableError.BOOKMARKS_LIMIT_EXCEEDED:
                 return context.getString(R.string.learn_more);
-            case UserActionableError.NEEDS_SETTINGS_CONFIRMATION:
-            case UserActionableError.UNRECOVERABLE_ERROR:
             default:
                 assert false;
                 return "";
@@ -337,11 +314,6 @@ public class SyncErrorMessage implements SyncService.SyncStateChangedListener {
 
     private @Nullable String getTitle(Context context) {
         assert mError != UserActionableError.NONE;
-        // Check if this is for a sync error.
-        if (mSyncService.hasSyncConsent()) {
-            // Use the same title with sync error card of sync settings.
-            return SyncSettingsUtils.getSyncErrorCardTitle(context, mError);
-        }
 
         // Strings for identity error.
         switch (mError) {
@@ -359,8 +331,6 @@ public class SyncErrorMessage implements SyncService.SyncStateChangedListener {
                 return context.getString(R.string.identity_error_card_button_verify);
             case UserActionableError.BOOKMARKS_LIMIT_EXCEEDED:
                 return context.getString(R.string.bookmark_sync_limit_error_title);
-            case UserActionableError.NEEDS_SETTINGS_CONFIRMATION:
-            case UserActionableError.UNRECOVERABLE_ERROR:
             default:
                 assert false;
                 return "";
@@ -377,12 +347,6 @@ public class SyncErrorMessage implements SyncService.SyncStateChangedListener {
 
     private @Nullable String getMessage(Context context) {
         assert mError != UserActionableError.NONE;
-        // Check if this is for a sync error.
-        if (mSyncService.hasSyncConsent()) {
-            return mError == UserActionableError.NEEDS_SETTINGS_CONFIRMATION
-                    ? context.getString(R.string.sync_settings_not_confirmed_title)
-                    : SyncSettingsUtils.getSyncErrorHint(context, mError);
-        }
 
         // Strings for identity error.
         switch (mError) {
@@ -403,8 +367,6 @@ public class SyncErrorMessage implements SyncService.SyncStateChangedListener {
                 return context.getString(R.string.identity_error_message_body);
             case UserActionableError.BOOKMARKS_LIMIT_EXCEEDED:
                 return context.getString(R.string.bookmark_sync_limit_error_description);
-            case UserActionableError.NEEDS_SETTINGS_CONFIRMATION:
-            case UserActionableError.UNRECOVERABLE_ERROR:
             default:
                 assert false;
                 return "";
@@ -434,8 +396,7 @@ public class SyncErrorMessage implements SyncService.SyncStateChangedListener {
     }
 
     private void openTrustedVaultKeyRetrievalActivity() {
-        CoreAccountInfo primaryAccountInfo =
-                mIdentityManager.getPrimaryAccountInfo(ConsentLevel.SIGNIN);
+        CoreAccountInfo primaryAccountInfo = mIdentityManager.getPrimaryAccountInfo();
         if (primaryAccountInfo == null) {
             return;
         }
@@ -460,8 +421,7 @@ public class SyncErrorMessage implements SyncService.SyncStateChangedListener {
     }
 
     private void openTrustedVaultRecoverabilityDegradedActivity() {
-        CoreAccountInfo primaryAccountInfo =
-                mIdentityManager.getPrimaryAccountInfo(ConsentLevel.SIGNIN);
+        CoreAccountInfo primaryAccountInfo = mIdentityManager.getPrimaryAccountInfo();
         if (primaryAccountInfo == null) {
             return;
         }
@@ -492,18 +452,16 @@ public class SyncErrorMessage implements SyncService.SyncStateChangedListener {
     }
 
     private void startUpdateCredentialsFlow(Activity activity) {
-        final CoreAccountInfo primaryAccountInfo =
-                mIdentityManager.getPrimaryAccountInfo(ConsentLevel.SIGNIN);
+        final CoreAccountInfo primaryAccountInfo = mIdentityManager.getPrimaryAccountInfo();
         assert primaryAccountInfo != null;
         AccountManagerFacadeProvider.getInstance()
-                .updateCredentials(primaryAccountInfo, activity, null);
+                .updateCredentials(primaryAccountInfo.getId(), activity, null);
     }
 
     private static @UserActionableError int getError(Profile profile) {
         @UserActionableError int error = SyncSettingsUtils.getSyncError(profile);
-        // Do not show sync error message for UPM_BACKEND_OUTDATED or OTHER_ERRORS.
-        if (error == UserActionableError.NEEDS_UPM_BACKEND_UPGRADE
-                || error == UserActionableError.UNRECOVERABLE_ERROR) {
+        // Do not show sync error message for UPM_BACKEND_OUTDATED.
+        if (error == UserActionableError.NEEDS_UPM_BACKEND_UPGRADE) {
             return UserActionableError.NONE;
         }
         return error;

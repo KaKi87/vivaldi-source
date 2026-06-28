@@ -5,6 +5,7 @@
 package org.chromium.components.browser_ui.styles;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.StyleRes;
@@ -27,6 +28,13 @@ public class IncognitoColors {
                 : SemanticColorUtils.getColorSurface(context);
     }
 
+    /** {@see SemanticColorUtils#getColorSurfaceBright} */
+    public static @ColorInt int getColorSurfaceBright(Context context, boolean isIncognito) {
+        return isIncognito
+                ? context.getColor(R.color.gm3_baseline_surface_bright_dark)
+                : SemanticColorUtils.getColorSurfaceBright(context);
+    }
+
     /** {@see SemanticColorUtils#getColorSurfaceContainerHigh} */
     public static @ColorInt int getColorSurfaceContainerHigh(Context context, boolean isIncognito) {
         return isIncognito
@@ -39,6 +47,21 @@ public class IncognitoColors {
         return isIncognito
                 ? context.getColor(R.color.gm3_baseline_surface_container_low_dark)
                 : SemanticColorUtils.getColorSurfaceContainerLow(context);
+    }
+
+    /** {@see SemanticColorUtils#getInteractableChipBgColor} */
+    public static @ColorInt int getInteractableChipBgColor(Context context, boolean isIncognito) {
+        return isIncognito
+                ? context.getColor(R.color.gm3_baseline_surface_container_high_dark)
+                : SemanticColorUtils.getInteractableChipBgColor(context);
+    }
+
+    /** Returns a color state list for the surface container color. */
+    public static ColorStateList getColorSurfaceContainerTintList(
+            Context context, boolean isIncognito) {
+        return isIncognito
+                ? context.getColorStateList(R.color.color_surface_container_incognito_tint_list)
+                : SemanticColorUtils.getColorSurfaceContainerTintList(context);
     }
 
     /** {@see SemanticColorUtils#getColorPrimaryContainer} */

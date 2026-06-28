@@ -191,15 +191,13 @@ RuntimePrivateGetAllFeatureFlagsFunction::Run() {
       &vivaldi_features::kChromePages,
       &vivaldi_features::kCssMods,
       &vivaldi_features::kDoubleClickMenu,
+      &vivaldi_features::kHorizontalPinnedTabs,
       &vivaldi_features::kInternalPageReaderMode,
-      &vivaldi_features::kLayouts,
       &vivaldi_features::kNoteEditor,
-      &vivaldi_features::kPanelOnboarding,
       &vivaldi_features::kRelatedTabs,
       &vivaldi_features::kSettings20,
-      &vivaldi_features::kShowNewDeviceChooser,
-      &vivaldi_features::kShowUnifiedSiteDialog,
-      &vivaldi_features::kThemeUnified,
+      &vivaldi_features::kVivaldiUseNewUrlSanitizer,
+      &vivaldi_features::kMailSavingAttachments,
   };
 
   std::vector<FeatureFlagInfo> results;

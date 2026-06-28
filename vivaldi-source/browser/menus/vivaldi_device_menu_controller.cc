@@ -129,8 +129,8 @@ bool DeviceMenuController::HandleCommand(int command_id, int event_flags) {
       std::string guid = service->GetSendTabToSelfModel()
                              ->GetTargetDeviceInfoSortedList()[index]
                              .cache_guid;
-      service->GetSendTabToSelfModel()->AddEntry(url_, url_title_, guid, {},
-                                                 {});
+      service->GetSendTabToSelfModel()->SendEntry(url_, url_title_, guid, {},
+                                                  {}, base::DoNothing());
     } else {
       rv_context_menu_->OnGetMobile();
     }

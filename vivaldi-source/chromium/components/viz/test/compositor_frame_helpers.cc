@@ -129,7 +129,7 @@ Self& AddQuads<Self>::AddRenderPassQuad(const gfx::Rect& rect,
   quad->SetAll(
       sqs, rect, visible_rect, params.needs_blending, id, kInvalidResourceId,
       gfx::RectF(), gfx::Size(), gfx::Vector2dF(1.0f, 1.0f), gfx::PointF(),
-      gfx::RectF(), params.force_anti_aliasing_off,
+      params.force_anti_aliasing_off,
       /*backdrop_filter_quality=*/1.0f, params.intersects_damage_under);
 
   return ThisRef();
@@ -559,6 +559,14 @@ CompositorFrame CompositorFrameBuilder::MakeInitCompositorFrame() const {
   frame.metadata.device_scale_factor = 1.f;
   frame.metadata.frame_token = ++next_token;
   return frame;
+}
+
+CompositorFrameBuilder& CompositorFrameBuilder::AddTrackedElementRect(
+    TrackedElementFeature feature,
+    const TrackedElementRect& tracked_element_rect) {
+  frame_->metadata.tracked_element_rects[feature].push_back(
+      tracked_element_rect);
+  return *this;
 }
 
 CompositorRenderPassList CopyRenderPasses(

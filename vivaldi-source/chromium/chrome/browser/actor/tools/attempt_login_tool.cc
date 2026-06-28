@@ -10,12 +10,12 @@
 #include "base/functional/callback_helpers.h"
 #include "base/notimplemented.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chrome/browser/actor/actor_features.h"
 #include "chrome/browser/actor/actor_task.h"
 #include "chrome/browser/actor/tools/click_tool_request.h"
 #include "chrome/browser/actor/tools/observation_delay_controller.h"
 #include "chrome/browser/actor/tools/tool_callbacks.h"
 #include "chrome/browser/actor/tools/tool_delegate.h"
+#include "chrome/browser/affiliations/affiliation_service_factory.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/password_manager/actor_login/actor_login_service.h"
@@ -23,6 +23,11 @@
 #include "chrome/common/actor.mojom-shared.h"
 #include "chrome/common/actor/action_result.h"
 #include "chrome/common/actor_webui.mojom.h"
+#include "components/actor/core/actor_features.h"
+#include "components/actor/core/journal_details_builder.h"
+#include "components/actor/public/mojom/actor_types.mojom.h"
+#include "components/affiliations/core/browser/affiliation_service.h"
+#include "components/affiliations/core/browser/affiliation_utils.h"
 #include "components/favicon/core/favicon_service.h"
 #include "components/password_manager/core/browser/actor_login/actor_login_types.h"
 #include "components/password_manager/core/browser/features/password_features.h"
@@ -59,6 +64,10 @@ mojom::ActionResultCode LoginErrorToActorError(
     case actor_login::ActorLoginError::kFeatureDisabled:
       return mojom::ActionResultCode::kLoginFeatureDisabled;
   }
+}
+
+std::string MaybeTargetDebugString(const std::optional<PageTarget>& target) {
+  return target ? DebugString(*target) : "null";
 }
 
 }  // namespace
@@ -108,6 +117,8 @@ mojom::ActionResultCode AttemptLoginTool::LoginResultToActorResult(
     case actor_login::LoginStatusResult::kRequiresButtonClick:
       // TODO(crbug.com/479505793): Consider adding a more specific error code.
       return mojom::ActionResultCode::kArgumentsInvalid;
+    case actor_login::LoginStatusResult::kErrorPageChangedDuringFilling:
+      return mojom::ActionResultCode::kLoginPasswordFillingPageChanged;
   }
 }
 
@@ -144,9 +155,8 @@ AttemptLoginTool::~AttemptLoginTool() {
   // avoid uploading incorrect logs.
   // TODO(crbug.com/485620841): Remove this check once the prototyping is
   // complete for Automated Password Change.
-  bool prototype_features_enabled =
-      base::FeatureList::IsEnabled(
-          password_manager::features::kPasswordCheckupPrototype);
+  bool prototype_features_enabled = base::FeatureList::IsEnabled(
+      password_manager::features::kPasswordCheckupPrototype);
 
   if (opt_guide_service &&
       base::FeatureList::IsEnabled(
@@ -181,6 +191,14 @@ void AttemptLoginTool::Invoke(ToolCallback callback) {
 
   invoke_callback_ = std::move(callback);
 
+  journal().Log(
+      JournalURL(), task_id(), "LoginTargets",
+      JournalDetailsBuilder()
+          .Add("password_button", MaybeTargetDebugString(password_button_))
+          .Add("sign_in_with_google_button",
+               MaybeTargetDebugString(sign_in_with_google_button_))
+          .Build());
+
   // First check if there is a user selected credential for the current request
   // origin. If so, use it immediately.
   const url::Origin& current_origin = main_rfh->GetLastCommittedOrigin();
@@ -202,6 +220,22 @@ void AttemptLoginTool::Invoke(ToolCallback callback) {
                        should_store_permission),
         tool_delegate().GetActionSequenceDelegate());
     return;
+  }
+
+  // Only false on Android.
+  if (!affiliations_updated_) {
+    affiliations::AffiliationService* affiliation_service =
+        AffiliationServiceFactory::GetForProfile(&tool_delegate().GetProfile());
+    if (affiliation_service) {
+      affiliation_service->UpdateAffiliationsAndBranding(
+          {affiliations::FacetURI::FromPotentiallyInvalidSpec(
+              current_origin.GetURL().GetWithEmptyPath().spec())},
+          base::BindOnce(&AttemptLoginTool::OnAffiliationsUpdated,
+                         weak_ptr_factory_.GetWeakPtr()));
+    } else {
+      // Unblock the tool execution even if AffiliationService is not available.
+      affiliations_updated_ = true;
+    }
   }
 
   GetActorLoginService().GetCredentials(
@@ -329,6 +363,13 @@ void AttemptLoginTool::OnAllIconsFetched() {
                      weak_ptr_factory_.GetWeakPtr()));
 }
 
+void AttemptLoginTool::OnAffiliationsUpdated() {
+  affiliations_updated_ = true;
+  if (on_affiliations_updated_callback_) {
+    std::move(on_affiliations_updated_callback_).Run();
+  }
+}
+
 void AttemptLoginTool::OnCredentialSelected(
     webui::mojom::SelectCredentialDialogResponsePtr response) {
   std::optional<actor_login::Credential> selected_credential;
@@ -388,11 +429,26 @@ void AttemptLoginTool::OnCredentialSelected(
   webui::mojom::UserGrantedPermissionDuration permission_duration =
       response->permission_duration.value_or(
           webui::mojom::UserGrantedPermissionDuration::kOneTime);
+
+  SetUserSelectedCredential(*selected_credential, permission_duration);
+}
+
+void AttemptLoginTool::SetUserSelectedCredential(
+    actor_login::Credential selected_credential,
+    webui::mojom::UserGrantedPermissionDuration permission_duration) {
+  if (!affiliations_updated_) {
+    on_affiliations_updated_callback_ =
+        base::BindOnce(&AttemptLoginTool::SetUserSelectedCredential,
+                       weak_ptr_factory_.GetWeakPtr(), selected_credential,
+                       permission_duration);
+    return;
+  }
+
   tool_delegate().SetUserSelectedCredential(
-      ToolDelegate::CredentialWithPermission(*selected_credential,
+      ToolDelegate::CredentialWithPermission(selected_credential,
                                              permission_duration),
       base::BindOnce(&AttemptLoginTool::OnCredentialCachingDone,
-                     weak_ptr_factory_.GetWeakPtr(), *selected_credential,
+                     weak_ptr_factory_.GetWeakPtr(), selected_credential,
                      permission_duration));
 }
 
@@ -439,10 +495,8 @@ void AttemptLoginTool::OnAttemptLogin(
     return;
   }
 
-  if (base::FeatureList::IsEnabled(
-          password_manager::features::kActorLoginReauthTaskRefocus) &&
-      login_status.value() ==
-          actor_login::LoginStatusResult::kErrorDeviceReauthRequired) {
+  if (login_status.value() ==
+      actor_login::LoginStatusResult::kErrorDeviceReauthRequired) {
     if (!tab_handle_.Get()) {
       PostResponseTask(std::move(invoke_callback_),
                        MakeResult(mojom::ActionResultCode::kTabWentAway));
@@ -597,7 +651,7 @@ AttemptLoginTool::GetObservationDelayer(
 
 void AttemptLoginTool::UpdateTaskBeforeInvoke(ActorTask& task,
                                               ToolCallback callback) const {
-  task.AddTab(tab_handle_, std::move(callback));
+  task.AddTab(tab_handle_, /*stop_task_on_detach=*/true, std::move(callback));
 }
 
 tabs::TabHandle AttemptLoginTool::GetTargetTab() const {

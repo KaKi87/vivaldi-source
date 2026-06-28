@@ -68,7 +68,7 @@ void VivaldiDocumentLoader::DidFinishNavigation(
 #if BUILDFLAG(IS_LINUX)
   content::RenderProcessHost* rph =
       vivaldi_web_contents_->GetPrimaryMainFrame()->GetProcess();
-  int process_id = rph->GetID().GetUnsafeValue();
+  auto process_id = rph->GetID();
   Profile* profile = Profile::FromBrowserContext(rph->GetBrowserContext());
   if (extensions::ProcessMap::Get(profile)->Contains(vivaldi::kVivaldiAppId,
                                                      process_id)) {

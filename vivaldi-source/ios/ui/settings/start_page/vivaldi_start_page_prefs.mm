@@ -188,7 +188,8 @@ static PrefService* _prefService = nil;
 
 + (NSString*)getStartPageLastVisitedGroupIdentifier {
   PrefService* prefService = GetApplicationContext()->GetLocalState();
-  return base::SysUTF8ToNSString(prefService->GetString(vivaldiprefs::kVivaldiStartPageLastVisitedGroupIdentifier));
+  return base::SysUTF8ToNSString(prefService->GetString(
+      vivaldiprefs::kVivaldiStartPageLastVisitedGroupIdentifier));
 }
 
 + (BOOL)showStartPageCustomizeButton {
@@ -278,8 +279,9 @@ static PrefService* _prefService = nil;
 
 + (void)setStartPageLastVisitedGroupIdentifier:(NSString*)identifier {
   PrefService* prefService = GetApplicationContext()->GetLocalState();
-  prefService->SetString(vivaldiprefs::kVivaldiStartPageLastVisitedGroupIdentifier,
-                         base::SysNSStringToUTF8(identifier));
+  prefService->SetString(
+      vivaldiprefs::kVivaldiStartPageLastVisitedGroupIdentifier,
+      base::SysNSStringToUTF8(identifier));
 }
 
 + (void)setShowStartPageCustomizeButton:(BOOL)show {

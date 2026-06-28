@@ -9,10 +9,16 @@ import org.jni_zero.JNINamespace;
 import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
+import org.chromium.base.ContextUtils;
 import org.chromium.base.ObserverList;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarButtonVariant;
+import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarFeatures;
+import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarPrefs;
+import org.chromium.chrome.browser.ui.bottombar.BottomBarConfigUtils;
 import org.chromium.components.feature_engagement.EventConstants;
 import org.chromium.components.feature_engagement.Tracker;
 
@@ -25,6 +31,10 @@ import org.chromium.components.feature_engagement.Tracker;
 public class GlicKeyedServiceImpl implements GlicKeyedService {
     private long mNativePtr;
     private final ObserverList<GlobalShowHideObserver> mObservers = new ObserverList<>();
+    private final ObserverList<UserEnabledActuationOnWebObserver>
+            mUserEnabledActuationOnWebObservers = new ObserverList<>();
+    private final ObserverList<AllowedChangedObserver> mAllowedChangedObservers =
+            new ObserverList<>();
 
     @CalledByNative
     private static GlicKeyedServiceImpl create(long nativePtr) {
@@ -37,7 +47,10 @@ public class GlicKeyedServiceImpl implements GlicKeyedService {
 
     @Override
     public void toggleUI(
-            long browserWindowPtr, boolean preventClose, Profile profile, int invocationSource) {
+            long browserWindowPtr,
+            boolean preventClose,
+            Profile profile,
+            @GlicInvocationSource int invocationSource) {
         if (mNativePtr == 0) return;
 
         Tracker tracker = TrackerFactory.getTrackerForProfile(profile);
@@ -48,9 +61,54 @@ public class GlicKeyedServiceImpl implements GlicKeyedService {
     }
 
     @Override
+    public boolean invokeWithAutoSubmit(
+            Tab tab, String text, @GlicInvocationSource int invocationSource) {
+        if (mNativePtr == 0) return false;
+
+        return GlicKeyedServiceImplJni.get()
+                .invokeWithAutoSubmit(mNativePtr, tab, text, invocationSource);
+    }
+
+    @Override
     public boolean isPanelShowingForBrowser(long browserWindowPtr) {
         if (mNativePtr == 0) return false;
         return GlicKeyedServiceImplJni.get().isPanelShowingForBrowser(mNativePtr, browserWindowPtr);
+    }
+
+    @Override
+    public boolean getUserEnabledActuationOnWeb() {
+        if (mNativePtr == 0) return false;
+        return GlicKeyedServiceImplJni.get().getUserEnabledActuationOnWeb(mNativePtr);
+    }
+
+    @Override
+    public void setUserEnabledActuationOnWeb(boolean enabled) {
+        if (mNativePtr == 0) return;
+        GlicKeyedServiceImplJni.get().setUserEnabledActuationOnWeb(mNativePtr, enabled);
+    }
+
+    @Override
+    @CalledByNative
+    public boolean isGlicShortcutActive(Profile profile) {
+        if (BottomBarConfigUtils.isBottomBarEnabled(ContextUtils.getApplicationContext())) {
+            return false;
+        }
+        int setting = AdaptiveToolbarPrefs.getCustomizationSetting();
+        if (setting == AdaptiveToolbarButtonVariant.GLIC) {
+            return true;
+        }
+        if (setting == AdaptiveToolbarButtonVariant.AUTO) {
+            return AdaptiveToolbarFeatures.getDefaultButtonVariant(
+                            ContextUtils.getApplicationContext(), profile)
+                    == AdaptiveToolbarButtonVariant.GLIC;
+        }
+        return false;
+    }
+
+    @Override
+    @CalledByNative
+    public boolean isBottomBarEnabled() {
+        return BottomBarConfigUtils.isBottomBarEnabled(ContextUtils.getApplicationContext());
     }
 
     @CalledByNative
@@ -69,9 +127,44 @@ public class GlicKeyedServiceImpl implements GlicKeyedService {
     }
 
     @CalledByNative
-    private void onGlobalShowHide(boolean isOpened) {
+    private void onGlobalShowHide() {
         for (GlobalShowHideObserver observer : mObservers) {
-            observer.onGlobalShowHide(isOpened);
+            observer.onGlobalShowHide();
+        }
+    }
+
+    @Override
+    public void addUserEnabledActuationOnWebObserver(UserEnabledActuationOnWebObserver observer) {
+        mUserEnabledActuationOnWebObservers.addObserver(observer);
+    }
+
+    @Override
+    public void removeUserEnabledActuationOnWebObserver(
+            UserEnabledActuationOnWebObserver observer) {
+        mUserEnabledActuationOnWebObservers.removeObserver(observer);
+    }
+
+    @Override
+    public void addAllowedChangedObserver(AllowedChangedObserver observer) {
+        mAllowedChangedObservers.addObserver(observer);
+    }
+
+    @Override
+    public void removeAllowedChangedObserver(AllowedChangedObserver observer) {
+        mAllowedChangedObservers.removeObserver(observer);
+    }
+
+    @CalledByNative
+    private void onUserEnabledActuationOnWebChanged(boolean enabled) {
+        for (UserEnabledActuationOnWebObserver observer : mUserEnabledActuationOnWebObservers) {
+            observer.onUserEnabledActuationOnWebChanged(enabled);
+        }
+    }
+
+    @CalledByNative
+    private void onAllowedStateChanged() {
+        for (AllowedChangedObserver observer : mAllowedChangedObservers) {
+            observer.onAllowedStateChanged();
         }
     }
 
@@ -82,8 +175,18 @@ public class GlicKeyedServiceImpl implements GlicKeyedService {
                 long browserWindowPtr,
                 boolean preventClose,
                 @JniType("Profile*") Profile profile,
-                int source);
+                @GlicInvocationSource int source);
+
+        boolean invokeWithAutoSubmit(
+                long nativeGlicKeyedServiceAndroid,
+                @JniType("TabAndroid*") Tab tab,
+                @JniType("std::string") String text,
+                @GlicInvocationSource int source);
 
         boolean isPanelShowingForBrowser(long nativeGlicKeyedServiceAndroid, long browserWindowPtr);
+
+        boolean getUserEnabledActuationOnWeb(long nativeGlicKeyedServiceAndroid);
+
+        void setUserEnabledActuationOnWeb(long nativeGlicKeyedServiceAndroid, boolean enabled);
     }
 }

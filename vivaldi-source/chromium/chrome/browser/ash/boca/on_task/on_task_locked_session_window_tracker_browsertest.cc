@@ -9,7 +9,6 @@
 
 #include "ash/constants/ash_features.h"
 #include "ash/webui/boca_ui/url_constants.h"
-#include "ash/webui/system_apps/public/system_web_app_type.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller_test_api.h"
 #include "base/memory/weak_ptr.h"
 #include "base/path_service.h"
@@ -27,8 +26,8 @@
 #include "chrome/browser/renderer_context_menu/render_view_context_menu_test_util.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/immersive_mode_controller.h"
 #include "chrome/browser/ui/views/web_apps/frame_toolbar/web_app_frame_toolbar_view.h"
@@ -40,6 +39,7 @@
 #include "chromeos/ash/components/boca/on_task/on_task_blocklist.h"
 #include "chromeos/ash/components/boca/proto/bundle.pb.h"
 #include "chromeos/ash/components/boca/proto/roster.pb.h"
+#include "chromeos/ash/components/system_web_apps/system_web_app_type.h"
 #include "chromeos/strings/grit/chromeos_strings.h"
 #include "chromeos/ui/base/window_properties.h"
 #include "components/sessions/content/session_tab_helper.h"
@@ -835,12 +835,14 @@ IN_PROC_BROWSER_TEST_F(OnTaskLockedSessionWindowTrackerBrowserTest,
   ASSERT_TRUE(platform_util::IsBrowserLockedFullscreen(boca_app_browser));
 
   // Attempt to create a new browser window and verify it gets closed.
-  size_t original_browser_count = chrome::GetTotalBrowserCount();
+  size_t original_browser_count =
+      GlobalBrowserCollection::GetInstance()->GetSize();
   const base::WeakPtr<Browser> browser_weak_ptr =
       Browser::Create(Browser::CreateParams(profile(), /*user_gesture=*/true))
           ->AsWeakPtr();
   content::RunAllTasksUntilIdle();
-  EXPECT_EQ(chrome::GetTotalBrowserCount(), original_browser_count);
+  EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(),
+            original_browser_count);
   EXPECT_FALSE(browser_weak_ptr);
 }
 
@@ -864,10 +866,12 @@ IN_PROC_BROWSER_TEST_F(OnTaskLockedSessionWindowTrackerBrowserTest,
   ASSERT_FALSE(platform_util::IsBrowserLockedFullscreen(boca_app_browser));
 
   // Attempt to create a new browser window and verify it is closed.
-  size_t original_browser_count = chrome::GetTotalBrowserCount();
+  size_t original_browser_count =
+      GlobalBrowserCollection::GetInstance()->GetSize();
   CreateBrowser(profile());
   content::RunAllTasksUntilIdle();
-  EXPECT_EQ(chrome::GetTotalBrowserCount(), original_browser_count + 1);
+  EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(),
+            original_browser_count + 1);
 }
 
 IN_PROC_BROWSER_TEST_F(OnTaskLockedSessionWindowTrackerBrowserTest,
@@ -890,11 +894,13 @@ IN_PROC_BROWSER_TEST_F(OnTaskLockedSessionWindowTrackerBrowserTest,
   ASSERT_FALSE(platform_util::IsBrowserLockedFullscreen(boca_app_browser));
 
   // Attempt to create a new popup and verify window tracker picks it up.
-  size_t original_browser_count = chrome::GetTotalBrowserCount();
+  size_t original_browser_count =
+      GlobalBrowserCollection::GetInstance()->GetSize();
   Browser* const popup_browser = Browser::Create(Browser::CreateParams(
       Browser::TYPE_APP_POPUP, profile(), /*user_gesture=*/true));
   content::RunAllTasksUntilIdle();
-  EXPECT_EQ(chrome::GetTotalBrowserCount(), original_browser_count + 1);
+  EXPECT_EQ(GlobalBrowserCollection::GetInstance()->GetSize(),
+            original_browser_count + 1);
   auto* const window_tracker =
       LockedSessionWindowTrackerFactory::GetInstance()->GetForBrowserContext(
           profile());
@@ -1061,7 +1067,10 @@ IN_PROC_BROWSER_TEST_F(
   // the browser's backing ui::BaseWindow.
   const auto activate_browser = [](BrowserWindowInterface* browser) {
     // We must fake deactivation the previously activated browser first.
-    chrome::FindLastActive()->DidBecomeInactive();
+    GlobalBrowserCollection::GetInstance()
+        ->GetLastActiveBrowser()
+        ->GetBrowserForMigrationOnly()
+        ->DidBecomeInactive();
 
     // Simulate activation of `browser`.
     browser->GetBrowserForMigrationOnly()->DidBecomeActive();

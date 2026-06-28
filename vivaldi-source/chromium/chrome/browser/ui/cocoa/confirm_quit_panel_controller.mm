@@ -11,7 +11,7 @@
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/cocoa/confirm_quit.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
@@ -30,6 +30,20 @@
 // Leeway between the |targetDate| and the current time that will confirm a
 // quit.
 const NSTimeInterval kTimeDeltaFuzzFactor = 1.0;
+
+// Time to wait between KeyUp events before checking the keyboard state again.
+constexpr NSTimeInterval kEventQueueWaitTime = 0.1;
+
+namespace {
+
+CGFloat ConfirmQuitFrameCornerRadius() {
+  if (@available(macOS 26, *)) {
+    return 20.0;
+  }
+  return 9.0;
+}
+
+}  // namespace
 
 // Custom Content View /////////////////////////////////////////////////////////
 
@@ -60,10 +74,10 @@ const NSTimeInterval kTimeDeltaFuzzFactor = 1.0;
 }
 
 - (void)drawRect:(NSRect)dirtyRect {
-  const CGFloat kCornerRadius = 5.0;
+  const CGFloat cornerRadius = ConfirmQuitFrameCornerRadius();
   NSBezierPath* path = [NSBezierPath bezierPathWithRoundedRect:self.bounds
-                                                       xRadius:kCornerRadius
-                                                       yRadius:kCornerRadius];
+                                                       xRadius:cornerRadius
+                                                       yRadius:cornerRadius];
 
   NSColor* fillColor = [NSColor colorWithCalibratedWhite:0.2 alpha:0.75];
   [fillColor set];
@@ -133,8 +147,15 @@ typedef NS_ENUM(NSInteger, FadeWindowsOperation) { kHide, kShow };
 - (void)setCurrentProgress:(NSAnimationProgress)progress {
   CGFloat value = _op == kShow ? progress : 1.0 - progress;
   for (NSWindow* window in NSApp.windows) {
-    if (chrome::FindBrowserWithWindow(gfx::NativeWindow(window))) {
-      window.alphaValue = value;
+    if (GlobalBrowserCollection::GetInstance()->FindBrowserWithWindow(
+            gfx::NativeWindow(window))) {
+      // Include child windows to ensure the animation is also applied to
+      // popovers, dialogs, etc.
+      NSArray* windowsToFade =
+          [@[ window ] arrayByAddingObjectsFromArray:window.childWindows];
+      for (NSWindow* windowToFade in windowsToFade) {
+        windowToFade.alphaValue = value;
+      }
     }
   }
 }
@@ -149,12 +170,20 @@ typedef NS_ENUM(NSInteger, FadeWindowsOperation) { kHide, kShow };
 @property(class, readonly) NSMenuItem* quitMenuItem;
 
 - (void)animateFadeOut;
-- (NSEvent*)pumpEventQueueForKeyUpUntilDate:(NSDate*)date;
+- (NSEvent*)waitForKeyEventUpWithTimeout:(NSTimeInterval)timeout;
 - (void)hideAllWindowsWithDuration:(NSTimeInterval)duration;
 - (void)sendAccessibilityAnnouncement;
 @end
 
-ConfirmQuitPanelController* __strong g_confirmQuitPanelController = nil;
+static BOOL __strong (^g_isKeyDownForKeyCodeMock)(unsigned short) = nil;
+
+BOOL isKeyDownForKeyCode(unsigned short keyCode) {
+  if (g_isKeyDownForKeyCodeMock) {
+    return g_isKeyDownForKeyCodeMock(keyCode);
+  }
+  return CGEventSourceKeyState(kCGEventSourceStateCombinedSessionState,
+                               keyCode);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -164,13 +193,16 @@ ConfirmQuitPanelController* __strong g_confirmQuitPanelController = nil;
   ConfirmQuitFrameView* __weak _contentView;
   // Whether we've hidden all windows and initiated the quitting process.
   BOOL _didHideWindows;
+  // Invoked when the panel has finished dismissing.
+  void (^_dismissedCallback)();
 }
 
-+ (ConfirmQuitPanelController*)sharedController {
-  if (!g_confirmQuitPanelController) {
-    g_confirmQuitPanelController = [[ConfirmQuitPanelController alloc] init];
-  }
-  return g_confirmQuitPanelController;
++ (BOOL (^)(unsigned short))isKeyDownForKeyCodeMock {
+  return [g_isKeyDownForKeyCodeMock copy];
+}
+
++ (void)setIsKeyDownForKeyCodeMock:(BOOL (^)(unsigned short))mock {
+  g_isKeyDownForKeyCodeMock = [mock copy];
 }
 
 - (instancetype)init {
@@ -202,7 +234,9 @@ ConfirmQuitPanelController* __strong g_confirmQuitPanelController = nil;
   return self;
 }
 
-- (BOOL)runModalLoop {
+- (BOOL)runConfirmQuitLoopWithEvent:(NSEvent*)event
+                  dismissedCallback:(void (^)())dismissedCallback {
+  _dismissedCallback = [dismissedCallback copy];
   [[maybe_unused]] NS_VALID_UNTIL_END_OF_SCOPE ConfirmQuitPanelController*
       keepAlive = self;
 
@@ -222,8 +256,10 @@ ConfirmQuitPanelController* __strong g_confirmQuitPanelController = nil;
     // the windows (without animation) to look like we've "quit" and then wait
     // for the KeyUp event to commit the quit.
     [self hideAllWindowsWithDuration:0];
-    NSEvent* nextEvent =
-        [self pumpEventQueueForKeyUpUntilDate:NSDate.distantFuture];
+    NSEvent* nextEvent = nil;
+    do {
+      nextEvent = [self waitForKeyEventUpWithTimeout:kEventQueueWaitTime];
+    } while (isKeyDownForKeyCode(event.keyCode));
     [NSApp discardEventsMatchingMask:NSEventMaskAny beforeEvent:nextEvent];
 
     // Based on how long the user held the keys, record the metric.
@@ -255,13 +291,7 @@ ConfirmQuitPanelController* __strong g_confirmQuitPanelController = nil;
   BOOL willQuit = NO;
   NSEvent* nextEvent = nil;
   do {
-    // Dequeue events until a key up is received. To avoid busy waiting, figure
-    // out the amount of time that the thread can sleep before taking further
-    // action.
-    NSDate* waitDate = [NSDate
-        dateWithTimeIntervalSinceNow:confirm_quit::kShowDuration.InSecondsF() -
-                                     kTimeDeltaFuzzFactor];
-    nextEvent = [self pumpEventQueueForKeyUpUntilDate:waitDate];
+    nextEvent = [self waitForKeyEventUpWithTimeout:kEventQueueWaitTime];
 
     // Wait for the time expiry to happen. Once past the hold threshold,
     // commit to quitting and hide all the open windows.
@@ -278,7 +308,7 @@ ConfirmQuitPanelController* __strong g_confirmQuitPanelController = nil;
                                              .InSecondsF()];
       }
     }
-  } while (!nextEvent);
+  } while (isKeyDownForKeyCode(event.keyCode));
 
   // The user has released the key combo. Discard any events (i.e. the
   // repeated KeyDown Cmd+Q).
@@ -300,7 +330,10 @@ ConfirmQuitPanelController* __strong g_confirmQuitPanelController = nil;
   // Release all animations because CAAnimation retains its delegate (self),
   // which will cause a retain cycle. Break it!
   self.window.animations = @{};
-  g_confirmQuitPanelController = nil;  // releases self
+  if (_dismissedCallback) {
+    _dismissedCallback();
+    _dismissedCallback = nil;
+  }
 }
 
 - (void)showWindow:(id)sender {
@@ -333,14 +366,11 @@ ConfirmQuitPanelController* __strong g_confirmQuitPanelController = nil;
   _didHideWindows = NO;
 }
 
-- (void)simulateQuitForTesting {
-  _didHideWindows = YES;
-  for (NSWindow* window in NSApp.windows) {
-    window.alphaValue = 0.0;
-  }
-}
-
 - (void)animateFadeOut {
+  if (!self.window.visible) {
+    return;
+  }
+
   NSWindow* window = self.window;
   CAAnimation* animation = [[window animationForKey:@"alphaValue"] copy];
   animation.delegate = self;
@@ -363,10 +393,12 @@ ConfirmQuitPanelController* __strong g_confirmQuitPanelController = nil;
   return base::SysUTF16ToNSString(accelerator.GetShortcutText());
 }
 
-// Runs a nested loop that pumps the event queue until the next KeyUp event.
-- (NSEvent*)pumpEventQueueForKeyUpUntilDate:(NSDate*)date {
+// Runs a nested loop that pumps the event queue until a keyup event is
+// dequeued or |timeout| has passed.
+- (NSEvent*)waitForKeyEventUpWithTimeout:(NSTimeInterval)timeout {
+  NSDate* untilDate = [NSDate dateWithTimeIntervalSinceNow:timeout];
   return [NSApp nextEventMatchingMask:NSEventMaskKeyUp
-                            untilDate:date
+                            untilDate:untilDate
                                inMode:NSEventTrackingRunLoopMode
                               dequeue:YES];
 }

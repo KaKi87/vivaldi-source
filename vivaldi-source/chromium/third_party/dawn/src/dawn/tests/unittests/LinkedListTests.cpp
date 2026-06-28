@@ -8,9 +8,10 @@
 #include <mutex>
 #include <utility>
 
-#include "dawn/common/LinkedList.h"
-#include "dawn/utils/TestUtils.h"
 #include "gtest/gtest.h"
+#include "src/dawn/common/LinkedList.h"
+#include "src/dawn/utils/TestUtils.h"
+#include "src/utils/compiler.h"
 
 namespace dawn {
 namespace {
@@ -63,7 +64,7 @@ void ExpectListContentsForDirection(const LinkedList<Node>& list,
          node = (forward ? node->next() : node->previous())) {
         ASSERT_LT(i, num_nodes);
         int index_of_id = forward ? i : num_nodes - i - 1;
-        EXPECT_EQ(node_ids[index_of_id], node->value()->id());
+        DAWN_UNSAFE_TODO(EXPECT_EQ(node_ids[index_of_id], node->value()->id()));
         ++i;
     }
     EXPECT_EQ(num_nodes, i);

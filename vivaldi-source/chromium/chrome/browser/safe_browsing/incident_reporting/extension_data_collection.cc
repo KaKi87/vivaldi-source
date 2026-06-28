@@ -4,6 +4,8 @@
 
 #include "chrome/browser/safe_browsing/incident_reporting/extension_data_collection.h"
 
+#include <utility>
+
 #include "base/json/json_string_value_serializer.h"
 #include "base/time/time.h"
 #include "base/version.h"
@@ -22,7 +24,7 @@
 #include "extensions/common/extension_set.h"
 #include "extensions/common/manifest_constants.h"
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "chrome/browser/extensions/chrome_content_browser_client_extensions_part.h"
 #endif
 
@@ -55,7 +57,7 @@ void PopulateExtensionInfo(
   else if (extension_registry.terminated_extensions().Contains(extension_id))
     extension_info->set_state(Info::STATE_TERMINATED);
 
-  extension_info->set_type(extension.GetType());
+  extension_info->set_type(std::to_underlying(extension.GetType()));
   if (const std::string* update_url = extension.manifest()->FindStringPath(
           extensions::manifest_keys::kUpdateURL)) {
     extension_info->set_update_url(*update_url);
@@ -101,7 +103,7 @@ void PopulateExtensionInfo(
 // Finds the last installed extension and adds relevant information to data's
 // last_installed_extension field.
 void CollectExtensionData(ClientIncidentReport_ExtensionData* data) {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   scoped_refptr<const extensions::Extension> last_installed_extension;
   Profile* profile_for_last_installed_extension = nullptr;
   base::Time last_install_time;

@@ -7,18 +7,30 @@
 
 #include <memory>
 
+#include "base/functional/callback.h"
+#include "base/functional/function_ref.h"
 #include "base/memory/raw_ptr.h"
+#include "ui/base/class_property.h"
 #include "ui/base/interaction/element_identifier.h"
+#include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/native_ui_types.h"
 #include "ui/views/controls/button/button.h"
-#include "ui/views/widget/widget.h"
+#include "ui/views/view_tracker.h"
 
 namespace views {
-class ToggleImageButton;
 class View;
 }  // namespace views
 
+DECLARE_UI_CLASS_PROPERTY_TYPE(gfx::Rect*)
+DECLARE_UI_CLASS_PROPERTY_TYPE(gfx::Vector2d*)
+
 namespace indigo {
+
+extern const ui::ClassProperty<gfx::Rect*>* const kIndigoTrackedElementRectKey;
+extern const ui::ClassProperty<gfx::Vector2d*>* const
+    kIndigoToolbarCornerOffsetKey;
+
+std::unique_ptr<views::View> CreateIndigoOverlayView();
 
 // Owns and manages a toolbar widget (and its contents) for Indigo. This widget
 // is collapsible (using an expand/collapse control) and closable, in addition
@@ -28,8 +40,10 @@ namespace indigo {
 // of the web page which is being modified.
 class IndigoToolbar {
  public:
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kToolbarElementId);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kCloseButtonElementId);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kExpandButtonElementId);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kExpandedContainerElementId);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kRegenerateButtonElementId);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kReplacePhotoButtonElementId);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kDeletePhotoButtonElementId);
@@ -52,8 +66,19 @@ class IndigoToolbar {
   IndigoToolbar& operator=(const IndigoToolbar&) = delete;
   ~IndigoToolbar();
 
-  void Show(gfx::NativeView parent_view);
+  // `parent_view` should be the ContentsContainerView in practice (except in
+  // unit tests), and this toolbar's view coordinates with it to arrange its
+  // layout.
+  void Show(views::View* parent_view);
   void Hide();
+
+  void UpdateTrackedPosition(const gfx::Rect& rect);
+
+  // Reclaims ownership of the toolbar view when the tab is hidden.
+  void TabWillBecomeHidden();
+
+  // Re-attaches the reclaimed view to the new parent view on tab visibility.
+  void TabDidBecomeVisible(views::View* parent_view);
 
  private:
   std::unique_ptr<views::View> CreateToolbarView();
@@ -68,14 +93,16 @@ class IndigoToolbar {
   void OnReplacePhotoClicked();
   void OnDeletePhotoClicked();
 
-  void OnWidgetClosed(views::Widget::ClosedReason reason);
-
   raw_ptr<Delegate> delegate_;
-  std::unique_ptr<views::Widget> widget_;
+  views::ViewTracker view_tracker_;
+
+  // Holds the toolbar view when the tab is deactivated or not yet active,
+  // preserving its state. Ownership is transferred back here in
+  // TabWillDeactivate or during initial creation while inactive, and returned
+  // to the parent view in ShowAt (called via TabDidActivate or Show).
+  std::unique_ptr<views::View> owned_view_;
 
   bool is_expanded_ = false;
-  raw_ptr<views::View> expanded_container_ = nullptr;
-  raw_ptr<views::ToggleImageButton> expand_button_ = nullptr;
 };
 
 }  // namespace indigo

@@ -28,6 +28,9 @@
 // once the cancellation (and any dismissal animation) has finished.
 - (void)cancelOmniboxEditWithCompletion:(ProceduralBlock)completion;
 
+// Sets the custom leading view visibility, optionally animated.
+- (void)setCustomLeadingViewVisible:(BOOL)visible animated:(BOOL)animated;
+
 // Vivaldi
 // Give focus to the omnibox, but doesn't show the autocomplete suggestions
 // popup view.

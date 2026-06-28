@@ -33,7 +33,8 @@
 #include <limits>
 #include <vector>
 
-#include "dawn/common/Math.h"
+#include "src/dawn/common/Math.h"
+#include "src/utils/compiler.h"
 
 namespace wgpu {
 
@@ -147,7 +148,7 @@ TEST(Math, AlignPtr) {
     char buffer[kTestAlignment * 4];
 
     for (size_t i = 0; i < 2 * kTestAlignment; ++i) {
-        char* unaligned = &buffer[i];
+        char* unaligned = &DAWN_UNSAFE_TODO(buffer[i]);
         char* aligned = AlignPtr(unaligned, kTestAlignment);
 
         ASSERT_GE(aligned - unaligned, 0);
@@ -258,7 +259,7 @@ TEST(Math, IsPtrAligned) {
     char buffer[kTestAlignment * 4];
 
     for (size_t i = 0; i < 2 * kTestAlignment; ++i) {
-        char* unaligned = &buffer[i];
+        char* unaligned = &DAWN_UNSAFE_TODO(buffer[i]);
         char* aligned = AlignPtr(unaligned, kTestAlignment);
 
         ASSERT_EQ(IsPtrAligned(unaligned, kTestAlignment), unaligned == aligned);

@@ -101,6 +101,7 @@ def siso_project_setup(siso_test_fixture: None, tmp_path: Path,
 
     mocker.patch("siso._get_siso_subcmds",
                  return_value={"ninja", "query", "other"})
+    mocker.patch("siso._supports_namespace", return_value=True)
     mocker.patch("siso._handle_collector",
                  side_effect=lambda _p, _a, e, subcmd="": e)
 
@@ -237,6 +238,7 @@ Subcommands for auth:
                 "out/Default",
                 "--metrics_labels",
                 f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
+                "--namespace=developer",
             ],
             id="no_env_flags",
         ),
@@ -255,6 +257,7 @@ Subcommands for auth:
                 "--enable_cloud_profiler",
                 "--metrics_labels",
                 f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
+                "--namespace=developer",
             ],
             id="some_already_applied_no_env_flags",
         ),
@@ -268,6 +271,7 @@ Subcommands for auth:
                 "some_project",
                 "--metrics_labels",
                 f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
+                "--namespace=developer",
                 "--enable_cloud_monitoring",
                 "--enable_cloud_profiler",
                 "--enable_cloud_trace",
@@ -283,6 +287,7 @@ Subcommands for auth:
                 "out/Default",
                 "--metrics_labels",
                 f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
+                "--namespace=developer",
                 "--enable_cloud_monitoring",
                 "--enable_cloud_profiler",
                 "--enable_cloud_trace",
@@ -300,6 +305,7 @@ Subcommands for auth:
                 "some_project",
                 "--metrics_labels",
                 f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
+                "--namespace=developer",
                 "--enable_cloud_monitoring",
                 "--enable_cloud_profiler",
                 "--enable_cloud_trace",
@@ -316,6 +322,7 @@ Subcommands for auth:
                 "out/Default",
                 "--metrics_labels",
                 f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
+                "--namespace=developer",
                 "--enable_cloud_monitoring",
                 "--enable_cloud_profiler",
                 "--enable_cloud_trace",
@@ -333,6 +340,7 @@ Subcommands for auth:
                 "--enable_cloud_profiler=false",
                 "--metrics_labels",
                 f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
+                "--namespace=developer",
                 "--enable_cloud_monitoring",
                 "--enable_cloud_trace",
                 "--enable_cloud_logging",
@@ -347,6 +355,7 @@ Subcommands for auth:
                 "--help",
                 "--metrics_labels",
                 f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
+                "--namespace=developer",
             ],
             id="help_flag",
         ),
@@ -357,13 +366,17 @@ Subcommands for auth:
                 "-h",
                 "--metrics_labels",
                 f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
+                "--namespace=developer",
             ],
             id="short_help_flag",
         ),
         pytest.param(
             ["-C", "out/Default", "--metrics_labels=foo=bar"],
             {},
-            ["-C", "out/Default", "--metrics_labels=foo=bar"],
+            [
+                "-C", "out/Default", "--metrics_labels=foo=bar",
+                "--namespace=developer"
+            ],
             id="labels_exist",
         ),
     ],
@@ -372,6 +385,13 @@ def test_apply_telemetry_flags(subcmd_args: List[str], env: Dict[str, str],
                                want: List[str]) -> None:
     got = siso.apply_telemetry_flags(subcmd_args, env)
     assert got == want
+
+
+def test_apply_telemetry_flags_no_namespace() -> None:
+    subcmd_args = ["-C", "out/Default"]
+    env = {}
+    got = siso.apply_telemetry_flags(subcmd_args, env, supports_namespace=False)
+    assert not any(arg.startswith("--namespace") for arg in got)
 
 
 def test_apply_telemetry_flags_sets_expected_env_var(mocker: Any) -> None:
@@ -680,11 +700,9 @@ def test_handle_collector_remove_socket_file_fails(siso_test_fixture: Any,
                 "out/Default",
                 "--metrics_labels",
                 f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
+                "--namespace=developer",
             ],
-            "depot_tools/siso.py: %s\n" % shlex.join([
-                "ninja", "-C", "out/Default", "--metrics_labels",
-                f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}"
-            ]),
+            "",
             id="ninja_with_logs_no_project",
         ),
         pytest.param(
@@ -700,20 +718,14 @@ def test_handle_collector_remove_socket_file_fails(siso_test_fixture: Any,
                 "--project=test-project",
                 "--metrics_labels",
                 f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
+                "--namespace=developer",
                 "--enable_cloud_monitoring",
                 "--enable_cloud_profiler",
                 "--enable_cloud_trace",
                 "--enable_cloud_logging",
                 "--metrics_project=test-project",
             ],
-            "depot_tools/siso.py: %s\n" % shlex.join([
-                "ninja", "-C", "out/Default", "--project=test-project",
-                "--metrics_labels",
-                f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
-                "--enable_cloud_monitoring", "--enable_cloud_profiler",
-                "--enable_cloud_trace", "--enable_cloud_logging",
-                "--metrics_project=test-project"
-            ]),
+            "",
             id="ninja_with_logs_with_project_in_args",
         ),
         pytest.param(
@@ -728,19 +740,14 @@ def test_handle_collector_remove_socket_file_fails(siso_test_fixture: Any,
                 "out/Default",
                 "--metrics_labels",
                 f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
+                "--namespace=developer",
                 "--enable_cloud_monitoring",
                 "--enable_cloud_profiler",
                 "--enable_cloud_trace",
                 "--enable_cloud_logging",
                 "--metrics_project=test-project",
             ],
-            "depot_tools/siso.py: %s\n" % shlex.join([
-                "ninja", "-C", "out/Default", "--metrics_labels",
-                f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
-                "--enable_cloud_monitoring", "--enable_cloud_profiler",
-                "--enable_cloud_trace", "--enable_cloud_logging",
-                "--metrics_project=test-project"
-            ]),
+            "",
             id="ninja_with_logs_with_project_in_env",
         ),
         pytest.param(
@@ -806,6 +813,7 @@ def test_handle_collector_remove_socket_file_fails(siso_test_fixture: Any,
                 "out/Default",
                 "--metrics_labels",
                 f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
+                "--namespace=developer",
                 "--enable_cloud_monitoring",
                 "--enable_cloud_profiler",
                 "--enable_cloud_trace",
@@ -816,9 +824,9 @@ def test_handle_collector_remove_socket_file_fails(siso_test_fixture: Any,
                 "-gflag_tel", "ninja", "-sflag_tel", "-C", "out/Default",
                 "--metrics_labels",
                 f"type=developer,tool=siso,host_os={siso._SYSTEM_DICT.get(sys.platform, sys.platform)}",
-                "--enable_cloud_monitoring", "--enable_cloud_profiler",
-                "--enable_cloud_trace", "--enable_cloud_logging",
-                "--metrics_project=telemetry-project"
+                "--namespace=developer", "--enable_cloud_monitoring",
+                "--enable_cloud_profiler", "--enable_cloud_trace",
+                "--enable_cloud_logging", "--metrics_project=telemetry-project"
             ]),
             id="with_sisorc_global_and_subcmd_flags_and_telemetry",
         ),
@@ -1744,7 +1752,7 @@ def test_ai_agent_env_prepends_flags(
     siso_bin_path = _get_siso_bin_path(tmp_path)
     mock_stdout = mocker.patch("sys.stdout", new_callable=io.StringIO)
     runner = mocker.Mock(return_value=exit_code)
-    cfg = create_telemetry_cfg(tmp_path, mocker, enabled=False)
+    cfg = create_telemetry_cfg(tmp_path, mocker, enabled=True)
     env = {"SISO_PATH": str(siso_bin_path)}
     if env_var:
         env[env_var] = "1"
@@ -1761,16 +1769,18 @@ def test_ai_agent_env_prepends_flags(
     if env_var and subcmd == "ninja":
         assert "--quiet" in subcmd_args
         assert "--batch=false" in subcmd_args
+        assert "--namespace=developer:ai-agent" in subcmd_args
         assert "Detected AI agent env" in stdout
         if exit_code == 0:
-            assert "Success" in stdout
+            assert "finished successfully" in stdout
         else:
-            assert "Success" not in stdout
+            assert "finished with an error" in stdout
     else:
         assert "--quiet" not in args
         assert "--batch=false" not in args
+        assert "--namespace=developer:ai-agent" not in subcmd_args
         assert "Detected AI agent env" not in stdout
-        assert "Success" not in stdout
+        assert "finished" not in stdout
 
 
 # Stanza to have pytest be executed.

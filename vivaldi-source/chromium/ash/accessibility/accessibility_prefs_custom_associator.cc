@@ -12,8 +12,12 @@
 #include "ash/accessibility/accessibility_sync_prefs_utils.h"
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_pref_names.h"
+#include "base/check_is_test.h"
 #include "base/notimplemented.h"
+#include "base/notreached.h"
 #include "components/live_caption/pref_names.h"
+#include "components/prefs/pref_service.h"
+#include "components/sync_preferences/pref_service_syncable.h"
 
 namespace ash {
 
@@ -22,17 +26,52 @@ namespace {
 static AccessibilityPrefsCustomAssociator*
     g_accessibility_prefs_custom_associator = nullptr;
 
+bool PrefNeedsResolution(const AccessibilityPrefBatchEntry& entry) {
+  return entry.resolution_policy != ConflictResolutionPolicy::kNone;
+}
+
 }  // namespace
 
-AccessibilityPrefsCustomAssociator::AccessibilityPrefsCustomAssociator()
+AccessibilityPrefsCustomAssociator::AccessibilityPrefsCustomAssociator(
+    PrefService* prefs)
     : enabled_sync_prefs_(GetAccessibilityPrefBatchesWithSyncEnabled()) {
   CHECK(g_accessibility_prefs_custom_associator == nullptr);
   g_accessibility_prefs_custom_associator = this;
+
+  if (!prefs) {
+    return;
+  }
+
+  // TODO(515812912): Move syncability checks and associator creation
+  // into chrome/browser via a delegate, so ash/ no longer needs to cast
+  // from PrefService to PrefServiceSyncable.
+  if (!prefs->IsSyncable()) {
+    CHECK_IS_TEST();
+    return;
+  }
+
+  prefs_ = static_cast<sync_preferences::PrefServiceSyncable*>(prefs);
+
+  for (auto& enabled_sync_pref : enabled_sync_prefs_) {
+    if (PrefNeedsResolution(enabled_sync_pref)) {
+      prefs_->AddSyncedPrefObserver(enabled_sync_pref.pref_name, this);
+    }
+  }
 }
 
 AccessibilityPrefsCustomAssociator::~AccessibilityPrefsCustomAssociator() {
   CHECK(g_accessibility_prefs_custom_associator);
   g_accessibility_prefs_custom_associator = nullptr;
+
+  if (!prefs_) {
+    return;
+  }
+
+  for (auto& enabled_sync_pref : enabled_sync_prefs_) {
+    if (PrefNeedsResolution(enabled_sync_pref)) {
+      prefs_->RemoveSyncedPrefObserver(enabled_sync_pref.pref_name, this);
+    }
+  }
 }
 
 // static
@@ -63,17 +102,13 @@ AccessibilityPrefsCustomAssociator::GetPreferredPrefMergeValue(
 // associator.
 bool AccessibilityPrefsCustomAssociator::CanLockPref(
     std::string_view pref_name) const {
-  // TODO(crbug.com/485997707): Extend the condition below so that
-  // `kLocalClobberRemote` resolution policy also lock preferences.
-  //
   // TODO(crbug.com/485997708): Remove the lambda below when there is no
   // AccessibilityPrefBatchEntry set with ConflictResolutionPolicy::kNone left.
-  auto it = std::find_if(enabled_sync_prefs_.begin(), enabled_sync_prefs_.end(),
-                         [&](const auto& p) {
-                           return p.pref_name == pref_name &&
-                                  p.resolution_policy ==
-                                      ConflictResolutionPolicy::kDialogNeeded;
-                         });
+  auto it =
+      std::find_if(enabled_sync_prefs_.begin(), enabled_sync_prefs_.end(),
+                   [&](const auto& p) {
+                     return p.pref_name == pref_name && PrefNeedsResolution(p);
+                   });
   return it != enabled_sync_prefs_.end();
 }
 
@@ -134,6 +169,14 @@ AccessibilityPrefsCustomAssociator::GetLockedAndAccountStorePrefs() const {
 void AccessibilityPrefsCustomAssociator::ToString() const {
   VLOG(1) << " locked_prefs_: " << locked_prefs_;
   VLOG(1) << " account_store_prefs_: " << account_store_prefs_;
+}
+
+void AccessibilityPrefsCustomAssociator::OnStartedSyncing(
+    std::string_view pref_name,
+    const base::Value& sync_value) {
+  if (!sync_value.is_none()) {
+    TrySetAccountStorePref(pref_name, sync_value);
+  }
 }
 
 }  // namespace ash

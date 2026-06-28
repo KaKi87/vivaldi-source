@@ -7,7 +7,6 @@
 #include "base/strings/strcat.h"
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
-#include "chrome/browser/actor/actor_features.h"
 #include "chrome/browser/actor/actor_test_util.h"
 #include "chrome/browser/actor/execution_engine.h"
 #include "chrome/browser/actor/tools/tools_test_util.h"
@@ -16,6 +15,7 @@
 #include "chrome/browser/glic/test_support/interactive_test_util.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
+#include "components/actor/core/actor_features.h"
 #include "components/favicon/core/test/mock_favicon_service.h"
 #include "components/password_manager/core/browser/features/password_features.h"
 #include "content/public/common/content_features.h"
@@ -174,8 +174,7 @@ class AttemptLoginToolInteractiveUiTest
 
   AttemptLoginToolInteractiveUiTest() {
     std::vector<base::test::FeatureRef> enabled_features = {
-        password_manager::features::kActorLogin,
-        password_manager::features::kActorLoginReauthTaskRefocus};
+        password_manager::features::kActorLogin};
     std::vector<base::test::FeatureRef> disabled_features;
     if (federation_enabled()) {
       enabled_features.push_back(features::kFedCmEmbedderInitiatedLogin);
@@ -203,8 +202,16 @@ class AttemptLoginToolInteractiveUiTest
         base::expected<int32_t, glic::mojom::CreateTaskErrorReason>>
         create_task_future;
     ASSERT_TRUE(GetGlicInstanceImpl());
-    GetGlicInstanceImpl()->CreateTask(nullptr, nullptr,
-                                      create_task_future.GetCallback());
+    ASSERT_TRUE(base::test::RunUntil([&]() {
+      return GetGlicInstanceImpl()
+                 ->GetActorTaskManager()
+                 ->GetClientSessionForTesting() != nullptr;
+    }));
+    GetGlicInstanceImpl()
+        ->GetActorTaskManager()
+        ->GetClientSessionForTesting()
+        ->CreateTask(actor::webui::mojom::TaskOptions::New(),
+                     create_task_future.GetCallback());
     auto create_task_result = create_task_future.Get();
     ASSERT_TRUE(create_task_result.has_value());
     task_id_ = TaskId(create_task_result.value());
@@ -722,7 +729,10 @@ IN_PROC_BROWSER_TEST_P(AttemptLoginToolInteractiveUiTest,
   // is enabled, allow the popup. If disabled, preserve the popup behaviour of
   // other tools. See also ExecutionEngineBrowserTest.ForceSameTabNavigation.
 
-  content::WebContentsAddedObserver web_contents_added_observer;
+  content::CreateAndLoadWebContentsObserver web_contents_observer(
+      1, base::BindRepeating([](content::WebContents* web_contents) {
+        return !web_contents->GetWebUI();
+      }));
   EXPECT_EQ(
       federation_enabled(),
       content::EvalJs(web_contents(),
@@ -731,8 +741,7 @@ IN_PROC_BROWSER_TEST_P(AttemptLoginToolInteractiveUiTest,
                           popup_url)));
 
   if (federation_enabled()) {
-    content::WebContents* new_contents =
-        web_contents_added_observer.GetWebContents();
+    content::WebContents* new_contents = web_contents_observer.Wait();
     EXPECT_EQ(true, content::EvalJs(new_contents, "!!window.opener;"));
   }
 }

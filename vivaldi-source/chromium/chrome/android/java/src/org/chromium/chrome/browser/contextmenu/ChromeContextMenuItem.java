@@ -83,6 +83,9 @@ class ChromeContextMenuItem {
         Item.PRINT_PAGE,
         Item.VIEW_PAGE_SOURCE,
         Item.INSPECT_ELEMENT,
+        Item.COPY_VIDEO_FRAME,
+        Item.DOWNLOAD_VIDEO_FRAME,
+        Item.LENS_OVERLAY
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface Item {
@@ -140,12 +143,15 @@ class ChromeContextMenuItem {
         // Developer Group
         int VIEW_PAGE_SOURCE = 41;
         int INSPECT_ELEMENT = 42;
+        int COPY_VIDEO_FRAME = 43;
+        int DOWNLOAD_VIDEO_FRAME = 44;
+        int LENS_OVERLAY = 45;
 
-        int OPEN_IN_NEW_TAB_BACKGROUND = 43; // Vivaldi
-        int OPEN_IMAGE_IN_NEW_TAB_BACKGROUND = 44; // Vivaldi
+        int OPEN_IN_NEW_TAB_BACKGROUND = 46; // Vivaldi
+        int OPEN_IMAGE_IN_NEW_TAB_BACKGROUND = 47; // Vivaldi
 
         // ALWAYS UPDATE!
-        int NUM_ENTRIES = 45;
+        int NUM_ENTRIES = 48;
     }
 
     /** Mapping from {@link Item} to the ID found in the ids.xml. */
@@ -193,6 +199,10 @@ class ChromeContextMenuItem {
         R.id.contextmenu_print_page, // Item.PRINT_PAGE
         R.id.contextmenu_view_page_source, // Item.VIEW_PAGE_SOURCE
         R.id.contextmenu_inspect_element, // Item.INSPECT_ELEMENT
+        R.id.contextmenu_copy_video_frame, // Item.COPY_VIDEO_FRAME
+        R.id.contextmenu_download_video_frame, // Item.DOWNLOAD_VIDEO_FRAME
+        R.id.contextmenu_lens_overlay, // Item.LENS_OVERLAY
+
         // From here Vivaldi ids:
         R.id.contextmenu_open_in_new_tab_background,
         R.id.contextmenu_open_image_in_new_tab_background,
@@ -243,6 +253,10 @@ class ChromeContextMenuItem {
         R.string.contextmenu_print_page, // Item.PRINT_PAGE
         R.string.contextmenu_view_page_source, // Item.VIEW_PAGE_SOURCE
         R.string.contextmenu_inspect_element, // Item.INSPECT_ELEMENT
+        R.string.contextmenu_copy_video_frame, // Item.COPY_VIDEO_FRAME
+        R.string.contextmenu_download_video_frame, // Item.DOWNLOAD_VIDEO_FRAME
+        R.string.contextmenu_search_tab_with_google_lens, // Item.LENS_OVERLAY
+
         // From here Vivaldi ids:
         R.string.contextmenu_open_in_new_tab_background,
         R.string.contextmenu_open_image_in_new_tab_background,
@@ -327,6 +341,8 @@ class ChromeContextMenuItem {
                     return context.getString(R.string.contextmenu_open_in_chrome_window);
                 }
                 break;
+            case Item.DOWNLOAD_VIDEO_FRAME:
+                return context.getString(R.string.contextmenu_download_video_frame);
             default:
                 return context.getString(getStringId(item));
         }

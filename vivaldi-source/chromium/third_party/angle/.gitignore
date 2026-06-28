@@ -41,7 +41,6 @@
 /third_party/android_system_sdk/cipd
 /third_party/android_toolchain
 /third_party/astc-encoder/src
-/third_party/bazel/desugar/*.jar
 /third_party/catapult
 /third_party/cherry
 /third_party/clang-format/script
@@ -51,6 +50,7 @@
 /third_party/dawn
 /third_party/depot_tools
 /third_party/EGL-Registry/src
+/third_party/expat/src
 /third_party/flatbuffers/src
 /third_party/fuchsia-sdk
 /third_party/gles1_conform
@@ -61,7 +61,6 @@
 /third_party/jdk/current
 /third_party/jinja2
 /third_party/jsoncpp
-/third_party/kotlin_stdlib
 /third_party/libdrm/src
 /third_party/libc++/src
 /third_party/libc++abi/src
@@ -81,12 +80,9 @@
 /third_party/OpenCL-ICD-Loader/src
 /third_party/OpenGL-Registry/src
 /third_party/perfetto
-/third_party/proguard/lib
 /third_party/protobuf
 /third_party/Python-Markdown
 /third_party/siso
-/third_party/qemu-linux-x64
-/third_party/qemu-mac-x64
 /third_party/r8/cipd
 /third_party/r8/d8/cipd
 /third_party/r8/lib
@@ -109,7 +105,8 @@
 /third_party/vulkan-utility-libraries/src
 /third_party/vulkan-validation-layers/src
 /third_party/vulkan_memory_allocator
-/third_party/wayland
+/third_party/wayland/src
+/third_party/wayland-protocols/src
 /third_party/zlib
 /tools/android
 /tools/clang

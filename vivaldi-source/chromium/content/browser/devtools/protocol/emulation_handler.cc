@@ -151,6 +151,13 @@ void EmulationHandler::SetRenderer(int process_host_id,
 #if BUILDFLAG(ENABLE_COMPUTE_PRESSURE)
     pressure_overrides_.clear();
 #endif  // BUILDFLAG(ENABLE_COMPUTE_PRESSURE)
+    if (screen_orientation_lock_emulation_enabled_) {
+      screen_orientation_lock_emulation_enabled_ = false;
+      UpdateScreenOrientationEmulation(false);
+    }
+    if (device_posture_emulation_enabled_) {
+      ClearDevicePostureOverride();
+    }
   }
   host_ = frame_host;
   if (touch_emulation_enabled_)
@@ -189,6 +196,9 @@ Response EmulationHandler::Disable() {
   pressure_overrides_.clear();
 #endif  // BUILDFLAG(ENABLE_COMPUTE_PRESSURE)
   ClearDevicePostureOverride();
+  if (geolocation_overridden_) {
+    ClearGeolocationOverride();
+  }
   return Response::Success();
 }
 
@@ -500,23 +510,10 @@ Response EmulationHandler::SetPressureSourceOverrideEnabled(
 #endif  // BUILDFLAG(ENABLE_COMPUTE_PRESSURE)
 }
 
-// TODO: Remove obsolete method.
-// `SetPressureStateOverride` will be replaced by SetPressureDataOverride.
-// The method UpdateVirtualPressureSourceState called previously
-// was removed in //content.
 void EmulationHandler::SetPressureStateOverride(
     const Emulation::PressureSource& source,
     const Emulation::PressureState& state,
     std::unique_ptr<SetPressureStateOverrideCallback> callback) {
-  callback->sendFailure(Response::InternalError());
-  return;
-}
-
-void EmulationHandler::SetPressureDataOverride(
-    const Emulation::PressureSource& source,
-    const Emulation::PressureState& state,
-    std::optional<double> own_contribution_estimate,
-    std::unique_ptr<SetPressureDataOverrideCallback> callback) {
   if (!host_) {
     callback->sendFailure(Response::InternalError());
     return;
@@ -541,10 +538,9 @@ void EmulationHandler::SetPressureDataOverride(
         Response::InvalidParams(kPressureSourceIsNotOverridden));
     return;
   }
-  it->second->UpdateVirtualPressureSourceData(
-      mojo_state, own_contribution_estimate.value_or(0.0),
-      base::BindOnce(&SetPressureDataOverrideCallback::sendSuccess,
-                     std::move(callback)));
+  it->second->UpdateVirtualPressureSourceState(
+      mojo_state, base::BindOnce(&SetPressureStateOverrideCallback::sendSuccess,
+                                 std::move(callback)));
 #else
   callback->sendFailure(Response::InternalError());
 #endif  // BUILDFLAG(ENABLE_COMPUTE_PRESSURE)
@@ -609,6 +605,7 @@ Response EmulationHandler::SetGeolocationOverride(
             /*error_message=*/"", /*error_technical=*/""));
   }
   geolocation_context->SetOverride(std::move(override_result));
+  geolocation_overridden_ = true;
   return Response::Success();
 }
 
@@ -618,6 +615,7 @@ Response EmulationHandler::ClearGeolocationOverride() {
 
   auto* geolocation_context = GetWebContents()->GetGeolocationContext();
   geolocation_context->ClearOverride();
+  geolocation_overridden_ = false;
   return Response::Success();
 }
 
@@ -781,6 +779,7 @@ Response EmulationHandler::SetDeviceMetricsOverride(
   if (device_posture) {
     params.device_posture =
         DevicePostureTypeFromString(device_posture->GetType()).value();
+    SetDevicePostureOverride(std::move(device_posture));
   }
 
   if (mobile ||
@@ -853,6 +852,7 @@ Response EmulationHandler::ClearDeviceMetricsOverride() {
     return Response::Success();
 
   GetWebContents()->ClearDeviceEmulationSize();
+  ClearDevicePostureOverride();
   device_emulation_enabled_ = false;
   device_emulation_params_ = blink::DeviceEmulationParams();
   if (screen_orientation_lock_emulation_enabled_) {
@@ -1101,7 +1101,9 @@ void EmulationHandler::UpdateTouchEventEmulationState() {
       touch_emulator->Disable();
     }
   }
-  GetWebContents()->SetForceDisableOverscrollContent(touch_emulation_enabled_);
+  if (WebContentsImpl* web_contents = GetWebContents()) {
+    web_contents->SetForceDisableOverscrollContent(touch_emulation_enabled_);
+  }
 }
 
 void EmulationHandler::UpdateDeviceEmulationState(
@@ -1168,9 +1170,10 @@ Response EmulationHandler::SetDevicePostureOverride(
 Response EmulationHandler::ClearDevicePostureOverride() {
   if (device_posture_emulation_enabled_) {
     device_posture_emulation_enabled_ = false;
-    GetWebContents()
-        ->GetDevicePostureProvider()
-        ->DisableDevicePostureOverrideForEmulation();
+    if (WebContentsImpl* web_contents = GetWebContents()) {
+      web_contents->GetDevicePostureProvider()
+          ->DisableDevicePostureOverrideForEmulation();
+    }
   }
   return Response::Success();
 }

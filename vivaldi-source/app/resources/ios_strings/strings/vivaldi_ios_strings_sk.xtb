@@ -4,48 +4,124 @@
 <translation id="1063263220330818888">Súkromné vyhľadávanie</translation>
 <translation id="1097355661841455597">Radi si vypočujeme vaše názory.</translation>
 <translation id="1137850887415122856">Ak chcete uzamknúť súkromné listy, nastavte Touch ID, Face ID alebo prístupový kód.</translation>
+<translation id="1189137610071296104">Otvoriť v skupine listov</translation>
 <translation id="1310184829257917508">Opýtať sa na otvorenie odkazov z iných aplikácií v súkromnom okne</translation>
+<translation id="1624481300475123200">Automaticky vyplňovať heslá</translation>
 <translation id="1743244221910283364">Zahodiť zmeny</translation>
+<translation id="2010481384079864967">{count, plural,
+        =1 {Pridať list do skupiny}
+        other {Pridať listy do skupiny}}</translation>
 <translation id="207677936531967364">Stránka nového súkromného listu</translation>
+<translation id="2099591136582442348">Týmto sa skupina trvalo odstráni z vášho zariadenia.</translation>
+<translation id="2104086191144208395">Zistili ste problém?</translation>
+<translation id="2181990701313127304">Nový list v skupine</translation>
+<translation id="2351280151183279120">Zdieľať skupinu</translation>
 <translation id="2353953000228441783">Predvolené zobrazenie webu</translation>
 <translation id="2360196772093551345">Požiadať o mobilnú webovú stránku</translation>
 <translation id="2394192052244849643">Vložiť a vyhľadať</translation>
 <translation id="2418705169960294134">Nový súkromný list</translation>
+<translation id="2565593432251168402">Udržujte si prehľad vďaka vytváraniu skupín listov</translation>
 <translation id="2783161812871838616">Vyžiadať web pre počítače</translation>
+<translation id="2806957659107692459">Vytvoriť skupinu</translation>
+<translation id="2830375794722738493">Skryť súkromné listy</translation>
 <translation id="2899836479226240291">Odkazy v aplikácii Vivaldi môžete otvárať automaticky tak, že ju nastavíte ako predvolenú aplikáciu prehliadača.</translation>
 <translation id="3365529507898144230">Uložiť do Fotiek</translation>
 <translation id="3434473769478814796">Vložiť a prejsť</translation>
 <translation id="3463990832590571933">Otvoriť v novom súkromnom liste</translation>
 <translation id="3473652525653758699">Nové súkromné okno</translation>
 <translation id="3501504415290398157">Použiť<ph name="BIOMETRIC_AUTHENITCATION_TYPE" /> pre odomknutie súkromných listov.</translation>
+<translation id="353418192940651934">Zachovať skupinu</translation>
 <translation id="3607792383367580513">Preložiť</translation>
 <translation id="3692650606013198282">Otvoriť v súkromí</translation>
+<translation id="3873885181515160073">Vytvorte novú skupinu listov tak, že jej zadáte názov a farbu.</translation>
 <translation id="3922395466317605522">Prispôsobiť ponuku</translation>
 <translation id="3981599532037327317">Otvoriť ${url} in súkromí</translation>
 <translation id="398477389655464998">Kopírovať odkaz na zvýraznenie</translation>
+<translation id="3993429087389909418">Karty zostanú otvorené na tomto zariadení, ale zoznam sa vymaže zo všetkých zariadení prihlásených do účtu <ph name="USER_EMAIL" />.</translation>
+<translation id="4216644171369573466">Skupina listov, <ph name="GROUP_TITLE" />, ponuka.</translation>
 <translation id="4304713468139749426">Správca hesiel</translation>
+<translation id="4439281775431634915">Vaše skupiny listov sú uložené tu</translation>
+<translation id="4569525137269575065">Zavrieť skupinu</translation>
 <translation id="473775607612524610">Aktualizovať</translation>
 <translation id="4755216899422789286">Otvoriť URL adresy vo Vivaldi</translation>
+<translation id="4772190485302020393">Zatvoriť všetky listy a skupiny</translation>
 <translation id="4802185666270672526">Skryť položku Vyžiadať web pre počítače</translation>
+<translation id="4828571836982833289">Rozložiť skupinu listov?</translation>
+<translation id="4838250035189612538">Pomenovať skupinu</translation>
+<translation id="4873540827942947151">{count, plural,
+            =1 {1 list uzavretý a uložený}
+            other {{count} listy(ov) sú zatvorené a uložené}}</translation>
+<translation id="5019787757991745254">Farba skupiny listov <ph name="COLOR" /></translation>
+<translation id="5022440170224170365">Skupina listov. Zbalené</translation>
+<translation id="5132327651247938019">Posúvaním doprava môžete prehliadať súkromne.</translation>
+<translation id="5204006339739481307">Potiahnutím doľava môžete prehliadať súkromne.</translation>
 <translation id="5217245356412073535">Predvolené zobrazenie webu môžete zmeniť na verziu pre počítače v Nastaveniach &gt; Nastavenia obsahu</translation>
 <translation id="5271549068863921519">Uložiť heslo</translation>
 <translation id="5317780077021120954">Uložiť</translation>
+<translation id="5385953732213322025">Táto stránka sa pokúša otvoriť aplikáciu. Týmto krokom opustíte súkromný režim.</translation>
 <translation id="5431239785743546285">Stránky, ktoré ste prečítali</translation>
+<translation id="5521301883748677039">Zmazať skupinu?</translation>
+<translation id="5544011153887687593">Skupina listov tab. <ph name="TAB_INDEX_IN_GROUP" /> of <ph name="NUMBER_OF_TABS_IN_GROUP" />.</translation>
+<translation id="5548760955356983418">Funkcia Handoff vám umožňuje začať prehliadať webovú stránku na tomto zariadení a potom jednoducho pokračovať na počítači Mac. Aktuálne otvorená webová stránka sa zobrazí v doku počítača Mac.
+
+Funkcia Handoff musí byť tiež povolená v časti Všeobecné v nastaveniach a vaše zariadenia musia používať rovnaký účet iCloud.</translation>
 <translation id="5614553682702429503">Uložiť heslo?</translation>
+<translation id="5620163320393916465">Žiadne uložené heslá</translation>
 <translation id="570209299585559496">Predvolené zobrazenie webu môžete zmeniť na verziu pre počítače v nastaveniach a potom v nastaveniach obsahu</translation>
+<translation id="5719777162751096990">Presunúť do skupiny listov</translation>
+<translation id="5869522115854928033">Uložené heslá</translation>
 <translation id="5962477178930921574">Vložiť a vyhľadať</translation>
+<translation id="6163856768888310791">Rozložiť</translation>
+<translation id="6168969409902608220">Názov skupiny</translation>
+<translation id="6192561334825788389">Posunem vpravo můžete procházet v soukromí.</translation>
 <translation id="6233792867654386826">Otvorí zadané URL adresy vo Vivaldi.</translation>
+<translation id="6271462272606946663">Skryť požiadavku mobilná stránka</translation>
+<translation id="6309282378909663947">Heslá z Vivaldi správcu hesiel</translation>
+<translation id="6464648082977038075">Zatvoriť súkromné listy</translation>
+<translation id="6478587527114893588">Zavrieť skupinu</translation>
+<translation id="6527405730445064713">Skupina listov. Rozbalené.</translation>
 <translation id="6532106788206463496">Uložiť zmeny</translation>
+<translation id="6575010608310776688">Pokračovať v súkromnom režime</translation>
+<translation id="6636411080833380839">Odobrať list zo skupiny kariet</translation>
+<translation id="6644512095122093795">Ponúkať ukladanie hesiel</translation>
+<translation id="6666425778700353369">Týmto sa odstráni skupina zo všetkých zariadení prihlásených do <ph name="USER_EMAIL" />.</translation>
 <translation id="6680416467695217368">Prispôsobiť ponuku</translation>
+<translation id="6695835495840050460">Kliknite na „Pridať list do novej skupiny“.</translation>
+<translation id="6708694844902784277">Zmazať skupinu</translation>
 <translation id="6827597288286078054">Súkromné vyhľadávanie</translation>
 <translation id="6851516051005285358">Vyžiadať stránky pre počítač</translation>
+<translation id="6890907822330704077">Skupina listov, <ph name="GROUP_TITLE" />, <ph name="TABS_NUMBER" /> tabs.</translation>
+<translation id="7004032350256606903">Vaša organizácia vyžaduje, aby ste prehliadali súkromne.
+<ph name="BEGIN_LINK" />Zistiť viac<ph name="END_LINK" /></translation>
 <translation id="7307970171564921489">Odomknúť súkromné listy pomocou <ph name="BIOMETRIC_AUTHENITCATION_TYPE" /></translation>
 <translation id="7347289093190902150">Otvoriť v súkromí?</translation>
+<translation id="7363285031331302144">Vytvorte skupinu listov, aby ste mohli organizovať otvorené karty</translation>
+<translation id="7395230742578757172">Otvoriť v novom zoskupení listov</translation>
+<translation id="7424676799308869002">Zachovať skupinu?</translation>
+<translation id="7460698861522306757">Požiadať o mobilnú webovú stránku</translation>
 <translation id="7498234416455752244">Pokračovať v úpravách</translation>
 <translation id="7549299604720382000">Nový súkromný list</translation>
+<translation id="7585610907974664408">Nový súkromný list v skupine</translation>
+<translation id="7661319142491611883">Rozbaliť skupinu listov.</translation>
+<translation id="7706213624515206557">Zobraziť všetky listy v skupine</translation>
+<translation id="7937179923651776879">Prístup k vašim heslám z akejkoľvek aplikácie</translation>
 <translation id="7961015016161918242">Nikdy</translation>
 <translation id="8326104954595890674">Nový súkromný list</translation>
+<translation id="8345989863850359861">Odobrať list a vymazať skupinu?</translation>
+<translation id="8407986162266014185">Zdieľať skupinu</translation>
+<translation id="8412536526999793719">{count, plural,
+        =1 {Pridať list do novej skupiny}
+        other {Pridať listy do novej skupiny}}</translation>
+<translation id="8465550436083180511">Zbaliť skupinu listov.</translation>
+<translation id="8499954848910902473">Potiahnutím doľava môžete prehliadať súkromne.</translation>
+<translation id="8685478989144570078">Skupiny listov</translation>
 <translation id="8756969031206844760">Aktualizovať heslo?</translation>
+<translation id="8852861335827546438">Nová skupina listov</translation>
+<translation id="8951084872625418241">Nový list v skupine</translation>
 <translation id="9042893549633094279">Ochrana súkromia a zabezpečenie</translation>
 <translation id="9094033019050270033">Aktualizovať heslo</translation>
+<translation id="9203116392574189331">Handoff</translation>
+<translation id="944434461715569989">Opustiť skupinu</translation>
+<translation id="959061183386231608">Karty zostanú otvorené na tomto zariadení, ale skupina bude natrvalo odstránená.</translation>
+<translation id="988141524645182168">Iné zariadenia</translation>
 </translationbundle>

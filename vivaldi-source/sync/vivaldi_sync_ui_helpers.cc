@@ -2,21 +2,12 @@
 
 #include "sync/vivaldi_sync_ui_helpers.h"
 
-#include <optional>
-#include <tuple>
-
-#include "base/base64.h"
-#include "base/logging.h"
-#include "components/os_crypt/sync/os_crypt.h"
-#include "components/prefs/pref_service.h"
 #include "components/sync/engine/cycle/sync_cycle_snapshot.h"
 #include "components/sync/engine/sync_status.h"
 #include "components/sync/engine/syncer_error.h"
 #include "components/sync/service/sync_service.h"
 #include "components/sync/service/sync_token_status.h"
 #include "components/sync/service/sync_user_settings.h"
-#include "vivaldi/prefs/vivaldi_gen_pref_enums.h"
-#include "vivaldi/prefs/vivaldi_gen_prefs.h"
 
 namespace vivaldi {
 namespace sync_ui_helpers {
@@ -189,56 +180,6 @@ bool SetEncryptionPassword(syncer::SyncService* sync_service,
   }
 
   return false;
-}
-
-std::string GetBackupEncryptionToken(syncer::SyncService* sync_service) {
-  CHECK(sync_service);
-  std::string packed_key = sync_service->GetEncryptionBootstrapTokenForBackup();
-
-  if (packed_key.empty())
-    return std::string();
-
-  std::string decoded_key;
-  if (!base::Base64Decode(packed_key, &decoded_key)) {
-    DLOG(ERROR) << "Failed to decode explicit passphrase key.";
-    return std::string();
-  }
-
-  std::string decrypted_key;
-  if (!OSCrypt::DecryptString(decoded_key, &decrypted_key)) {
-    DLOG(ERROR) << "Failed to decrypt explicit passphrase key.";
-    return std::string();
-  }
-
-  std::string encoded_key;
-  encoded_key = base::Base64Encode(decrypted_key);
-  return encoded_key;
-}
-
-bool RestoreEncryptionToken(syncer::SyncService* sync_service,
-                            const std::string_view& token) {
-  CHECK(sync_service);
-  if (token.empty())
-    return false;
-
-  std::string decoded_token;
-  if (!base::Base64Decode(token, &decoded_token)) {
-    DLOG(ERROR) << "Failed to decode token.";
-    return false;
-  }
-
-  // The sync engine expects to receive an encrypted token.
-  std::string encrypted_token;
-  if (!OSCrypt::EncryptString(decoded_token, &encrypted_token)) {
-    DLOG(ERROR) << "Failed to encrypt token.";
-    return false;
-  }
-
-  std::string encoded_token;
-  encoded_token = base::Base64Encode(encrypted_token);
-  sync_service->ResetEncryptionBootstrapTokenFromBackup(encoded_token);
-
-  return true;
 }
 }  // namespace sync_ui_helpers
 }  // namespace vivaldi

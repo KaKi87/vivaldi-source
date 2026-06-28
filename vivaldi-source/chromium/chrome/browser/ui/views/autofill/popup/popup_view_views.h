@@ -43,6 +43,7 @@ namespace autofill {
 class AutofillPopupController;
 class AutofillSuggestionController;
 class PopupBnplFootnoteView;
+class PopupPersonalContextNoticeView;
 class PopupSeparatorView;
 class PopupTitleView;
 class PopupWarningView;
@@ -95,10 +96,14 @@ class PopupViewViews : public PopupBaseView,
                                   PopupTitleView*,
                                   PopupWarningView*,
                                   PopupLoadingView*,
-                                  PopupBnplFootnoteView*>;
+                                  PopupBnplFootnoteView*,
+                                  PopupPersonalContextNoticeView*>;
 
   // The maximum width of the popup.
   static constexpr int kAutofillPopupMaxWidth = 456;
+
+  // The width of the @memory popup.
+  static constexpr int kAtMemoryPopupWidth = 320;
 
   // The time it takes for a selected cell to open a sub-popup if it has one.
   static constexpr base::TimeDelta kMouseOpenSubPopupDelay =
@@ -220,6 +225,8 @@ class PopupViewViews : public PopupBaseView,
   // selectable.
   bool HasSelectablePopupRowViewAt(size_t index) const;
 
+  PopupBnplFootnoteView* GetBnplFootnoteView() const;
+
   // Instantiates the content of the popup.
   void InitViews();
 
@@ -270,6 +277,11 @@ class PopupViewViews : public PopupBaseView,
   bool HandleKeyPressEventForAtMemory(
       const input::NativeWebKeyboardEvent& event);
 
+  // Handles horizontal navigation (Left/Right arrows) for the popup, which
+  // may result in opening or closing sub-popups.
+  bool HandlePopupHorizontalNavigation(
+      const input::NativeWebKeyboardEvent& event);
+
   // AutofillPopupView:
   bool HandleKeyPressEvent(const input::NativeWebKeyboardEvent& event) override;
   void OnSuggestionsChanged(bool prefer_prev_arrow_side) override;
@@ -310,7 +322,9 @@ class PopupViewViews : public PopupBaseView,
   // the suggestion's message is being announced to the user by focusing the row
   // view (which must be selectable). Currently, only `PopupWarningView` is
   // supported.
-  void MaybeA11yFocusInformationalSuggestion();
+  // Returns true if the popup survived the accessibility event dispatch, false
+  // if it was destroyed. DO NOT access the popup if it has been destroyed.
+  [[nodiscard]] bool MaybeA11yFocusInformationalSuggestion();
 
   // Controller for this view.
   base::WeakPtr<AutofillPopupController> controller_ = nullptr;
@@ -333,7 +347,7 @@ class PopupViewViews : public PopupBaseView,
   std::optional<size_t> row_with_open_sub_popup_;
 
   // Stores the initial width of the popup to maintain when switching tabs.
-  std::optional<int> tabbed_pane_initial_width_ = std::nullopt;
+  std::optional<int> tabbed_pane_initial_width_;
 
   std::vector<RowPointer> rows_;
   const std::optional<const AutofillPopupView::SearchBarConfig>

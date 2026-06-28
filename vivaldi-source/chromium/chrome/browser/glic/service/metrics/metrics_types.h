@@ -124,7 +124,39 @@ enum class ResponseSegmentation {
   kZeroStateAutoSummarizeAttachedAudio = 106,
   kZeroStateAutoSummarizeDetachedText = 107,
   kZeroStateAutoSummarizeDetachedAudio = 108,
-  kMaxValue = kZeroStateAutoSummarizeDetachedAudio,
+  kUniversalCartAttachedText = 109,
+  kUniversalCartAttachedAudio = 110,
+  kUniversalCartDetachedText = 111,
+  kUniversalCartDetachedAudio = 112,
+  kExperimentalTriggeringAttachedText = 113,
+  kExperimentalTriggeringAttachedAudio = 114,
+  kExperimentalTriggeringDetachedText = 115,
+  kExperimentalTriggeringDetachedAudio = 116,
+  kPasswordChangeAttachedText = 117,
+  kPasswordChangeAttachedAudio = 118,
+  kPasswordChangeDetachedText = 119,
+  kPasswordChangeDetachedAudio = 120,
+  kAutofillAttachedText = 121,
+  kAutofillAttachedAudio = 122,
+  kAutofillDetachedText = 123,
+  kAutofillDetachedAudio = 124,
+  kToolbarButtonAttachedText = 125,
+  kToolbarButtonAttachedAudio = 126,
+  kToolbarButtonDetachedText = 127,
+  kToolbarButtonDetachedAudio = 128,
+  kIndigoPageActionAttachedText = 129,
+  kIndigoPageActionAttachedAudio = 130,
+  kIndigoPageActionDetachedText = 131,
+  kIndigoPageActionDetachedAudio = 132,
+  kWebDragDropAttachedText = 133,
+  kWebDragDropAttachedAudio = 134,
+  kWebDragDropDetachedText = 135,
+  kWebDragDropDetachedAudio = 136,
+  kPromotionPageAttachedText = 137,
+  kPromotionPageAttachedAudio = 138,
+  kPromotionPageDetachedText = 139,
+  kPromotionPageDetachedAudio = 140,
+  kMaxValue = kPromotionPageDetachedAudio,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicResponseSegmentation)
 
@@ -136,6 +168,7 @@ enum class ModeOffset : int {
   kMaxValue = kAudioDetached,
 };
 
+// LINT.IfChange(DaisyChainSource)
 enum class DaisyChainSource {
   kUnknown = 0,
   kGlicContents = 1,
@@ -144,8 +177,11 @@ enum class DaisyChainSource {
   kNewTab = 4,
   kWebHandoff = 5,
   kAutoOpenPdf = 6,
-  kMaxValue = kAutoOpenPdf,
+  kLastActiveInstance = 7,
+  kBookmark = 8,
+  kMaxValue = kBookmark,
 };
+// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/histograms.xml:Source)
 
 std::string GetDaisyChainSourceString(DaisyChainSource source);
 

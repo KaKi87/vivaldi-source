@@ -18,6 +18,7 @@
 #include "components/request_filter/request_filter.h"
 #include "components/request_filter/request_filter_registry.h"
 #include "content/public/browser/content_browser_client.h"
+#include "content/public/browser/global_request_id.h"
 #include "net/base/completion_once_callback.h"
 #include "services/network/public/mojom/web_transport.mojom.h"
 #include "services/network/public/mojom/websocket.mojom-forward.h"
@@ -71,8 +72,33 @@ class RequestFilterManager : public KeyedService, public RequestFilterRegistry {
     // Remove a Proxy. The removed proxy is deleted upon this call.
     void RemoveProxy(Proxy* proxy);
 
+    // Associates `proxy` with `id`. `proxy` must already be registered within
+    // this ProxySet.
+    //
+    // Each Proxy may be responsible for multiple requests, but any given
+    // request identified by `id` must be associated with only a single proxy.
+    //
+    // Returns true on success, or false if `id` is already associated with a
+    // proxy.
+    [[nodiscard]] bool AssociateProxyWithRequestId(
+        Proxy* proxy,
+        const content::GlobalRequestID& id);
+
+    // Disassociates `proxy` with `id`. `proxy` must already be registered
+    // within this ProxySet.
+    void DisassociateProxyWithRequestId(Proxy* proxy,
+                                        const content::GlobalRequestID& id);
+
+    Proxy* GetProxyFromRequestId(const content::GlobalRequestID& id);
+
    private:
     std::set<std::unique_ptr<Proxy>, base::UniquePtrComparator> proxies_;
+
+    // Bi-directional mapping between request ID and Proxy for faster lookup.
+    std::map<content::GlobalRequestID, raw_ptr<Proxy, CtnExperimental>>
+        request_id_to_proxy_map_;
+    std::map<Proxy*, std::set<content::GlobalRequestID>>
+        proxy_to_request_id_map_;
   };
 
   class RequestIDGenerator {

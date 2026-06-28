@@ -64,9 +64,11 @@ IdentityDialogController::IdentityDialogController(
 
   if (!base::FeatureList::IsEnabled(
           segmentation_platform::features::kSegmentationPlatformFedCmUser)) {
+    passive_dialog_volume_ = PassiveDialogVolume::kDefault;
     return;
   }
   if (profile->IsOffTheRecord()) {
+    passive_dialog_volume_ = PassiveDialogVolume::kDefault;
     return;
   }
 
@@ -82,6 +84,15 @@ IdentityDialogController::IdentityDialogController(
   if (optimization_guide_decider_) {
     optimization_guide_decider_->RegisterOptimizationTypes(
         {optimization_guide::proto::OptimizationType::FEDCM_CLICKTHROUGH_RATE});
+  }
+
+  if (segmentation_platform_service_) {
+    RequestUiVolumeRecommendation(
+        base::BindOnce(&IdentityDialogController::
+                           OnRequestUiVolumeRecommendationResultReceived,
+                       weak_ptr_factory_.GetWeakPtr()));
+  } else {
+    passive_dialog_volume_ = PassiveDialogVolume::kDefault;
   }
 }
 
@@ -117,7 +128,7 @@ void IdentityDialogController::OnActorTaskStateChanged(actor::ActorTask& task) {
 void IdentityDialogController::UpdateTaskId(actor::TaskId task_id) {
   acting_task_id_ = task_id;
   if (account_view_) {
-    account_view_->SetCanShowWidget(acting_task_id_.is_null());
+    account_view_->SetCanShowUi(acting_task_id_.is_null());
     if (acting_task_id_.is_null() && did_invoke_show_ui_) {
       did_show_ui_ = true;
     }
@@ -140,19 +151,19 @@ int IdentityDialogController::GetBrandIconIdealSize(
   return AccountSelectionView::GetBrandIconIdealSize(rp_mode);
 }
 
-void IdentityDialogController::ShouldShowAccountsPassiveDialog(
-    ShouldShowAccountsPassiveDialogCallback cb) {
-  // If widget mode and segmentation platform feature flag is enabled, make the
-  // call to segmentation platform service for a UI volume recommendation.
-  if (base::FeatureList::IsEnabled(
-          segmentation_platform::features::kSegmentationPlatformFedCmUser)) {
-    RequestUiVolumeRecommendation(
-        base::BindOnce(&IdentityDialogController::
-                           OnRequestUiVolumeRecommendationResultReceived,
-                       weak_ptr_factory_.GetWeakPtr(), std::move(cb)));
+void IdentityDialogController::GetPassiveDialogVolume(
+    GetPassiveDialogVolumeCallback cb) {
+  if (passive_dialog_volume_.has_value()) {
+    std::move(cb).Run(*passive_dialog_volume_);
     return;
   }
-  std::move(cb).Run(true);
+  CHECK(!passive_dialog_volume_callback_);
+  passive_dialog_volume_callback_ = std::move(cb);
+}
+
+content::IdentityRequestDialogController::PassiveDialogVolume
+IdentityDialogController::GetPassiveDialogVolume() const {
+  return passive_dialog_volume_.value_or(PassiveDialogVolume::kDefault);
 }
 
 bool IdentityDialogController::ShowAccountsDialog(
@@ -423,20 +434,6 @@ void IdentityDialogController::OnAccountsDisplayed() {
   std::move(on_accounts_displayed_).Run();
 }
 
-void IdentityDialogController::OnFlowCompleted(
-    content::webid::FederatedLoginResult result) {
-  // OnFlowCompleted() may be invoked while the WebContents is being destroyed,
-  // so be careful when trying to access the Page.
-  if (rp_web_contents_->IsBeingDestroyed()) {
-    return;
-  }
-  content::webid::FederatedEmbedderLoginRequest* embedder_login_request =
-      content::webid::FederatedEmbedderLoginRequest::Get(rp_web_contents_);
-  if (embedder_login_request) {
-    embedder_login_request->OnFederatedResultReceived(result);
-  }
-}
-
 void IdentityDialogController::OnAccountSelected(
     const GURL& idp_config_url,
     const std::string& account_id,
@@ -599,8 +596,8 @@ bool IdentityDialogController::TrySetAccountView() {
     return false;
   }
   account_view_ = std::make_unique<webid::FedCmAccountSelectionView>(this, tab);
-  account_view_->SetCanShowWidget(ShouldShowFedCmUi());
 #endif
+  account_view_->SetCanShowUi(ShouldShowFedCmUi());
   return true;
 }
 
@@ -653,7 +650,6 @@ void IdentityDialogController::RequestUiVolumeRecommendation(
 }
 
 void IdentityDialogController::OnRequestUiVolumeRecommendationResultReceived(
-    ShouldShowAccountsPassiveDialogCallback cb,
     const segmentation_platform::ClassificationResult&
         ui_volume_recommendation) {
   training_request_id_ = ui_volume_recommendation.request_id;
@@ -661,14 +657,16 @@ void IdentityDialogController::OnRequestUiVolumeRecommendationResultReceived(
   // Default to showing loud UI if the prediction fails for any reason.
   if (ui_volume_recommendation.status !=
           segmentation_platform::PredictionStatus::kSucceeded ||
+      ui_volume_recommendation.ordered_labels.empty() ||
       ui_volume_recommendation.ordered_labels[0] == "FedCmUserLoud") {
-    std::move(cb).Run(true);
-    return;
+    passive_dialog_volume_ = PassiveDialogVolume::kDefault;
+  } else {
+    passive_dialog_volume_ = PassiveDialogVolume::kAmbient;
   }
 
-  // TODO(crbug.com/380416872): Integrate with quiet UI. Until then, dismiss the
-  // UI.
-  std::move(cb).Run(false);
+  if (passive_dialog_volume_callback_) {
+    std::move(passive_dialog_volume_callback_).Run(*passive_dialog_volume_);
+  }
 }
 
 void IdentityDialogController::CollectTrainingData(UserAction user_action) {

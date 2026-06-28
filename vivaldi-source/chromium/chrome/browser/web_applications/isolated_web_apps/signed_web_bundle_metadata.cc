@@ -19,6 +19,7 @@
 #include "chrome/browser/web_applications/isolated_web_apps/install/non_installed_bundle_inspection_context.h"
 #include "chrome/browser/web_applications/isolated_web_apps/jobs/prepare_install_info_job.h"
 #include "chrome/browser/web_applications/isolated_web_apps/runtime_data/chrome_iwa_runtime_data_provider.h"
+#include "chrome/browser/web_applications/model/dialog_image_info.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_contents/web_app_data_retriever.h"
@@ -150,7 +151,8 @@ void SignedWebBundleMetadata::Create(
                   install_info.GetIconBitmapsForSecureSurfaces(),
                   user_install_data
                       ? std::optional(user_install_data->enterprise_name)
-                      : std::nullopt);
+                      : std::nullopt,
+                  install_info.iwa_update_manifest_url);
             }));
       },
       url_info, source,
@@ -165,9 +167,11 @@ SignedWebBundleMetadata SignedWebBundleMetadata::CreateForTesting(
     const std::u16string& app_name,
     const IwaVersion& version,
     DialogImageInfo image_info,
-    const std::optional<std::string>& enterprise_name) {
+    const std::optional<std::string>& enterprise_name,
+    const std::optional<GURL>& update_manifest_url) {
   return SignedWebBundleMetadata(url_info, source, app_name, version,
-                                 std::move(image_info), enterprise_name);
+                                 std::move(image_info), enterprise_name,
+                                 update_manifest_url);
 }
 
 SignedWebBundleMetadata::SignedWebBundleMetadata(
@@ -176,12 +180,14 @@ SignedWebBundleMetadata::SignedWebBundleMetadata(
     const std::u16string& app_name,
     const IwaVersion& version,
     DialogImageInfo image_info,
-    const std::optional<std::string>& enterprise_name)
+    const std::optional<std::string>& enterprise_name,
+    const std::optional<GURL>& update_manifest_url)
     : url_info_(url_info),
       app_name_(app_name),
       version_(version),
       image_info_(std::move(image_info)),
-      enterprise_name_(enterprise_name) {}
+      enterprise_name_(enterprise_name),
+      update_manifest_url_(update_manifest_url) {}
 
 SignedWebBundleMetadata::~SignedWebBundleMetadata() = default;
 
@@ -194,7 +200,8 @@ SignedWebBundleMetadata& SignedWebBundleMetadata::operator=(
 bool SignedWebBundleMetadata::operator==(
     const SignedWebBundleMetadata& other) const {
   return url_info_ == other.url_info_ && app_name_ == other.app_name_ &&
-         version_ == other.version_ && image_info_ == other.image_info_;
+         version_ == other.version_ && image_info_ == other.image_info_ &&
+         update_manifest_url_ == other.update_manifest_url_;
 }
 
 }  // namespace web_app

@@ -1,20 +1,19 @@
-
 import("//build/config/win/manifest.gni")
 
 assert(is_win)
 
-dpi_aware_manifest = "//vivaldi/installer/mini_installer/setup/setup.exe.manifest"
+dpi_aware_manifest =
+    "//vivaldi/installer/mini_installer/setup/setup.exe.manifest"
 
 windows_manifest("dpi_aware_exe_manifest") {
-  sources = [
-    dpi_aware_manifest
-  ]
+  sources = [ dpi_aware_manifest ]
 }
 
 action("vivaldi_release") {
   script = "//vivaldi/scripts/generate_chrome_release.py"
 
-  chrome_release_file = "//vivaldi/installer/mini_installer/mini_installer/chrome.release"
+  chrome_release_file =
+      "//vivaldi/installer/mini_installer/mini_installer/chrome.release"
   vivaldi_release_file = "//vivaldi/installer/win/vivaldi.release"
   vivaldi_release_target = "$root_gen_dir/vivaldi/vivaldi.release"
 
@@ -24,23 +23,21 @@ action("vivaldi_release") {
     vivaldi_release_file,
   ]
 
-  outputs = [
-    vivaldi_release_target,
-  ]
+  outputs = [ vivaldi_release_target ]
 
   args = rebase_path([
-    chrome_release_file,
-    vivaldi_release_file,
-    vivaldi_release_target,
-  ], root_build_dir)
+                       chrome_release_file,
+                       vivaldi_release_file,
+                       vivaldi_release_target,
+                     ],
+                     root_build_dir)
 }
 
 generated_file("language_names_include") {
-  languages_json = read_file(
-      "//vivaldi/vivapp/src/constants/language-list.json", "json"
-  )
+  languages_json =
+      read_file("//vivaldi/vivapp/src/constants/language-list.json", "json")
   languages = languages_json.languages
-  lines = ["#define DO_VIVALDI_LANGUAGE_NAMES \\"]
+  lines = [ "#define DO_VIVALDI_LANGUAGE_NAMES \\" ]
   foreach(tuple, languages.list) {
     code = tuple[0]
     english_name = tuple[1]
@@ -52,7 +49,7 @@ generated_file("language_names_include") {
     }
     lines += [ "  HANDLE_VIVALDI_LANGUAGE_NAME(\"$code\", \"$name\") \\" ]
   }
-  lines += [""]
+  lines += [ "" ]
   contents = lines
   outputs = [ "$target_gen_dir/vivaldi_install_language_names.h" ]
   output_conversion = "list lines"

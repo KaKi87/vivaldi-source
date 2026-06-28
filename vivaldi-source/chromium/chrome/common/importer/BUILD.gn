@@ -65,6 +65,10 @@ mojom("interfaces") {
         {
           mojom = "chrome.mojom.ImportedTabEntry"
           cpp = "::ImportedTabEntry"
+        },
+        {
+          mojom = "chrome.mojom.ImportedRawPasswordForm"
+          cpp = "::ImportedRawPasswordForm"
         }
       ]
       traits_headers = [
@@ -77,6 +81,7 @@ mojom("interfaces") {
         "//importer/imported_notes_entry.h",
         "//importer/imported_speeddial_entry.h",
         "//importer/imported_tab_entry.h",
+        "//importer/imported_raw_password_form.h",
       ]
       traits_private_headers = [
         "profile_import_process_param_mojom_traits.h",

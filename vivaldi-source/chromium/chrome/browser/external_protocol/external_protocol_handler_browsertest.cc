@@ -2,17 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/external_protocol/external_protocol_handler.h"
+
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_features.h"
-#include "chrome/browser/external_protocol/external_protocol_handler.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/shell_integration.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/policy/core/browser/url_list/url_list_policy_pref_names.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_context.h"
@@ -148,7 +150,7 @@ class TabAddedRemovedObserver : public TabStripModelObserver {
   base::RunLoop loop_;
 };
 
-// Flaky on Mac: https://crbug.com/1143762:
+// Flaky on Mac: https://crbug.com/40728467:
 #if BUILDFLAG(IS_MAC)
 #define MAYBE_AutoCloseTabOnNonWebProtocolNavigation DISABLED_AutoCloseTabOnNonWebProtocolNavigation
 #else
@@ -164,7 +166,7 @@ IN_PROC_BROWSER_TEST_F(ExternalProtocolHandlerBrowserTest,
   EXPECT_EQ(browser()->tab_strip_model()->count(), 1);
 }
 
-// Flaky on Mac: https://crbug.com/1143762:
+// Flaky on Mac: https://crbug.com/40728467:
 #if BUILDFLAG(IS_MAC)
 #define MAYBE_ProtocolLaunchEmitsConsoleLog \
   DISABLED_ProtocolLaunchEmitsConsoleLog

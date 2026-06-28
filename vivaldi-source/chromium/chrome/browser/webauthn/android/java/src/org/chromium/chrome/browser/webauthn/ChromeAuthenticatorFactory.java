@@ -25,7 +25,12 @@ public class ChromeAuthenticatorFactory extends AuthenticatorFactory {
                 Optional.ofNullable(WebContentsStatics.fromRenderFrameHost(renderFrameHost))
                         .map(Profile::fromWebContents)
                         .map(UserPrefs::get)
-                        .map(AutofillClientProviderUtils::getAndroidAutofillFrameworkAvailability)
+                        // Vivaldi VAB-11691: passkeys ignore the platform-autofill setting.
+                        .map(
+                                prefs ->
+                                        AutofillClientProviderUtils
+                                                .getAndroidAutofillFrameworkAvailability(
+                                                        prefs, /* forWebauthn= */ true))
                         .orElse(AndroidAutofillAvailabilityStatus.SETTING_TURNED_OFF);
         WebauthnModeProvider.getInstance()
                 .setGlobalWebauthnMode(

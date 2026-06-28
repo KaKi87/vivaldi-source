@@ -12,7 +12,6 @@ namespace browser_sync {
 
 std::unique_ptr<syncer::DataTypeController>
 CommonControllerBuilder::CreateNotesDataTypeController() {
-
   // Notes sync is enabled by default.  Register unless explicitly
   // disabled.
   if (!(vivaldi::IsVivaldiRunning() || vivaldi::ForcedVivaldiRunning()))

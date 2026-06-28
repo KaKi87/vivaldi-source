@@ -52,7 +52,6 @@ action("edge_version") {
   ]
 }
 
-
 action("chrome_spoof_version") {
   spoof_version_file = "//vivaldi/SPOOF_CHROME"
   spoof_version_header = "$target_gen_dir/base/chrome_spoof_version.h"

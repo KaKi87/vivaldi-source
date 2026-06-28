@@ -32,19 +32,20 @@
 
 #include "src/tint/api/common/binding_point.h"
 #include "src/tint/lang/core/ir/module.h"
-#include "src/tint/lang/core/ir/transform/array_length_from_immediate.h"
-#include "src/tint/lang/core/ir/transform/array_length_from_uniform.h"
+#include "src/tint/lang/core/ir/transform/array_length_from.h"
 #include "src/tint/lang/core/ir/transform/binary_polyfill.h"
 #include "src/tint/lang/core/ir/transform/binding_remapper.h"
 #include "src/tint/lang/core/ir/transform/builtin_polyfill.h"
 #include "src/tint/lang/core/ir/transform/builtin_scalarize.h"
 #include "src/tint/lang/core/ir/transform/change_immediate_to_uniform.h"
+#include "src/tint/lang/core/ir/transform/collapse_subgroup_min_max.h"
 #include "src/tint/lang/core/ir/transform/conversion_polyfill.h"
 #include "src/tint/lang/core/ir/transform/demote_to_helper.h"
 #include "src/tint/lang/core/ir/transform/multiplanar_external_texture.h"
 #include "src/tint/lang/core/ir/transform/prepare_immediate_data.h"
 #include "src/tint/lang/core/ir/transform/preserve_padding.h"
 #include "src/tint/lang/core/ir/transform/prevent_infinite_loops.h"
+#include "src/tint/lang/core/ir/transform/propagate_buffer_sizes.h"
 #include "src/tint/lang/core/ir/transform/remove_continue_in_switch.h"
 #include "src/tint/lang/core/ir/transform/remove_terminator_args.h"
 #include "src/tint/lang/core/ir/transform/rename_conflicts.h"
@@ -65,6 +66,7 @@
 #include "src/tint/lang/msl/writer/raise/binary_polyfill.h"
 #include "src/tint/lang/msl/writer/raise/builtin_polyfill.h"
 #include "src/tint/lang/msl/writer/raise/convert_print_to_log.h"
+#include "src/tint/lang/msl/writer/raise/decompose_buffer.h"
 #include "src/tint/lang/msl/writer/raise/fix_type_layout.h"
 #include "src/tint/lang/msl/writer/raise/module_constant.h"
 #include "src/tint/lang/msl/writer/raise/module_scope_vars.h"
@@ -81,6 +83,10 @@ Result<RaiseResult> Raise(core::ir::Module& module, const Options& options) {
         core::ir::transform::SubstituteOverrides(module, options.substitute_overrides_config));
 
     TINT_CHECK_RESULT(raise::ValidateSubgroupMatrix(module));
+
+    if (options.workarounds.collapse_subgroup_min_max) {
+        TINT_CHECK_RESULT(core::ir::transform::CollapseSubgroupMinMax(module));
+    }
 
     RaiseResult raise_result;
 
@@ -132,6 +138,9 @@ Result<RaiseResult> Raise(core::ir::Module& module, const Options& options) {
     TINT_CHECK_RESULT_UNWRAP(immediate_data_layout, core::ir::transform::PrepareImmediateData(
                                                         module, immediate_data_config));
     TINT_CHECK_RESULT(core::ir::transform::BindingRemapper(module, remapper_data));
+
+    // Must come before robustness.
+    TINT_CHECK_RESULT(core::ir::transform::PropagateBufferSizes(module));
 
     if (!options.disable_robustness) {
         core::ir::transform::RobustnessConfig config{};
@@ -200,6 +209,8 @@ Result<RaiseResult> Raise(core::ir::Module& module, const Options& options) {
             array_length_from_immediate_result.needs_storage_buffer_sizes;
     }
 
+    TINT_CHECK_RESULT(raise::DecomposeBuffer(module));
+
     if (!options.disable_workgroup_init) {
         TINT_CHECK_RESULT(core::ir::transform::ZeroInitWorkgroupMemory(module));
     }
@@ -218,7 +229,8 @@ Result<RaiseResult> Raise(core::ir::Module& module, const Options& options) {
 
     TINT_CHECK_RESULT(raise::ShaderIO(
         module, raise::ShaderIOConfig{immediate_data_layout, options.emit_vertex_point_size,
-                                      options.fixed_sample_mask, options.depth_range_offsets}));
+                                      options.polyfill_sample_mask, options.fixed_sample_mask,
+                                      options.depth_range_offsets}));
 
     raise::FixTypeLayoutOptions fix_type_layout_options{
         .replace_bool_with_u32 = options.workarounds.replace_workgroup_bool_with_u32,
@@ -266,7 +278,13 @@ Result<RaiseResult> Raise(core::ir::Module& module, const Options& options) {
 
     TINT_CHECK_RESULT(raise::ModuleScopeVars(module));
 
-    TINT_CHECK_RESULT(raise::BinaryPolyfill(module));
+    {
+        raise::BinaryPolyfillConfig config{
+            .fix_u32_div_mod = options.workarounds.fix_u32_div_mod,
+        };
+        TINT_CHECK_RESULT(raise::BinaryPolyfill(module, config));
+    }
+
     TINT_CHECK_RESULT(raise::BuiltinPolyfill(
         module, {
                     .polyfill_unpack_2x16_snorm = options.workarounds.polyfill_unpack_2x16_snorm,
@@ -279,9 +297,7 @@ Result<RaiseResult> Raise(core::ir::Module& module, const Options& options) {
     TINT_CHECK_RESULT(core::ir::transform::SignedIntegerPolyfill(module, signed_integer_cfg));
 
     core::ir::transform::BuiltinScalarizeConfig scalarize_config{
-        .scalarize_clamp = options.workarounds.scalarize_max_min_clamp,
-        .scalarize_max = options.workarounds.scalarize_max_min_clamp,
-        .scalarize_min = options.workarounds.scalarize_max_min_clamp,
+        .scalarize_min_max_clamp = options.workarounds.scalarize_max_min_clamp,
     };
     TINT_CHECK_RESULT(core::ir::transform::BuiltinScalarize(module, scalarize_config));
 

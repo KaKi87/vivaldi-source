@@ -113,7 +113,8 @@ public class ChildProcessLauncherHelperTest {
                 /* isExternalSandboxedService= */ false,
                 LibraryProcessType.PROCESS_CHILD,
                 /* bindToCallerCheck= */ true,
-                /* ignoreVisibilityForImportance= */ false);
+                /* ignoreVisibilityForImportance= */ false,
+                /* forceNativeSandboxedService= */ false);
         testWarmUpImpl();
     }
 
@@ -459,8 +460,7 @@ public class ChildProcessLauncherHelperTest {
                                 /* boostForPendingViews= */ false,
                                 /* boostForLoading= */ false,
                                 isSpareRenderer,
-                                ChildProcessImportance.NORMAL,
-                                /* hasActiveClients= */ false);
+                                ChildProcessImportance.NORMAL);
                     }
                 });
     }

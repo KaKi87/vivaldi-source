@@ -141,15 +141,12 @@ class TabAndroid : public tabs::TabInterface,
   int GetLaunchType() const;
   int GetUserAgent() const;
 
-  // Return the tab title.
-  std::u16string GetTitle() const;
-
-  // Return the tab url.
-  GURL GetURL() const;
-
   // Return whether the tab is currently visible and the user can interact with
   // it.
   bool IsUserInteractable() const;
+
+  // Return whether the tab is currently being used for offscreen rendering.
+  bool IsOffscreenRendering() const;
 
   sync_sessions::SyncedTabDelegate* GetSyncedTabDelegate() const;
 
@@ -201,6 +198,8 @@ class TabAndroid : public tabs::TabInterface,
   // Methods called from Java via JNI -----------------------------------------
 
   void Destroy();
+  void AttachWebContentsToContentLayer(JNIEnv* env,
+                                       content::WebContents* web_contents);
   bool HasParentCollection();
   void InitWebContents(
       JNIEnv* env,
@@ -210,6 +209,8 @@ class TabAndroid : public tabs::TabInterface,
       const base::android::JavaRef<jobject>& jweb_contents_delegate,
       const base::android::JavaRef<jobject>& jcontext_menu_populator_factory);
   void InitializeAutofillIfNecessary();
+  void GetMemoryUsageBytes(JNIEnv* env,
+                           const base::android::JavaRef<jobject>& j_callback);
   void UpdateDelegates(
       JNIEnv* env,
       const base::android::JavaRef<jobject>& jweb_contents_delegate,
@@ -255,6 +256,11 @@ class TabAndroid : public tabs::TabInterface,
   // TabInterface overrides:
   base::WeakPtr<tabs::TabInterface> GetWeakPtr() override;
   content::WebContents* GetContents() const override;
+  void LoadIfNeeded() override;
+  std::u16string GetTitle() const override;
+  GURL GetURL() const override;
+  base::Time GetLastActiveTime() const override;
+  Profile* GetProfile() const override;
   // This implementation of close immediately closes the tab without undo
   // support and without a warning dialog when closing the last tab in a tab
   // group. For more granular control it is strongly recommended to close tabs

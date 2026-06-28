@@ -106,7 +106,7 @@ void HandleSignoutForSnackbar(
   ProfileIOS* profile = browser->GetProfile()->GetOriginalProfile();
   AuthenticationService* auth_service =
       AuthenticationServiceFactory::GetForProfile(profile);
-  if (!auth_service->HasPrimaryIdentity(signin::ConsentLevel::kSignin)) {
+  if (!auth_service->HasPrimaryIdentity()) {
     return;
   }
 
@@ -291,10 +291,13 @@ void CompletePostSignInActions(PostSignInActionSet post_signin_actions,
                                             accessPoint);
   ChangeProfileContinuation authenticationFlowContinuation =
       [self authenticationFlowContinuation];
+  ChangeProfileContinuation secondContinuation =
+      requestHelperContinuation ? ChainChangeProfileContinuations(
+                                      std::move(requestHelperContinuation),
+                                      std::move(postSignInContinuation))
+                                : std::move(postSignInContinuation);
   ChangeProfileContinuation fullContinuation = ChainChangeProfileContinuations(
-      std::move(authenticationFlowContinuation),
-      ChainChangeProfileContinuations(std::move(requestHelperContinuation),
-                                      std::move(postSignInContinuation)));
+      std::move(authenticationFlowContinuation), std::move(secondContinuation));
   [_changeProfileHandler changeProfile:profileName
                               forScene:sceneState
                                 reason:reason

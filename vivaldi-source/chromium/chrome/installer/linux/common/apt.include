@@ -50,7 +50,7 @@ Types: deb
 URIs: https://repo.vivaldi.com/@@channel/deb/
 Suites: stable
 Components: main
-Architectures: amd64 arm64
+Architectures: @@architecture
 Signed-By: $GPG_FILE
 EOF
 }

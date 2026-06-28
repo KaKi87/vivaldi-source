@@ -23,7 +23,6 @@
 #include "chrome/browser/extensions/menu_manager.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/global_error/global_error_service.h"
 #include "chrome/browser/ui/global_error/global_error_service_factory.h"
@@ -50,8 +49,8 @@
 #include "extensions/common/icons/extension_icon_set.h"
 #include "extensions/common/manifest_constants.h"
 #include "extensions/common/manifest_handlers/icons_handler.h"
+#include "extensions/common/manifest_handlers/manifest_url_handlers.h"
 #include "extensions/common/manifest_handlers/options_page_info.h"
-#include "extensions/common/manifest_url_handlers.h"
 #include "extensions/tools/vivaldi_tools.h"
 #include "extensions/vivaldi_browser_component_wrapper.h"
 #include "skia/ext/image_operations.h"
@@ -174,8 +173,8 @@ void UpdateSidePanelInfoIfExists(
 
   vivaldi::extension_action_utils::SidePanelInfo info_param;
 
-  auto* side_panel_info =
-      static_cast<SidePanelInfo*>(extension->GetManifestData("side_panel"));
+  auto* side_panel_info = static_cast<const SidePanelInfo*>(
+      extension->GetManifestData("side_panel"));
 
   info_param.url = extension->GetResourceURL("").spec();
 

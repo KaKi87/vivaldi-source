@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,29 +7,40 @@
 
 #include <stddef.h>
 
+#include <array>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "base/time/tick_clock.h"
-
-namespace crypto {
-class SymmetricKey;
-}  // namespace crypto
+#include "crypto/subtle_passkey.h"
 
 namespace syncer {
 
 class KeyDerivationParams;
+class NigoriKeyBag;
+class RequiredPassphraseVerifierImpl;
 
-// TODO(crbug.com/922900): inline kNigoriKeyName into Nigori::Permute().
-extern const char kNigoriKeyName[];
+// A passkey class used to restrict the construction of Nigori objects to
+// authorized classes.
+class NigoriPassKey {
+ public:
+  static NigoriPassKey ForTesting();
+
+ private:
+  friend class NigoriKeyBag;
+  friend class RequiredPassphraseVerifierImpl;
+
+  NigoriPassKey() = default;
+};
 
 // A (partial) implementation of Nigori, a protocol to securely store secrets in
 // the cloud. This implementation does not support server authentication or
 // assisted key derivation.
 //
-// To store secrets securely, use the |Permute| method to derive a lookup name
-// for your secret (basically a map key), and |Encrypt| and |Decrypt| to store
-// and retrieve the secret.
+// To store secrets securely, use the `GetKeyName` method to derive a lookup
+// name for your secret (basically a map key), and `Encrypt` and `Decrypt` to
+// store and retrieve the secret.
 //
 // https://www.cl.cam.ac.uk/~drt24/nigori/nigori-overview.pdf
 class Nigori {
@@ -40,31 +51,31 @@ class Nigori {
 
   virtual ~Nigori();
 
-  // Initialize by deriving keys based on the given |key_derivation_params| and
-  // |password|. The key derivation method must not be UNSUPPORTED. The return
+  // Initialize by deriving keys based on the given `key_derivation_params` and
+  // `password`. The key derivation method must not be UNSUPPORTED. The return
   // value is guaranteed to be non-null.
   static std::unique_ptr<Nigori> CreateByDerivation(
+      NigoriPassKey pass_key,
       const KeyDerivationParams& key_derivation_params,
       const std::string& password);
 
   // Initialize by importing the given keys instead of deriving new ones.
   // Returns null in case of failure.
   static std::unique_ptr<Nigori> CreateByImport(
+      NigoriPassKey pass_key,
       const std::string& user_key,
       const std::string& encryption_key,
       const std::string& mac_key);
 
-  // Derives a secure lookup name from |type| and |name|. If |hostname|,
-  // |username| and |password| are kept constant, a given |type| and |name| pair
-  // always yields the same |permuted| value. Note that |permuted| will be
-  // Base64 encoded.
-  bool Permute(Type type, const std::string& name, std::string* permuted) const;
+  // Derives a secure lookup name for `this`, computed as
+  // Permute[Kenc,Kmac](Nigori::Password || "nigori-key") as per Nigori
+  // protocol. The return value will be Base64 encoded.
+  std::string GetKeyName() const;
 
-  // Encrypts |value|. Note that on success, |encrypted| will be Base64
-  // encoded.
-  bool Encrypt(const std::string& value, std::string* encrypted) const;
+  // Encrypts `value`. Note that the returned value is Base64 encoded.
+  std::string Encrypt(const std::string& value) const;
 
-  // Decrypts |value| into |decrypted|. It is assumed that |value| is Base64
+  // Decrypts `value` into `decrypted`. It is assumed that `value` is Base64
   // encoded.
   bool Decrypt(const std::string& value, std::string* decrypted) const;
 
@@ -81,21 +92,26 @@ class Nigori {
 
   static std::string GenerateScryptSalt();
 
+  // Allows tests to use faster key derivation with Scrypt derivation method.
+  static void SetUseScryptCostParameterForTesting(bool use_low_scrypt_cost);
+
   // Exposed for tests.
-  static const size_t kIvSize = 16;
+  static constexpr size_t kIvSize = 16;
 
  private:
   struct Keys {
     Keys();
     ~Keys();
 
+    static inline constexpr size_t kKeySizeBytes = 16;
+
     // TODO(vitaliii): user_key isn't used any more, but legacy clients will
     // fail to import a nigori node without one. We preserve it for the sake of
     // those clients, but it should be removed once enough clients have upgraded
     // to code that doesn't enforce its presence.
-    std::unique_ptr<crypto::SymmetricKey> user_key;
-    std::unique_ptr<crypto::SymmetricKey> encryption_key;
-    std::unique_ptr<crypto::SymmetricKey> mac_key;
+    std::optional<std::array<uint8_t, kKeySizeBytes>> user_key;
+    std::array<uint8_t, kKeySizeBytes> encryption_key;
+    std::array<uint8_t, kKeySizeBytes> mac_key;
 
     void InitByDerivationUsingPbkdf2(const std::string& password);
     void InitByDerivationUsingScrypt(const std::string& salt,
@@ -108,9 +124,12 @@ class Nigori {
   Nigori();
 
   static std::unique_ptr<Nigori> CreateByDerivationImpl(
+      NigoriPassKey pass_key,
       const KeyDerivationParams& key_derivation_params,
       const std::string& password,
       const base::TickClock* tick_clock);
+
+  static crypto::SubtlePassKey MakeCryptoPassKey();
 
   Keys keys_;
 };

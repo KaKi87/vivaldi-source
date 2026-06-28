@@ -40,11 +40,14 @@ import org.chromium.chrome.browser.contextualsearch.ResolvedSearchTerm.CardTag;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneOverlayLayer;
+import org.chromium.chrome.browser.overlay_panel.PanelState;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
 import org.chromium.chrome.browser.toolbar.top.ToolbarLayout;
 import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeController;
+import org.chromium.chrome.browser.ui.side_panel.AndroidSidePanelEnabledFn;
+import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.AnchorSide;
 import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.SideUiSpecs;
 import org.chromium.chrome.browser.ui.side_ui.SideUiObserver;
 import org.chromium.chrome.browser.ui.side_ui.SideUiStateProvider;
@@ -132,7 +135,7 @@ public class ContextualSearchPanel extends OverlayPanel implements SideUiObserve
     private boolean mHasContentBeenTouched;
 
     /** The compositor layer used for drawing the panel. */
-    private final ContextualSearchSceneLayer mSceneLayer;
+    private ContextualSearchSceneLayer mSceneLayer;
 
     /**
      * A ScrimManager for adjusting the Status Bar's brightness when a scrim is present (when the
@@ -374,9 +377,14 @@ public class ContextualSearchPanel extends OverlayPanel implements SideUiObserve
 
     @Override
     public void onSideUiSpecsChanged(SideUiSpecs sideUiSpecs) {
+        int leftWidth = sideUiSpecs.getWidth(AnchorSide.LEFT);
+        int rightWidth = sideUiSpecs.getWidth(AnchorSide.RIGHT);
+        int startMargin = LocalizationUtils.isLayoutRtl() ? rightWidth : leftWidth;
+        int endMargin = LocalizationUtils.isLayoutRtl() ? leftWidth : rightWidth;
+
         setLayoutMargins(
-                sideUiSpecs.mStartContainerWidth * mPxToDp,
-                sideUiSpecs.mEndContainerWidth * mPxToDp);
+                /* layoutMarginStart= */ startMargin * mPxToDp,
+                /* layoutMarginEnd= */ endMargin * mPxToDp);
         resizePanelContentView();
     }
 
@@ -456,10 +464,15 @@ public class ContextualSearchPanel extends OverlayPanel implements SideUiObserve
     }
 
     @Override
+    @SuppressWarnings("NullAway")
     public void destroy() {
         if (mSideUiStateProvider != null) {
             mSideUiStateProvider.removeObserver(this);
             mSideUiStateProvider = null;
+        }
+        if (mSceneLayer != null) {
+            mSceneLayer.destroy();
+            mSceneLayer = null;
         }
         super.destroy();
     }
@@ -909,7 +922,7 @@ public class ContextualSearchPanel extends OverlayPanel implements SideUiObserve
         // TODO(donnd): Create a full-screen sized view and apply the black_alpha_65 color to get
         // an exact match between the scrim and the status bar colors instead of adjusting the
         // status bar alpha to approximate the native overlay brightness filter.
-        // Details in https://crbug.com/848922.
+        // Details in https://crbug.com/41392392.
         float statusBarAlpha =
                 (maxBrightness - basePageBrightness) / (maxBrightness - minBrightness);
         if (!getCanHideAndroidBrowserControls()) scrimAndroidToolbar(statusBarAlpha);
@@ -1125,7 +1138,7 @@ public class ContextualSearchPanel extends OverlayPanel implements SideUiObserve
                             this,
                             getContextualSearchPromoHost(),
                             mContext,
-                            getCoordinatorView(),
+                            getParentView(),
                             mResourceLoader);
         }
         return mPromoControl;
@@ -1174,13 +1187,21 @@ public class ContextualSearchPanel extends OverlayPanel implements SideUiObserve
         return mPromoHost;
     }
 
-    private @Nullable ViewGroup getCoordinatorView() {
+    private @Nullable ViewGroup getParentView() {
         ViewGroup result = mContainerView;
         assumeNonNull(mContainerView);
-        // Use the coordinator inside of the container if we can get it. See crbug.com/1258902.
+        // Use the coordinator inside of the container if we can get it. See crbug.com/40201227.
         ViewGroup coordinator = mContainerView.findViewById(R.id.coordinator);
         // Returns null in tests. TODO(donnd): figure out why - tests should have the same views.
         if (coordinator != null) result = coordinator;
+
+        // Use the "secondary" UI container if available - this container adjusts itself relative to
+        // side UI like the side panel, so setting it as the parent will ensure the search panel is
+        // correctly positioned over tab content.
+        ViewGroup secondaryUiContainer = mContainerView.findViewById(R.id.secondary_ui_container);
+        if (AndroidSidePanelEnabledFn.isEnabled() && secondaryUiContainer != null) {
+            result = secondaryUiContainer;
+        }
         return result;
     }
 
@@ -1200,7 +1221,7 @@ public class ContextualSearchPanel extends OverlayPanel implements SideUiObserve
                             this,
                             getRelatedSearchesInBarHost(),
                             mContext,
-                            getCoordinatorView(),
+                            getParentView(),
                             mResourceLoader);
         }
         return mRelatedSearchesInBarControl;

@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.customtabs;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 
-import static org.chromium.base.test.util.Restriction.RESTRICTION_TYPE_NON_LOW_END_DEVICE;
 import static org.chromium.chrome.browser.customtabs.CustomTabActivityTestRule.LONG_TIMEOUT_MS;
 
 import android.content.ComponentName;
@@ -41,8 +40,8 @@ import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
-import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.browser.browserservices.intents.SessionHolder;
 import org.chromium.chrome.browser.document.ChromeLauncherActivity;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
@@ -53,6 +52,7 @@ import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.WebContentsObserver;
 import org.chromium.content_public.browser.test.util.WebContentsUtils;
 import org.chromium.net.test.util.TestWebServer;
+import org.chromium.ui.base.DeviceFormFactor;
 
 /** Integration tests for the Custom Tab post message support. */
 @RunWith(ChromeJUnit4ClassRunner.class)
@@ -188,6 +188,7 @@ public class CustomTabPostMessageTest {
      */
     @Test
     @SmallTest
+    @DisabledTest(message = "crbug.com/515467836")
     public void testPostMessageWebContentsDestroyed() throws Exception {
         final CustomTabsConnection connection = CustomTabsTestUtils.warmUpAndWait();
         Context context = ApplicationProvider.getApplicationContext();
@@ -264,6 +265,7 @@ public class CustomTabPostMessageTest {
      */
     @Test
     @SmallTest
+    @DisabledTest(message = "crbug.com/508387726")
     public void testPostMessageReceivedInPage() throws Exception {
         final String url =
                 mWebServer.setResponse("/test.html", TITLE_FROM_POSTMESSAGE_TO_CHANNEL, null);
@@ -290,6 +292,7 @@ public class CustomTabPostMessageTest {
     /** Tests the postMessage requests sent from the page is received on the client side. */
     @Test
     @SmallTest
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288195
     public void testPostMessageReceivedFromPage() throws Exception {
         final CallbackHelper messageChannelHelper = new CallbackHelper();
         final CallbackHelper onPostMessageHelper = new CallbackHelper();
@@ -332,7 +335,7 @@ public class CustomTabPostMessageTest {
      */
     @Test
     @SmallTest
-    @DisabledTest(message = "https://crbug.com/692025")
+    @DisabledTest(message = "https://crbug.com/41301759")
     public void testPostMessageReceivedFromPageWithLateRequest() throws Exception {
         final CallbackHelper messageChannelHelper = new CallbackHelper();
         final CallbackHelper onPostMessageHelper = new CallbackHelper();
@@ -382,7 +385,6 @@ public class CustomTabPostMessageTest {
      */
     @Test
     @SmallTest
-    @Restriction(RESTRICTION_TYPE_NON_LOW_END_DEVICE)
     public void testPostMessageThroughHiddenTabWithRequestBeforeMayLaunchUrl() throws Exception {
         sendPostMessageDuringHiddenTabTransition(BEFORE_MAY_LAUNCH_URL);
     }
@@ -393,7 +395,6 @@ public class CustomTabPostMessageTest {
      */
     @Test
     @SmallTest
-    @Restriction(RESTRICTION_TYPE_NON_LOW_END_DEVICE)
     public void testPostMessageThroughHiddenTabWithRequestBeforeIntent() throws Exception {
         sendPostMessageDuringHiddenTabTransition(BEFORE_INTENT);
     }
@@ -404,7 +405,6 @@ public class CustomTabPostMessageTest {
      */
     @Test
     @SmallTest
-    @Restriction(RESTRICTION_TYPE_NON_LOW_END_DEVICE)
     public void testPostMessageThroughHiddenTabWithRequestAfterIntent() throws Exception {
         sendPostMessageDuringHiddenTabTransition(AFTER_INTENT);
     }

@@ -27,11 +27,12 @@
 
 #include <vector>
 
-#include "dawn/common/GPUInfo.h"
-#include "dawn/common/Math.h"
-#include "dawn/tests/DawnTest.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/common/GPUInfo.h"
+#include "src/dawn/common/Math.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/compiler.h"
 
 namespace dawn {
 namespace {
@@ -93,19 +94,19 @@ class MultisampledInterpolationTest : public DawnTest {
 
                     fn u32ToRGBAUnorm(u: u32) -> vec4f {
                         return vec4f(
-                        f32((u >> 24) & 0xFF) / 255.0,
-                        f32((u >> 16) & 0xFF) / 255.0,
-                        f32((u >>  8) & 0xFF) / 255.0,
-                        f32((u >>  0) & 0xFF) / 255.0,
+                            f32((u >> 24) & 0xFF) / 255.0,
+                            f32((u >> 16) & 0xFF) / 255.0,
+                            f32((u >>  8) & 0xFF) / 255.0,
+                            f32((u >>  0) & 0xFF) / 255.0,
                         );
                     }
 
                     @fragment fn fs(fin: FragmentIn) -> FragOut {
                         var f: FragOut;
                         var v = fin.position;
-                       // Use of sample_index forces sample behavior
-                        if(fin.sample_index == 3u){
-                          v = vec4f(1,1,1,1);
+                        // Use of sample_index forces sample behavior
+                        if (fin.sample_index == 3u) {
+                            v = vec4f(1.0, 1.0, 1.0, 1.0);
                         }
                         let u = bitcast<vec4u>(v);
                         f.out0 = u32ToRGBAUnorm(u[0]);
@@ -173,13 +174,6 @@ class MultisampledInterpolationTest : public DawnTest {
 TEST_P(MultisampledInterpolationTest, SamplePositions) {
     DAWN_TEST_UNSUPPORTED_IF(IsCompatibilityMode());
 
-    // TODO(crbug.com/40238674): Fails on Pixel 10 gles.
-    DAWN_SUPPRESS_TEST_IF(IsImgTec() && IsVulkan());
-
-    // Swiftshader does not work. Unknown reason.
-    DAWN_TEST_UNSUPPORTED_IF(IsSwiftshader());
-    DAWN_TEST_UNSUPPORTED_IF(IsANGLESwiftShader());
-
     CreatePipelines();
 
     static constexpr wgpu::Extent3D kTextureSize = {10, 10, 1};
@@ -198,8 +192,8 @@ TEST_P(MultisampledInterpolationTest, SamplePositions) {
 
     wgpu::TextureView colorViews[4];
     for (int i = 0; i < 4; i++) {
-        auto& each = colorViews[i];
-        each = colorTextures[i].CreateView();
+        auto& each = DAWN_UNSAFE_TODO(colorViews[i]);
+        each = DAWN_UNSAFE_TODO(colorTextures[i]).CreateView();
     }
     static constexpr uint64_t kResultSize = 4 * sizeof(float) + 4 * sizeof(float);
     uint64_t alignedResultSize = Align(kResultSize, 256);

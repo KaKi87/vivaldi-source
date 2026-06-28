@@ -1,15 +1,11 @@
-
 update_target("//chrome/browser:browser") {
-  sources -= [
-    "glic/suggestions/contextual_cueing_helper.cc",
-    "glic/suggestions/contextual_cueing_service.cc",
-    "glic/suggestions/contextual_cueing_service.h",
-    "glic/suggestions/contextual_cueing_service_factory.cc",
-  ]
+  sources -= []
 }
 
 update_target("//chrome/browser/ui:ui") {
   sources -= [
+    "views/tabs/tab_strip_action_container.cc",
+    "views/tabs/tab_strip_action_container.h",
     "webui/settings/glic_handler.cc",
     "webui/settings/glic_handler.h",
   ]
@@ -53,6 +49,7 @@ update_template_instance("//chrome/browser/resources/settings:build") {
   ts_files -= [
     "glic_page/glic_browser_proxy.ts",
     "privacy_page/privacy_guide/constants.ts",
+
     #"privacy_page/privacy_guide/privacy_guide_availability_mixin.ts",
     "privacy_page/privacy_guide/privacy_guide_browser_proxy.ts",
   ]
@@ -67,33 +64,29 @@ update_target("//chrome/browser/ui/views/location_bar:impl") {
 }
 
 update_target("//chrome/browser/ui/tabs:tab_menu_impl") {
-  sources -= [
-     "glic_tab_sub_menu_model.cc",
-  ]
+  sources -= [ "glic_tab_sub_menu_model.cc" ]
 }
 
 update_target("//chrome/browser/ui/tabs:tab_menu") {
-  sources -= [
-    "glic_tab_sub_menu_model.h",
-  ]
+  sources -= [ "glic_tab_sub_menu_model.h" ]
 }
 
 update_template_instance("//chrome/browser/extensions/api:api_registration") {
   sources -= [
+    "//chrome/common/extensions/api/experimental_actor.webidl",
+    "//chrome/common/extensions/api/experimental_ai_data.webidl",
     "//chrome/common/extensions/api/glic_private.webidl",
-    "//chrome/common/extensions/api/experimental_actor.idl",
-    "//chrome/common/extensions/api/experimental_ai_data.idl",
   ]
 }
 
 update_target("//chrome/browser/ui/tabs/projects:impl") {
-  sources -= [
-    "projects_panel_state_controller.cc",
-  ]
+  sources -= [ "projects_panel_state_controller.cc" ]
 }
 
 update_target("//chrome/browser/skills:skills") {
-  sources -= [
-    "skills_glic_mojom_util.cc",
-  ]
+  sources -= [ "skills_glic_mojom_util.cc" ]
+}
+
+update_target("//chrome/browser/skills:ui") {
+  sources -= [ "skills_dialog_launcher.cc" ]
 }

@@ -4,26 +4,52 @@
 
 package org.chromium.chrome.browser.actor.ui;
 
+import android.content.Context;
+
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.chrome.browser.tab_bottom_sheet.TabBottomSheetPeekProperties;
 import org.chromium.ui.modelutil.PropertyModel;
 
 /** Mediator for actor control view. */
 @NullMarked
 public class ActorControlMediator {
+    private final Context mContext;
     private final PropertyModel mModel;
 
-    ActorControlMediator(PropertyModel model) {
+    ActorControlMediator(Context context, PropertyModel model) {
+        mContext = context;
         mModel = model;
     }
 
-    void setContent(String title, String desc) {
-        mModel.set(ActorControlProperties.TASK_TITLE, title);
-        mModel.set(ActorControlProperties.TASK_STEP_DESCRIPTION, desc);
-    }
-
-    void updateStatusIcon(boolean isPaused) {
-        int iconRes =
-                isPaused ? R.drawable.ic_play_arrow_white_24dp : R.drawable.ic_pause_white_24dp;
-        mModel.set(ActorControlProperties.STATUS_ICON_RESOURCE, iconRes);
+    /**
+     * Sets the content and state of the actor control view.
+     *
+     * @param title The title of the actor control view.
+     * @param state The PeekViewUiState containing the desired UI properties.
+     */
+    void setContent(String title, PeekViewUiState state) {
+        mModel.set(TabBottomSheetPeekProperties.TITLE_TEXT, title);
+        mModel.set(
+                TabBottomSheetPeekProperties.TITLE_TEXT_APPEARANCE,
+                state.getTitleTextAppearanceResId());
+        mModel.set(TabBottomSheetPeekProperties.DESCRIPTION_TEXT, state.getDescription(mContext));
+        mModel.set(
+                TabBottomSheetPeekProperties.DESCRIPTION_VISIBILITY,
+                state.getDescriptionVisibility());
+        mModel.set(TabBottomSheetPeekProperties.ACTION_BUTTON_TEXT, state.getButtonText(mContext));
+        mModel.set(
+                TabBottomSheetPeekProperties.ACTION_BUTTON_VISIBILITY, state.getButtonVisibility());
+        mModel.set(TabBottomSheetPeekProperties.ACTION_BUTTON_ICON, state.buttonIconResId);
+        mModel.set(
+                TabBottomSheetPeekProperties.ACTION_BUTTON_BACKGROUND_TINT,
+                state.getButtonBackgroundTint(mContext));
+        mModel.set(
+                TabBottomSheetPeekProperties.ACTION_BUTTON_ICON_TINT, state.getIconTint(mContext));
+        mModel.set(
+                TabBottomSheetPeekProperties.ACTION_BUTTON_HORIZONTAL_PADDING,
+                state.getButtonHorizontalPadding(mContext));
+        mModel.set(
+                TabBottomSheetPeekProperties.ACTION_BUTTON_CONTENT_DESCRIPTION,
+                state.getButtonContentDescription(mContext));
     }
 }

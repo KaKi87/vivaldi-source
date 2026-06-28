@@ -4,18 +4,26 @@
 
 #include "chrome/browser/glic/host/context/glic_page_context_fetcher.h"
 
+#include <stdint.h>
+
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include "base/check.h"
 #include "base/functional/callback.h"
 #include "base/time/time.h"
 #include "base/types/expected.h"
 #include "build/build_config.h"
+#include "chrome/browser/actor/actor_metrics.h"
 #include "chrome/browser/actor/actor_proto_conversion.h"
 #include "chrome/browser/actor/actor_tab_data.h"
-#include "chrome/browser/actor/aggregated_journal.h"
 #include "chrome/browser/glic/host/context/glic_tab_data.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/host/glic_mojom_traits.h"
 #include "chrome/browser/page_content_annotations/multi_source_page_context_fetcher.h"
-#include "chrome/common/actor/journal_details_builder.h"
+#include "components/actor/core/aggregated_journal.h"
+#include "components/actor/core/journal_details_builder.h"
 #include "components/content_extraction/content/browser/inner_text.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/optimization_guide/content/browser/page_content_proto_provider.h"
@@ -163,12 +171,17 @@ void HandleFetchPageResult(
   }
 
   if (page_context.pdf_result) {
-    auto pdf_document_data = mojom::PdfDocumentData::New();
-    pdf_document_data->origin = page_context.pdf_result->origin;
-    pdf_document_data->size_limit_exceeded =
-        page_context.pdf_result->size_exceeded;
-    pdf_document_data->pdf_data = std::move(page_context.pdf_result->bytes);
-    tab_context->pdf_document_data = std::move(pdf_document_data);
+    // Glic requests PDF bytes exclusively. It does not request PDF text. Only
+    // populate `pdf_document_data` if the `pdf_result` holds PDF bytes.
+    if (auto* pdf_data =
+            std::get_if<std::vector<uint8_t>>(&page_context.pdf_result->data)) {
+      auto pdf_document_data = mojom::PdfDocumentData::New();
+      pdf_document_data->origin = page_context.pdf_result->origin;
+      pdf_document_data->size_limit_exceeded =
+          page_context.pdf_result->size_exceeded;
+      pdf_document_data->pdf_data = std::move(*pdf_data);
+      tab_context->pdf_document_data = std::move(pdf_document_data);
+    }
   }
 
   if (page_context.annotated_page_content_result.has_value()) {
@@ -183,7 +196,8 @@ void HandleFetchPageResult(
     if (tab) {
       if (auto* actor_tab_data = actor::ActorTabData::From(tab.get())) {
         actor_tab_data->DidObserveContent(
-            page_context.annotated_page_content_result->proto);
+            page_context.annotated_page_content_result->proto,
+            actor::ApcSource::kGlic);
       }
     }
 
@@ -256,7 +270,9 @@ void FetchPageContext(
     options.inner_text_bytes_limit = tab_context_options.inner_text_bytes_limit;
   }
   if (tab_context_options.include_pdf) {
-    options.pdf_size_limit = tab_context_options.pdf_size_limit;
+    options.pdf_options.emplace(
+        page_content_annotations::PdfOptions::Format::kBytes,
+        tab_context_options.pdf_size_limit);
   }
 
   if (tab_context_options.include_viewport_screenshot) {

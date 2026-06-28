@@ -7,9 +7,9 @@
 #include <string>
 #include <vector>
 
-#include "base/types/expected.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
+#include "base/types/expected.h"
 #include "browser/related_tab_strip_helper.h"
 #include "browser/tab_probe.h"
 #include "extensions/schema/tabs_private.h"
@@ -62,12 +62,15 @@ class TabsMotionHelper {
   std::optional<TabProbe> GetTargetProbe() const;
   void ConfigureGroup(const vivaldi::TabProbe& probe) const;
   TabProbe GetLast() const;
+  bool ShouldPreserveGroups() const;
+  bool IsEntireGroupMoving(const std::string& groupId) const;
+  std::optional<std::string> GetNewGroupId() const;
 
-  const Params & GetParameters() const;
+  const Params& GetParameters() const;
 
   // For debugging.
-  static void Dump(const Diagnostics &);
-  static void Dump(const Error &);
+  static void Dump(const Diagnostics&);
+  static void Dump(const Error&);
   Diagnostics GetDiagnostics() const;
 
  private:
@@ -78,12 +81,11 @@ class TabsMotionHelper {
   bool MovingOverSelf() const;
   void UpdateTargetIndexByTweaks();
   std::optional<std::string> SuggestGroupInternal() const;
-
   void ForceInDirection(bool reverse);
   void HandleMoveLeftRight(bool reverse);
   void HandleMoveFirstLast(bool reverse);
-
-  void RecognizeSpecialTarget(const std::string_view &target);
+  void RecognizeSpecialTarget(const std::string_view& target);
+  bool IsLinearStrip() const;  // accordion or disabled stacks
 
   // Init functions
   std::optional<std::string> TweaksConsistencyCheck();
@@ -97,11 +99,7 @@ class TabsMotionHelper {
   std::optional<std::string> HandlePinning();
   std::optional<std::string> CheckGroupChange();
 
-  // The target is below/above a grou => no group
-  // The target is a tab within this group => group
-  // Target is on + create-group => create new group and place both tabs into
-  // this group.
-  bool IsFollowingTarget() const;
+  std::optional<std::string> ChooseTargetWindowAndTabStrip();
 
   // Consider following tabs and a group [ B C ] withing them.
   // 0   1 2   3 4
@@ -165,6 +163,7 @@ class TabsMotionHelper {
   bool new_group_ = false;
   std::optional<TabMotionTweaks> force_direction_;
   bool is_step_ = false;
+  bool avoid_groups_ = false;
 };
 
 }  // namespace vivaldi

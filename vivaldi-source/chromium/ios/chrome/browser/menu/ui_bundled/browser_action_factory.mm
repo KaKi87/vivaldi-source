@@ -525,8 +525,7 @@ using vivaldi::IsVivaldiRunning;
 
   void (^clipboardAction)(std::optional<gfx::Image>) =
       ^(std::optional<gfx::Image> optionalImage) {
-        __typeof(weakSelf) strongSelf = weakSelf;
-        if (!optionalImage || !strongSelf) {
+        if (!optionalImage || !weakSelf) {
           return;
         }
 
@@ -534,7 +533,7 @@ using vivaldi::IsVivaldiRunning;
 
         ImageSearchParamGenerator::PrepareImageDataAsync(
             image, base::BindOnce(^(NSData* imageData) {
-              [strongSelf loadWithImageData:imageData];
+              [weakSelf loadWithImageData:imageData];
             }));
       };
 

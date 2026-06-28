@@ -162,7 +162,7 @@ jobs:
         run: ccache -s
 
   cmake-windows-arm64:
-    runs-on: windows-2022-32core
+    runs-on: windows-2022-8core
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
@@ -185,9 +185,12 @@ jobs:
         env:
           CFLAGS: "/UNDEBUG"
           CXXFLAGS: "/UNDEBUG"
+      - name: Print ccache stats
+        run: ccache -s
+        shell: bash
 
   cmake-windows-x64:
-    runs-on: windows-2022-32core
+    runs-on: windows-2022-8core
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
@@ -214,9 +217,12 @@ jobs:
         if: ${{ inputs.run-tests }}
         run: ctest -C Release --output-on-failure --parallel $NUMBER_OF_PROCESSORS
         working-directory: ${{ github.workspace }}/build/windows/x64
+      - name: Print ccache stats
+        run: ccache -s
+        shell: bash
 
   cmake-windows-x86:
-    runs-on: windows-2022-32core
+    runs-on: windows-2022-8core
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
@@ -243,6 +249,9 @@ jobs:
         if: ${{ inputs.run-tests }}
         run: ctest -C Release --output-on-failure --parallel $NUMBER_OF_PROCESSORS
         working-directory: ${{ github.workspace }}/build/windows/x86
+      - name: Print ccache stats
+        run: ccache -s
+        shell: bash
 
   cmake-macos-arm64:
     runs-on: macos-latest
@@ -274,7 +283,7 @@ jobs:
           cmake \
             --build \
             build/macos/arm64 \
-            -j$((2*$(sysctl -n hw.ncpu)))
+            -j$(sysctl -n hw.ncpu)
         working-directory: ${{ github.workspace }}
 
   cmake-android:
@@ -326,6 +335,69 @@ jobs:
         run: cmake --build build/ios/arm64 --parallel $(sysctl -n hw.ncpu) -- -quiet
         working-directory: ${{ github.workspace }}
 
+  gn-linux-arm:
+    runs-on: 'ubuntu-24.04-8core'
+    timeout-minutes: 15
+    env:
+      CCACHE_SLOPPINESS: time_macros,modules
+      CCACHE_DIR: /home/runner/.cache/ccache
+      CCACHE_DEPEND: 1
+      CCACHE_MAX_SIZE: 5G
+      CCACHE_COMPILERCHECK: content
+    steps:
+      - name: Restore ccache
+        id: cache-ccache-restore
+        uses: actions/cache@v5
+        with:
+          path: |
+            /home/runner/.cache/ccache
+          key: ccache-linux-arm-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-linux-arm-${{ github.ref_name }}-
+            ccache-linux-arm-master-
+      - name: Install system dependencies
+        run: |
+          sudo apt-get install -y ccache qemu-user qemu-user-static g++-arm-linux-gnueabihf
+      - name: Install Depot Tools
+        uses: newkdev/setup-depot-tools@v1.0.1
+      - name: Write .gclient
+        run: |
+          cat <<EOF > .gclient
+          solutions = [
+            { "name"        : 'xnnpack',
+              "url"         : 'https://github.com/google/XNNPACK',
+              "deps_file"   : 'DEPS',
+              "managed"     : False,
+              "custom_deps" : {
+            },
+            "custom_vars": {},
+            },
+          ]
+          EOF
+      - name: Sync to commit and run hooks
+        run: gclient sync --reset --force --upstream --revision $GITHUB_SHA
+      - name: Install sysroot
+        run: ./build/linux/sysroot_scripts/install-sysroot.py --arch=armhf
+        working-directory: ${{ github.workspace }}/xnnpack
+      - name: Check GN formatting
+        run: |
+          git cl format --presubmit --no-clang-format --no-python --diff
+        working-directory: ${{ github.workspace }}/xnnpack
+      - name: Generate build files
+        run: |
+          gn gen --check --args="is_debug=false clang_use_chrome_plugins=false dcheck_always_on=true cc_wrapper=\"ccache\" symbol_level=0 target_cpu=\"arm\" use_siso=true" out/arm.dchecks
+        working-directory: ${{ github.workspace }}/xnnpack
+      - name: Build all targets (Release + debug checks)
+        run: |
+          autoninja -C out/arm.dchecks
+        working-directory: ${{ github.workspace }}/xnnpack
+      - name: Print ccache stats
+        run: ccache -s
+      - name: Run tests
+        run: |
+          python3 scripts/run-gn-tests.py out/arm.dchecks --sysroot=/usr/arm-linux-gnueabihf --architecture=arm --shards=32
+        working-directory: ${{ github.workspace }}/xnnpack
+
   gn-linux-x86_64:
     runs-on: 'ubuntu-24.04-8core'
     timeout-minutes: 15
@@ -336,17 +408,6 @@ jobs:
       CCACHE_MAX_SIZE: 5G
       CCACHE_COMPILERCHECK: content
     steps:
-      - name: Restore gclient cache
-        id: cache-gclient-restore
-        uses: actions/cache@v5
-        with:
-          # Cache the Git repos
-          path: /home/runner/.cache/gclient
-          key: gclient-linux-${{ github.ref_name }}-${{ github.sha }}
-          restore-keys: |
-            gclient-linux-${{ github.ref_name }}-
-            gclient-linux-master-
-            gclient-linux-
       - name: Restore ccache
         id: cache-ccache-restore
         uses: actions/cache@v5
@@ -375,19 +436,26 @@ jobs:
             "custom_vars": {},
             },
           ]
-          cache_dir = r"/home/runner/.cache/gclient"
           EOF
       - name: Sync to commit and run hooks
         run: gclient sync --reset --force --upstream --revision $GITHUB_SHA
-      - name: Check formatting
+      - name: Check GN formatting
         run: |
           git cl format --presubmit --no-clang-format --no-python --diff
         working-directory: ${{ github.workspace }}/xnnpack
-      - name: Generate build files
+      - name: Generate build files (with AVX512)
+        run: |
+          gn gen --check --args="is_debug=false clang_use_chrome_plugins=false dcheck_always_on=true cc_wrapper=\"ccache\" symbol_level=0 xnnpack_enable_avx512=true target_cpu=\"x64\" use_siso=true" out/x64.dchecks
+        working-directory: ${{ github.workspace }}/xnnpack
+      - name: Build all targets (Release + debug checks, with AVX512)
+        run: |
+          autoninja -C out/x64.dchecks
+        working-directory: ${{ github.workspace }}/xnnpack
+      - name: Generate build files (no AVX512)
         run: |
           gn gen --check --args="is_debug=false clang_use_chrome_plugins=false dcheck_always_on=true cc_wrapper=\"ccache\" symbol_level=0 xnnpack_enable_avx512=false target_cpu=\"x64\" use_siso=true" out/x64.dchecks
         working-directory: ${{ github.workspace }}/xnnpack
-      - name: Build all targets (Release + debug checks)
+      - name: Build all targets (Release + debug checks, without AVX512)
         run: |
           autoninja -C out/x64.dchecks
         working-directory: ${{ github.workspace }}/xnnpack
@@ -443,7 +511,8 @@ jobs:
               -- \
               //test/... \
               //bench/... \
-              //ynnpack/...
+              //ynnpack/... \
+              //litert/...
 
       - name: Compress disk cache
         if: ${{ inputs.update-caches }}
@@ -511,6 +580,7 @@ jobs:
               //test/... \
               //bench/... \
               //ynnpack/... \
+              //litert/... \
               -//ynnpack/kernels/dot:get_dot_kernel_test
 
       - name: Compress disk cache
@@ -565,7 +635,8 @@ jobs:
               -- \
               //test/... \
               //bench/... \
-              //ynnpack/...
+              //ynnpack/... \
+              //litert/...
 
       - name: Compress disk cache
         if: ${{ inputs.update-caches }}
@@ -609,7 +680,8 @@ jobs:
               -- \
               //test/... \
               //bench/... \
-              //ynnpack/...
+              //ynnpack/... \
+              //litert/...
 
       - name: Build and run tests
         if: ${{ inputs.run-tests }}
@@ -625,7 +697,8 @@ jobs:
               -- \
               //test/... \
               //bench/... \
-              //ynnpack/...
+              //ynnpack/... \
+              //litert/...
 
       - name: Compress disk cache
         if: ${{ inputs.update-caches }}
@@ -725,4 +798,3 @@ jobs:
         run: |
           mkdir -p /home/xnnpack/.cache/bazel
           find "/home/xnnpack/.cache/bazel" -type f -atime +7 -delete
-

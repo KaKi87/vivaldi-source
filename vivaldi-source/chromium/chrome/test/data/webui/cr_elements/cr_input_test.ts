@@ -327,6 +327,40 @@ suite('cr-input', function() {
     testAriaLabel(['placeholder']);
   });
 
+  test('ariaLabelledByOnlyWhenLabelAndNoAriaLabel', async () => {
+    // Case 1: host sets `label` only -> aria-labelledby should reference
+    // the visible label, and that label should not be aria-hidden.
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    crInput = document.createElement('cr-input');
+    crInput.label = 'My Field';
+    document.body.appendChild(crInput);
+    await crInput.updateComplete;
+    assertEquals('label', crInput.inputElement.getAttribute('aria-labelledby'));
+    assertEquals('My Field', crInput.inputElement.getAttribute('aria-label'));
+    assertFalse(crInput.$.label.hasAttribute('aria-hidden'));
+
+    // Case 2: host sets aria-label -> aria-labelledby must NOT be set,
+    // and the visible label remains aria-hidden to avoid duplicates.
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    crInput = document.createElement('cr-input');
+    crInput.label = 'My Field';
+    crInput.setAttribute('aria-label', 'Override');
+    document.body.appendChild(crInput);
+    await crInput.updateComplete;
+    assertFalse(crInput.inputElement.hasAttribute('aria-labelledby'));
+    assertEquals('Override', crInput.inputElement.getAttribute('aria-label'));
+    assertEquals('true', crInput.$.label.getAttribute('aria-hidden'));
+
+    // Case 3: only placeholder -> aria-labelledby must NOT be set.
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    crInput = document.createElement('cr-input');
+    crInput.placeholder = 'Type here';
+    document.body.appendChild(crInput);
+    await crInput.updateComplete;
+    assertFalse(crInput.inputElement.hasAttribute('aria-labelledby'));
+    assertEquals('Type here', crInput.inputElement.getAttribute('aria-label'));
+  });
+
   test('select', async () => {
     crInput.value = '0123456789';
     await crInput.updateComplete;
@@ -441,7 +475,7 @@ suite('cr-input', function() {
     // Initialization events
     element.validateEvents(['value-changed', 'invalid-changed']);
 
-    function simulateUserInput(inputValue: string): Promise<void> {
+    function simulateUserInput(inputValue: string): Promise<Event> {
       element.setExpectedValue(inputValue);
       assertTrue(!!input);
       input.inputElement.value = inputValue;

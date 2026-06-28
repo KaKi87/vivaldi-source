@@ -22,6 +22,7 @@ import (
 
 	"boringssl.googlesource.com/boringssl.git/ssl/test/runner/hpke"
 	"boringssl.googlesource.com/boringssl.git/ssl/test/runner/spake2plus"
+	"filippo.io/mldsa"
 	"golang.org/x/crypto/cryptobyte"
 )
 
@@ -42,6 +43,7 @@ type serverHandshakeState struct {
 	finishedBytes   []byte
 	echHPKEContext  *hpke.Context
 	echConfigID     uint8
+	rpkFromClient   []byte
 }
 
 // serverHandshake performs a TLS handshake as a server.
@@ -563,6 +565,7 @@ func (hs *serverHandshakeState) doTLS13Handshake() error {
 	// Prepare an EncryptedExtensions message, but do not send it yet.
 	encryptedExtensions := new(encryptedExtensionsMsg)
 	encryptedExtensions.empty = config.Bugs.EmptyEncryptedExtensions
+	encryptedExtensions.extensions.extensionsWithTrailingData = config.Bugs.ExtensionsWithTrailingData
 	if err := hs.processClientExtensions(&encryptedExtensions.extensions); err != nil {
 		return err
 	}
@@ -1138,10 +1141,11 @@ func (hs *serverHandshakeState) doTLS13Handshake() error {
 	if requestClientCert {
 		// Request a client certificate
 		certReq := &certificateRequestMsg{
-			hasSignatureAlgorithm: !config.Bugs.OmitCertificateRequestAlgorithms,
-			hasRequestContext:     true,
-			requestContext:        config.Bugs.SendRequestContext,
-			customExtension:       config.Bugs.SendCustomCertificateRequest,
+			hasSignatureAlgorithm:      !config.Bugs.OmitCertificateRequestAlgorithms,
+			hasRequestContext:          true,
+			requestContext:             config.Bugs.SendRequestContext,
+			customExtension:            config.Bugs.SendCustomCertificateRequest,
+			extensionsWithTrailingData: config.Bugs.ExtensionsWithTrailingData,
 		}
 		if !config.Bugs.NoSignatureAlgorithms {
 			certReq.signatureAlgorithms = config.verifySignatureAlgorithms()
@@ -1155,6 +1159,9 @@ func (hs *serverHandshakeState) doTLS13Handshake() error {
 		if config.ClientCAs != nil {
 			certReq.certificateAuthorities = config.ClientCAs.Subjects()
 		}
+		if config.Bugs.SendEmptyCertificateAuthorities {
+			certReq.certificateAuthorities = [][]byte{}
+		}
 		hs.writeServerHash(certReq.marshal())
 		c.writeRecord(recordTypeHandshake, certReq.marshal())
 	}
@@ -1165,7 +1172,8 @@ func (hs *serverHandshakeState) doTLS13Handshake() error {
 			useCert = config.Bugs.UseCertificateCredential
 		}
 		certMsg := &certificateMsg{
-			hasRequestContext: true,
+			hasRequestContext:          true,
+			extensionsWithTrailingData: config.Bugs.ExtensionsWithTrailingData,
 		}
 		certMsg.sendTrustAnchorWrongCertificate = config.Bugs.SendTrustAnchorWrongCertificate
 		certMsg.sendNonEmptyTrustAnchorMatch = config.Bugs.SendNonEmptyTrustAnchorMatch
@@ -1280,6 +1288,12 @@ func (hs *serverHandshakeState) doTLS13Handshake() error {
 		// Pick up certificates from the session instead.
 		if len(hs.sessionState.certificates) > 0 {
 			if _, err := hs.processCertsFromClient(hs.sessionState.certificates); err != nil {
+				return err
+			}
+		} else if len(hs.sessionState.peerRawPublicKey) > 0 {
+			if _, err := hs.processRawPublicKeyFromClient([]certificateEntry{
+				{data: hs.sessionState.peerRawPublicKey},
+			}); err != nil {
 				return err
 			}
 		}
@@ -1407,22 +1421,28 @@ func (hs *serverHandshakeState) doTLS13Handshake() error {
 			}
 		}
 
+		var pub crypto.PublicKey
 		var certs [][]byte
-		for _, cert := range certMsg.certificates {
-			certs = append(certs, cert.data)
-			// OCSP responses and SCT lists are not negotiated in
-			// client certificates.
-			if cert.ocspResponse != nil || cert.sctList != nil {
-				c.sendAlert(alertUnsupportedExtension)
-				return errors.New("tls: unexpected extensions in the client certificate")
+		switch certMsg.certificateType {
+		case certTypeX509:
+			for _, cert := range certMsg.certificates {
+				certs = append(certs, cert.data)
+				// OCSP responses and SCT lists are not negotiated in
+				// client certificates.
+				if cert.ocspResponse != nil || cert.sctList != nil {
+					c.sendAlert(alertUnsupportedExtension)
+					return errors.New("tls: unexpected extensions in the client certificate")
+				}
 			}
+			pub, err = hs.processCertsFromClient(certs)
+		case certTypeRawPublicKey:
+			pub, err = hs.processRawPublicKeyFromClient(certMsg.certificates)
 		}
-		pub, err := hs.processCertsFromClient(certs)
 		if err != nil {
 			return err
 		}
 
-		if len(c.peerCertificates) > 0 {
+		if len(c.peerCertificates) > 0 || len(c.peerRawPublicKey) > 0 {
 			certVerify, err := readHandshakeType[certificateVerifyMsg](c)
 			if err != nil {
 				return err
@@ -1504,7 +1524,8 @@ func (hs *serverHandshakeState) processClientHello() (isResume bool, err error) 
 		versOverride:      config.Bugs.SendServerHelloVersion,
 		compressionMethod: config.Bugs.SendCompressionMethod,
 		extensions: serverExtensions{
-			supportedVersion: config.Bugs.SendServerSupportedVersionExtension,
+			supportedVersion:           config.Bugs.SendServerSupportedVersionExtension,
+			extensionsWithTrailingData: config.Bugs.ExtensionsWithTrailingData,
 		},
 		omitExtensions:  config.Bugs.OmitExtensions,
 		emptyExtensions: config.Bugs.EmptyExtensions,
@@ -1796,7 +1817,24 @@ func (hs *serverHandshakeState) processClientExtensions(serverExtensions *server
 			serverExtensions.clientCertificateType = nil
 		} else {
 			serverExtensions.clientCertificateType = ptrTo(sendClientCertType[0])
+			c.clientCertificateType = serverExtensions.clientCertificateType
 		}
+	}
+	if sendServerCertType := c.config.Bugs.SendServerCertificateTypes; sendServerCertType != nil {
+		if len(sendServerCertType) > 1 {
+			panic("tls: server_certificate_type must not contain more than 1 value.")
+		}
+		if len(sendServerCertType) == 0 {
+			serverExtensions.serverCertificateType = nil
+		} else {
+			serverExtensions.serverCertificateType = ptrTo(sendServerCertType[0])
+			c.serverCertificateType = serverExtensions.serverCertificateType
+		}
+	}
+
+	// Server Padding Extension
+	if c.config.Bugs.SendServerPaddingLength != nil {
+		serverExtensions.serverPadding = c.config.Bugs.SendServerPaddingLength
 	}
 
 	return nil
@@ -1851,7 +1889,7 @@ func (hs *serverHandshakeState) checkForResumption() bool {
 		return false
 	}
 
-	sessionHasClientCerts := len(hs.sessionState.certificates) != 0
+	sessionHasClientCerts := len(hs.sessionState.certificates) != 0 || len(hs.sessionState.peerRawPublicKey) != 0
 	needClientCerts := c.config.ClientAuth == RequireAnyClientCert || c.config.ClientAuth == RequireAndVerifyClientCert
 	if needClientCerts && !sessionHasClientCerts {
 		return false
@@ -1894,6 +1932,14 @@ func (hs *serverHandshakeState) doResumeHandshake() error {
 
 	if len(hs.sessionState.certificates) > 0 {
 		if _, err := hs.processCertsFromClient(hs.sessionState.certificates); err != nil {
+			return err
+		}
+	}
+
+	if len(hs.sessionState.peerRawPublicKey) > 0 {
+		if _, err := hs.processRawPublicKeyFromClient([]certificateEntry{
+			{data: hs.sessionState.peerRawPublicKey},
+		}); err != nil {
 			return err
 		}
 	}
@@ -1956,6 +2002,7 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 
 	if !isPSK {
 		certMsg := new(certificateMsg)
+		certMsg.certificateType = hs.cert.Type.CertificateType()
 		if !config.Bugs.EmptyCertificateList {
 			for _, certData := range hs.cert.Certificate {
 				certMsg.certificates = append(certMsg.certificates, certificateEntry{
@@ -2061,11 +2108,17 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 		}
 
 		var certificates [][]byte
-		for _, cert := range certMsg.certificates {
-			certificates = append(certificates, cert.data)
+		switch certMsg.certificateType {
+		case certTypeX509:
+			for _, cert := range certMsg.certificates {
+				certificates = append(certificates, cert.data)
+			}
+			pub, err = hs.processCertsFromClient(certificates)
+		case certTypeRawPublicKey:
+			if len(certMsg.certificates) > 0 {
+				pub, err = hs.processRawPublicKeyFromClient(certMsg.certificates)
+			}
 		}
-
-		pub, err = hs.processCertsFromClient(certificates)
 		if err != nil {
 			return err
 		}
@@ -2098,7 +2151,7 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 	// handshake-layer messages that is signed using the private key corresponding
 	// to the client's certificate. This allows us to verify that the client is in
 	// possession of the private key of the certificate.
-	if len(c.peerCertificates) > 0 {
+	if len(c.peerCertificates) > 0 || len(c.peerRawPublicKey) > 0 {
 		certVerify, err := readHandshakeType[certificateVerifyMsg](c)
 		if err != nil {
 			return err
@@ -2204,11 +2257,12 @@ func (hs *serverHandshakeState) readFinished(out []byte, isResume bool) error {
 func (hs *serverHandshakeState) sendSessionTicket() error {
 	c := hs.c
 	state := sessionState{
-		vers:          c.vers,
-		cipherSuite:   hs.suite,
-		secret:        hs.masterSecret,
-		certificates:  hs.certsFromClient,
-		handshakeHash: hs.finishedHash.Sum(),
+		vers:             c.vers,
+		cipherSuite:      hs.suite,
+		secret:           hs.masterSecret,
+		certificates:     hs.certsFromClient,
+		handshakeHash:    hs.finishedHash.Sum(),
+		peerRawPublicKey: hs.rpkFromClient,
 	}
 
 	if !hs.hello.extensions.ticketSupported || hs.c.config.Bugs.SkipNewSessionTicket {
@@ -2310,7 +2364,7 @@ func (hs *serverHandshakeState) processCertsFromClient(certificates [][]byte) (c
 	certs := make([]*x509.Certificate, len(certificates))
 	var err error
 	for i, asn1Data := range certificates {
-		if certs[i], err = x509.ParseCertificate(asn1Data); err != nil {
+		if certs[i], err = ParseX509Certificate(asn1Data); err != nil {
 			c.sendAlert(alertBadCertificate)
 			return nil, errors.New("tls: failed to parse client certificate: " + err.Error())
 		}
@@ -2345,7 +2399,7 @@ func (hs *serverHandshakeState) processCertsFromClient(certificates [][]byte) (c
 	if len(certs) > 0 {
 		pub := certs[0].PublicKey
 		switch pub.(type) {
-		case *ecdsa.PublicKey, *rsa.PublicKey, ed25519.PublicKey:
+		case *ecdsa.PublicKey, *rsa.PublicKey, ed25519.PublicKey, *mldsa.PublicKey:
 			break
 		default:
 			c.sendAlert(alertUnsupportedCertificate)
@@ -2356,6 +2410,47 @@ func (hs *serverHandshakeState) processCertsFromClient(certificates [][]byte) (c
 	}
 
 	return nil, nil
+}
+
+// processRawPublicKeyFromClient takes the list of certificates from the session
+// state or a Certificate message, which for a RPK should contain exactly 1
+// entry, and parses it to return the raw public key.
+func (hs *serverHandshakeState) processRawPublicKeyFromClient(certificates []certificateEntry) (crypto.PublicKey, error) {
+	c := hs.c
+
+	if len(certificates) == 0 {
+		return nil, nil
+	}
+
+	if len(certificates) > 1 {
+		c.sendAlert(alertIllegalParameter)
+		return nil, errors.New("tls: too many certificates for RawPublicKey cert type")
+	}
+
+	c.peerRawPublicKey = certificates[0].data
+	hs.rpkFromClient = certificates[0].data
+
+	rawPublicKey, err := x509.ParsePKIXPublicKey(c.peerRawPublicKey)
+	if err != nil {
+		c.sendAlert(alertBadCertificate)
+		return nil, errors.New("tls: failed to parse public key from raw public key: " + err.Error())
+	}
+
+	if len(certificates[0].ocspResponse) != 0 ||
+		len(certificates[0].sctList) != 0 ||
+		certificates[0].delegatedCredential != nil {
+		c.sendAlert(alertBadCertificate)
+		return nil, errors.New("tls: client sent unexpected extension with raw public key")
+	}
+
+	switch rawPublicKey.(type) {
+	case *ecdsa.PublicKey, *rsa.PublicKey, ed25519.PublicKey:
+		break
+	default:
+		c.sendAlert(alertUnsupportedCertificate)
+		return nil, fmt.Errorf("tls: client's raw public key is of unsupported type %T", rawPublicKey)
+	}
+	return rawPublicKey, nil
 }
 
 func verifyChannelIDMessage(channelIDMsg *channelIDMsg, channelIDHash []byte) (*ecdsa.PublicKey, error) {

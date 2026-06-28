@@ -54,6 +54,10 @@ namespace metrics {
 class MetricsService;
 }
 
+namespace metrics_services_manager {
+class MetricsServicesManager;
+}
+
 namespace network {
 class TestNetworkConnectionTracker;
 class TestNetworkQualityTracker;
@@ -118,7 +122,6 @@ class TestingBrowserProcess
   ui::UnownedUserDataHost& GetUnownedUserDataHost() override;
   const ui::UnownedUserDataHost& GetUnownedUserDataHost() const override;
   void EndSession() override;
-  void FlushLocalStateAndReply(base::OnceClosure reply) override;
   metrics_services_manager::MetricsServicesManager* GetMetricsServicesManager()
       override;
   metrics::MetricsService* metrics_service() override;
@@ -195,7 +198,11 @@ class TestingBrowserProcess
   SerialPolicyAllowedPorts* serial_policy_allowed_ports() override;
 #if !BUILDFLAG(IS_ANDROID)
   HidSystemTrayIcon* hid_system_tray_icon() override;
+  void set_hid_system_tray_icon_for_test(
+      std::unique_ptr<HidSystemTrayIcon> icon) override;
   UsbSystemTrayIcon* usb_system_tray_icon() override;
+  void set_usb_system_tray_icon_for_test(
+      std::unique_ptr<UsbSystemTrayIcon> icon) override;
 #endif
   os_crypt_async::OSCryptAsync* os_crypt_async() override;
   void set_additional_os_crypt_async_provider_for_test(
@@ -208,6 +215,9 @@ class TestingBrowserProcess
   // TaskEnvironment::DestructionObserver:
   void WillDestroyCurrentTaskEnvironment() override;
 
+  void SetMetricsServicesManager(
+      metrics_services_manager::MetricsServicesManager*
+          metrics_services_manager);
   void SetMetricsService(metrics::MetricsService* metrics_service);
   void SetProfileManager(std::unique_ptr<ProfileManager> profile_manager);
   void SetSafeBrowsingService(safe_browsing::SafeBrowsingService* sb_service);
@@ -230,10 +240,6 @@ class TestingBrowserProcess
   void SetComponentUpdater(
       std::unique_ptr<component_updater::ComponentUpdateService>
           component_updater);
-  void SetHidSystemTrayIcon(
-      std::unique_ptr<HidSystemTrayIcon> hid_system_tray_icon);
-  void SetUsbSystemTrayIcon(
-      std::unique_ptr<UsbSystemTrayIcon> usb_system_tray_icon);
 #endif
 
   // Same as local_state() but provides TestingPrefServiceSimple interface.
@@ -282,6 +288,8 @@ class TestingBrowserProcess
       browser_policy_connector_;
   std::unique_ptr<network::TestNetworkQualityTracker>
       test_network_quality_tracker_;
+  raw_ptr<metrics_services_manager::MetricsServicesManager>
+      metrics_services_manager_ = nullptr;
   raw_ptr<metrics::MetricsService> metrics_service_ = nullptr;
   raw_ptr<variations::VariationsService> variations_service_ = nullptr;
 

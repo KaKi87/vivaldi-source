@@ -16,6 +16,7 @@
 #include "chrome/browser/ui/views/passwords/password_bubble_view_base.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/password_manager/core/browser/password_store/password_form_converters.h"
 #include "components/password_manager/core/common/password_manager_ui.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -26,9 +27,7 @@
 class ManagePasswordsControllerTest : public ManagePasswordsTest {
  public:
   ManagePasswordsControllerTest() {
-    scoped_feature_list_.InitAndEnableFeatureWithParameters(
-        features::kPageActionsMigration,
-        {{features::kPageActionsMigrationManagePasswords.name, "true"}});
+    scoped_feature_list_.InitAndEnableFeature(features::kPageActionsMigration);
   }
 
   ~ManagePasswordsControllerTest() override = default;
@@ -146,7 +145,8 @@ IN_PROC_BROWSER_TEST_F(ManagePasswordsControllerTest,
   std::vector<password_manager::PasswordForm> forms = {shared_credentials,
                                                        non_shared_credentials};
   GetController()->OnPasswordAutofilled(
-      forms, url::Origin::Create(forms.front().url), {});
+      password_manager::FromPasswordForms(forms),
+      url::Origin::Create(forms.front().url), {});
 
   ASSERT_EQ(2u, GetController()->GetCurrentForms().size());
   EXPECT_EQ(GetController()->GetState(),

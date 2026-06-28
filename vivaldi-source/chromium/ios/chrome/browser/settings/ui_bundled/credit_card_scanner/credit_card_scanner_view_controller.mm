@@ -7,6 +7,9 @@
 #import "ios/chrome/browser/settings/ui_bundled/credit_card_scanner/credit_card_scanned_image_delegate.h"
 #import "ios/chrome/browser/settings/ui_bundled/credit_card_scanner/credit_card_scanner_camera_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/credit_card_scanner/credit_card_scanner_view.h"
+#import "ios/chrome/common/ui/colors/semantic_color_names.h"
+#import "ios/chrome/grit/ios_strings.h"
+#import "ui/base/l10n/l10n_util_mac.h"
 
 NSString* const kCreditCardScannerViewID = @"kCreditCardScannerViewID";
 
@@ -25,6 +28,7 @@ NSString* const kCreditCardScannerViewID = @"kCreditCardScannerViewID";
 - (void)viewDidLoad {
   [super viewDidLoad];
   self.view.accessibilityIdentifier = kCreditCardScannerViewID;
+  [self setupEnterManuallyButton];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -70,6 +74,49 @@ NSString* const kCreditCardScannerViewID = @"kCreditCardScannerViewID";
 - (void)receiveCreditCardScannerResult:(CMSampleBufferRef)sampleBuffer {
   [_delegate processOutputSampleBuffer:sampleBuffer
                               viewport:_creditCardViewport];
+}
+
+#pragma mark - Private
+
+- (void)setupEnterManuallyButton {
+  UIToolbar* toolbar = nil;
+  for (UIView* subview in self.scannerView.subviews) {
+    if ([subview isKindOfClass:[UIToolbar class]]) {
+      toolbar = (UIToolbar*)subview;
+      break;
+    }
+  }
+
+  // The toolbar is expected to have exactly 3 items by default, set up in the
+  // base class `ScannerView` (represented as `@[ close, spacer, _torchButton
+  // ]`).
+  if (!toolbar || toolbar.items.count != 3) {
+    return;
+  }
+
+  // Create a native UIBarButtonItem. On iOS 26, plain bar items on transparent
+  // toolbars automatically get the premium native glass pill style.
+  UIBarButtonItem* enterManuallyItem = [[UIBarButtonItem alloc]
+      initWithTitle:l10n_util::GetNSString(
+                        IDS_IOS_AUTOFILL_SCAN_CARD_ENTER_MANUALLY)
+              style:UIBarButtonItemStylePlain
+             target:self
+             action:@selector(didTapEnterManually:)];
+
+  NSMutableArray<UIBarButtonItem*>* items = [toolbar.items mutableCopy];
+  [items insertObject:enterManuallyItem atIndex:2];
+  [items insertObject:
+             [[UIBarButtonItem alloc]
+                 initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
+                                      target:nil
+                                      action:nil]
+              atIndex:3];
+  toolbar.items = items;
+}
+
+- (void)didTapEnterManually:(id)sender {
+  [self dismissForReason:scannerViewController::CLOSE_BUTTON
+          withCompletion:nil];
 }
 
 @end

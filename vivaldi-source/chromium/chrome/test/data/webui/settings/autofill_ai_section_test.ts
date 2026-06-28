@@ -49,6 +49,7 @@ suite('AutofillAiSectionUiReflectsEligibilityStatus', function() {
           editEntityTypeString: 'Edit car',
           deleteEntityTypeString: 'Delete car',
           supportsWalletStorage: false,
+          passType: chrome.autofillPrivate.EntityPassType.PUBLIC_PASS,
         },
         entityInstanceLabel: 'Toyota',
         entityInstanceSubLabel: 'Car',
@@ -63,6 +64,7 @@ suite('AutofillAiSectionUiReflectsEligibilityStatus', function() {
           editEntityTypeString: 'Edit passport',
           deleteEntityTypeString: 'Delete passport',
           supportsWalletStorage: false,
+          passType: chrome.autofillPrivate.EntityPassType.PRIVATE_PASS,
         },
         entityInstanceLabel: 'John Doe',
         entityInstanceSubLabel: 'Passport',
@@ -89,7 +91,7 @@ suite('AutofillAiSectionUiReflectsEligibilityStatus', function() {
     settingsPrefs.set(
         `prefs.${AiEnterpriseFeaturePrefName.AUTOFILL_AI}.value`,
         ModelExecutionEnterprisePolicyValue.ALLOW);
-    section.prefs = settingsPrefs.prefs;
+    section.prefs = settingsPrefs.prefs!;
     document.body.appendChild(section);
 
     await flushTasks();
@@ -218,6 +220,7 @@ suite('AutofillAiSectionUiTest', function() {
         editEntityTypeString: 'Edit driver\'s license',
         deleteEntityTypeString: 'Delete driver\'s license',
         supportsWalletStorage: false,
+        passType: chrome.autofillPrivate.EntityPassType.PRIVATE_PASS,
       },
       attributeInstances: [
         {
@@ -251,6 +254,7 @@ suite('AutofillAiSectionUiTest', function() {
         editEntityTypeString: 'Edit passport',
         deleteEntityTypeString: 'Delete passport',
         supportsWalletStorage: false,
+        passType: chrome.autofillPrivate.EntityPassType.PRIVATE_PASS,
       },
       {
         typeName: 2,
@@ -259,6 +263,7 @@ suite('AutofillAiSectionUiTest', function() {
         editEntityTypeString: 'Edit car',
         deleteEntityTypeString: 'Delete car',
         supportsWalletStorage: false,
+        passType: chrome.autofillPrivate.EntityPassType.PUBLIC_PASS,
       },
     ];
     // Initially not sorted alphabetically. The production code should sort them
@@ -319,7 +324,7 @@ suite('AutofillAiSectionUiTest', function() {
       AutofillAddOtherDatatypesPrefIsEnabled: false,
     });
     section = document.createElement('settings-autofill-ai-section');
-    section.prefs = settingsPrefs.prefs;
+    section.prefs = settingsPrefs.prefs!;
     document.body.appendChild(section);
     await flushTasks();
   }
@@ -425,9 +430,6 @@ suite('AutofillAiSectionUiTest', function() {
       });
 
   test('ToggleRespectsAddressAutofillPolicy', async function() {
-    loadTimeData.overrideValues({
-      enableYourSavedInfoPolicyAndExtentionToggleIndicators: true,
-    });
     settingsPrefs.set('prefs.autofill.profile_enabled', {
       value: false,
       enforcement: chrome.settingsPrivate.Enforcement.ENFORCED,
@@ -449,9 +451,6 @@ suite('AutofillAiSectionUiTest', function() {
   });
 
   test('ToggleRespectsAddressAutofillExtension', async function() {
-    loadTimeData.overrideValues({
-      enableYourSavedInfoPolicyAndExtentionToggleIndicators: true,
-    });
     settingsPrefs.set('prefs.autofill.profile_enabled', {
       value: false,
       enforcement: chrome.settingsPrivate.Enforcement.ENFORCED,
@@ -473,9 +472,6 @@ suite('AutofillAiSectionUiTest', function() {
   });
 
   test('AddressAutofillNotEnforcesTrueValueOnToggle', async function() {
-    loadTimeData.overrideValues({
-      enableYourSavedInfoPolicyAndExtentionToggleIndicators: true,
-    });
     entityDataManager.setGetOptInStatusResponse(false);
     settingsPrefs.set('prefs.autofill.profile_enabled', {
       value: true,

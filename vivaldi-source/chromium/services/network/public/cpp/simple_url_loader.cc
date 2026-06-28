@@ -1020,28 +1020,28 @@ class SaveToFileBodyHandler : public BodyHandler {
       DCHECK(!file_.IsValid());
       DCHECK(!body_reader_);
 
-      bool have_path = !create_temp_file_;
-      if (!have_path) {
-        DCHECK(create_temp_file_);
-        have_path = base::CreateTemporaryFile(&path_);
-        // CreateTemporaryFile() creates an empty file.
-        if (have_path)
-          owns_file_ = true;
-      }
-
-      if (have_path) {
-        // Try to initialize |file_|, creating the file if needed.
+      if (create_temp_file_) {
+        base::FilePath temp_dir;
+        if (base::GetTempDir(&temp_dir)) {
+          file_ = base::CreateAndOpenTemporaryFileInDir(temp_dir, &path_);
+        }
+      } else {
         file_.Initialize(
             path_, base::File::FLAG_WRITE | base::File::FLAG_CREATE_ALWAYS);
       }
 
       // If CreateTemporaryFile() or File::Initialize() failed, report failure.
       if (!file_.IsValid()) {
+        net::Error net_error = net::FileErrorToNetError(file_.error_details());
+        if (net_error == net::OK) {
+          net_error = net::MapSystemError(logging::GetLastSystemErrorCode());
+          if (net_error == net::OK) {
+            net_error = net::ERR_FILE_NOT_FOUND;
+          }
+        }
         body_handler_task_runner_->PostTask(
-            FROM_HERE, base::BindOnce(std::move(on_done_callback),
-                                      net::MapSystemError(
-                                          logging::GetLastSystemErrorCode()),
-                                      0, base::FilePath()));
+            FROM_HERE, base::BindOnce(std::move(on_done_callback), net_error, 0,
+                                      base::FilePath()));
         return;
       }
 
@@ -1914,22 +1914,22 @@ void SimpleURLLoaderImpl::OnReceiveRedirect(
     return;
   }
 
+  network::HttpRequestHeadersUpdateParams headers_update_params;
   std::vector<std::string> removed_headers;
   if (on_redirect_callback_) {
     base::WeakPtr<SimpleURLLoaderImpl> weak_this =
         weak_ptr_factory_.GetWeakPtr();
     GURL url_before_redirect = final_url_;
     on_redirect_callback_.Run(url_before_redirect, redirect_info,
-                              *response_head, &removed_headers);
+                              *response_head,
+                              &headers_update_params.removed_headers);
     // If deleted by the callback, bail now.
     if (!weak_this)
       return;
   }
 
   final_url_ = redirect_info.new_url;
-  url_loader_->FollowRedirect(removed_headers, {} /* modified_headers */,
-                              {} /* modified_cors_exempt_headers */,
-                              {} /* new_url */);
+  url_loader_->FollowRedirect(std::move(headers_update_params), std::nullopt);
 }
 
 void SimpleURLLoaderImpl::OnTransferSizeUpdated(int32_t transfer_size_diff) {
@@ -2022,24 +2022,24 @@ void SimpleURLLoaderImpl::MaybeComplete() {
     return;
   }
 
+  const std::optional<int64_t> decoded_body_length =
+      request_state_->completion_status
+          ? std::make_optional<int64_t>(
+                request_state_->completion_status->decoded_body_length)
+          : std::nullopt;
+
   // If the URLLoader didn't supply a data pipe because we set the
   // ReadAndDiscardBody option, then we don't yet have a value for
   // `received_body_size`, so just set it to the size reported by URLLoader.
   if (request_state_->received_body_size == kReceivedBodySizeUnknown) {
-    request_state_->received_body_size =
-        request_state_->completion_status
-            ? request_state_->completion_status->decoded_body_length
-            : 0;
+    request_state_->received_body_size = decoded_body_length.value_or(0);
   }
 
   // When OnCompleted sees a success result, still need to report an error if
   // the size isn't what was expected.
-  if (request_state_->net_error == net::OK &&
-      request_state_->completion_status &&
-      request_state_->completion_status->decoded_body_length !=
-          request_state_->received_body_size) {
-    if (request_state_->completion_status->decoded_body_length >
-        request_state_->received_body_size) {
+  if (request_state_->net_error == net::OK && decoded_body_length.has_value() &&
+      decoded_body_length.value() != request_state_->received_body_size) {
+    if (decoded_body_length.value() > request_state_->received_body_size) {
       // The body pipe was closed before it received the entire body.
       request_state_->net_error = net::ERR_FAILED;
       request_state_->completion_status = std::nullopt;

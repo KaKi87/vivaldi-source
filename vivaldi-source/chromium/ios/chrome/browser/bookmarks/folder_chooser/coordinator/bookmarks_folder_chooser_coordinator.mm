@@ -66,7 +66,7 @@ using vivaldi::IsVivaldiRunning;
   BookmarksFolderEditorCoordinator* _folderEditorCoordinator;
   // List of nodes to hide when displaying folders. This is to avoid to move a
   // folder inside a child folder.
-  std::set<const bookmarks::BookmarkNode*> _hiddenNodes;
+  std::set<raw_ptr<const bookmarks::BookmarkNode>> _hiddenNodes;
   // The folder that has a blue check mark beside it in the UI.
   // This is only used for clients of this coordinator to update the UI. This
   // does not reflect the folder users chose by clicking. For that information
@@ -89,7 +89,8 @@ using vivaldi::IsVivaldiRunning;
         (UINavigationController*)navigationController
                              browser:(Browser*)browser
                          hiddenNodes:
-                             (const std::set<const bookmarks::BookmarkNode*>&)
+                             (const std::set<
+                                 raw_ptr<const bookmarks::BookmarkNode>>&)
                                  hiddenNodes {
   self = [self initWithBaseViewController:navigationController
                                   browser:browser
@@ -103,8 +104,9 @@ using vivaldi::IsVivaldiRunning;
 - (instancetype)
     initWithBaseViewController:(UIViewController*)viewController
                        browser:(Browser*)browser
-                   hiddenNodes:(const std::set<const bookmarks::BookmarkNode*>&)
-                                   hiddenNodes {
+                   hiddenNodes:
+                       (const std::set<raw_ptr<const bookmarks::BookmarkNode>>&)
+                           hiddenNodes {
   self = [super initWithBaseViewController:viewController browser:browser];
   if (self) {
     _hiddenNodes = hiddenNodes;
@@ -120,7 +122,7 @@ using vivaldi::IsVivaldiRunning;
   return YES;
 }
 
-- (const std::set<const bookmarks::BookmarkNode*>&)editedNodes {
+- (const std::set<raw_ptr<const bookmarks::BookmarkNode>>&)editedNodes {
   return [_mediator editedNodes];
 }
 
@@ -132,10 +134,10 @@ using vivaldi::IsVivaldiRunning;
 }
 
 - (void)dealloc {
-  CHECK(!_viewController, base::NotFatalUntil::M149);
-  CHECK(!_baseNavigationController, base::NotFatalUntil::M149);
-  CHECK(!_mediator, base::NotFatalUntil::M149);
-  CHECK(!_folderEditorCoordinator, base::NotFatalUntil::M149);
+  DUMP_WILL_BE_CHECK(!_viewController);
+  DUMP_WILL_BE_CHECK(!_baseNavigationController);
+  DUMP_WILL_BE_CHECK(!_mediator);
+  DUMP_WILL_BE_CHECK(!_folderEditorCoordinator);
 }
 
 #pragma mark - ChromeCoordinator
@@ -195,8 +197,8 @@ using vivaldi::IsVivaldiRunning;
   // Stop child coordinator before stopping `self`.
   [self stopBookmarksFolderEditorCoordinator];
 
-  CHECK(_mediator, base::NotFatalUntil::M150);
-  CHECK(_viewController, base::NotFatalUntil::M150);
+  DUMP_WILL_BE_CHECK(_mediator);
+  DUMP_WILL_BE_CHECK(_viewController);
   [_mediator disconnect];
   _mediator.consumer = nil;
   _mediator.delegate = nil;
@@ -213,8 +215,8 @@ using vivaldi::IsVivaldiRunning;
     // the parent coordinator (who owns the `_baseNavigationController`) has
     // already been dismissed. In this case `_baseNavigationController` itself
     // is no longer being presented and this coordinator was dismissed as well.
-    CHECK_EQ(_baseNavigationController.topViewController, _viewController,
-             base::NotFatalUntil::M150);
+    DUMP_WILL_BE_CHECK_EQ(_baseNavigationController.topViewController,
+                          _viewController);
     [_baseNavigationController popViewControllerAnimated:YES];
   } else if (!_baseNavigationController) {
     // If there is no `_baseNavigationController` and `_navigationController`,
@@ -223,8 +225,7 @@ using vivaldi::IsVivaldiRunning;
     // `bookmarksFolderChooserViewControllerDidDismiss:`.
     // Therefore `self.baseViewController.presentedViewController` must be
     // `nil`.
-    CHECK(!self.baseViewController.presentedViewController,
-          base::NotFatalUntil::M150);
+    DUMP_WILL_BE_CHECK(!self.baseViewController.presentedViewController);
   }
   _viewController.delegate = nil;
   _viewController.dataSource = nil;

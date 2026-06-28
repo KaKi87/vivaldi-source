@@ -23,6 +23,7 @@
 #include "chrome/browser/ui/views/web_apps/web_app_install_dialog_delegate.h"
 #include "chrome/browser/ui/web_applications/web_app_dialogs.h"
 #include "chrome/browser/ui/web_applications/web_app_info_image_source.h"
+#include "chrome/browser/web_applications/model/dialog_image_info.h"
 #include "chrome/browser/web_applications/web_app_constants.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_screenshot_fetcher.h"
@@ -45,6 +46,7 @@
 #include "ui/base/models/image_model.h"
 #include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/base/mojom/ui_base_types.mojom-shared.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 #include "ui/display/screen.h"
 #include "ui/gfx/geometry/insets.h"
@@ -135,8 +137,13 @@ class ScrollButton : public views::ImageButton {
     SetImageModel(
         views::Button::ButtonState::STATE_NORMAL,
         button_type == ButtonType::kLeading
-            ? ui::ImageModel::FromVectorIcon(kLeadingScrollIcon, ui::kColorIcon)
-            : ui::ImageModel::FromVectorIcon(kTrailingScrollIcon,
+            ? ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                                 ? kKeyboardArrowLeftIcon
+                                                 : kLeadingScrollOldIcon,
+                                             ui::kColorIcon)
+            : ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                                 ? kKeyboardArrowRightIcon
+                                                 : kTrailingScrollOldIcon,
                                              ui::kColorIcon));
 
     views::InkDrop::Get(this)->SetBaseColor(
@@ -404,6 +411,10 @@ namespace web_app {
 
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kDetailedInstallDialogImageContainer);
 
+// TODO(crbug.com/507106728): Delete this implementation once
+// kWebAppInstallDialog is enabled by default and WebAppInstallIntroView
+// takes over.
+
 void ShowWebAppDetailedInstallDialog(
     content::WebContents* web_contents,
     std::unique_ptr<web_app::WebAppInstallInfo> install_info,
@@ -498,34 +509,6 @@ void ShowWebAppDetailedInstallDialog(
       cros_events::AppDiscovery_Browser_AppInstallDialogShown().SetAppId(
           app_id));
 #endif  // BUILDFLAG(IS_CHROMEOS)
-}
-
-// Creates a view for the detailed install dialog that contains
-// WebAppIconNameAndOriginView and ImageCarouselView.
-std::unique_ptr<views::View> CreateDetailedInstallDialogView(
-    gfx::ImageSkia icon_image,
-    const std::u16string& title,
-    const GURL& start_url,
-    bool is_maskable,
-    base::WeakPtr<WebAppScreenshotFetcher> fetcher,
-    const std::u16string& description) {
-  auto detailed_view = std::make_unique<views::BoxLayoutView>();
-  detailed_view->SetOrientation(views::BoxLayout::Orientation::kVertical);
-  detailed_view->SetBetweenChildSpacing(
-      views::LayoutProvider::Get()->GetDistanceMetric(
-          views::DISTANCE_RELATED_CONTROL_VERTICAL));
-
-  detailed_view->AddChildView(WebAppIconNameAndOriginView::Create(
-      icon_image, title, start_url, is_maskable));
-
-  auto* description_label =
-      detailed_view->AddChildView(std::make_unique<views::Label>(description));
-  description_label->SetMultiLine(true);
-  description_label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-  description_label->SetTextStyle(views::style::STYLE_SECONDARY);
-
-  detailed_view->AddChildView(std::make_unique<ImageCarouselView>(fetcher));
-  return detailed_view;
 }
 
 }  // namespace web_app

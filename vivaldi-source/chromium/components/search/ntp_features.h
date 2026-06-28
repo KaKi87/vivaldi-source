@@ -51,7 +51,6 @@ BASE_DECLARE_FEATURE(kNtpModulesDragAndDrop);
 BASE_DECLARE_FEATURE(kNtpModulesLoad);
 BASE_DECLARE_FEATURE(kNtpModuleSignInRequirement);
 BASE_DECLARE_FEATURE(kNtpOutlookCalendarModule);
-BASE_DECLARE_FEATURE(kNtpFeedModule);
 BASE_DECLARE_FEATURE(kNtpOneGoogleBar);
 BASE_DECLARE_FEATURE(kNtpSharepointModule);
 enum class NtpSharepointModuleDataType {
@@ -86,6 +85,7 @@ BASE_DECLARE_FEATURE(kNtpDoodleMurals);
 BASE_DECLARE_FEATURE(kLightningTakeoverEdition);
 BASE_DECLARE_FEATURE(kNtpShortcutsRedesign);
 BASE_DECLARE_FEATURE(kNtpSimplificationBookmarkBar);
+BASE_DECLARE_FEATURE(kBookmarkBarUpdatesForTesting);
 
 // Parameter for controlling the luminosity difference for NTP elements on light
 // backgrounds.
@@ -278,6 +278,15 @@ extern const base::FeatureParam<int> kStaleShortcutsCountThreshold;
 // and eligible for auto-removal.
 extern const base::FeatureParam<int> kStaleModulesCountThreshold;
 
+// Parameter determining the count at which the bookmark bar will be eligible
+// for auto-removal.
+extern const base::FeatureParam<int> kBookmarkBarCountThreshold;
+
+// Parameter determining the minimum amount of time before auto-removal prefs
+// are updated.
+extern const base::FeatureParam<base::TimeDelta>
+    kBookmarkBarMinStalenessTimeInterval;
+
 // Returns the timeout after which the load of a module should be aborted.
 base::TimeDelta GetModulesLoadTimeout();
 
@@ -325,6 +334,10 @@ int GetMaxMostVisitedTilesInExpandedState();
 
 // Returns the max number of enterprise shortcuts allowed.
 int GetMaxEnterpriseShortcuts();
+
+base::TimeDelta GetBookmarkBarMinStalenessTimeInterval();
+
+int GetBookmarkBarCountThreshold();
 
 }  // namespace ntp_features
 

@@ -7,8 +7,8 @@
 #include "base/synchronization/lock.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/first_run/first_run.h"
+#include "components/os_crypt/async/browser/os_crypt_async.h"
 #include "components/os_crypt/common/keychain_password_mac.h"
-#include "components/os_crypt/sync/os_crypt.h"
 #include "crypto/apple/keychain_v2.h"
 
 namespace vivaldi {

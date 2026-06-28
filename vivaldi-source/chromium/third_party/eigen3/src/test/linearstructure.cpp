@@ -7,10 +7,11 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 static bool g_called;
 #define EIGEN_SCALAR_BINARY_OP_PLUGIN \
-  { g_called |= (!internal::is_same<LhsScalar, RhsScalar>::value); }
+  { g_called |= (!std::is_same<LhsScalar, RhsScalar>::value); }
 
 #include "main.h"
 

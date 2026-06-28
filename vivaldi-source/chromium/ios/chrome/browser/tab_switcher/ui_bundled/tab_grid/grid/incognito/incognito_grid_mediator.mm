@@ -117,8 +117,9 @@
   }
 }
 
-- (void)setPageAsActive {
-  [self.gridConsumer setActivePageFromPage:TabGridPageIncognitoTabs];
+- (void)setPageAsActiveWithBehavior:(TabGridScrollBehavior)behavior {
+  [self.gridConsumer setActivePageFromPage:TabGridPageIncognitoTabs
+                                  behavior:behavior];
 }
 
 #pragma mark - TabGridToolbarsGridDelegate
@@ -141,7 +142,6 @@
 }
 
 - (void)newTabButtonTapped:(id)sender {
-  CHECK(!IsChromeNextIaEnabled());
   // Ignore the tap if the current page is disabled for some reason, by policy
   // for instance. This is to avoid situations where the tap action from an
   // enabled page can make it to a disabled page by releasing the
@@ -216,7 +216,8 @@
 }
 
 - (void)displayActiveTab {
-  [self.gridConsumer setActivePageFromPage:TabGridPageIncognitoTabs];
+  [self.gridConsumer setActivePageFromPage:TabGridPageIncognitoTabs
+                                  behavior:TabGridScrollBehaviorAnimated];
   [self.tabPresentationDelegate showActiveTabInPage:TabGridPageIncognitoTabs
                                        focusOmnibox:NO];
   if (IsDownloadAutoDeletionFeatureEnabled()) {

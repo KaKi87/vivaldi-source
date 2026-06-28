@@ -18,6 +18,7 @@
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_uninstall_dialog.h"
+#include "chrome/browser/extensions/external_install_error.h"
 #include "chrome/browser/extensions/sync/extension_sync_data.h"
 #include "chrome/browser/extensions/sync/extension_sync_service.h"
 #include "chrome/browser/extensions/updater/extension_updater.h"
@@ -43,14 +44,57 @@
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/test_extension_registry_observer.h"
 #include "extensions/common/extension.h"
+#include "extensions/common/verifier_formats.h"
 #include "extensions/test/extension_test_message_listener.h"
 #include "testing/gmock/include/gmock/gmock.h"
+#include "app/vivaldi_apptools.h"
+#include "extensions/schema/browser_action_utilities.h"
+#include "extensions/vivaldi_browser_component_wrapper.h"
+#include "ui/vivaldi_rootdocument_handler.h"
 
 using content::BrowserThread;
 using extensions::Extension;
 using extensions::ExtensionRegistry;
 using extensions::ExtensionPrefs;
 using extensions::ExtensionSyncData;
+
+// Mock ExternalInstallError for VB-122765 regression test.
+// Simulates the production crash path where a
+// VivaldiExtensionDisabledGlobalError is created with the second constructor
+// (WeakPtr<ExternalInstallError>), and the ExternalInstallError is destroyed
+// before GetGlobalErrors() is called, leaving the WeakPtr expired.
+class MockExternalInstallError : public extensions::ExternalInstallError {
+ public:
+  explicit MockExternalInstallError(const extensions::Extension* extension)
+      : extension_(extension), extension_id_(extension->id()) {}
+
+  // ExternalInstallError:
+  void OnInstallPromptDone(
+      ExtensionInstallPrompt::DoneCallbackPayload payload) override {}
+  void DidOpenBubbleView() override {}
+  void DidCloseBubbleView() override {}
+  const extensions::Extension* GetExtension() const override {
+    return extension_.get();
+  }
+  const extensions::ExtensionId& extension_id() const override {
+    return extension_id_;
+  }
+  extensions::ExternalInstallError::AlertType alert_type() const override {
+    return extensions::ExternalInstallError::AlertType::MENU_ALERT;
+  }
+  ExtensionInstallPrompt::Prompt* GetPromptForTesting() const override {
+    return nullptr;
+  }
+
+  base::WeakPtr<extensions::ExternalInstallError> GetWeakPtr() {
+    return weak_factory_.GetWeakPtr();
+  }
+
+ private:
+  scoped_refptr<const extensions::Extension> extension_;
+  extensions::ExtensionId extension_id_;
+  base::WeakPtrFactory<MockExternalInstallError> weak_factory_{this};
+};
 
 class ExtensionDisabledGlobalErrorTest
     : public extensions::ExtensionBrowserTest {
@@ -63,6 +107,9 @@ class ExtensionDisabledGlobalErrorTest
 
   void SetUpOnMainThread() override {
     extensions::ExtensionBrowserTest::SetUpOnMainThread();
+    // Required so AddExtensionDisabledError creates
+    // VivaldiExtensionDisabledGlobalError instead of the plain Chromium one.
+    vivaldi::ForceVivaldiRunning(true);
     EXPECT_TRUE(scoped_temp_dir_.CreateUniqueTempDir());
     const base::FilePath test_dir =
         test_data_dir_.AppendASCII("permissions_increase");
@@ -274,13 +321,76 @@ IN_PROC_BROWSER_TEST_F(ExtensionDisabledGlobalErrorTest,
 IN_PROC_BROWSER_TEST_F(ExtensionDisabledGlobalErrorTest, RemoteInstall) {
   static const char extension_id[] = "pgdpcfcocojkjfbgpiianjngphoopgmo";
 
+  auto reset = extensions::DisablePublisherKeyVerificationForTests();
+  content::URLLoaderInterceptor interceptor(base::BindLambdaForTesting(
+      [&](content::URLLoaderInterceptor::RequestParams* params) {
+        std::string path = params->url_request.url.GetPath();
+        if (path == "/autoupdate_nonwebstore/updates.xml") {
+          content::URLLoaderInterceptor::WriteResponse(
+              test_data_dir_.AppendASCII("permissions_increase")
+                  .AppendASCII("updates.xml"),
+              params->client.get());
+          return true;
+        } else if (path == "/autoupdate/v2.crx") {
+          content::URLLoaderInterceptor::WriteResponse(path_v2_,
+                                                       params->client.get());
+          return true;
+        }
+        return false;
+      }));
+
+  sync_pb::EntitySpecifics specifics;
+  specifics.mutable_extension()->set_id(extension_id);
+  specifics.mutable_extension()->set_enabled(false);
+  specifics.mutable_extension()->set_remote_install(true);
+  specifics.mutable_extension()->set_disable_reasons(
+      extensions::disable_reason::DISABLE_REMOTE_INSTALL);
+  specifics.mutable_extension()->set_update_url(
+      "http://localhost/autoupdate_nonwebstore/updates.xml");
+  specifics.mutable_extension()->set_version("2");
+  syncer::SyncData sync_data = syncer::SyncData::CreateRemoteData(
+      specifics, syncer::ClientTagHash::FromHashed("unused"));
+
+  ExtensionSyncService* sync_service = ExtensionSyncService::Get(profile());
+  sync_service->MergeDataAndStartSyncing(
+      syncer::EXTENSIONS, syncer::SyncDataList(),
+      std::make_unique<syncer::FakeSyncChangeProcessor>());
+  extensions::TestExtensionRegistryObserver install_observer(
+      extension_registry());
+  sync_service->ProcessSyncChanges(
+      FROM_HERE,
+      syncer::SyncChangeList(
+          1, syncer::SyncChange(FROM_HERE, syncer::SyncChange::ACTION_ADD,
+                                sync_data)));
+
+  install_observer.WaitForExtensionWillBeInstalled();
+  content::RunAllTasksUntilIdle();
+
+  const Extension* extension =
+      extension_registry()->disabled_extensions().GetByID(extension_id);
+  ASSERT_TRUE(extension);
+  EXPECT_EQ("2", extension->VersionString());
+  EXPECT_EQ(1u, extension_registry()->disabled_extensions().size());
+  EXPECT_THAT(ExtensionPrefs::Get(extension_service()->profile())
+                  ->GetDisableReasons(extension_id),
+              testing::UnorderedElementsAre(
+                  extensions::disable_reason::DISABLE_REMOTE_INSTALL));
+  EXPECT_TRUE(GetExtensionDisabledGlobalError());
+}
+
+// Test that an error appears if an extension gets installed server side.
+IN_PROC_BROWSER_TEST_F(ExtensionDisabledGlobalErrorTest,
+                       RemoteInstallFromWebstore) {
+  static const char extension_id[] = "pgdpcfcocojkjfbgpiianjngphoopgmo";
+
+  auto reset = extensions::DisablePublisherKeyVerificationForTests();
   content::URLLoaderInterceptor interceptor(base::BindLambdaForTesting(
       [&](content::URLLoaderInterceptor::RequestParams* params) {
         std::string path = params->url_request.url.GetPath();
         if (path == "/autoupdate/updates.xml") {
           content::URLLoaderInterceptor::WriteResponse(
               test_data_dir_.AppendASCII("permissions_increase")
-                  .AppendASCII("updates.xml"),
+                  .AppendASCII("updates.json"),
               params->client.get());
           return true;
         } else if (path == "/autoupdate/v2.crx") {
@@ -369,4 +479,131 @@ IN_PROC_BROWSER_TEST_F(ExtensionDisabledGlobalErrorTest,
   // removed too.
   EXPECT_EQ(
       GetExtensionDisabledErrorCount(global_error_service, extension_name), 0);
+}
+
+// Tests that GetGlobalErrors() survives when the ExternalInstallError
+// backing a VivaldiExtensionDisabledGlobalError is destroyed before the
+// errors are queried. This is the exact production crash path for VB-122765:
+// the ExternalInstallError is destroyed (e.g. during uninstall or shutdown),
+// expiring the WeakPtr inside VivaldiExtensionDisabledGlobalError, so
+// GetExtension() returns null. Calling GetExtension()->id() on null crashes.
+//
+// Fix: use GetExtensionId() (cached std::string) instead of
+// GetExtension()->id() in GetGlobalErrors().
+IN_PROC_BROWSER_TEST_F(ExtensionDisabledGlobalErrorTest,
+                       VivaldiGetGlobalErrorsAfterUninstall) {
+  const Extension* extension = InstallIncreasingPermissionExtensionV1();
+  ASSERT_TRUE(extension);
+  std::string extension_id = extension->id();
+
+  auto* root_doc_handler =
+      extensions::VivaldiRootDocumentHandlerFactory::GetForBrowserContext(
+          profile());
+  ASSERT_TRUE(root_doc_handler);
+
+  // Create a mock ExternalInstallError and use the second constructor,
+  // matching what ExternalInstallErrorDesktop::OnDialogReady() does in
+  // production (external_install_error_desktop.cc:491).
+  auto mock_error = std::make_unique<MockExternalInstallError>(extension);
+  base::WeakPtr<extensions::ExternalInstallError> weak_mock =
+      mock_error->GetWeakPtr();
+
+  root_doc_handler->AddGlobalError(
+      std::make_unique<extensions::VivaldiExtensionDisabledGlobalError>(
+          profile(), std::move(weak_mock)));
+
+  // Verify the Vivaldi root document handler has the error.
+  {
+    const auto& errors = root_doc_handler->errors();
+    EXPECT_GT(errors.size(), 0u);
+    bool found = std::any_of(errors.begin(), errors.end(),
+                             [extension_id](const auto& err) {
+                               return err->GetExtensionId() == extension_id;
+                             });
+    EXPECT_TRUE(found);
+  }
+
+  // Destroy the mock ExternalInstallError. This expires the WeakPtr inside
+  // VivaldiExtensionDisabledGlobalError, so GetExtension() now returns null.
+  // In production this happens when ExternalInstallErrorDesktop::RemoveError()
+  // destroys the object during uninstall/shutdown.
+  mock_error.reset();
+
+  // GetGlobalErrors must survive even though GetExtension() returns null.
+  // Without the fix, GetExtension()->id() dereferences null → segfault.
+  // With the fix, GetExtensionId() returns the cached string → clean.
+  std::vector<ExtensionInstallError*> jserrors;
+  bool ok = VivaldiBrowserComponentWrapper::GetInstance()
+                ->GetGlobalErrors(profile(), jserrors);
+  EXPECT_TRUE(ok);
+
+  // The error for this extension should still be present with correct data.
+  bool found = false;
+  for (ExtensionInstallError* jserror : jserrors) {
+    auto* actual = reinterpret_cast<
+        extensions::vivaldi::extension_action_utils::ExtensionInstallError*>(
+        jserror);
+    if (actual->id == extension_id) {
+      found = true;
+      EXPECT_EQ(actual->name, extension->name());
+    }
+  }
+  EXPECT_TRUE(found);
+}
+
+// Tests that VivaldiExtensionDisabledGlobalError is properly removed from
+// errors_ when the extension is uninstalled, preventing stale entries.
+//
+// Without the fix: RemoveGlobalError() was commented out, so errors remained
+// in errors_ after uninstall → GetGlobalErrors() returns stale entries.
+// With the fix: RemoveGlobalError() extracts and erases the error from errors_.
+IN_PROC_BROWSER_TEST_F(ExtensionDisabledGlobalErrorTest,
+                       VivaldiGlobalErrorRemovedOnUninstall) {
+  const Extension* extension = InstallIncreasingPermissionExtensionV1();
+  ASSERT_TRUE(extension);
+  std::string extension_id = extension->id();
+
+  auto* root_doc_handler =
+      extensions::VivaldiRootDocumentHandlerFactory::GetForBrowserContext(
+          profile());
+  ASSERT_TRUE(root_doc_handler);
+
+  auto mock_error = std::make_unique<MockExternalInstallError>(extension);
+  base::WeakPtr<extensions::ExternalInstallError> weak_mock =
+      mock_error->GetWeakPtr();
+
+  root_doc_handler->AddGlobalError(
+      std::make_unique<extensions::VivaldiExtensionDisabledGlobalError>(
+          profile(), std::move(weak_mock)));
+
+  // Verify the error is in errors_.
+  {
+    const auto& errors = root_doc_handler->errors();
+    bool found = std::any_of(errors.begin(), errors.end(),
+                             [extension_id](const auto& err) {
+                               return err->GetExtensionId() == extension_id;
+                             });
+    EXPECT_TRUE(found);
+  }
+
+  // Uninstall the extension. This triggers OnExtensionUninstalled() →
+  // RemoveGlobalError(), which should extract and erase the error from errors_.
+  UninstallExtension(extension_id);
+
+  // Process pending tasks (DeleteSoon defers deletion).
+  content::RunAllTasksUntilIdle();
+
+  // Verify the error was removed from errors_.
+  // Without the fix: error remains in errors_ → stale entry.
+  // With the fix: error is erased from errors_.
+  {
+    const auto& errors = root_doc_handler->errors();
+    bool found = std::any_of(errors.begin(), errors.end(),
+                             [extension_id](const auto& err) {
+                               return err->GetExtensionId() == extension_id;
+                             });
+    EXPECT_FALSE(found);
+  }
+
+  mock_error.reset();
 }

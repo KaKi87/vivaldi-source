@@ -12,19 +12,20 @@
 #include "components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom-forward.h"
 #include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/gfx/geometry/rect.h"
+#include "ui/views/controls/menu/menu_model_adapter.h"
 #include "ui/views/controls/menu/menu_runner.h"
 
 namespace views {
 class Widget;
 }  // namespace views
 
-class WebUIToolbarWebView;
+class WebUIToolbarControlDelegate;
 
 // A WebUI-based implementation of the Back/Forward control.
 // This class manages the communication with the WebUI via Mojo.
 class WebUIBackForwardControl {
  public:
-  WebUIBackForwardControl(WebUIToolbarWebView* webui_toolbar_web_view,
+  WebUIBackForwardControl(WebUIToolbarControlDelegate* delegate,
                           BackForwardButton::Direction direction);
   WebUIBackForwardControl(const WebUIBackForwardControl&) = delete;
   WebUIBackForwardControl& operator=(const WebUIBackForwardControl&) = delete;
@@ -35,9 +36,19 @@ class WebUIBackForwardControl {
                          ui::mojom::MenuSourceType source);
 
   void SetEnabled(bool enabled);
-  void SetVisible(bool visible);
-  bool GetVisible() const;
-  void SetLeadingMargin(int margin);
+  bool is_enabled() const { return enabled_; }
+
+  void SetIsPinned(bool is_pinned);
+  // Returns true if the home button is pinned, and so should be shown if
+  // there's enough room for it on the toolbar. Always returns true for the back
+  // button.
+  bool IsPinned() const;
+
+  // Sets whether or not the button has overflowed - that is, not displayed on
+  // the toolbar because there's no space for it. When not pinned, overflowed
+  // should be set to false. Updates state if needed.
+  void SetIsOverflowed(bool is_overflowed);
+  bool is_overflowed() const { return is_overflowed_; }
 
   toolbar_ui_api::mojom::BackForwardButtonStatePtr GetButtonState() const;
 
@@ -48,13 +59,17 @@ class WebUIBackForwardControl {
                            CheckForwardButtonColor);
   FRIEND_TEST_ALL_PREFIXES(WebUIToolbarWebViewPixelBrowserTest,
                            BackForwardButtonsModifierClick);
+  FRIEND_TEST_ALL_PREFIXES(WebUIToolbarButtonPressAndDragTest,
+                           PressAndDragDown);
 
-  const raw_ptr<WebUIToolbarWebView> webui_toolbar_web_view_;
+  const raw_ptr<WebUIToolbarControlDelegate> delegate_;
   const BackForwardButton::Direction direction_;
   BackForwardMenuModel menu_model_;
+  std::unique_ptr<views::MenuModelAdapter> menu_model_adapter_;
   std::unique_ptr<views::MenuRunner> menu_runner_;
   bool enabled_ = true;
-  bool visible_ = true;
+  bool is_pinned_ = true;
+  bool is_overflowed_ = false;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_WEBUI_BACK_FORWARD_CONTROL_H_

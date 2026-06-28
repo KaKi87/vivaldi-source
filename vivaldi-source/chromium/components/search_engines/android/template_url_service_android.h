@@ -171,6 +171,8 @@ class TemplateUrlServiceAndroid : public TemplateURLServiceObserver {
       const base::android::JavaRef<jobject>& template_url_list_obj);
 
   // Get the available search engines filtered by |category|.
+  // For site search sections, the returned vector will be sorted by
+  // {@link OrderTemplateUrlsByManagedAndAlphabetically}.
   std::vector<const TemplateURL*> GetTemplateUrlsByCategory(
       JNIEnv* env,
       TemplateUrlCategory category);
@@ -263,6 +265,12 @@ class TemplateUrlServiceAndroid : public TemplateURLServiceObserver {
       JNIEnv* env,
       const base::android::JavaRef<jobject>& obj,
       const base::android::JavaRef<jstring>& jurl);
+
+  // Vivaldi
+  void VivaldiRestoreTemplateUrls(
+          JNIEnv* env,
+          const base::android::JavaRef<jobject>& obj);
+
   // End Vivaldi
 
  private:
@@ -270,6 +278,8 @@ class TemplateUrlServiceAndroid : public TemplateURLServiceObserver {
                            FilterUserSelectableTemplateUrls);
   FRIEND_TEST_ALL_PREFIXES(TemplateUrlServiceAndroidUnitTest,
                            FilterTemplateUrlsByCategory);
+  FRIEND_TEST_ALL_PREFIXES(TemplateUrlServiceAndroidUnitTest,
+                           GetDisabledStarterPackIds);
 
   bool IsDefaultSearchEngineGoogle();
 
@@ -287,6 +297,8 @@ class TemplateUrlServiceAndroid : public TemplateURLServiceObserver {
       const std::vector<raw_ptr<TemplateURL, VectorExperimental>>&
           template_urls,
       TemplateUrlCategory category);
+
+  template_url_starter_pack_data::StarterPackIdSet GetDisabledStarterPackIds();
 
   base::android::ScopedJavaGlobalRef<jobject> java_ref_;
 

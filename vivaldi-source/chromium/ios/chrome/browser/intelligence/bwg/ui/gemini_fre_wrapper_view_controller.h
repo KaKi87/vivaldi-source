@@ -5,25 +5,44 @@
 #ifndef IOS_CHROME_BROWSER_INTELLIGENCE_BWG_UI_GEMINI_FRE_WRAPPER_VIEW_CONTROLLER_H_
 #define IOS_CHROME_BROWSER_INTELLIGENCE_BWG_UI_GEMINI_FRE_WRAPPER_VIEW_CONTROLLER_H_
 
-#import <UIKit/UIKit.h>
-
 #import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
+#import "ios/chrome/common/ui/button_stack/button_stack_view_controller.h"
 
+@class GeminiConsentConfiguration;
 @protocol GeminiConsentMutator;
 
 // UIViewController that owns GeminiPromo and GeminiConsent view controllers and
-// manages their transitions.
-@interface GeminiFREWrapperViewController : UIViewController
+// manages their transitions with a horizontal scroll view.
+//
+// The layout is structured as follows:
+// +--------------------------------+
+// |      Vertical Scroll View      |
+// |  +--------------------------+  |
+// |  |          Logo            |  |
+// |  +--------------------------+  |
+// |  +--------------------------+  |
+// |  |  Horizontal Scroll View  |  |
+// |  | +---------+  +---------+ |  |
+// |  | |  Promo  |->| Consent | |  |
+// |  | +---------+  +---------+ |  |
+// |  +--------------------------+  |
+// +--------------------------------+
+// |         Buttons stack          |
+// +--------------------------------+
+@interface GeminiFREWrapperViewController : ButtonStackViewController
 
-// Initializes the navigation controller.
-// If `showPromo` is YES, the navigation controller will display the promo.
-// If NO, the navigation controller will display the consent view.
-// `isAccountManaged` indicates whether the account is managed.
+// Initializes the view controller.
+// If `showPromo` is YES, the view controller will display the promo.
+// If NO, the view controller will display the consent view.
 // `freType` specifies the type of Gemini FRE being shown.
+// `consentConfiguration` provides the configuration for the consent view.
 - (instancetype)initWithPromo:(BOOL)showPromo
-             isAccountManaged:(BOOL)isAccountManaged
                       FREType:(GeminiFREType)FREType
-                      country:(NSString*)country NS_DESIGNATED_INITIALIZER;
+         consentConfiguration:(GeminiConsentConfiguration*)consentConfiguration
+    NS_DESIGNATED_INITIALIZER;
+
+- (instancetype)initWithConfiguration:(ButtonStackConfiguration*)configuration
+    NS_UNAVAILABLE;
 
 - (instancetype)init NS_UNAVAILABLE;
 - (instancetype)initWithRootViewController:(UIViewController*)rootViewController

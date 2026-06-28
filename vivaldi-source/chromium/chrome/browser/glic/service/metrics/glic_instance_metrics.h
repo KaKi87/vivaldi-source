@@ -10,7 +10,9 @@
 
 #include "base/callback_list.h"
 #include "base/containers/flat_map.h"
+#include "base/containers/flat_set.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ref.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/public/glic_instance_metrics_backwards_compatibility.h"
 #include "chrome/browser/glic/service/glic_state_tracker.h"
@@ -20,12 +22,21 @@
 
 class PrefService;
 
+namespace metrics {
+
+class ProfileMetricsService;
+}
+
 namespace content {
 class WebContents;
 }
 
 namespace tabs {
 class TabInterface;
+}
+
+namespace enterprise_reporting {
+class SaasUsageReportingController;
 }
 
 namespace base {
@@ -37,6 +48,8 @@ namespace glic {
 
 class GlicSharingManager;
 struct ShowOptions;
+
+using SafeEmbedderKey = std::variant<tabs::TabHandle, FloatingEmbedderKey>;
 
 // This enumerates a set of possible lifecycle errors which are logged when the
 // sequence of received events was not expected.
@@ -113,7 +126,10 @@ enum class GlicInstanceEvent {
   kShown = 47,
   kOpen = 48,
   kWebUiStateWarmed = 49,
-  kMaxValue = kWebUiStateWarmed,
+  // kOpen2 = 50 - Only used in Canary M150
+  kWebUiStateLocationMismatch = 51,
+  kWebUiStateIneligibleAccount = 52,
+  kMaxValue = kWebUiStateIneligibleAccount,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicInstanceEvent)
 
@@ -147,9 +163,14 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
     kFloaty,
   };
 
-  GlicInstanceMetrics();
-  explicit GlicInstanceMetrics(GlicSharingManager* sharing_manager,
-                               PrefService* pref_service = nullptr);
+  explicit GlicInstanceMetrics(
+      const metrics::ProfileMetricsService* profile_metrics_service);
+  GlicInstanceMetrics(
+      const metrics::ProfileMetricsService* profile_metrics_service,
+      GlicSharingManager* sharing_manager,
+      enterprise_reporting::SaasUsageReportingController*
+          saas_usage_reporting_controller,
+      PrefService* pref_service = nullptr);
   ~GlicInstanceMetrics() override;
 
   GlicInstanceMetrics(const GlicInstanceMetrics&) = delete;
@@ -160,11 +181,13 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   void DidRequestContextFromTab(tabs::TabInterface& tab) override;
   void OnResponseStarted() override;
   void OnResponseStopped(mojom::ResponseStopCause cause) override;
-  void OnTurnCompleted(mojom::WebClientModel model,
-                       base::TimeDelta duration) override;
-  void OnReaction(mojom::MetricUserInputReactionType reaction_type) override;
-  void OnGlicScrollAttempt() override;
-  void OnGlicScrollComplete(bool success) override;
+  void OnTurnCompleted(mojom::WebClientModel model, base::TimeDelta duration);
+  void OnReaction(mojom::MetricUserInputReactionType reaction_type);
+  void OnGlicScrollAttempt();
+  void OnGlicScrollComplete(bool success);
+
+  // Called when the opt-in CTA is shown.
+  void OnOptinImpression();
 
   // Called when GlicInstanceImpl is destroyed.
   void OnInstanceDestroyed();
@@ -240,6 +263,12 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   // instance.
   void OnOpen(glic::mojom::InvocationSource source, const ShowOptions& options);
 
+  // Returns true if this is the first time this specific embedder is becoming
+  // visible after being opened/closed.
+  bool MarkShownAndCheckIfFirstTime(EmbedderKey key);
+
+  void ResetShownState(EmbedderKey key);
+
   // Called when a tab that was bound to this instance is destroyed.
   void OnBoundTabDestroyed();
 
@@ -276,8 +305,6 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   void OnUserResizeStarted(const gfx::Size& start_size);
   void OnUserResizeEnded(const gfx::Size& end_size);
 
-  void OnSelectionAreasChanged(int count);
-
   void OnZoomLevelChange();
 
   // Records the number of tabs attached as context for a Glic response.
@@ -285,6 +312,10 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
 
   void RecordTabPinningStatusEvent(tabs::TabInterface* tab,
                                    GlicPinningStatusEvent event);
+
+  enum class PendingImpression {
+    kOptIn = 0,
+  };
 
   // Routes skills WebUI actions from the frontend to their respective
   // metrics funnels.
@@ -324,8 +355,6 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
     // should be removed, see crbug.com/399151164.
     bool response_started_ = false;
     bool did_request_context_ = false;
-    bool reported_reaction_time_canned_ = false;
-    bool reported_reaction_time_modelled_ = false;
     EmbedderType ui_mode_ = EmbedderType::kUnknown;
     mojom::WebClientMode input_mode_ = mojom::WebClientMode::kUnknown;
     bool pending_scroll_complete_ = false;
@@ -341,8 +370,7 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   void OnSessionStarted();
   void OnSessionFinished();
 
-  void OnPinnedTabsChanged(
-      const std::vector<content::WebContents*>& pinned_contents);
+  void OnPinnedTabsChanged(const std::vector<tabs::TabInterface*>& pinned_tabs);
 
   // Records the response latency (from user input submitted to response stop)
   // by the number of attached tabs.
@@ -394,12 +422,22 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
 
   std::map<tabs::TabHandle, int> tab_depths_;
 
+  bool is_client_ready_ = false;
+  bool is_opt_in_pending_ = false;
+
+  void MaybeRecordOptInImpression();
+
   base::CallbackListSubscription pinned_tabs_changed_subscription_;
   base::CallbackListSubscription tab_pinning_status_subscription_;
+  const raw_ref<const metrics::ProfileMetricsService> profile_metrics_service_;
   raw_ptr<GlicSharingManager> sharing_manager_ = nullptr;
+  raw_ptr<enterprise_reporting::SaasUsageReportingController>
+      saas_usage_reporting_controller_ = nullptr;
   raw_ptr<PrefService> pref_service_ = nullptr;
 
   bool first_side_panel_close_recorded_ = false;
+  bool first_floaty_close_recorded_ = false;
+  bool saas_usage_recorded_ = false;
 
   // The following variables are used for recording scroll related metrics.
   //
@@ -407,12 +445,11 @@ class GlicInstanceMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   // session ends).
   int scroll_attempt_count_ = 0;
 
-  // Whether region selection is active.
-  int selection_areas_count_ = 0;
-
   // The number of zoom change attempts (tracked per instance and reset when
   // the instance is destroyed).
   int zoom_change_count_ = 0;
+
+  base::flat_set<SafeEmbedderKey> seen_embedders_;
 };
 
 }  // namespace glic

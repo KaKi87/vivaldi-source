@@ -30,6 +30,13 @@ cipd_pick_list = [
   "third_party/test_fonts/test_fonts",
   "third_party/siso/cipd",
   "third_party/gperf/cipd",
+  # Dawn module
+  "tools/golang/linux-amd64",
+  "tools/golang/linux-arm64",
+  "tools/golang/mac-amd64",
+  "tools/golang/mac-arm64",
+  "tools/golang/windows-amd64",
+  "tools/golang/windows-arm64",
   ]
 
 exclude_cipd = [
@@ -44,6 +51,7 @@ exclude_cipd = [
   ]
 
 excluded_modules = [
+  "agents/shared",
   "third_party/cros-components/src",
   "third_party/cardboard/src",
   "third_party/libFuzzer/src",
@@ -70,15 +78,18 @@ excluded_modules = [
   "third_party/crossbench-web-tests",
   "third_party/oak/src",
   "third_party/nlohmann_json/src",
+  "third_party/libei/src",
   "third_party/litert/src",
   "third_party/node/linux",
   "third_party/node/mac",
   "third_party/node/mac_arm64",
   "third_party/node/win",
+  "third_party/aria-practices/src",
   ]
 
 include_recursive_deps = [
-  "third_party/devtools-frontend/src"
+  "third_party/devtools-frontend/src",
+  "third_party/dawn",
   ]
 
 def main():

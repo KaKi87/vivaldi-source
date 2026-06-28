@@ -1,16 +1,16 @@
-import ("//vivaldi/testing/testing.gni")
-import ("//vivaldi/gn/config/features.gni")
-import ("//build/config/ui.gni")
+import("//build/config/ui.gni")
+import("//vivaldi/gn/config/features.gni")
+import("//vivaldi/testing/testing.gni")
 
 update_target("//chrome/browser:browser") {
   sources += [
     "//vivaldi/browser/menus/vivaldi_menu_enums.h",
+    "//vivaldi/browser/sessions/vivaldi_chrome_tab_service_client.cc",
     "//vivaldi/browser/shell_integration/vivaldi_shell_integration.h",
     "//vivaldi/browser/vivaldi_net_error_tab_helper.cc",
     "//vivaldi/browser/vivaldi_permission_context_base.cc",
     "//vivaldi/browser/vivaldi_profile_impl.cc",
     "//vivaldi/browser/vivaldi_profile_impl.h",
-    "//vivaldi/browser/sessions/vivaldi_chrome_tab_service_client.cc",
   ]
   if (is_win) {
     sources += [
@@ -43,39 +43,39 @@ update_target("//chrome/browser:browser") {
       "//vivaldi/browser/menus/bookmark_sorter.h",
       "//vivaldi/browser/menus/bookmark_support.cc",
       "//vivaldi/browser/menus/bookmark_support.h",
-      "//vivaldi/browser/vivaldi_render_view_context_menu.cc",
+      "//vivaldi/browser/sessions/page_actions_session_helper.cc",
+      "//vivaldi/browser/sessions/page_actions_session_helper.h",
       "//vivaldi/browser/sessions/vivaldi_session_service.cc",
       "//vivaldi/browser/sessions/vivaldi_session_service.h",
       "//vivaldi/browser/sessions/vivaldi_session_utils.cc",
       "//vivaldi/browser/sessions/vivaldi_session_utils.h",
-      "//vivaldi/browser/sessions/page_actions_session_helper.cc",
-      "//vivaldi/browser/sessions/page_actions_session_helper.h",
+      "//vivaldi/browser/vivaldi_render_view_context_menu.cc",
     ]
   }
   if (is_android) {
     sources += [
-      "//vivaldi/browser/android/first_run_android.cc",
       "//vivaldi/browser/android/capture/capture_handler.cpp",
       "//vivaldi/browser/android/capture/capture_handler.h",
       "//vivaldi/browser/android/capture/capture_thumbnail_handler.cpp",
       "//vivaldi/browser/android/capture/capture_thumbnail_handler.h",
       "//vivaldi/browser/android/car/android_auto_temporary_zoom_bridge.cc",
-      "//vivaldi/browser/android/prefs/vivaldi_preferences_bridge.h",
-      "//vivaldi/browser/android/prefs/vivaldi_preferences_bridge.cc",
-      "//vivaldi/browser/android/prefs/vivaldi_relaunch_utils.cc",
-      "//vivaldi/browser/android/prompts/search_engine_prompt_bridge.cc",
-      "//vivaldi/browser/android/prompts/search_engine_prompt_bridge.h",
-      "//vivaldi/browser/android/password_manager/password_ui_view_android.h",
-      "//vivaldi/browser/android/password_manager/password_ui_view_android.cc",
-      "//vivaldi/browser/android/password_check/password_check_bridge.h",
+      "//vivaldi/browser/android/first_run_android.cc",
       "//vivaldi/browser/android/password_check/password_check_bridge.cc",
-      "//vivaldi/browser/android/password_check/password_check_manager.h",
+      "//vivaldi/browser/android/password_check/password_check_bridge.h",
       "//vivaldi/browser/android/password_check/password_check_manager.cc",
+      "//vivaldi/browser/android/password_check/password_check_manager.h",
       "//vivaldi/browser/android/password_check/password_check_ui_status.h",
       "//vivaldi/browser/android/password_entry_edit/credential_edit_bridge.cc",
       "//vivaldi/browser/android/password_entry_edit/credential_edit_bridge.h",
-      "//vivaldi/browser/android/translate/vivaldi_translate_bridge.h",
+      "//vivaldi/browser/android/password_manager/password_ui_view_android.cc",
+      "//vivaldi/browser/android/password_manager/password_ui_view_android.h",
+      "//vivaldi/browser/android/prefs/vivaldi_preferences_bridge.cc",
+      "//vivaldi/browser/android/prefs/vivaldi_preferences_bridge.h",
+      "//vivaldi/browser/android/prefs/vivaldi_relaunch_utils.cc",
+      "//vivaldi/browser/android/prompts/search_engine_prompt_bridge.cc",
+      "//vivaldi/browser/android/prompts/search_engine_prompt_bridge.h",
       "//vivaldi/browser/android/translate/vivaldi_translate_bridge.cc",
+      "//vivaldi/browser/android/translate/vivaldi_translate_bridge.h",
     ]
   }
 }
@@ -85,64 +85,50 @@ if (is_win || is_linux || is_mac) {
     # With Vivaldi we do not use registry to communicate the update version,
     # so use a directory-based watcher on Windows instead.
     if (is_win) {
-      sources -= [
-        "registry_monitor.cc",
-      ]
+      sources -= [ "registry_monitor.cc" ]
       sources += [
         "directory_monitor.cc",
         "directory_monitor.h",
       ]
     }
-    configs += [
-      "//vivaldi/gn/config:release_kind",
-    ]
+    configs += [ "//vivaldi/gn/config:release_kind" ]
   }
 }
 
 update_target("//chrome/browser/ui:ui") {
   sources += [
-    "//vivaldi/components/bookmarks/bookmark_thumbnail_theme_tab_helper.cc",
-    "//vivaldi/components/bookmarks/bookmark_thumbnail_theme_tab_helper.h",
-    "//vivaldi/browser/ui/vivaldi_browser_navigator.cc",
-    "//vivaldi/browser/ui/vivaldi_browser_navigator.h",
     "//vivaldi/browser/launch_update_notifier.h",
     "//vivaldi/browser/startup_vivaldi_browser.cpp",
     "//vivaldi/browser/startup_vivaldi_browser.h",
     "//vivaldi/browser/ui/viv_tab_contents_synced_tab_delegate.cc",
+    "//vivaldi/browser/ui/vivaldi_browser_navigator.cc",
+    "//vivaldi/browser/ui/vivaldi_browser_navigator.h",
     "//vivaldi/browser/ui/vivaldi_tab_helpers.cc",
     "//vivaldi/browser/ui/vivaldi_tab_helpers.h",
     "//vivaldi/browser/ui/vivaldi_window_sizer.cc",
+    "//vivaldi/components/bookmarks/bookmark_thumbnail_theme_tab_helper.cc",
+    "//vivaldi/components/bookmarks/bookmark_thumbnail_theme_tab_helper.h",
   ]
   if (is_win) {
-    sources += [
-      "//vivaldi/browser/launch_update_notifier_win.cc",
-    ]
+    sources += [ "//vivaldi/browser/launch_update_notifier_win.cc" ]
   }
   if (is_posix) {
-    sources += [
-      "//vivaldi/browser/launch_update_notifier_posix.cc",
-    ]
+    sources += [ "//vivaldi/browser/launch_update_notifier_posix.cc" ]
   }
   if (!is_android) {
     sources += [
-      "//vivaldi/browser/ui/vivaldi_browser.cc",
       "//vivaldi/browser/ui/viv_settings_import_data_handler.cc",
+      "//vivaldi/browser/ui/vivaldi_browser.cc",
       "//vivaldi/sync/vivaldi_browser_synced_window_delegate.cc",
       "//vivaldi/sync/vivaldi_browser_synced_window_delegate.h",
     ]
-    sources -= [
-      "webui/settings/settings_default_browser_handler.h",
-    ]
+    sources -= [ "webui/settings/settings_default_browser_handler.h" ]
   }
   if (toolkit_views) {
-    sources += [
-      "//vivaldi/browser/ui/viv_page_info_bubble_view.cc",
-    ]
+    sources += [ "//vivaldi/browser/ui/viv_page_info_bubble_view.cc" ]
   }
   if (is_mac) {
-    sources += [
-      "//vivaldi/browser/ui/viv_accelerators_cocoa.mm",
-    ]
+    sources += [ "//vivaldi/browser/ui/viv_accelerators_cocoa.mm" ]
   }
 }
 
@@ -152,9 +138,7 @@ update_target("//chrome/common:constants") {
       "//vivaldi/browser/win/vivaldi_utils.cc",
       "//vivaldi/browser/win/vivaldi_utils.h",
     ]
-    deps += [
-      "//vivaldi/installer/mini_installer/util:constants",
-    ]
+    deps += [ "//vivaldi/installer/mini_installer/util:constants" ]
   }
 }
 
@@ -174,9 +158,7 @@ if (!is_android) {
         "//vivaldi/browser/translate/vivaldi_translate_server_request_unittests.cc",
         "//vivaldi/extensions/api/tabs/tabs_motion_helper_unittest.cc",
       ]
-      sources -= [
-        "../browser/ui/webui/settings/settings_default_browser_handler_unittest.cc",
-      ]
+      sources -= [ "../browser/ui/webui/settings/settings_default_browser_handler_unittest.cc" ]
     }
     update_target("//chrome/browser/ui/toolbar:unit_tests") {
       sources -= [
@@ -195,12 +177,10 @@ if (!is_android) {
     update_template_instance("//chrome/test:browser_tests") {
       sources -= [
         "../browser/ui/views/upgrade_notification_controller_browsertest.cc",
-        "../browser/infobars/infobars_browsertest.cc",
       ]
       if (!is_win) {
-        sources -= [ # Already removed for windows
-          "../browser/ui/views/tabs/tab_search_button_browsertest.cc",
-        ]
+        sources -=  # Already removed for windows
+            [ "../browser/ui/views/tabs/tab_search_button_browsertest.cc" ]
       }
     }
   }
@@ -227,7 +207,8 @@ if (is_android) {
     ]
   }
 
-  update_target("//components/password_manager/core/browser/leak_detection:leak_detection_interface_headers") {
+  update_target(
+      "//components/password_manager/core/browser/leak_detection:leak_detection_interface_headers") {
     sources += [
       "//components/password_manager/core/browser/leak_detection/bulk_leak_check.h",
       "//components/password_manager/core/browser/leak_detection/bulk_leak_check_service.h",
@@ -235,7 +216,8 @@ if (is_android) {
     ]
   }
 
-  update_target("//components/password_manager/core/browser/leak_detection:leak_detection") {
+  update_target(
+      "//components/password_manager/core/browser/leak_detection:leak_detection") {
     sources += [
       "//components/password_manager/core/browser/leak_detection/bulk_leak_check_impl.cc",
       "//components/password_manager/core/browser/leak_detection/bulk_leak_check_impl.h",
@@ -244,7 +226,8 @@ if (is_android) {
     ]
   }
 
-  update_target("//components/password_manager/core/browser/password_store:password_store_impl") {
+  update_target(
+      "//components/password_manager/core/browser/password_store:password_store_impl") {
     sources += [
       "//components/password_manager/core/browser/password_store/insecure_credentials_table.cc",
       "//components/password_manager/core/browser/password_store/insecure_credentials_table.h",
@@ -261,9 +244,8 @@ if (is_android) {
     ]
   }
 
-  update_target("//components/password_manager/core/browser/password_store:password_store_interface") {
-    sources += [
-      "//components/password_manager/core/browser/password_store/login_database_posix.cc",
-    ]
+  update_target(
+      "//components/password_manager/core/browser/password_store:password_store_interface") {
+    sources += [ "//components/password_manager/core/browser/password_store/login_database_posix.cc" ]
   }
 }

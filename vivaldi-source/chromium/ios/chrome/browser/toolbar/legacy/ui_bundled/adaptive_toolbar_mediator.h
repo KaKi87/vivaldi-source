@@ -63,9 +63,6 @@ class WebStateList;
 /// Helper for Web navigation.
 @property(nonatomic, assign) WebNavigationBrowserAgent* navigationBrowserAgent;
 
-/// Command dispatcher.
-@property(nonatomic, weak) CommandDispatcher* commandDispatcher;
-
 /// Inits with the `messagingService` to observe tab group changes.
 - (instancetype)initWithMessagingService:
     (collaboration::messaging::MessagingBackendService*)messagingService

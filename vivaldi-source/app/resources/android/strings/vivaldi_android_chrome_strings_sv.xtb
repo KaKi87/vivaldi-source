@@ -1,22 +1,35 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="sv">
+<translation id="1062777154504442433">Ny flikstapel</translation>
 <translation id="1204037785786432551">Ladda ner länk</translation>
 <translation id="1206892813135768548">Kopiera länktext</translation>
+<translation id="1223158186497001208">Delad <ph name="GROUP_TITLE" />-flikstapel med ny aktivitet</translation>
+<translation id="1328749518742029305"><ph name="TAB_GROUP_TITLE" /> Flikstapeln stängdes och sparades</translation>
 <translation id="1397811292916898096">Sök med <ph name="PRODUCT_NAME" /></translation>
 <translation id="1435593198351412143">Öppna PDF-filer automatiskt</translation>
 <translation id="1456207338570705181">Tryck för Sök är en funktion som är tillgänglig när Google är vald som standardsökmotor i Vivaldi. Den skickar det markerade ordet och den aktuella sidan som kontext till Google Search. Du kan stänga av detta i <ph name="BEGIN_LINK" />Inställningar<ph name="END_LINK" />.</translation>
 <translation id="1598449788754183301">Växla vanliga/privata flikar</translation>
+<translation id="1626105448931436644">Läs mer om delade flikstaplar</translation>
 <translation id="1644574205037202324">Historik</translation>
 <translation id="1829244130665387512">Sök på sida</translation>
-<translation id="1910514478706885609">Öppna i ny flikstack</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+          =1 {Se <ph name="TABS_COUNT_ONE" />-fliken med ny aktivitet i delade flikstaplar}
+          other {Se <ph name="TABS_COUNT_MANY" />-flikar med ny aktivitet i delade flikstaplar}
+        }</translation>
 <translation id="1925021887439448749">Ange anpassad webbadress</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+          =1 {Anslut till flikstapel med <ph name="OWNER_FIRST_NAME" /> och <ph name="NUMBER_OF_OTHER_MEMBERS" /> andra}
+          other {Anslut till flikstapel med <ph name="OWNER_FIRST_NAME" /> och <ph name="NUMBER_OF_OTHER_MEMBERS" /> andra}
+        }</translation>
 <translation id="2038563949887743358">Aktivera begäran av datoranpassad webbsida</translation>
+<translation id="2067565353468675023">Koppla till flikstacken med <ph name="OWNER_FIRST_NAME" /></translation>
 <translation id="208033313373016095">Läsarvy för webbsidor</translation>
 <translation id="2149973817440762519">Redigera bokmärke</translation>
 <translation id="2306442503286132111">Bokmarke sparat i <ph name="FOLDER_NAME" />-mappen</translation>
 <translation id="2433507940547922241">Utseende</translation>
-<translation id="2501278716633472235">Gå tillbaka</translation>
+<translation id="2495373685671077949">Sök i dina flikar och staplar</translation>
+<translation id="2500281581698062897">Du förlorar omedelbart åtkomsten till flikstapeln "<ph name="GROUP_NAME" />" och <ph name="BLOCKED_MEMBER_FULL_NAME" /> (<ph name="BLOCKED_MEMBER_EMAIL" />) kommer inte längre att kunna interagera med dig via Googles tjänster.</translation>
 <translation id="2546283357679194313">Cookies och webbplatsdata</translation>
 <translation id="2633278372998075009">Privata flikar</translation>
 <translation id="2650751991977523696">Ladda ned filen igen?</translation>
@@ -26,6 +39,7 @@
 <translation id="2871733351037274014">Läs in sidor i förväg</translation>
 <translation id="2904300462646366554">Nedladdade PDF-filer öppnas automatiskt med en av PDF-läsarna på din enhet</translation>
 <translation id="2951071800649516099">Lägg till sidor till din läslista för senare</translation>
+<translation id="3020023775880428664">Flytta fliken till stapeln</translation>
 <translation id="3029276696788198026">Ingen förladdning</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> bokmärke}
@@ -35,7 +49,13 @@
 <translation id="3232293466644486101">Radera webbinformation …</translation>
 <translation id="3234355010754616171">Ny privat flik</translation>
 <translation id="3237087289225714896">Standardförinläsning:</translation>
+<translation id="3298614730029636660">Lämna stapeln</translation>
+<translation id="3359462099791810823">Spara den här stapeln för att lägga till flikar senare, eller ta bort den om du inte längre behöver den.</translation>
 <translation id="3478414204555961127">Läsarvy</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+          =1 {Återställ flikstapel med <ph name="TAB_COUNT_ONE" />-fliken, färg <ph name="COLOR_NAME" />, som en ny bakgrundsflikstapel.}
+          other {Återställ flikstapel med <ph name="TAB_COUNT_MANY" />-flikar, färg <ph name="COLOR_NAME" />, som en ny bakgrundsflikstapel.}
+        }</translation>
 <translation id="3504699618187058974">Stapla flikar</translation>
 <translation id="3518985090088779359">Godkänn och fortsätt</translation>
 <translation id="3571177741182643350">Olästa artiklar - Tillgängliga offline:</translation>
@@ -43,9 +63,11 @@
 <translation id="3700829948786686853">Välkommen till Vivaldi</translation>
 <translation id="3719826155360621982">Hemsida</translation>
 <translation id="3738139272394829648">Tryck för att söka</translation>
-<translation id="385051799172605136">Tillbaka</translation>
+<translation id="3900825170941000696">Återställ flikstapeln <ph name="TITLE_OF_GROUP" />, färgen <ph name="COLOR_NAME" />, som en ny bakgrundsflikstapel.</translation>
+<translation id="395421286877117532">Anpassa flikstapeln och tryck på klar</translation>
 <translation id="3987993985790029246">Kopiera länk</translation>
 <translation id="399014816462153200">Läs artiklar:</translation>
+<translation id="4048089913902125176">Öppna <ph name="TITLE_OF_GROUP" />-flikstapeln, färg <ph name="COLOR_NAME" />, med webbplatserna <ph name="URL_LIST" />.</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> flik}
           other {<ph name="TAB_COUNT_MANY" /> flikar, <ph name="TAB_COUNT_INCOGNITO" /> privat}}</translation>
@@ -54,25 +76,41 @@
 <translation id="4137746084635924146">Aktuellt enhetsspråk</translation>
 <translation id="4167670741834902166">Ny privat flik</translation>
 <translation id="4195643157523330669">Öppna i ny flik</translation>
+<translation id="4219031106525503429">Dela flikstapeln “<ph name="GROUP_NAME" />”</translation>
 <translation id="4225895483398857530">Genväg till verktygsfältet</translation>
 <translation id="4243710787042215766">Öppna i privat flik</translation>
 <translation id="4269820728363426813">Kopiera länkadress</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Aktivera skärmlås i Android-inställningar<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Lösenordshanterare</translation>
-<translation id="441100617989818073">Oanvända eller duplicerade flikar och grupper</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {<ph name="TABS_COUNT_ONE" /> standardflik med ny aktivitet i delade flikstaplar}
+          other {<ph name="TABS_COUNT_MANY" /> standardflikar med ny aktivitet i delade flikstaplar}
+        }</translation>
+<translation id="4445802392779002787">Lägg till flik i stapeln</translation>
 <translation id="451872707440238414">Sök bland dina bokmärken</translation>
 <translation id="4526803704855831732">Privata flikar</translation>
 <translation id="4532845899244822526">Välj mapp</translation>
+<translation id="454284936014822050"><ph name="GROUP_TITLE" /> flikstapel</translation>
+<translation id="4614713783237504866">Oanvända eller duplicerade flikar och staplar</translation>
+<translation id="463284870544181537">Behåll den här stapeln för att lägga till flikar senare, eller lämna den om du inte längre vill ha åtkomst till den</translation>
+<translation id="4638726726741656531">Nu kan du enkelt lägga till flikar i staplar här</translation>
 <translation id="4699172675775169585">Cachade bilder och filer</translation>
 <translation id="4719086422742491124">Lär dig om ämnen på webbsidor utan att lämna sidan. Markera ett eller fler ord på en sida för att söka efter dem.
 
 Tryck för Sök är en funktion som enbart är tillgänglig när Google är vald som standardsökmotorn i Vivaldi.</translation>
 <translation id="4759238208242260848">Nedladdningar</translation>
-<translation id="4777866634702576038">Ta bort flikgruppen?</translation>
+<translation id="4771820744342013314">Ta bort flikstapeln?</translation>
 <translation id="4850886885716139402">Visa</translation>
 <translation id="4883379392681899581">Lämna privat läge</translation>
+<translation id="4883812026489706387">Flikstapeln “<ph name="TAB_GROUP_TITLE" />” har ny aktivitet</translation>
+<translation id="4887248255051238988">Lämna flikstapeln?</translation>
 <translation id="4943872375798546930">Inga resultat</translation>
 <translation id="49576331685473090">Innehållsblockerare</translation>
+<translation id="4964059453543967592">Öppna den stängda stapeln igen</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" /> flikstapel}
+          other {<ph name="TAB_GROUPS_MANY" /> flikstaplar}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> private flik}
           other {<ph name="TAB_COUNT_NORMAL" /> privata flikar}}</translation>
@@ -83,19 +121,26 @@ Tryck för Sök är en funktion som enbart är tillgänglig när Google är vald
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {Laddar ner fil…}
             other {Laddar ner # filer…}}</translation>
+<translation id="5210689723585747462"><ph name="TAB_GROUP_TITLE" /> flikstapel stängd</translation>
 <translation id="5233638681132016545">Ny flik</translation>
 <translation id="5375131951310889874">Lär dig om ämnen på webbsidor utan att lämna sidan. Tryck för Sök är en funktion som bara är tillgänglig när Google är vald som standardsökmotor i Vivaldi. Den skickar ett ord och dess omkringliggande kontext till Google Sök, och presenterar definitioner, bilder, sökresultat och andra detaljer.
 
 Gör ett långt tryck för att justera din sökterm. För att förfina sökningen kan du dra panelen hela vägen till toppen och trycka på sökrutan.</translation>
+<translation id="5570837353202786816">Alla kommer omedelbart att förlora åtkomst till flikstapeln “<ph name="GROUP_NAME" />” och alla inbjudningslänkar kommer att inaktiveras</translation>
+<translation id="5614794348925178470">Delad <ph name="GROUP_TITLE" />-flikstapel</translation>
 <translation id="572328651809341494">Senaste flikar</translation>
 <translation id="5833984609253377421">Dela länk</translation>
+<translation id="6129507335719227488">Flikar i stapeln</translation>
 <translation id="6150320133806434356">Bokmärke sparat</translation>
 <translation id="6193448654517602979">Välj flikar</translation>
+<translation id="6221225660285238685">Flytta stapeln till ett annat fönster</translation>
+<translation id="6277377952699614191">Flikstapel</translation>
 <translation id="6336451774241870485">Ny privat flik</translation>
 <translation id="6337323516034698937">För att skicka den här fliken till en annan enhet, logga in på Vivaldi Sync på båda enheterna. Se till att du anger krypteringslösenordet om det behövs.</translation>
 <translation id="6341580099087024258">Fråga var filer ska sparas</translation>
 <translation id="6364438453358674297">Ta bort förslaget från historiken?</translation>
 <translation id="6404511346730675251">Redigera bokmärke</translation>
+<translation id="6453011654157908292">Detaljer om flikstapeln</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
  =1 {Fil nedladdad}
  other {# nedladdningar slutförda}}</translation>
@@ -104,11 +149,13 @@ Gör ett långt tryck för att justera din sökterm. För att förfina sökninge
 <translation id="6593061639179217415">Datoranpassad webbsida</translation>
 <translation id="6610147964972079463">Stäng privata flikar</translation>
 <translation id="6627583120233659107">Redigera mapp</translation>
+<translation id="6785740335511995065">Behålla flikstapeln?</translation>
 <translation id="6865313869410766144">Autofyll formuläruppgifter</translation>
 <translation id="6909589135458168665">Ladda in sidor i förväg</translation>
 <translation id="7029995644714925509">När en webbplats ber om att privat förinläsa länkar på sin sida, krypterar Vivaldi och förladdar sidor via Googles servrar utan cookies. Detta döljer din identitet från den förnedladdade webbplatsen.</translation>
 <translation id="706339621163631076">Webbläsarens sekretesspolicy</translation>
 <translation id="7100573672995171864">Anpassa och kontrollera Vivaldi</translation>
+<translation id="7133879160432070247">Blockera och lämna stapeln?</translation>
 <translation id="732145680195464316">Bokmärke sparat i <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Skicka en Do Not Track-begäran</translation>
 <translation id="7359002509206457351">Åtkomst till betalningsmetoder</translation>
@@ -117,24 +164,33 @@ Gör ett långt tryck för att justera din sökterm. För att förfina sökninge
 <translation id="7456774706094330779">Utökad förinläsning</translation>
 <translation id="7465104139234185284">Stäng alla privata flikar</translation>
 <translation id="7481312909269577407">Framåt</translation>
+<translation id="759273611317559136"><ph name="TAB_GROUP_TITLE" /> flikstapeln raderad</translation>
+<translation id="7630413501995820846">Behåll stapeln</translation>
+<translation id="7640137753339219124">Ta bort stapel</translation>
 <translation id="7764225426217299476">Lägg till adress</translation>
+<translation id="7910753230807645596">Dubbletter av flikar och staplar, eller de som inte använts i <ph name="DAYS_INACTIVE" /> dagar, flyttas hit <ph name="AUTODELETE_SECTION" />. Du kan ändra detta när som helst i <ph name="DECLUTTER_SETTINGS_TITLE" />.</translation>
 <translation id="7968014550143838305">Lades till läslistan</translation>
 <translation id="804786196054284061">Användarvillkor</translation>
 <translation id="8062594758852531064">Utökad förinläsning:</translation>
 <translation id="8073388330009372546">Öppna bild i ny flik</translation>
 <translation id="8127542551745560481">Redigera startsida</translation>
+<translation id="8149776854955817519">Granska dina inaktiva flikar och staplar här</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
           =1 {(1) inaktivt objekt}
           other {(#) inaktiva objekt}}</translation>
 <translation id="8266862848225348053">Nedladdningsplats</translation>
 <translation id="8348430946834215779">Använd HTTPS när det är möjligt och bli varnad innan du laddar webbplatser som inte stöder det</translation>
+<translation id="8480628728881718381">Öppna i ny flik i stapeln</translation>
+<translation id="8543049482641423692">Lägg till flik i ny stapel</translation>
 <translation id="8560602726703398413">Hitta din läslista i Bokmärken</translation>
 <translation id="85991616550051997">Gå till hemsida</translation>
+<translation id="8680308397617585416">Du förlorar omedelbart åtkomsten till flikstapeln “<ph name="GROUP_NAME" />” och den kommer att raderas från alla dina enheter</translation>
 <translation id="8738163682604285902">Visa läsläge?</translation>
 <translation id="8820817407110198400">Bokmärken</translation>
 <translation id="9042893549633094279">Integritet och säkerhet</translation>
 <translation id="9063523880881406963">Inaktivera webbplats förfrågan</translation>
 <translation id="9080642952018487277">Gå in i privat läge</translation>
+<translation id="9099398755190923267">Alla kommer omedelbart att förlora åtkomst till flikstapeln “<ph name="GROUP_NAME" />” och den kommer att raderas från alla enheter</translation>
 <translation id="930124987204876019">Radera historik, cookies, webbplatsdata, cacheminne …</translation>
 <translation id="961856697154696964">Radera webbinformation</translation>
 </translationbundle>

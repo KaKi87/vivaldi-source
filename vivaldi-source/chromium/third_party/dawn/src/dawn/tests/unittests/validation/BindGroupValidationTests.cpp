@@ -30,12 +30,13 @@
 #include <utility>
 #include <vector>
 
-#include "dawn/common/Assert.h"
-#include "dawn/common/Constants.h"
-#include "dawn/tests/unittests/validation/ValidationTest.h"
-#include "dawn/utils/ComboRenderBundleEncoderDescriptor.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/common/Assert.h"
+#include "src/dawn/common/Constants.h"
+#include "src/dawn/tests/unittests/validation/ValidationTest.h"
+#include "src/dawn/utils/ComboRenderBundleEncoderDescriptor.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/compiler.h"
 
 namespace dawn {
 namespace {
@@ -3872,7 +3873,7 @@ class BindingsValidationTest : public BindGroupLayoutCompatibilityTest {
         PlaceholderRenderPass PlaceholderRenderPass(device);
         wgpu::RenderPassEncoder rp = encoder.BeginRenderPass(&PlaceholderRenderPass);
         for (uint32_t i = 0; i < count; ++i) {
-            rp.SetBindGroup(i, bg[i]);
+            rp.SetBindGroup(i, DAWN_UNSAFE_TODO(bg[i]));
         }
         rp.SetPipeline(pipeline);
         rp.Draw(3);
@@ -3891,7 +3892,7 @@ class BindingsValidationTest : public BindGroupLayoutCompatibilityTest {
         wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
         wgpu::ComputePassEncoder cp = encoder.BeginComputePass();
         for (uint32_t i = 0; i < count; ++i) {
-            cp.SetBindGroup(i, bg[i]);
+            cp.SetBindGroup(i, DAWN_UNSAFE_TODO(bg[i]));
         }
         cp.SetPipeline(pipeline);
         cp.DispatchWorkgroups(1);
@@ -4056,7 +4057,7 @@ class FilterabilityValidationTest : public BindGroupLayoutCompatibilityTest {};
 
 TEST_F(FilterabilityValidationTest, FilterableBGL_UnFilterableShader_Pass) {
     auto shaderSource = R"(
-    @group(0) @binding(0) var tex1 : texture_2d<f32, unfilterable>;
+    @group(0) @binding(0) var tex1 : texture_2d<f32>;
 
     @compute @workgroup_size(1) fn main() {
       _ = tex1;
@@ -4071,7 +4072,7 @@ TEST_F(FilterabilityValidationTest, FilterableBGL_UnFilterableShader_Pass) {
 
 TEST_F(FilterabilityValidationTest, FilterableBGL_FilterableShader_Pass) {
     auto shaderSource = R"(
-    @group(0) @binding(0) var tex1 : texture_2d<f32, filterable>;
+    @group(0) @binding(0) var tex1 : texture_2d<f32>;
 
     @compute @workgroup_size(1) fn main() {
       _ = tex1;
@@ -4101,7 +4102,7 @@ TEST_F(FilterabilityValidationTest, FilterableBGL_UnknownShader_Pass) {
 
 TEST_F(FilterabilityValidationTest, UnfilterableBGL_UnFilterableShader_Pass) {
     auto shaderSource = R"(
-    @group(0) @binding(0) var tex1 : texture_2d<f32, unfilterable>;
+    @group(0) @binding(0) var tex1 : texture_2d<f32>;
 
     @compute @workgroup_size(1) fn main() {
       _ = tex1;
@@ -4112,23 +4113,6 @@ TEST_F(FilterabilityValidationTest, UnfilterableBGL_UnFilterableShader_Pass) {
                     {0, wgpu::ShaderStage::Compute, wgpu::TextureSampleType::UnfilterableFloat},
                 });
     CreateComputePipeline(shaderSource, {bgl});
-}
-
-TEST_F(FilterabilityValidationTest, UnfilterableBGL_FilterableShader_Fail) {
-    auto shaderSource = R"(
-    @group(0) @binding(0) var tex1 : texture_2d<f32, filterable>;
-
-    @compute @workgroup_size(1) fn main() {
-      _ = tex1;
-    })";
-
-    auto bgl = utils::MakeBindGroupLayout(
-        device, {
-                    {0, wgpu::ShaderStage::Compute, wgpu::TextureSampleType::UnfilterableFloat},
-                });
-
-    ASSERT_DEVICE_ERROR(CreateComputePipeline(shaderSource, {bgl}),
-                        testing::HasSubstr("isn't compatible"));
 }
 
 TEST_F(FilterabilityValidationTest, UnfilterableBGL_UnknownShader_Pass) {
@@ -4183,7 +4167,7 @@ TEST_F(FilterabilityValidationTest, FilterableBGL_i32Shader_Fail) {
 TEST_F(FilterabilityValidationTest, FilteringBGL_FilteringShader_Pass) {
     auto shaderSource = R"(
     @group(0) @binding(0) var tex1 : texture_2d<f32>;
-    @group(0) @binding(1) var samp : sampler<filtering>;
+    @group(0) @binding(1) var samp : sampler;
 
     @compute @workgroup_size(1) fn main() {
       _ = tex1;
@@ -4201,7 +4185,7 @@ TEST_F(FilterabilityValidationTest, FilteringBGL_FilteringShader_Pass) {
 TEST_F(FilterabilityValidationTest, FilteringBGL_NonFilteringShader_Pass) {
     auto shaderSource = R"(
     @group(0) @binding(0) var tex1 : texture_2d<f32>;
-    @group(0) @binding(1) var samp : sampler<non_filtering>;
+    @group(0) @binding(1) var samp : sampler;
 
     @compute @workgroup_size(1) fn main() {
       _ = tex1;
@@ -4219,7 +4203,7 @@ TEST_F(FilterabilityValidationTest, FilteringBGL_NonFilteringShader_Pass) {
 TEST_F(FilterabilityValidationTest, NonFilteringBGL_NonFilteringShader_Pass) {
     auto shaderSource = R"(
     @group(0) @binding(0) var tex1 : texture_2d<f32>;
-    @group(0) @binding(1) var samp : sampler<non_filtering>;
+    @group(0) @binding(1) var samp : sampler;
 
     @compute @workgroup_size(1) fn main() {
       _ = tex1;
@@ -4232,26 +4216,6 @@ TEST_F(FilterabilityValidationTest, NonFilteringBGL_NonFilteringShader_Pass) {
                     {1, wgpu::ShaderStage::Compute, wgpu::SamplerBindingType::NonFiltering},
                 });
     CreateComputePipeline(shaderSource, {bgl});
-}
-
-TEST_F(FilterabilityValidationTest, NonFilteringBGL_FilteringShader_Fail) {
-    auto shaderSource = R"(
-    @group(0) @binding(0) var tex1 : texture_2d<f32>;
-    @group(0) @binding(1) var samp : sampler<filtering>;
-
-    @compute @workgroup_size(1) fn main() {
-      _ = tex1;
-      _ = samp;
-    })";
-
-    auto bgl = utils::MakeBindGroupLayout(
-        device, {
-                    {0, wgpu::ShaderStage::Compute, wgpu::TextureSampleType::Float},
-                    {1, wgpu::ShaderStage::Compute, wgpu::SamplerBindingType::NonFiltering},
-                });
-
-    ASSERT_DEVICE_ERROR(CreateComputePipeline(shaderSource, {bgl}),
-                        testing::HasSubstr("doesn't match"));
 }
 
 TEST_F(FilterabilityValidationTest, ComparisonBGL_ComparisonShader_Pass) {
@@ -4270,50 +4234,6 @@ TEST_F(FilterabilityValidationTest, ComparisonBGL_ComparisonShader_Pass) {
                     {1, wgpu::ShaderStage::Compute, wgpu::SamplerBindingType::Comparison},
                 });
     CreateComputePipeline(shaderSource, {bgl});
-}
-
-TEST_F(FilterabilityValidationTest, ComparisonBGL_FilteringShader_Fail) {
-    auto shaderSource = R"(
-    @group(0) @binding(0) var tex1 : texture_2d<f32>;
-    @group(0) @binding(1) var samp : sampler<filtering>;
-
-    @compute @workgroup_size(1) fn main() {
-      _ = tex1;
-      _ = samp;
-    })";
-
-    auto bgl = utils::MakeBindGroupLayout(
-        device, {
-                    {0, wgpu::ShaderStage::Compute, wgpu::TextureSampleType::Float},
-                    {1, wgpu::ShaderStage::Compute, wgpu::SamplerBindingType::Comparison},
-                });
-    ASSERT_DEVICE_ERROR(
-        CreateComputePipeline(shaderSource, {bgl}),
-        testing::HasSubstr("(SamplerBindingType::Filtering) doesn't match the type in the layout "
-                           "(SamplerBindingType::Comparison"));
-}
-
-TEST_F(FilterabilityValidationTest, ComparisonBGL_NonFilteringShader_Fail) {
-    auto shaderSource = R"(
-    @group(0) @binding(0) var tex1 : texture_2d<f32>;
-    @group(0) @binding(1) var samp : sampler<non_filtering>;
-
-    @compute @workgroup_size(1) fn main() {
-      _ = tex1;
-      _ = samp;
-    })";
-
-    auto bgl = utils::MakeBindGroupLayout(
-        device, {
-                    {0, wgpu::ShaderStage::Compute, wgpu::TextureSampleType::Float},
-                    {1, wgpu::ShaderStage::Compute, wgpu::SamplerBindingType::Comparison},
-                });
-
-    ASSERT_DEVICE_ERROR(
-        CreateComputePipeline(shaderSource, {bgl}),
-        testing::HasSubstr(
-            "(SamplerBindingType::NonFiltering) doesn't match the type in the layout "
-            "(SamplerBindingType::Comparison"));
 }
 
 class SamplerTypeBindingTest : public ValidationTest {

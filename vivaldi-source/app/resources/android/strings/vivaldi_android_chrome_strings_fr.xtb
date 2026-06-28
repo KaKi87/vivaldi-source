@@ -1,22 +1,35 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="fr">
+<translation id="1062777154504442433">Nouvelle pile d’onglets</translation>
 <translation id="1204037785786432551">Télécharger le lien</translation>
 <translation id="1206892813135768548">Copier le texte du lien</translation>
+<translation id="1223158186497001208">Pile d’onglets <ph name="GROUP_TITLE" /> partagée avec une nouvelle activité</translation>
+<translation id="1328749518742029305">Pile d’onglets <ph name="TAB_GROUP_TITLE" /> fermée et enregistrée</translation>
 <translation id="1397811292916898096">Rechercher avec <ph name="PRODUCT_NAME" /></translation>
 <translation id="1435593198351412143">Ouvrir automatiquement les PDF</translation>
 <translation id="1456207338570705181">Touch to Search est une fonctionnalité qui n’est disponible que lorsque Google est défini comme moteur de recherche par défaut dans Vivaldi. Elle envoie le mot sélectionné et la page actuelle en tant que contexte à Google Search. Vous pouvez la désactiver dans les <ph name="BEGIN_LINK" />paramètres<ph name="END_LINK" />.</translation>
 <translation id="1598449788754183301">Basculer entre les onglets privés et normaux</translation>
+<translation id="1626105448931436644">En savoir plus sur les piles d’onglets paratagées</translation>
 <translation id="1644574205037202324">Historique</translation>
 <translation id="1829244130665387512">Rechercher sur la page</translation>
-<translation id="1910514478706885609">Ouvrir dans une nouvelle pile d’onglets</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+          =1 {Consulter <ph name="TABS_COUNT_ONE" /> onglet avec une nouvelle activité dans la pile d’onglets partagée}
+          other {Consulter <ph name="TABS_COUNT_MANY" /> onglets avec une nouvelle activité dans la pile d’onglets partagée}
+        }</translation>
 <translation id="1925021887439448749">Saisissez une adresse Web personnalisée</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+          =1 {Rejoindre la pile d’onglets avec <ph name="OWNER_FIRST_NAME" /> et <ph name="NUMBER_OF_OTHER_MEMBERS" /> autre}
+          other {Rejoindre la pile d’onglets avec <ph name="OWNER_FIRST_NAME" /> et <ph name="NUMBER_OF_OTHER_MEMBERS" /> autres}
+        }</translation>
 <translation id="2038563949887743358">Activer la requête pour la « version ordinateur »</translation>
+<translation id="2067565353468675023">Rejoindre la pile d’onglets avec <ph name="OWNER_FIRST_NAME" /></translation>
 <translation id="208033313373016095">Mode lecture pour les pages Web</translation>
 <translation id="2149973817440762519">Modifier le signet</translation>
 <translation id="2306442503286132111">Signet sauvegardé dans le dossier <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Apparence</translation>
-<translation id="2501278716633472235">Revenir à la page précédente</translation>
+<translation id="2495373685671077949">Chercher vos onglets et piles d’onglets</translation>
+<translation id="2500281581698062897">Vous perdrez immédiatement l’accès à votre pile d’onglets « <ph name="GROUP_NAME" /> », et <ph name="BLOCKED_MEMBER_FULL_NAME" /> (<ph name="BLOCKED_MEMBER_EMAIL" />) ne pourront plus avoir d’interactions avec vous au travers des services Google.</translation>
 <translation id="2546283357679194313">Cookies et données du site</translation>
 <translation id="2633278372998075009">Onglets privés</translation>
 <translation id="2650751991977523696">Télécharger de nouveau le fichier ?</translation>
@@ -26,6 +39,7 @@
 <translation id="2871733351037274014">Précharger les pages</translation>
 <translation id="2904300462646366554">Les PDF téléchargés s‘ouvrent automatiquement dans l‘une des visionneuses PDF sur votre appareil</translation>
 <translation id="2951071800649516099">Ajoutez des pages à votre liste de lecture pour plus tard</translation>
+<translation id="3020023775880428664">Déplacer l’onglet dans une pile</translation>
 <translation id="3029276696788198026">Aucun préchargement</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> signet}
@@ -35,7 +49,13 @@
 <translation id="3232293466644486101">Supprimer les données de navigation…</translation>
 <translation id="3234355010754616171">Nouvel onglet privé</translation>
 <translation id="3237087289225714896">Préchargement standard :</translation>
+<translation id="3298614730029636660">Quitter la pile</translation>
+<translation id="3359462099791810823">Conservez cette pile pour ajouter des onglets plus tard, ou supprimez-la si vous n’en avez plus besoin.</translation>
 <translation id="3478414204555961127">Mode lecture</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+          =1 {Restaurer la pile de <ph name="TAB_COUNT_ONE" /> onglet, couleur <ph name="COLOR_NAME" />, comme une nouvelle pile d’onglets en arrière-plan.}
+          other {Restaurer la pile de <ph name="TAB_COUNT_MANY" /> onglets, couleur <ph name="COLOR_NAME" />, comme une nouvelle pile d’onglets en arrière-plan.}
+        }</translation>
 <translation id="3504699618187058974">Piles d’onglets</translation>
 <translation id="3518985090088779359">Accepter et continuer</translation>
 <translation id="3571177741182643350">Articles non lus - Disponibles hors connexion :</translation>
@@ -43,9 +63,11 @@
 <translation id="3700829948786686853">Bienvenue dans Vivaldi</translation>
 <translation id="3719826155360621982">Page d’accueil</translation>
 <translation id="3738139272394829648">Appuyer pour rechercher</translation>
-<translation id="385051799172605136">Retour</translation>
+<translation id="3900825170941000696">Restaurer la pile d’onglets <ph name="TITLE_OF_GROUP" />, de couleur <ph name="COLOR_NAME" />, dans une pile d’onglets en arrière-plan.</translation>
+<translation id="395421286877117532">Personnaliser la pile d’onglets et presser Terminé</translation>
 <translation id="3987993985790029246">Copier le lien</translation>
 <translation id="399014816462153200">Pages lues :</translation>
+<translation id="4048089913902125176">Ouvrir la pile d’onglets <ph name="TITLE_OF_GROUP" />, avec la couleur <ph name="COLOR_NAME" />, et les sites <ph name="URL_LIST" />.</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> onglet}
           other {<ph name="TAB_COUNT_MANY" /> onglets, <ph name="TAB_COUNT_INCOGNITO" /> privés}}</translation>
@@ -54,25 +76,41 @@
 <translation id="4137746084635924146">Langue actuelle de l’appareil</translation>
 <translation id="4167670741834902166">Nouvel onglet privé</translation>
 <translation id="4195643157523330669">Ouvrir dans un nouvel onglet</translation>
+<translation id="4219031106525503429">Partager la pile d’onglets « <ph name="GROUP_NAME" /> »</translation>
 <translation id="4225895483398857530">Raccourci de la barre d’outils</translation>
 <translation id="4243710787042215766">Ouvrir dans un onglet privé</translation>
 <translation id="4269820728363426813">Copier l’adresse du lien</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Activez le verrouillage de l'écran dans les paramètres Android<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Gestionnaire de mots de passe</translation>
-<translation id="441100617989818073">Onglets et groupes non utilisés ou dupliqués</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {<ph name="TABS_COUNT_ONE" /> onglet standard avec une nouvelle activité dans les piles d’onglets partagées}
+          other {<ph name="TABS_COUNT_MANY" /> onglets standard avec une nouvelle activité dans les piles d’onglets partagées}
+        }</translation>
+<translation id="4445802392779002787">Ajouter l’onglet à une pile</translation>
 <translation id="451872707440238414">Rechercher dans vos signets</translation>
 <translation id="4526803704855831732">Onglets privés</translation>
 <translation id="4532845899244822526">Sélectionner un dossier</translation>
+<translation id="454284936014822050">Pile d’onglets <ph name="GROUP_TITLE" /></translation>
+<translation id="4614713783237504866">Onglets et piles inutilisées ou dupliquées</translation>
+<translation id="463284870544181537">Conserver cette pile pour ajouter des onglets plus tard ou la quitter si vous ne souhaitez plus y avoir accès</translation>
+<translation id="4638726726741656531">Vous pouvez désormais ajouter des onglets dans vos piles ici</translation>
 <translation id="4699172675775169585">Images et fichiers en cache</translation>
 <translation id="4719086422742491124">Découvrez des sujets sur des sites Web sans quitter la page. Sélectionnez un ou plusieurs mots sur la page pour les rechercher.
 
 Touch to Search est une fonctionnalité qui n’est disponible que lorsque Google est défini comme moteur de recherche par défaut dans Vivaldi.</translation>
 <translation id="4759238208242260848">Téléchargements</translation>
-<translation id="4777866634702576038">Supprimer le groupe d’onglets ?</translation>
+<translation id="4771820744342013314">Supprimer la pile d’onglets ?</translation>
 <translation id="4850886885716139402">Afficher</translation>
 <translation id="4883379392681899581">Quitter le mode navigation privée</translation>
+<translation id="4883812026489706387">La pile d’onglets « <ph name="TAB_GROUP_TITLE" /> » a une nouvelle activité</translation>
+<translation id="4887248255051238988">Quitter la pile d’onglets ?</translation>
 <translation id="4943872375798546930">Aucun résultat</translation>
 <translation id="49576331685473090">Bloqueur de contenus</translation>
+<translation id="4964059453543967592">Ré-ouvrir une pile d’onglets fermée</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" /> pile d’onglets}
+          other {<ph name="TAB_GROUPS_MANY" /> piles d’onglets}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> onglet privé}
           other {<ph name="TAB_COUNT_NORMAL" /> onglets privés}}</translation>
@@ -83,19 +121,26 @@ Touch to Search est une fonctionnalité qui n’est disponible que lorsque Googl
 <translation id="5206168361184759344">{FILE_COUNT,plural,
             =1 {Téléchargement du fichier…}
             other {Téléchargement de # fichiers…}}</translation>
+<translation id="5210689723585747462">Pile d’onglets <ph name="TAB_GROUP_TITLE" /> fermée</translation>
 <translation id="5233638681132016545">Nouvel onglet</translation>
 <translation id="5375131951310889874">Découvrez des sujets sur des sites Web sans quitter la page. Touch to Search est une fonctionnalité qui n’est disponible que lorsque Google est défini comme moteur de recherche par défaut dans Vivaldi. Elle envoie un mot et son contexte environnant à Google Search, renvoyant des définitions, des images, des résultats de recherche et d’autres détails.
 
 Pour ajuster votre terme de recherche, appuyez longuement pour sélectionner. Pour affiner votre recherche, faites glisser le panneau tout le long et appuyez sur la zone de recherche.</translation>
+<translation id="5570837353202786816">Tout le monde perdra immédiatement l’accès à la pile d’onglets « <ph name="GROUP_NAME" /> », et tous les liens d’invitation seront désactivés.</translation>
+<translation id="5614794348925178470">Pile d’onglets <ph name="GROUP_TITLE" /> partagée</translation>
 <translation id="572328651809341494">Onglets récents</translation>
 <translation id="5833984609253377421">Partager le lien</translation>
+<translation id="6129507335719227488">Onglets dans la pile</translation>
 <translation id="6150320133806434356">Signet sauvegardé</translation>
 <translation id="6193448654517602979">Sélectionner des onglets</translation>
+<translation id="6221225660285238685">Déplacer la pile dans une autre fenêtre</translation>
+<translation id="6277377952699614191">Pile d’onglets</translation>
 <translation id="6336451774241870485">Nouvel onglet privé</translation>
 <translation id="6337323516034698937">Pour envoyer cet onglet sur un autre appareil, connectez-vous à Vivaldi Sync sur les deux appareils. Assurez-vous de saisir le mot de passe de chiffrement si nécessaire.</translation>
 <translation id="6341580099087024258">Demander où enregistrer les fichiers</translation>
 <translation id="6364438453358674297">Supprimer les suggestions d’historique ?</translation>
 <translation id="6404511346730675251">Modifier le signet</translation>
+<translation id="6453011654157908292">Détails de la pile d’onglets</translation>
 <translation id="650224091954855786">{FILE_COUNT,plural,
           =1{Fichier téléchargé}
           other {# téléchargements terminés}}</translation>
@@ -104,11 +149,13 @@ Pour ajuster votre terme de recherche, appuyez longuement pour sélectionner. Po
 <translation id="6593061639179217415">Version pour ordinateur</translation>
 <translation id="6610147964972079463">Fermer les onglets privés</translation>
 <translation id="6627583120233659107">Modifier le dossier</translation>
+<translation id="6785740335511995065">Conserver la pile d’onglets ?</translation>
 <translation id="6865313869410766144">Remplir automatiquement les données de formulaire</translation>
 <translation id="6909589135458168665">Précharger les pages</translation>
 <translation id="7029995644714925509">Quand un site Google demande de précharger confidentiellement un lien sur leur page, Vivaldi chiffre et précharge les pages via des serveurs de Google sans utiliser de cookies. Cela masque votre identité vis à vis des sites préchargés.</translation>
 <translation id="706339621163631076">Politique de confidentialité de Vivaldi</translation>
 <translation id="7100573672995171864">Contrôler et personnaliser Vivaldi</translation>
+<translation id="7133879160432070247">Bloquer et quitter l’empilement ?</translation>
 <translation id="732145680195464316">Signet sauvegardé dans <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Envoyer une requête « Do Not Track »</translation>
 <translation id="7359002509206457351">Accéder aux modes de paiement</translation>
@@ -117,24 +164,33 @@ Pour ajuster votre terme de recherche, appuyez longuement pour sélectionner. Po
 <translation id="7456774706094330779">Préchargement avancé</translation>
 <translation id="7465104139234185284">Fermer tous les onglets privés</translation>
 <translation id="7481312909269577407">Page suivante</translation>
+<translation id="759273611317559136">Pile d’onglets <ph name="TAB_GROUP_TITLE" /> supprimée</translation>
+<translation id="7630413501995820846">Conserver la pile</translation>
+<translation id="7640137753339219124">Supprimer la pile</translation>
 <translation id="7764225426217299476">Ajouter une adresse</translation>
+<translation id="7910753230807645596">Les onglets dupliqués ou inutilisés depuis <ph name="DAYS_INACTIVE" /> jours sont déplacés ici : <ph name="AUTODELETE_SECTION" />. Vous pouvez modifier cela n’importe quand dans <ph name="DECLUTTER_SETTINGS_TITLE" />.</translation>
 <translation id="7968014550143838305">Ajouté à la liste de lecture</translation>
 <translation id="804786196054284061">Conditions d’utilisation de Vivaldi</translation>
 <translation id="8062594758852531064">Préchargement avancé :</translation>
 <translation id="8073388330009372546">Ouvrir image dans nouvel onglet</translation>
 <translation id="8127542551745560481">Modifier la page d’accueil</translation>
+<translation id="8149776854955817519">Consultez vos onglets et piles inactifs ici</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
           =1 {(1) entrée inactive}
           other {(#) entrées inactives}}</translation>
 <translation id="8266862848225348053">Emplacement de téléchargement</translation>
 <translation id="8348430946834215779">Utiliser HTTPS autant que possible et recevoir un avertissement avant de charger des sites qui ne le prennent pas en charge</translation>
+<translation id="8480628728881718381">Ouvrir un nouvel onglet dans une pile</translation>
+<translation id="8543049482641423692">Ajouter l’onglet dans une nouvelle pile</translation>
 <translation id="8560602726703398413">Retrouvez votre liste de lecture dans les signets</translation>
 <translation id="85991616550051997">Aller à la page d’accueil</translation>
+<translation id="8680308397617585416">Vous perdrez immédiatement l’accès à votre pile d’onglets « <ph name="GROUP_NAME" /> », et elle sera supprimée de tous vos appareils</translation>
 <translation id="8738163682604285902">Afficher le mode Lecture ?</translation>
 <translation id="8820817407110198400">Signets</translation>
 <translation id="9042893549633094279">Sécurité et vie privée</translation>
 <translation id="9063523880881406963">Désactiver la requête pour la « version ordinateur »</translation>
 <translation id="9080642952018487277">Passer en mode de navigation privée</translation>
+<translation id="9099398755190923267">Tout le monde perdra immédiatement l’accès à la pile d’onglets « <ph name="GROUP_NAME" /> », et celle-ci sera supprimée de tous les appareils.</translation>
 <translation id="930124987204876019">Supprimez l’historique, les cookies et les données des sites, vider le cache…</translation>
 <translation id="961856697154696964">Supprimer données de navigation</translation>
 </translationbundle>

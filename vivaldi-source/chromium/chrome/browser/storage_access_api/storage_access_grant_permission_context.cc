@@ -15,11 +15,15 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
 #include "base/time/time.h"
+#include "base/types/expected.h"
+#include "base/types/expected_macros.h"
+#include "chrome/browser/bad_message.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/first_party_sets/first_party_sets_policy_service.h"
 #include "chrome/browser/first_party_sets/first_party_sets_policy_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/storage_access_api/storage_access_api_utils.h"
 #include "chrome/browser/webid/federated_identity_auto_reauthn_permission_context.h"
 #include "chrome/browser/webid/federated_identity_auto_reauthn_permission_context_factory.h"
 #include "chrome/browser/webid/federated_identity_permission_context.h"
@@ -39,6 +43,7 @@
 #include "components/permissions/permission_prompt_decision.h"
 #include "components/permissions/permission_request_data.h"
 #include "components/permissions/permission_request_id.h"
+#include "components/permissions/resolvers/permission_resolver.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/btm_service.h"
@@ -189,19 +194,6 @@ content_settings::ContentSettingConstraints ComputeConstraints(
   }
 }
 
-bool ShouldPersistSetting(bool permission_allowed, RequestOutcome outcome) {
-  // User responses to a prompt should be persisted to avoid user annoyance or
-  // prompt spam.
-  if (IsUserDecidedPersistableOutcome(outcome)) {
-    return true;
-  }
-  // UA-generated denials are not persisted, since they can be re-derived easily
-  // and don't have any user-facing concerns, so persistence just adds
-  // complexity. UA-generated grants, however, should be persisted to ensure the
-  // associated behavioral changes stick.
-  return permission_allowed;
-}
-
 FederatedIdentityPermissionContext* IsAutograntViaFedCmAllowed(
     content::BrowserContext* browser_context,
     content::RenderFrameHost* rfh,
@@ -231,6 +223,28 @@ FederatedIdentityPermissionContext* IsAutograntViaFedCmAllowed(
 
   RecordOutcomeSample(RequestOutcome::kAllowedByFedCM, requesting_site);
   return fedcm_context;
+}
+
+// Verifies that the given RenderFrameHost is allowed to request this
+// permission. If the RenderFrameHost is not allowed to request permission, this
+// calls `bad_message::ReceivedBadMessage` to close the pipe.
+base::expected<void, content::PermissionStatusSource>
+ValidatePermissionEligibility(content::RenderFrameHost* rfh,
+                              const net::SchemefulSite& requesting_site) {
+  if (IsAccessRestrictedInFrame(rfh)) {
+    // No need to log anything here, since well-behaved renderers have already
+    // done these checks and have logged to the console. This block is to handle
+    // compromised renderers.
+    RecordOutcomeSample(RequestOutcome::kDeniedByPrerequisites,
+                        requesting_site);
+    bad_message::ReceivedBadMessage(
+        rfh->GetProcess(), bad_message::BadMessageReason::
+                               SAGPC_INVALID_PERMISSION_REQUEST_CONTEXT);
+    return base::unexpected(rfh->IsNestedWithinFencedFrame()
+                                ? content::PermissionStatusSource::FENCED_FRAME
+                                : content::PermissionStatusSource::UNSPECIFIED);
+  }
+  return base::ok();
 }
 
 }  // namespace
@@ -271,6 +285,15 @@ void StorageAccessGrantPermissionContext::RequestPermission(
   // This callback (synchronously) handles the browser side of that.
   content::GlobalRenderFrameHostId frame_host_id =
       request_data->id.global_render_frame_host_id();
+
+  RETURN_IF_ERROR(ValidatePermissionEligibility(
+                      content::RenderFrameHost::FromID(frame_host_id),
+                      net::SchemefulSite(request_data->requesting_origin)),
+                  [&](content::PermissionStatusSource source) {
+                    std::move(callback).Run(content::PermissionResult(
+                        blink::mojom::PermissionStatus::DENIED, source));
+                  });
+
   ContentSettingPermissionContextBase::RequestPermission(
       std::move(request_data),
       base::BindOnce(
@@ -313,24 +336,11 @@ void StorageAccessGrantPermissionContext::DecidePermission(
   const url::Origin embedding_origin =
       url::Origin::Create(request_data->embedding_origin);
 
-  if (rfh->GetLastCommittedOrigin().opaque() || rfh->IsCredentialless() ||
-      rfh->IsNestedWithinFencedFrame() ||
-      rfh->IsSandboxed(
-          network::mojom::WebSandboxFlags::kStorageAccessByUserActivation) ||
-      rfh->GetStorageKey().ForbidsUnpartitionedStorageAccess()) {
-    // No need to log anything here, since well-behaved renderers have already
-    // done these checks and have logged to the console. This block is to handle
-    // compromised renderers.
-    RecordOutcomeSample(RequestOutcome::kDeniedByPrerequisites,
-                        requesting_site);
-    mojo::ReportBadMessage(
-        "requestStorageAccess: Must not be called by a fenced frame, iframe "
-        "with an opaque origin, credentialless iframe, or sandboxed iframe");
-    std::move(callback).Run(content::PermissionResult(
-        blink::mojom::PermissionStatus::DENIED,
-        content::PermissionStatusSource::FENCED_FRAME));
-    return;
-  }
+  RETURN_IF_ERROR(ValidatePermissionEligibility(rfh, requesting_site),
+                  [&](content::PermissionStatusSource source) {
+                    std::move(callback).Run(content::PermissionResult(
+                        blink::mojom::PermissionStatus::DENIED, source));
+                  });
 
   // Return early without letting SAA override any explicit user settings to
   // block 3p cookies.
@@ -570,9 +580,15 @@ StorageAccessGrantPermissionContext::GetContentSettingStatusInternal(
     content::RenderFrameHost* render_frame_host,
     const GURL& requesting_origin,
     const GURL& embedding_origin) const {
-  // Permission query from top-level frame should be "granted" by default.
-  if (render_frame_host && render_frame_host->IsInPrimaryMainFrame()) {
-    return CONTENT_SETTING_ALLOW;
+  if (render_frame_host) {
+    if (IsAccessRestrictedInFrame(render_frame_host)) {
+      return CONTENT_SETTING_ASK;
+    }
+
+    // Permission query from top-level frame should be "granted" by default.
+    if (render_frame_host->IsInPrimaryMainFrame()) {
+      return CONTENT_SETTING_ALLOW;
+    }
   }
 
   ContentSetting setting = permissions::ContentSettingPermissionContextBase::
@@ -591,9 +607,11 @@ void StorageAccessGrantPermissionContext::NotifyPermissionSet(
     const permissions::PermissionRequestData& request_data,
     permissions::BrowserPermissionCallback callback,
     bool persist,
+    const content::PermissionResult* permission_result,
     const permissions::PermissionPromptDecision& decision) {
   CHECK(decision.overall_decision != PermissionDecision::kAllowThisTime);
   CHECK(decision.is_final);
+  CHECK(!persist || (decision.overall_decision != PermissionDecision::kNone));
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   RequestOutcome outcome =
       RequestOutcomeFromPrompt(decision.overall_decision, persist);
@@ -619,12 +637,8 @@ void StorageAccessGrantPermissionContext::NotifyPermissionSet(
       }
     }
   }
-  NotifyPermissionSetInternal(
-      request_data, std::move(callback),
-      persist &&
-          ShouldPersistSetting(
-              decision.overall_decision == PermissionDecision::kAllow, outcome),
-      decision.overall_decision, outcome);
+  NotifyPermissionSetInternal(request_data, std::move(callback), persist,
+                              decision.overall_decision, outcome);
 }
 
 void StorageAccessGrantPermissionContext::ReportRelatedWebsiteSetsDeprecation(
@@ -711,9 +725,11 @@ void StorageAccessGrantPermissionContext::NotifyPermissionSetInternal(
     }
   }
 
+  std::unique_ptr<permissions::PermissionResolver> resolver =
+      CreatePermissionResolver(request_data.permission_descriptor);
   if (!persist) {
     std::move(callback).Run(content::PermissionResult(
-        request_data.resolver->DeterminePermissionStatus(content_setting),
+        resolver->DeterminePermissionStatus(content_setting),
         content::PermissionStatusSource::UNSPECIFIED));
     return;
   }
@@ -758,18 +774,17 @@ void StorageAccessGrantPermissionContext::NotifyPermissionSetInternal(
       ->GetCookieManagerForBrowserProcess()
       ->SetContentSettings(
           ContentSettingsType::STORAGE_ACCESS, grants,
-          base::BindOnce(std::move(callback),
-                         content::PermissionResult(
-                             request_data.resolver->DeterminePermissionStatus(
-                                 content_setting),
-                             content::PermissionStatusSource::UNSPECIFIED)));
+          base::BindOnce(
+              std::move(callback),
+              content::PermissionResult(
+                  resolver->DeterminePermissionStatus(content_setting),
+                  content::PermissionStatusSource::UNSPECIFIED)));
 }
 
-void StorageAccessGrantPermissionContext::UpdateContentSetting(
+void StorageAccessGrantPermissionContext::UpdateSetting(
     const permissions::PermissionRequestData& request_data,
-    ContentSetting content_setting,
+    const PermissionSetting& setting,
     bool is_one_time) {
-  CHECK(!is_one_time);
   // We need to notify the network service of content setting updates before we
   // run our callback. As a result we do our updates when we're notified of a
   // permission being set and should not be called here.

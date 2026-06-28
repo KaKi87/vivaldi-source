@@ -35,21 +35,20 @@
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/desktop_to_mobile_promos/ios_promo_trigger_service.h"
 #include "chrome/browser/ui/desktop_to_mobile_promos/ios_promo_trigger_service_factory.h"
 #include "chrome/browser/ui/desktop_to_mobile_promos/ios_promos_utils.h"
 #include "chrome/browser/ui/hats/trust_safety_sentiment_service_factory.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/page_action/page_action_icon_type.h"
 #include "chrome/browser/ui/passwords/credential_leak_dialog_controller_impl.h"
 #include "chrome/browser/ui/passwords/credential_manager_dialog_controller_impl.h"
 #include "chrome/browser/ui/passwords/manage_passwords_auto_signin_toast_delegate.h"
-#include "chrome/browser/ui/passwords/manage_passwords_icon_view.h"
 #include "chrome/browser/ui/passwords/password_dialog_prompts.h"
 #include "chrome/browser/ui/passwords/passwords_leak_dialog_delegate.h"
 #include "chrome/browser/ui/passwords/ui_utils.h"
@@ -85,6 +84,7 @@
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
 #include "components/password_manager/core/browser/password_manager_util.h"
 #include "components/password_manager/core/browser/password_store/interactions_stats.h"
+#include "components/password_manager/core/browser/password_store/password_form_converters.h"
 #include "components/password_manager/core/browser/password_ui_utils.h"
 #include "components/password_manager/core/browser/ui/password_check_referrer.h"
 #include "components/password_manager/core/browser/undo_password_change_controller.h"
@@ -430,9 +430,9 @@ void ManagePasswordsUIController::OnAutomaticPasswordSave(
 }
 
 void ManagePasswordsUIController::OnPasswordAutofilled(
-    base::span<const password_manager::PasswordForm> password_forms,
+    base::span<const password_manager::StoredCredential> password_credentials,
     const url::Origin& origin,
-    base::span<const password_manager::PasswordForm> federated_matches) {
+    base::span<const password_manager::StoredCredential> federated_matches) {
   // To change to managed state only when the managed state is more important
   // for the user that the current state.
   if (passwords_data_.state() != password_manager::ui::INACTIVE_STATE &&
@@ -440,7 +440,7 @@ void ManagePasswordsUIController::OnPasswordAutofilled(
     return;
   }
   ClearPopUpFlagForBubble();
-  passwords_data_.OnPasswordAutofilled(password_forms, origin,
+  passwords_data_.OnPasswordAutofilled(password_credentials, origin,
                                        federated_matches);
   // Don't close the existing bubble. Update the icon later.
   if (bubble_status_ == BubbleStatus::SHOWN) {
@@ -455,7 +455,9 @@ void ManagePasswordsUIController::OnPasswordAutofilled(
   }
   // There nothing to do if this controller is not attached to currently active
   // tab.
-  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents());
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          web_contents());
   if (!browser) {
     return;
   }
@@ -700,32 +702,8 @@ void ManagePasswordsUIController::OnLoginsChanged(
 
 void ManagePasswordsUIController::OnLoginsRetained(
     password_manager::PasswordStoreInterface* /*store*/,
-    const std::vector<password_manager::PasswordForm>& /*retained_passwords*/) {
-}
-
-void ManagePasswordsUIController::UpdateIconAndBubbleState(
-    ManagePasswordsIconView* icon) {
-  const bool is_blocklisted = IsExplicitlyBlocklisted();
-  if (IsAutomaticallyOpeningBubble() ||
-      bubble_status_ == BubbleStatus::SHOULD_POP_UP_WITH_FOCUS) {
-    // This will detach any existing bubble so OnBubbleHidden() isn't called.
-    weak_ptr_factory_.InvalidateWeakPtrs();
-    // We must display the icon before showing the bubble, as the bubble would
-    // be otherwise unanchored.
-    icon->SetState(GetState(), is_blocklisted);
-    ShowBubbleWithoutUserInteraction();
-    // If the bubble appeared then the status is updated in OnBubbleShown().
-    ClearPopUpFlagForBubble();
-  } else {
-    password_manager::ui::State state = GetState();
-    // The dialog should hide the icon.
-    if (dialog_controller_ &&
-        state == password_manager::ui::CREDENTIAL_REQUEST_STATE) {
-      state = password_manager::ui::INACTIVE_STATE;
-    }
-    icon->SetState(state, is_blocklisted);
-  }
-}
+    const std::vector<
+        password_manager::StoredCredential>& /*retained_passwords*/) {}
 
 void ManagePasswordsUIController::OnPasswordChangeFinishedSuccessfully() {
   // If the password change finished successfully, don't show save/update
@@ -977,9 +955,10 @@ void ManagePasswordsUIController::HandlePasswordRecoveryFinished(
 
 void ManagePasswordsUIController::SavePassword(const std::u16string& username,
                                                const std::u16string& password) {
-  if (const password_manager::PasswordForm* changed_password_form_with_backup =
-          password_manager_util::FindChangedPasswordLoginWithBackup(
-              *passwords_data_.form_manager())) {
+  if (const password_manager::StoredCredential*
+          changed_password_form_with_backup =
+              password_manager_util::FindChangedPasswordLoginWithBackup(
+                  *passwords_data_.form_manager())) {
     HandlePasswordRecoveryFinished(
         username, password,
         changed_password_form_with_backup->GetPasswordBackup().value());
@@ -1029,7 +1008,9 @@ void ManagePasswordsUIController::SavePassword(const std::u16string& username,
   // The icon is to be updated after the bubble (either "Save password" or "Sign
   // in to Chrome") is closed.
   bubble_status_ = BubbleStatus::SHOWN_PENDING_ICON_UPDATE;
-  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents());
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          web_contents());
   // Do not trigger the IPH if the sign in promo will be shown.
   if (browser &&
       !signin::ShouldShowPasswordSignInPromo(*browser->GetProfile())) {
@@ -1089,21 +1070,27 @@ void ManagePasswordsUIController::ChooseCredential(
 
 void ManagePasswordsUIController::NavigateToPasswordManagerSettingsPage(
     password_manager::ManagePasswordsReferrer referrer) {
-  NavigateToManagePasswordsPage(chrome::FindBrowserWithTab(web_contents()),
-                                referrer);
+  NavigateToManagePasswordsPage(
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          web_contents()),
+      referrer);
 }
 
 void ManagePasswordsUIController::
     NavigateToPasswordDetailsPageInPasswordManager(
         const std::string& password_domain_name,
         password_manager::ManagePasswordsReferrer referrer) {
-  NavigateToPasswordDetailsPage(chrome::FindBrowserWithTab(web_contents()),
-                                password_domain_name, referrer);
+  NavigateToPasswordDetailsPage(
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          web_contents()),
+      password_domain_name, referrer);
 }
 
 void ManagePasswordsUIController::NavigateToPasswordCheckup(
     password_manager::PasswordCheckReferrer referrer) {
-  chrome::ShowPasswordCheck(chrome::FindBrowserWithTab(web_contents()));
+  chrome::ShowPasswordCheck(
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          web_contents()));
   password_manager::LogPasswordCheckReferrer(referrer);
 }
 
@@ -1186,7 +1173,9 @@ void ManagePasswordsUIController::AuthenticateUserWithMessage(
 }
 
 void ManagePasswordsUIController::MaybeShowIOSPasswordPromo() {
-  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents());
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          web_contents());
   if (!browser) {
     return;
   }
@@ -1211,7 +1200,9 @@ void ManagePasswordsUIController::RelaunchChrome() {
 }
 
 void ManagePasswordsUIController::NavigateToPasswordChangeSettings() {
-  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents());
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          web_contents());
   ShowSingletonTabOverwritingNTP(browser,
                                  GURL(chrome::kChromeUiPasswordChangeUrl),
                                  NavigateParams::IGNORE_AND_NAVIGATE);
@@ -1246,33 +1237,31 @@ void ManagePasswordsUIController::UpdateBubbleAndIconVisibility() {
   }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
-  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents());
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          web_contents());
   if (!browser) {
     return;
   }
-  if (IsPageActionMigrated(PageActionIconType::kManagePasswords)) {
-    tabs::TabInterface* const tab_interface =
-        tabs::TabInterface::MaybeGetFromContents(web_contents());
-    // The tab interface can be null if the web contents is not a tab.
-    if (!tab_interface) {
-      return;
-    }
-    auto* const tab_features = tab_interface->GetTabFeatures();
-    CHECK(tab_features);
-    // Retrieve the controller responsible for managing the page action's
-    // visibility and state.
-    auto* const controller =
-        tab_features->manage_passwords_page_action_controller();
-    // Get the action item associated with the passwords UI.
-    actions::ActionItem* passwords_action_item =
-        actions::ActionManager::Get().FindAction(
-            kActionShowPasswordsBubbleOrPage,
-            browser->GetActions()->root_action_item());
-    UpdatePasswordIconAndBubbleState(controller, passwords_action_item);
-  } else {
-    browser->GetBrowserForMigrationOnly()->window()->UpdatePageActionIcon(
-        PageActionIconType::kManagePasswords);
+
+  tabs::TabInterface* const tab_interface =
+      tabs::TabInterface::MaybeGetFromContents(web_contents());
+  // The tab interface can be null if the web contents is not a tab.
+  if (!tab_interface) {
+    return;
   }
+  auto* const tab_features = tab_interface->GetTabFeatures();
+  CHECK(tab_features);
+  // Retrieve the controller responsible for managing the page action's
+  // visibility and state.
+  auto* const controller =
+      tab_features->manage_passwords_page_action_controller();
+  // Get the action item associated with the passwords UI.
+  actions::ActionItem* passwords_action_item =
+      actions::ActionManager::Get().FindAction(
+          kActionShowPasswordsBubbleOrPage,
+          browser->GetActions()->root_action_item());
+  UpdatePasswordIconAndBubbleState(controller, passwords_action_item);
 }
 
 void ManagePasswordsUIController::UpdatePasswordIconAndBubbleState(
@@ -1342,7 +1331,8 @@ ManagePasswordsUIController::CreateCredentialLeakPrompt(
 }
 
 bool ManagePasswordsUIController::HasBrowserWindow() const {
-  return chrome::FindBrowserWithTab(web_contents()) != nullptr;
+  return GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+             web_contents()) != nullptr;
 }
 
 std::unique_ptr<MovePasswordToAccountStoreHelper>
@@ -1427,7 +1417,9 @@ base::TimeDelta ManagePasswordsUIController::GetTimeoutForSaveFallback() {
 void ManagePasswordsUIController::ShowBubbleWithoutUserInteraction() {
   CHECK(IsAutomaticallyOpeningBubble() ||
         bubble_status_ == BubbleStatus::SHOULD_POP_UP_WITH_FOCUS);
-  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents());
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          web_contents());
   // Can be zero in the tests.
   if (!browser) {
     return;

@@ -112,12 +112,14 @@ AutocompleteMatch BuildMatch(AutocompleteProvider* provider,
   auto format_types = AutocompleteMatch::GetFormatTypes(false, false);
   match.contents = url_formatter::FormatUrl(
       url, format_types, base::UnescapeRule::SPACES, nullptr, nullptr, nullptr);
-  match.contents_class = ClassifyTermMatches({}, match.contents.length(), 0,
+  match.contents_class = ClassifyTermMatches({}, match.contents.length(),
+                                             ACMatchClassification::NONE,
                                              ACMatchClassification::URL);
 
   match.description = AutocompleteMatch::SanitizeString(description);
   match.description_class = ClassifyTermMatches({}, match.description.length(),
-                                                0, ACMatchClassification::NONE);
+                                                ACMatchClassification::NONE,
+                                                ACMatchClassification::NONE);
 
   match.suggestion_group_id = omnibox::GROUP_MOBILE_MOST_VISITED;
   return match;
@@ -445,6 +447,14 @@ void MostVisitedSitesProvider::OnMostVisitedUrlsFromHistoryServiceAvailable(
 bool MostVisitedSitesProvider::AllowMostVisitedSitesSuggestions(
     const AutocompleteProviderClient* client,
     const AutocompleteInput& input) {
+#if BUILDFLAG(IS_ANDROID)
+  static const bool is_desktop =
+      ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_DESKTOP;
+  if (is_desktop) {
+    return false;
+  }
+#endif
+
   const auto& page_url = input.current_url();
   const auto page_class = input.current_page_classification();
   const auto input_type = input.type();
@@ -474,16 +484,16 @@ bool MostVisitedSitesProvider::AllowMostVisitedSitesSuggestions(
   // suggest for them).
   if (input_type != metrics::OmniboxInputType::EMPTY &&
       !(page_url.is_valid() &&
-        ((page_url.GetScheme() == url::kHttpScheme) ||
-         (page_url.GetScheme() == url::kHttpsScheme) ||
-         (page_url.GetScheme() == url::kAboutScheme) ||
-         (page_url.GetScheme() ==
+        ((page_url.scheme() == url::kHttpScheme) ||
+         (page_url.scheme() == url::kHttpsScheme) ||
+         (page_url.scheme() == url::kAboutScheme) ||
+         (page_url.scheme() ==
           client->GetEmbedderRepresentationOfAboutScheme())))) {
     return false;
   }
 
   if (omnibox_feature_configs::OmniboxUrlSuggestionsOnFocus::Get().enabled &&
-      page_url.GetScheme() == content::kChromeUIScheme) {
+      page_url.scheme() == content::kChromeUIScheme) {
     return false;
   }
 

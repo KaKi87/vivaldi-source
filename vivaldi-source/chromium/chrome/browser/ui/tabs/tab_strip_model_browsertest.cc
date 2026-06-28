@@ -8,6 +8,7 @@
 #include "base/callback_list.h"
 #include "base/json/json_reader.h"
 #include "base/scoped_observation.h"
+#include "base/test/gtest_util.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/mock_callback.h"
 #include "base/test/scoped_feature_list.h"
@@ -51,6 +52,10 @@
 #include "ui/base/ui_base_features.h"
 #include "ui/base/window_open_disposition.h"
 #include "url/gurl.h"
+
+#if BUILDFLAG(IS_LINUX)
+#include "extensions/common/extension_features.h"
+#endif
 
 using testing::_;
 
@@ -476,6 +481,48 @@ IN_PROC_BROWSER_TEST_F(TabStripModelBrowserTest, CommandDuplicateSelected) {
   // Should have duplicated tabs 1, 4, 5, 7, 10, and 11.
   EXPECT_EQ("0p 1p -1p 2ps 3ps 4ps 5ps -1ps -1ps 6 7 -1 8s 9s 10s 11s -1s -1s",
             GetTabStripStateString(tab_strip_model));
+}
+
+// TODO(crbug.com/501991031): Fails on "chrome/ci/linux-chromeos-chrome".
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && BUILDFLAG(IS_CHROMEOS)
+#define MAYBE_TestCloseTabDuringMoveOperation \
+  DISABLED_TestCloseTabDuringMoveOperation
+#else
+#define MAYBE_TestCloseTabDuringMoveOperation TestCloseTabDuringMoveOperation
+#endif
+IN_PROC_BROWSER_TEST_F(TabStripModelBrowserTest,
+                       MAYBE_TestCloseTabDuringMoveOperation) {
+#if BUILDFLAG(IS_LINUX)
+  // TODO(crbug.com/501991031): Fails on "try/network_service_linux".
+  if (base::FeatureList::IsEnabled(
+          extensions_features::kForceWebRequestProxyForTest)) {
+    GTEST_SKIP();
+  }
+#endif
+
+  TabStripModel* const tab_strip_model = browser()->tab_strip_model();
+  ASSERT_NO_FATAL_FAILURE(
+      PrepareTabstripForSelectionTest(tab_strip_model, 2, 0, {0}));
+  ASSERT_EQ(2, tab_strip_model->count());
+
+  class TabStripModelCloseWebContentsOnChangeObserver
+      : public TabStripModelObserver {
+   public:
+    void OnTabStripModelChanged(
+        TabStripModel* tab_strip_model,
+        const TabStripModelChange& change,
+        const TabStripSelectionChange& selection) override {
+      if (change.type() == TabStripModelChange::Type::kMoved) {
+        tab_strip_model->CloseWebContentsAt(1,
+                                            TabCloseTypes::CLOSE_USER_GESTURE);
+      }
+    }
+  };
+  TabStripModelCloseWebContentsOnChangeObserver close_tab_observer;
+  tab_strip_model->AddObserver(&close_tab_observer);
+
+  EXPECT_CHECK_DEATH(tab_strip_model->MoveWebContentsAt(0, 1, false));
+  tab_strip_model->RemoveObserver(&close_tab_observer);
 }
 
 class TabStripModelTestTabGroupEntryPointsEnabled

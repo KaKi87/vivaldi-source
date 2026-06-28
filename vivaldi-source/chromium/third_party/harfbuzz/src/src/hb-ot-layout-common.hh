@@ -637,8 +637,8 @@ struct FeatureParamsCharacterVariants
     return characters.len;
   }
 
-  unsigned get_size () const
-  { return min_size + characters.len * HBUINT24::static_size; }
+  size_t get_size () const
+  { return hb_unsigned_mul_add_saturate (characters.len, HBUINT24::static_size, min_size); }
 
   void collect_name_ids (hb_set_t *nameids_to_retain /* OUT */) const
   {
@@ -1272,7 +1272,7 @@ struct Lookup
   TSubTable& get_subtable (unsigned int i)
   { return this+get_subtables<TSubTable> ()[i]; }
 
-  unsigned int get_size () const
+  size_t get_size () const
   {
     const HBUINT16 &markFilteringSet = StructAfter<const HBUINT16> (subTable);
     if (lookupFlag & LookupFlag::UseMarkFilteringSet)
@@ -2791,7 +2791,10 @@ struct VarRegionList
     return !regions.in_error ();
   }
 
-  unsigned int get_size () const { return min_size + VarRegionAxis::static_size * axisCount * regionCount; }
+  size_t get_size () const
+  { return hb_unsigned_add_saturate (min_size,
+				     hb_unsigned_mul_saturate (VarRegionAxis::static_size,
+							       axisCount, regionCount)); }
 
   public:
   HBUINT16	axisCount;
@@ -2868,14 +2871,13 @@ struct VarData
   unsigned get_region_index (unsigned i) const
   { return i >= regionIndices.len ? -1 : regionIndices[i]; }
 
-  unsigned int get_row_size () const
+  size_t get_row_size () const
   { return (wordCount () + regionIndices.len) * (longWords () ? 2 : 1); }
 
-  unsigned int get_size () const
-  { return min_size
-	 - regionIndices.min_size + regionIndices.get_size ()
-	 + itemCount * get_row_size ();
-  }
+  size_t get_size () const
+  { return hb_unsigned_add_saturate (min_size - regionIndices.min_size,
+				     regionIndices.get_size (),
+				     hb_unsigned_mul_saturate (itemCount, get_row_size ())); }
 
   float _get_delta (unsigned int inner,
 		    const int *coords, unsigned int coord_count,
@@ -3243,11 +3245,10 @@ struct VarData
 
 struct MultiVarData
 {
-  unsigned int get_size () const
-  { return min_size
-	 - regionIndices.min_size + regionIndices.get_size ()
-	 + StructAfter<CFF2Index> (regionIndices).get_size ();
-  }
+  size_t get_size () const
+  { return hb_unsigned_add_saturate (min_size - regionIndices.min_size,
+				     regionIndices.get_size (),
+				     StructAfter<CFF2Index> (regionIndices).get_size ()); }
 
   void get_delta (unsigned int inner,
 		  const int *coords, unsigned int coord_count,
@@ -3638,8 +3639,8 @@ struct DeltaSetIndexMapFormat01
 {
   friend struct DeltaSetIndexMap;
 
-  unsigned get_size () const
-  { return min_size + mapCount * get_width (); }
+  size_t get_size () const
+  { return hb_unsigned_mul_add_saturate (mapCount, get_width (), min_size); }
 
   private:
   DeltaSetIndexMapFormat01* copy (hb_serialize_context_t *c) const
@@ -4804,7 +4805,7 @@ struct HintingDevice
 
   public:
 
-  unsigned int get_size () const
+  size_t get_size () const
   {
     unsigned int f = deltaFormat;
     if (unlikely (f < 1 || f > 3 || startSize > endSize)) return 3 * HBUINT16::static_size;

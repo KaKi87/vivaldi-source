@@ -25,7 +25,11 @@ chromium::import! {
     "//mojo/public/rust/mojom_value_parser:mojom_value_parser_core";
     "//mojo/public/rust/mojom_value_parser:parser_unittests_rust";
     "//mojo/public/rust/mojom_value_parser:validation_parser";
+    "//mojo/public/rust/bindings";
 }
+
+use bindings::receiver::PendingReceiver;
+use bindings::remote::PendingRemote;
 
 use mojom_value_parser_core::*;
 use ordered_float::OrderedFloat;
@@ -39,7 +43,7 @@ use crate::helpers::*;
 // //mojo/public/cpp/bindings/tests/validation_test_input_parser.h
 fn validate_parsing<T>(value: T, data: &str) -> anyhow::Result<()>
 where
-    T: MojomParse + PartialEq + std::fmt::Debug,
+    T: MojomParse<()> + PartialEq + std::fmt::Debug,
 {
     // We have to compute this eagerly since `value ` will get consumed by the test
     let err_str = format!("\nRust value: {value:?}\nWire Data: {data}");
@@ -56,12 +60,15 @@ where
         // googletest that return a result, if we get access to them.
         expect_eq!(
             &value,
-            &parse_single_value_for_testing(wire_data.as_ref(), &mut [], T::wire_type())?
-                .try_into()?
+            &try_from_mojom_value(parse_single_value_for_testing(
+                wire_data.as_ref(),
+                &mut [],
+                T::wire_type()
+            )?)?
         );
         expect_eq!(
             wire_data.as_ref(),
-            *deparse_single_value_for_testing(value.into(), T::wire_type())?
+            *deparse_single_value_for_testing(into_mojom_value(value), T::wire_type())?
         );
         Ok(())
     };
@@ -77,7 +84,7 @@ where
 // after parsing (comparing the parsed `MojomValue` instead of the parsed `T`).
 fn validate_parsing_with_handles<T>(value: T, data: &str, num_handles: usize) -> anyhow::Result<()>
 where
-    T: MojomParse + PartialEq + std::fmt::Debug,
+    T: MojomParse<()> + PartialEq + std::fmt::Debug,
 {
     // We have to compute this eagerly since `value ` will get consumed by the test
     let err_str = format!("\nRust value: {value:?}\nWire Data: {data}");
@@ -90,7 +97,7 @@ where
             // We currently don't do anything with handles, so only look at the data field
             .data;
 
-        let mojom_value: MojomValue = value.into();
+        let mojom_value = into_mojom_value(value);
         let mut handles = (0..num_handles).map(|_| Some(dummy_handle())).collect::<Vec<_>>();
 
         // TODO(crbug.com/456214728): It would be nice to use the `verify_` macros from
@@ -116,7 +123,7 @@ where
 /// Check that we correctly fail to parse mismatching data.
 fn validate_parsing_failure<T>(data: &str) -> anyhow::Result<()>
 where
-    T: MojomParse + PartialEq + std::fmt::Debug,
+    T: MojomParse<()> + PartialEq + std::fmt::Debug,
 {
     validate_parsing_failure_with_handles::<T>(data, 0)
 }
@@ -124,7 +131,7 @@ where
 /// Check that we correctly fail to parse mismatching data...with handles!
 fn validate_parsing_failure_with_handles<T>(data: &str, num_handles: usize) -> anyhow::Result<()>
 where
-    T: MojomParse + PartialEq + std::fmt::Debug,
+    T: MojomParse<()> + PartialEq + std::fmt::Debug,
 {
     let wire_data = validation_parser::parse(data).map_err(anyhow::Error::msg)?.data;
     let mut handles = (0..num_handles).map(|_| Some(dummy_handle())).collect::<Vec<_>>();
@@ -1276,6 +1283,42 @@ fn test_handle_parsing() -> anyhow::Result<()> {
         ),
         6,
     )?;
+
+    validate_parsing_with_handles(
+        WithPendingTypes {
+            rec: PendingReceiver::new(dummy_handle().into()),
+            rem: PendingRemote::new(dummy_handle().into()),
+            rec2: PendingReceiver::new(dummy_handle().into()),
+            rem2: PendingRemote::new(dummy_handle().into()),
+        },
+        "[u4]32 [u4]0 [u4]0 [u4]1 [u4]0 [u4]2 [u4]3 [u4]0",
+        4,
+    )?;
+
+    validate_parsing_failure_with_handles::<WithPendingTypes>(
+        "[u4]32 [u4]0 [u4]0 [u4]1 [u4]0 [u4]2 [u4]3 [u4]0",
+        3,
+    )?;
+
+    // Fails because remote needs 8 bytes but we only provide 4 after the receiver
+    validate_parsing_failure_with_handles::<WithPendingTypes>("[u4]20 [u4]0 [u4]0 [u4]1", 2)?;
+
+    Ok(())
+}
+
+#[gtest(RustTestMojomParsing, TestNestedEnumParsing)]
+fn test_nested_enums() -> anyhow::Result<()> {
+    validate_parsing(
+        StructWithNestedEnum { even_or_odd: StructWithNestedEnum_Type::ODD },
+        "[u4]16 [u4]0 [u4]1 [u4]0",
+    )?;
+
+    validate_parsing(
+        StructWithNestedEnum { even_or_odd: StructWithNestedEnum_Type::EVEN },
+        "[u4]16 [u4]0 [u4]2 [u4]0",
+    )?;
+
+    validate_parsing_failure::<StructWithNestedEnum>("[u4]16 [u4]0 [u4]3 [u4]0")?;
 
     Ok(())
 }

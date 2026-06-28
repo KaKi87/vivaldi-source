@@ -4,16 +4,20 @@
 
 #include "chrome/browser/ui/views/web_apps/isolated_web_apps/isolated_web_app_installer_view_controller.h"
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <string>
 #include <variant>
 
+#include "base/containers/to_vector.h"
+#include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/logging.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
+#include "base/timer/timer.h"
 #include "base/uuid.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/views/web_apps/isolated_web_apps/callback_delayer.h"
@@ -21,17 +25,22 @@
 #include "chrome/browser/ui/views/web_apps/isolated_web_apps/isolated_web_app_installer_view.h"
 #include "chrome/browser/ui/views/web_apps/isolated_web_apps/isolated_web_app_user_installability_checker.h"
 #include "chrome/browser/web_applications/icons/icon_masker.h"
-#include "chrome/browser/web_applications/isolated_web_apps/commands/install_isolated_web_app_command.h"
 #include "chrome/browser/web_applications/isolated_web_apps/install/isolated_web_app_install_source.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_features.h"
+#include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_user_installed_manager.h"
 #include "chrome/browser/web_applications/isolated_web_apps/signed_web_bundle_metadata.h"
+#include "chrome/browser/web_applications/locks/app_lock.h"
+#include "chrome/browser/web_applications/web_app.h"
 #include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
+#include "chrome/browser/web_applications/web_app_registry_update.h"
+#include "chrome/browser/web_applications/web_app_sync_bridge.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/prefs/pref_service.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/webapps/common/web_app_id.h"
+#include "content/public/browser/storage_partition.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/base/ui_base_types.h"
@@ -62,7 +71,36 @@
 
 namespace web_app {
 
+BASE_FEATURE(kIwaUpdateChannelsInInstaller, base::FEATURE_ENABLED_BY_DEFAULT);
+
 namespace {
+
+constexpr auto kUpdateManifestFetchTrafficAnnotation =
+    net::DefinePartialNetworkTrafficAnnotation("iwa_installer_view_controller",
+                                               "iwa_update_manifest_fetcher",
+                                               R"(
+  semantics {
+    sender: "Isolated Web App Installer View Controller"
+    description:
+      "Downloads the update manifest of an Isolated Web App during a "
+      "user-initiated graphical installation. The update manifest contains "
+      "the list of available update channels."
+    trigger:
+      "The user selects an Isolated Web App bundle (.swbn) to install via "
+      "the graphical installer, and the installer checks for available "
+      "update channels to display in the UI."
+  }
+  policy {
+    cookies_allowed: NO
+    setting:
+      "This feature cannot be disabled in settings, but it is only "
+      "triggered by explicit user action (installing an IWA)."
+    chrome_policy {
+      IsolatedWebAppUserInstallationEnabled {
+        IsolatedWebAppUserInstallationEnabled: false
+      }
+    }
+  })");
 
 constexpr base::TimeDelta kGetMetadataMinimumDelay = base::Seconds(2);
 constexpr base::TimeDelta kInstallationMinimumDelay = base::Seconds(2);
@@ -92,6 +130,10 @@ std::string CreateRandomInstanceId() {
   return uuid.AsLowercaseString();
 }
 
+// Checks if a user is able to install Isolated Web Apps.
+// This function combines checks for the general feature
+// enablement, browser-level policy settings, and (on ChromeOS) the
+// OS-level IWA enablement setting.
 bool IsUserInstallEnabledForProfile(Profile* profile) {
   if (!web_app::IsIwaUnmanagedInstallEnabled(profile)) {
     return false;
@@ -104,6 +146,24 @@ bool IsUserInstallEnabledForProfile(Profile* profile) {
   return true;
 }
 
+void UpdateIwaChannelInDatabase(webapps::AppId app_id,
+                                UpdateChannel update_channel,
+                                AppLock& lock,
+                                base::DictValue& debug_value) {
+  debug_value.Set("update_channel", update_channel.ToString());
+
+  ScopedRegistryUpdate update = lock.sync_bridge().BeginUpdate();
+  WebApp* web_app = update->UpdateApp(app_id);
+
+  if (!web_app || !web_app->isolation_data()) {
+    LOG(ERROR) << "Failed to update IWA channel in database.";
+    return;
+  }
+
+  web_app->SetIsolationData(IsolationData::Builder(*web_app->isolation_data())
+                                .SetUpdateChannel(std::move(update_channel))
+                                .Build());
+}
 }  // namespace
 
 struct IsolatedWebAppInstallerViewController::InstallabilityCheckedVisitor {
@@ -119,17 +179,20 @@ struct IsolatedWebAppInstallerViewController::InstallabilityCheckedVisitor {
   }
 
   void operator()(const InstallabilityChecker::BundleInstallable& installable) {
-    if (!installable.metadata.image_info().bitmaps.empty()) {
-      // Get the last icon from available trusted icon bitmaps, size doesn't
-      // matter since Shelf will rescale the icon anyway.
+    const auto& image_info = installable.metadata.image_info();
+    const auto& bitmaps = image_info.bitmaps;
+    if (!bitmaps.empty()) {
+      // Pick the largest available icon bitmap for the Shelf. The Shelf will
+      // rescale the icon anyway, so we prefer the largest bitmap.
+      const auto largest_bitmap = std::ranges::max_element(
+          bitmaps, std::less<>{}, [](const auto& item) { return item.first; });
       controller_->SetIcon(
-          gfx::ImageSkia::CreateFrom1xBitmap(
-              installable.metadata.image_info().bitmaps.rbegin()->second),
-          installable.metadata.image_info().is_maskable);
+          gfx::ImageSkia::CreateFrom1xBitmap(largest_bitmap->second),
+          image_info.is_maskable);
       controller_->AddOrUpdateWindowToShelf();
     }
     model_->SetSignedWebBundleMetadata(installable.metadata);
-    model_->SetStep(IsolatedWebAppInstallerModel::Step::kShowMetadata);
+    controller_->LoadChannelsAndShowMetadata();
   }
 
   void operator()(const InstallabilityChecker::BundleUpdatable& updatable) {
@@ -346,7 +409,7 @@ bool IsolatedWebAppInstallerViewController::OnAccept() {
           app_id, ui::EF_NONE, apps::LaunchSource::kFromInstaller,
           /*window_info=*/nullptr);
 #else
-      web_app_provider_->scheduler().LaunchApp(
+      web_app_provider_->scheduler().LaunchAppFromCommandLine(
           app_id, *base::CommandLine::ForCurrentProcess(),
           /*current_directory=*/base::FilePath(),
           /*protocol_handler_launch_url=*/std::nullopt,
@@ -380,6 +443,73 @@ void IsolatedWebAppInstallerViewController::Close() {
   if (dialog_delegate_) {
     dialog_delegate_->CancelDialog();
   }
+}
+
+void IsolatedWebAppInstallerViewController::LoadChannelsAndShowMetadata() {
+  if (!base::FeatureList::IsEnabled(kIwaUpdateChannelsInInstaller)) {
+    model_->SetStep(IsolatedWebAppInstallerModel::Step::kShowMetadata);
+    return;
+  }
+
+  const std::optional<GURL>& update_manifest_url =
+      model_->bundle_metadata().update_manifest_url();
+
+  if (!update_manifest_url.has_value() || !update_manifest_url->is_valid()) {
+    model_->SetAvailableChannels({UpdateManifest::ChannelMetadata(
+        UpdateChannel::default_channel(), std::nullopt)});
+    model_->SetStep(IsolatedWebAppInstallerModel::Step::kShowMetadata);
+    return;
+  }
+
+  update_manifest_fetcher_ = std::make_unique<UpdateManifestFetcher>(
+      update_manifest_url.value(), kUpdateManifestFetchTrafficAnnotation,
+      profile_->GetDefaultStoragePartition()
+          ->GetURLLoaderFactoryForBrowserProcess());
+
+  update_manifest_fetcher_->FetchUpdateManifest(base::BindOnce(
+      &IsolatedWebAppInstallerViewController::OnUpdateManifestFetched,
+      weak_ptr_factory_.GetWeakPtr()));
+
+  update_manifest_timer_.Start(
+      FROM_HERE, base::Seconds(15),
+      base::BindOnce(
+          &IsolatedWebAppInstallerViewController::OnUpdateManifestTimeout,
+          weak_ptr_factory_.GetWeakPtr()));
+}
+
+void IsolatedWebAppInstallerViewController::OnUpdateManifestFetched(
+    base::expected<UpdateManifest, UpdateManifestFetcher::Error> fetch_result) {
+  update_manifest_fetcher_.reset();
+  update_manifest_timer_.Stop();
+
+  base::flat_set<UpdateChannel> unique_channels;
+
+  if (fetch_result.has_value()) {
+    for (const auto& version : fetch_result->versions()) {
+      unique_channels.insert(version.channels().begin(),
+                             version.channels().end());
+    }
+  }
+
+  if (unique_channels.empty()) {
+    unique_channels.insert(UpdateChannel::default_channel());
+  }
+
+  std::vector<UpdateManifest::ChannelMetadata> channels_metadata =
+      base::ToVector(unique_channels, [&](const auto& channel) {
+        if (fetch_result.has_value()) {
+          return fetch_result->GetChannelMetadata(channel);
+        }
+        return UpdateManifest::ChannelMetadata(channel, std::nullopt);
+      });
+
+  model_->SetAvailableChannels(std::move(channels_metadata));
+  model_->SetStep(IsolatedWebAppInstallerModel::Step::kShowMetadata);
+}
+
+void IsolatedWebAppInstallerViewController::OnUpdateManifestTimeout() {
+  OnUpdateManifestFetched(
+      base::unexpected(UpdateManifestFetcher::Error::kDownloadFailed));
 }
 
 void IsolatedWebAppInstallerViewController::
@@ -449,10 +579,24 @@ void IsolatedWebAppInstallerViewController::OnIconMaskedUpdateShelf(
   AddOrUpdateWindowToShelf();
 }
 
-void IsolatedWebAppInstallerViewController::OnInstallComplete(
+void IsolatedWebAppInstallerViewController::StoreIwaUpdateChannel(
     base::expected<InstallIsolatedWebAppCommandSuccess,
                    InstallIsolatedWebAppCommandError> result) {
   if (result.has_value()) {
+    if (base::FeatureList::IsEnabled(kIwaUpdateChannelsInInstaller)) {
+      std::optional<UpdateChannel> selected_channel =
+          model_->selected_channel();
+
+      if (selected_channel.has_value()) {
+        web_app_provider_->scheduler().ScheduleCallback(
+            "StoreIwaUpdateChannel",
+            AppLockDescription(model_->bundle_metadata().app_id()),
+            base::BindOnce(&UpdateIwaChannelInDatabase,
+                           model_->bundle_metadata().app_id(),
+                           std::move(selected_channel.value())),
+            base::DoNothing());
+      }
+    }
     model_->SetStep(IsolatedWebAppInstallerModel::Step::kInstallSuccess);
   } else {
     model_->SetDialog(IsolatedWebAppInstallerModel::InstallationFailedDialog{});
@@ -463,10 +607,16 @@ void IsolatedWebAppInstallerViewController::OnShowMetadataLearnMoreClicked() {
   // TODO(crbug.com/40280769): Implement
 }
 
+void IsolatedWebAppInstallerViewController::OnUpdateChannelSelected(
+    std::optional<UpdateChannel> channel) {
+  model_->SetSelectedChannel(std::move(channel));
+}
+
 void IsolatedWebAppInstallerViewController::OnSettingsLinkClicked() {
 #if BUILDFLAG(IS_CHROMEOS)
   chrome::SettingsWindowManager::GetInstance()->ShowOSSettings(
-      profile_, chromeos::settings::mojom::kManageIsolatedWebAppsSubpagePath);
+      profile_, /*sub_page=*/"",
+      chromeos::settings::mojom::Setting::kEnableIsolatedWebAppsOnOff);
 #endif  // BUILDFLAG(IS_CHROMEOS)
 }
 
@@ -488,16 +638,14 @@ void IsolatedWebAppInstallerViewController::OnChildDialogAccepted() {
               weak_ptr_factory_.GetWeakPtr()));
 
       const SignedWebBundleMetadata& metadata = model_->bundle_metadata();
-      web_app_provider_->scheduler().InstallIsolatedWebApp(
+      web_app_provider_->isolated_web_app_user_installed_manager().Install(
           metadata.url_info(),
           IsolatedWebAppInstallSource::FromGraphicalInstaller(
               model_->source().WithFileOp(IwaSourceBundleProdFileOp::kCopy,
                                           IwaSourceBundleDevFileOp::kCopy)),
           metadata.version(),
-          /*optional_keep_alive=*/nullptr,
-          /*optional_profile_keep_alive=*/nullptr,
           callback_delayer_->StartDelayingCallback(base::BindOnce(
-              &IsolatedWebAppInstallerViewController::OnInstallComplete,
+              &IsolatedWebAppInstallerViewController::StoreIwaUpdateChannel,
               weak_ptr_factory_.GetWeakPtr())));
       break;
     }
@@ -544,7 +692,8 @@ void IsolatedWebAppInstallerViewController::OnStepChanged() {
     case IsolatedWebAppInstallerModel::Step::kShowMetadata:
       IsolatedWebAppInstallerView::SetDialogButtons(
           dialog_delegate_, IDS_APP_CANCEL, IDS_INSTALL);
-      view_->ShowMetadataScreen(model_->bundle_metadata());
+      view_->ShowMetadataScreen(model_->bundle_metadata(),
+                                model_->available_channels());
       break;
 
     case IsolatedWebAppInstallerModel::Step::kInstall:

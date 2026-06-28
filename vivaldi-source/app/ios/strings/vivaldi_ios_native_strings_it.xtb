@@ -94,7 +94,7 @@
 <translation id="2048247880942380698">Arabo (<ph name="ORIGIN" />)</translation>
 <translation id="2079545284768500474">Annulla</translation>
 <translation id="2138901399878617625">Pianta alberi mentre cerchi</translation>
-<translation id="2142450595713867677">Usa immagine giornaliera</translation>
+<translation id="2142450595713867677">Usa foto del giorno</translation>
 <translation id="2148384276939959392">Sincronizzazione selezionata</translation>
 <translation id="2179052183774520942">Aggiungi motore di ricerca</translation>
 <translation id="2195713384412091023">Ciò rimuoverà tutti i dati sincronizzati sul nostro server, reimposterà la password crittografica e ti disconnetterà.</translation>
@@ -109,7 +109,7 @@
 <translation id="2330644510603114741">Comportamento scheda</translation>
 <translation id="233493642829799329">Modificandola alcune delle schede potrebbero ricaricarsi</translation>
 <translation id="2336309953058658733">Svuota cestino</translation>
-<translation id="2336679896177818431">Apri il commutatore schede scorrendo verso l'alto o verso il basso sulla barra degli indirizzi</translation>
+<translation id="2336679896177818431">Apri il gestore delle schede scorrendo verso l'alto o verso il basso sulla barra degli indirizzi</translation>
 <translation id="2359808026110333948">Continua</translation>
 <translation id="2386793615875593361">1 selezionata</translation>
 <translation id="2387049655823108978">Sincronizza le schede aperte da altri dispositivi</translation>
@@ -335,7 +335,7 @@ bloccati</translation>
 <translation id="4780953868408193639">Tracciante
 bloccato</translation>
 <translation id="4807415245238822255">Le password devono corrispondere.</translation>
-<translation id="4818836520802586445">Colore di accento</translation>
+<translation id="4818836520802586445">Colore d'accento</translation>
 <translation id="4821701638681626529">Vivaldi non registra la cronologia di navigazione durante l'utilizzo delle schede private</translation>
 <translation id="4825714975043873206">I siti si caricano lentamente o non si aprono</translation>
 <translation id="4833044618885331665">Devi aggiornare Vivaldi per poter usare la sincronizzazione.</translation>
@@ -354,6 +354,7 @@ bloccato</translation>
 <translation id="495421405224926623">Ho letto e accetto i Termini di utilizzo e l'Informativa sulla privacy</translation>
 <translation id="497942794017668482">Bloccando traccianti e annunci</translation>
 <translation id="4983968022327077496">L'organizzazione richiede una navigazione privata. Le schede non vengono salvate in modalità privata. <ph name="BEGIN_LINK" />Scopri di più<ph name="END_LINK" /></translation>
+<translation id="4991261712398289852">Due livelli</translation>
 <translation id="4993477362660748586">Sincronizzazione</translation>
 <translation id="500392125908657603">Opzioni campo indirizzo</translation>
 <translation id="5037761343305489956">Copiato in una nota</translation>
@@ -556,7 +557,7 @@ bloccato</translation>
 <translation id="7504733216949066481">Traduzione fallita!</translation>
 <translation id="750493650310597496">0 selezionate</translation>
 <translation id="7525067979554623046">Crea</translation>
-<translation id="753732157349120914">Commutatore schede</translation>
+<translation id="753732157349120914">Gestore delle schede</translation>
 <translation id="7541018845757104937">Vivaldi scarica rapidamente la batteria</translation>
 <translation id="755410338177348055">L'audio o il video restano in caricamento o bloccati</translation>
 <translation id="7562758693157424472">Puoi prenderti un momento per condividere i tuoi pensieri con noi?</translation>
@@ -700,7 +701,6 @@ bloccati</translation>
 <translation id="9157459516617966251">Modifica il link</translation>
 <translation id="9157539936604258187">Apri Link</translation>
 <translation id="9165758833825521812">Modalità lettura</translation>
-<translation id="9171713938468458286">Due livelli</translation>
 <translation id="9195659219948942754">Continua a usare i dati sincronizzati nel tuo account Vivaldi</translation>
 <translation id="9195802773917252923">Abilita Scorciatoie segnalibri</translation>
 <translation id="9212737146310746733">Persiano (<ph name="ORIGIN" />)</translation>

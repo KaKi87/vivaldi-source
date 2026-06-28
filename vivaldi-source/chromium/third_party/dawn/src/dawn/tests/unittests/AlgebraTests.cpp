@@ -27,7 +27,7 @@
 
 #include <gtest/gtest.h>
 
-#include "dawn/common/Algebra.h"
+#include "src/dawn/common/Algebra.h"
 
 namespace dawn::math {
 namespace {
@@ -304,6 +304,15 @@ TEST(Algebra, MatrixScalarDiv) {
     Mat2x2f m = Mat2x2f({3, 6}, {9, 12});
     m /= 3.0f;
     EXPECT_EQ(m, Mat2x2f({1, 2}, {3, 4}));
+}
+
+// Test the vector-scalar division.
+TEST(Algebra, MatrixScalarMul) {
+    EXPECT_EQ(Mat2x2f({1, 2}, {3, 4}) * 3.0f, Mat2x2f({3, 6}, {9, 12}));
+
+    Mat2x2f m = Mat2x2f({1, 2}, {3, 4});
+    m *= 3.0f;
+    EXPECT_EQ(m, Mat2x2f({3, 6}, {9, 12}));
 }
 
 // Test matrix / vector multiplication.

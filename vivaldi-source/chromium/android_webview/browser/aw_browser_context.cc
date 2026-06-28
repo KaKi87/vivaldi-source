@@ -25,10 +25,12 @@
 #include "android_webview/browser/aw_permission_manager.h"
 #include "android_webview/browser/aw_quota_manager_bridge.h"
 #include "android_webview/browser/aw_web_ui_controller_factory.h"
+#include "android_webview/browser/content_restriction/aw_content_restriction_blocked_navigation_tracker.h"
 #include "android_webview/browser/content_restriction/aw_content_restriction_manager_client.h"
 #include "android_webview/browser/cookie_manager.h"
 #include "android_webview/browser/metrics/aw_metrics_service_client.h"
 #include "android_webview/browser/network_service/net_helpers.h"
+#include "android_webview/browser/prefetch/aw_prefetch_prefs.h"
 #include "android_webview/browser/prefetch/aw_preloading_utils.h"
 #include "android_webview/browser/safe_browsing/aw_safe_browsing_allowlist_manager.h"
 #include "android_webview/common/aw_features.h"
@@ -117,70 +119,7 @@ bool IgnoreOriginSecurityCheck(const GURL& url) {
   return true;
 }
 
-void MigrateProfileData(base::FilePath cache_path,
-                        base::FilePath context_storage_path) {
-  TRACE_EVENT0("startup", "MigrateProfileData");
-  bool migration_happened = false;
-  FilePath old_cache_path;
-  base::PathService::Get(base::DIR_CACHE, &old_cache_path);
-  old_cache_path = old_cache_path.DirName().Append(
-      FILE_PATH_LITERAL("org.chromium.android_webview"));
 
-  if (base::PathExists(old_cache_path)) {
-    migration_happened = true;
-    bool success = base::CreateDirectory(cache_path);
-    if (success)
-      success &= base::Move(old_cache_path, cache_path);
-    DCHECK(success);
-  }
-
-  base::FilePath old_context_storage_path;
-  base::PathService::Get(base::DIR_ANDROID_APP_DATA, &old_context_storage_path);
-
-  if (!base::PathExists(context_storage_path)) {
-    base::CreateDirectory(context_storage_path);
-  }
-
-  auto migrate_context_storage_data = [&old_context_storage_path,
-                                       &context_storage_path,
-                                       &migration_happened](auto& suffix) {
-    FilePath old_file = old_context_storage_path.Append(suffix);
-    if (base::PathExists(old_file)) {
-      migration_happened = true;
-      FilePath new_file = context_storage_path.Append(suffix);
-
-      if (base::PathExists(new_file)) {
-        bool success =
-            base::Move(new_file, new_file.AddExtension(".partial-migration"));
-        DCHECK(success);
-      }
-      bool success = base::Move(old_file, new_file);
-      DCHECK(success);
-    }
-  };
-
-  // These were handled in the initial migration
-  migrate_context_storage_data("Web Data");
-  migrate_context_storage_data("Web Data-journal");
-  migrate_context_storage_data("GPUCache");
-  migrate_context_storage_data("blob_storage");
-  migrate_context_storage_data("Session Storage");
-
-  // These were missed in the initial migration
-  migrate_context_storage_data("File System");
-  migrate_context_storage_data("IndexedDB");
-  migrate_context_storage_data("Local Storage");
-  migrate_context_storage_data("QuotaManager");
-  migrate_context_storage_data("QuotaManager-journal");
-  migrate_context_storage_data("Service Worker");
-  migrate_context_storage_data("VideoDecodeStats");
-  migrate_context_storage_data("shared_proto_db");
-  migrate_context_storage_data("webrtc_event_logs");
-
-  base::UmaHistogramBoolean(
-      "Android.WebView.AwBrowserContext.ProfileDataMigrationHappened",
-      migration_happened);
-}
 
 base::FilePath BuildCachePath(const base::FilePath& relative_path) {
   FilePath cache_path;
@@ -211,9 +150,7 @@ AwBrowserContext::AwBrowserContext(std::string name,
   profile_metrics::SetBrowserProfileType(
       this, profile_metrics::BrowserProfileType::kRegular);
 
-  if (IsDefaultBrowserContext()) {
-    MigrateProfileData(GetHttpCachePath(), GetPath());
-  } else {
+  if (!IsDefaultBrowserContext()) {
     cookie_manager_ = std::make_unique<CookieManager>(this);
   }
 
@@ -240,6 +177,8 @@ AwBrowserContext::AwBrowserContext(std::string name,
 
   content_restriction_manager_client_ =
       std::make_unique<AwContentRestrictionManagerClient>();
+  content_restriction_blocked_navigation_tracker_ =
+      std::make_unique<AwContentRestrictionBlockedNavigationTracker>();
 }
 
 AwBrowserContext::~AwBrowserContext() {
@@ -275,6 +214,15 @@ base::FilePath AwBrowserContext::GetCookieStorePath() {
 // static
 void AwBrowserContext::RegisterPrefs(PrefRegistrySimple* registry) {
   safe_browsing::RegisterProfilePrefs(registry);
+
+  // Register to persist the latest prefetch info, ensuring `AwPrefetchManager`
+  // can initialize `PrePrefetchService` with these as optimization hints for
+  // the likely initial PrePrefetch request. Initialized with empty values.
+  if (IsWebViewPrefetchOffTheMainThreadEnabled()) {
+    registry->RegisterStringPref(prefs::kAwPrefetchLatestOrigin, "");
+    registry->RegisterBooleanPref(prefs::kAwPrefetchLatestJavascriptEnabled,
+                                  false);
+  }
 
   // Register the Autocomplete Data Retention Policy pref.
   // The default value '0' represents the latest Chrome major version on which
@@ -314,6 +262,14 @@ void AwBrowserContext::CreateUserPrefService() {
   persistent_prefs.insert(cdm::prefs::kMediaDrmStorage);
   // Persisted to ensure client hints can be sent on next page load.
   persistent_prefs.insert(prefs::kClientHintsCachedPerOriginMap);
+
+  // Register to persist the latest prefetch info, ensuring `AwPrefetchManager`
+  // can initialize `PrePrefetchService` with these as optimization hints for
+  // the likely initial PrePrefetch request.
+  if (IsWebViewPrefetchOffTheMainThreadEnabled()) {
+    persistent_prefs.insert(prefs::kAwPrefetchLatestOrigin);
+    persistent_prefs.insert(prefs::kAwPrefetchLatestJavascriptEnabled);
+  }
 
   pref_service_factory.set_user_prefs(base::MakeRefCounted<SegregatedPrefStore>(
       base::MakeRefCounted<InMemoryPrefStore>(),
@@ -387,6 +343,12 @@ AwContentRestrictionManagerClient*
 AwBrowserContext::GetContentRestrictionManagerClient() {
   DCHECK(content_restriction_manager_client_);
   return content_restriction_manager_client_.get();
+}
+
+AwContentRestrictionBlockedNavigationTracker*
+AwBrowserContext::GetContentRestrictionBlockedNavigationTracker() {
+  DCHECK(content_restriction_blocked_navigation_tracker_);
+  return content_restriction_blocked_navigation_tracker_.get();
 }
 
 CookieManager* AwBrowserContext::GetCookieManager() {
@@ -573,6 +535,11 @@ void AwBrowserContext::ConfigureNetworkContextParams(
   context_params->file_paths = network::mojom::NetworkContextFilePaths::New();
   // Adding HTTP cache dir here
   context_params->file_paths->http_cache_directory = GetHttpCachePath();
+  if (base::FeatureList::IsEnabled(
+          features::kWebViewPersistHttpServerProperties)) {
+    context_params->file_paths->http_server_properties_file_name =
+        base::FilePath(FILE_PATH_LITERAL("Network Persistent State"));
+  }
   base::FilePath cookie_path = AwBrowserContext::GetCookieStorePath();
   context_params->file_paths->data_directory = cookie_path.DirName();
   context_params->file_paths->cookie_database_name = cookie_path.BaseName();
@@ -871,7 +838,7 @@ void AwBrowserContext::PrepareNewContext(const base::FilePath& relative_path) {
 
 // static
 void AwBrowserContext::DeleteContext(const base::FilePath& relative_path) {
-  // The default profile handles its own directory creation in migration code
+  // The default profile handles its own directory creation explicitly
   // and (as of writing) should never be deleted.
   CHECK_NE(relative_path.value(), AwBrowserContextStore::kDefaultContextPath);
 

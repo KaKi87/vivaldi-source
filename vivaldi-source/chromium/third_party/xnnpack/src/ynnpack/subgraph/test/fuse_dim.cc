@@ -30,22 +30,21 @@ void TestImpl(T, size_t rank) {
 
   for (size_t axis = 0; axis < rank; ++axis) {
     for (size_t axes_count = 1; axis + axes_count <= rank; ++axes_count) {
-      quantization_params quantization = random_quantization(type_of<T>(), rng);
-
       // Define subgraph
+      std::vector<size_t> template_shape = random_shape(rng, rank, 0, 9);
       SubgraphBuilder subgraph(2);
-      subgraph.AddInput(type_of<T>(), rank, 0, quantization)
-          .AddOutput(type_of<T>(), rank + 1 - axes_count, 1, quantization)
+      subgraph.AddInput(type_of<T>(), template_shape, 0)
+          .AddOutput(type_of<T>(), rank + 1 - axes_count, 1)
           .AddFuseDim(axis, axes_count, 0, 1);
 
       Runtime runtime(subgraph.GetSubgraph());
       ASSERT_EQ(runtime.Status(), ynn_status_success);
 
       for (int reshape = 0; reshape < 2; ++reshape) {
-        std::vector<size_t> input_shape = random_shape(rng, rank);
+        std::vector<size_t> input_shape = random_shape(rng, template_shape);
 
         Tensor<T> input(input_shape);
-        fill_random(input.data(), input.size(), rng, quantization);
+        fill_random(input.data(), input.size(), rng);
 
         // Check reshaped shape is correct
         runtime.ReshapeExternalTensor(input_shape, input.base(), 0)

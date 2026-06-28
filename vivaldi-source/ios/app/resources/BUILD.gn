@@ -69,8 +69,8 @@ bundle_data_xcassets("vivaldi_appicons") {
     "VivaldiAppIcons.xcassets/AppIcon-Burgundy.icon/icon.json",
 
     #Camo
-    "VivaldiAppIcons.xcassets/AppIcon-Camo.icon/Assets/Vector.svg",
     "VivaldiAppIcons.xcassets/AppIcon-Camo.icon/Assets/OR4EJM0.jpg",
+    "VivaldiAppIcons.xcassets/AppIcon-Camo.icon/Assets/Vector.svg",
     "VivaldiAppIcons.xcassets/AppIcon-Camo.icon/icon.json",
 
     #Community

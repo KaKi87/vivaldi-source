@@ -1060,14 +1060,14 @@ constexpr std::array<DataTypeInfo, syncer::GetNumDataTypes()>
             .cross_user_sharing_policy = CrossUserSharingPolicy::kNone,
         },
         {
-            .type = ACCESSIBILITY_ANNOTATION,
+            .type = THEMES_ANDROID,
             .specifics_field_number =
-                sync_pb::EntitySpecifics::kAccessibilityAnnotationFieldNumber,
-            .debug_string = "Accessibility Annotation",
-            .histogram_suffix = "ACCESSIBILITY_ANNOTATION",
-            .stable_lowercase_string = "accessibility_annotation",
-            // Not encrypted since it originates from the server.
-            .encryption_policy = EncryptionPolicy::kNeverEncrypted,
+                sync_pb::EntitySpecifics::kThemeAndroidFieldNumber,
+            .debug_string = "Themes (Android)",
+            .histogram_suffix = "THEMES_ANDROID",
+            .stable_lowercase_string = "themes_android",
+            .encryption_policy =
+                EncryptionPolicy::kEncryptedIfCustomPassphraseSet,
             .priority = DataTypePriority::kRegular,
             .communication_direction = CommunicationDirection::kRegularTwoWay,
             .apply_updates_batch_policy = ApplyUpdatesBatchPolicy::kStandard,
@@ -1326,8 +1326,8 @@ void AddDefaultFieldValue(DataType type, sync_pb::EntitySpecifics* specifics) {
     case GEMINI_THREAD:
       specifics->mutable_gemini_thread();
       break;
-    case ACCESSIBILITY_ANNOTATION:
-      specifics->mutable_accessibility_annotation();
+    case THEMES_ANDROID:
+      specifics->mutable_theme_android();
       break;
 
     // <Vivaldi
@@ -1428,11 +1428,8 @@ DataTypeSet AlwaysPreferredUserTypes() {
           kSyncSupportAlwaysSyncingPriorityPreferences)) {
     types.Remove(PRIORITY_PREFERENCES);
   }
-  // TODO(crbug.com/486856790): add ACCESSIBILITY_ANNOTATION to a corresponding
-  // UserSelectableType or another toggle once feature is finalized.
-  if (base::FeatureList::IsEnabled(kSyncAccessibilityAnnotation)) {
-    types.Put(ACCESSIBILITY_ANNOTATION);
-  }
+
+
   return types;
 }
 
@@ -1690,8 +1687,8 @@ DataTypeForHistograms DataTypeHistogramValue(DataType data_type) {
       return DataTypeForHistograms::kSkill;
     case GEMINI_THREAD:
       return DataTypeForHistograms::kGeminiThread;
-    case ACCESSIBILITY_ANNOTATION:
-      return DataTypeForHistograms::kAccessibilityAnnotation;
+    case THEMES_ANDROID:
+      return DataTypeForHistograms::kThemesAndroid;
 
     // Vivaldi
     case NOTES:

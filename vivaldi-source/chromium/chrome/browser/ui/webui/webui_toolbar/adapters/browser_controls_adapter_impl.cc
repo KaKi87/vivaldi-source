@@ -46,13 +46,20 @@ void BrowserControlsAdapterImpl::Forward(WindowOpenDisposition disposition) {
 }
 
 void BrowserControlsAdapterImpl::BackButtonHovered() {
-  browser_.get().GetActiveTabInterface()->GetContents()->BackNavigationLikely(
-      chrome_preloading_predictor::kBackButtonHover,
-      WindowOpenDisposition::CURRENT_TAB);
+  auto* const active_tab = browser_.get().GetActiveTabInterface();
+  if (!active_tab) {
+    return;
+  }
+  auto* const contents = active_tab->GetContents();
+  if (!contents) {
+    return;
+  }
+  contents->BackNavigationLikely(chrome_preloading_predictor::kBackButtonHover,
+                                 WindowOpenDisposition::CURRENT_TAB);
 }
 
 void BrowserControlsAdapterImpl::CreateNewSplitTab() {
-  chrome::NewSplitTab(&browser_.get(),
+  chrome::NewSplitTab(&browser_.get(), split_tabs::SplitTabLayout::kSideBySide,
                       split_tabs::SplitTabCreatedSource::kToolbarButton);
 }
 
@@ -61,14 +68,13 @@ void BrowserControlsAdapterImpl::NavigateHome(
   command_updater_->ExecuteCommandWithDisposition(IDC_HOME, disposition);
 }
 
+void BrowserControlsAdapterImpl::Navigate(const GURL& url) {
+  browser_.get().OpenGURL(url, WindowOpenDisposition::CURRENT_TAB);
+}
+
 webui_toolbar::TabSplitStatus
 BrowserControlsAdapterImpl::ComputeSplitTabStatus() {
   return webui_toolbar::ComputeTabSplitStatus(&browser_.get());
-}
-
-bool BrowserControlsAdapterImpl::IsButtonPinned(
-    toolbar_ui_api::mojom::ToolbarButtonType type) {
-  return webui_toolbar::IsButtonPinned(&browser_.get(), type);
 }
 
 }  // namespace browser_controls_api

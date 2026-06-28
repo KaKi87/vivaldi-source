@@ -21,7 +21,8 @@ import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
 import {CrSettingsPrefs} from '/shared/settings/prefs/prefs_types.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {AiEnterpriseFeaturePrefName, ModelExecutionEnterprisePolicyValue} from '../ai_page/constants.js';
+import {AiEnterpriseFeaturePrefName} from '../ai_page/constants.js';
+import type {ModelExecutionEnterprisePolicyValue} from '../ai_page/constants.js';
 import {EntityTypeName} from '../autofill_ai_enums.mojom-webui.js';
 import type {EntityDataManagerProxy} from '../autofill_page/entity_data_manager_proxy.js';
 import {EntityDataManagerProxyImpl} from '../autofill_page/entity_data_manager_proxy.js';
@@ -30,6 +31,7 @@ import {loadTimeData} from '../i18n_setup.js';
 import {SettingsViewMixin} from '../settings_page/settings_view_mixin.js';
 
 import {getTemplate} from './identity_docs_page.html.js';
+import {checkAutofillPoliciesAndModifyPrefIfNecessary} from './policy_utils.js';
 
 export interface SettingsIdentityDocsPageElement {
   $: {
@@ -128,14 +130,6 @@ export class SettingsIdentityDocsPageElement extends
         },
       },
 
-      enableYourSavedInfoPolicyAndExtentionToggleIndicators_: {
-        type: Boolean,
-        value() {
-          return loadTimeData.getBoolean(
-              'enableYourSavedInfoPolicyAndExtentionToggleIndicators');
-        },
-      },
-
       prefsInitialized_: {
         type: Boolean,
         value: false,
@@ -155,8 +149,6 @@ export class SettingsIdentityDocsPageElement extends
   declare private canEnableOrDisableAutofillAi_: boolean;
   declare private identityDocsOptedIn_: chrome.settingsPrivate.PrefObject;
   declare private autofillAddOtherDatatypesPrefIsEnabled_: boolean;
-  declare private enableYourSavedInfoPolicyAndExtentionToggleIndicators_:
-      boolean;
   declare private prefsInitialized_: boolean;
 
   private entityDataManager_: EntityDataManagerProxy =
@@ -227,46 +219,14 @@ export class SettingsIdentityDocsPageElement extends
       fakePref.value = false;
     }
 
-    if (this.enableYourSavedInfoPolicyAndExtentionToggleIndicators_) {
-      const addressPolicyIsActive =
-          this.checkAddressPolicyAndModifyPrefIfNecessary_(fakePref);
-      if (!addressPolicyIsActive) {
-        const _ = this.checkAutofillAiPolicyAndModifyPrefIfNecessary_(fakePref);
-      }
-    }
-
-    return fakePref;
-  }
-
-  private checkAddressPolicyAndModifyPrefIfNecessary_(
-      pref: chrome.settingsPrivate.PrefObject<boolean>): boolean {
-    const addressAutofillEnabled =
-        this.getPref<boolean>('autofill.profile_enabled');
-
-    if (addressAutofillEnabled.enforcement ===
-            chrome.settingsPrivate.Enforcement.ENFORCED &&
-        !addressAutofillEnabled.value) {
-      pref.enforcement = addressAutofillEnabled.enforcement;
-      pref.controlledBy = addressAutofillEnabled.controlledBy;
-      pref.value = addressAutofillEnabled.value;
-      return true;
-    }
-    return false;
-  }
-
-  private checkAutofillAiPolicyAndModifyPrefIfNecessary_(
-      pref: chrome.settingsPrivate.PrefObject<boolean>): boolean {
+    const addressPolicy = this.getPref<boolean>('autofill.profile_enabled');
     const autofillAiPolicy = this.getPref<ModelExecutionEnterprisePolicyValue>(
         AiEnterpriseFeaturePrefName.AUTOFILL_AI);
 
-    if (autofillAiPolicy.value ===
-        ModelExecutionEnterprisePolicyValue.DISABLE) {
-      pref.enforcement = autofillAiPolicy.enforcement;
-      pref.controlledBy = autofillAiPolicy.controlledBy;
-      pref.value = false;
-      return true;
-    }
-    return false;
+    checkAutofillPoliciesAndModifyPrefIfNecessary(
+        fakePref, addressPolicy, autofillAiPolicy);
+
+    return fakePref;
   }
 
   private onOptInToggleChange_() {
@@ -283,9 +243,16 @@ export class SettingsIdentityDocsPageElement extends
     ]);
   }
 
+  private getMetricEntityTypes_(): Record<EntityTypeName, string> {
+    return {
+      [EntityTypeName.kDriversLicense]: 'DriversLicense',
+      [EntityTypeName.kNationalIdCard]: 'NationalIdCard',
+      [EntityTypeName.kPassport]: 'Passport',
+    } as Record<EntityTypeName, string>;
+  }
+
   private extensionControlledIndicatorIsVisible_(): boolean {
-    if (!this.enableYourSavedInfoPolicyAndExtentionToggleIndicators_ ||
-        !this.prefsInitialized_) {
+    if (!this.prefsInitialized_) {
       return false;
     }
 

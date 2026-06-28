@@ -68,6 +68,19 @@ def _get_siso_subcmds(siso_path: str) -> set[str]:
     return subcmds
 
 
+def _supports_namespace(siso_path: str) -> bool:
+    try:
+        res = subprocess.run([siso_path, "help", "ninja"],
+                             capture_output=True,
+                             text=True,
+                             check=False)
+        return any(part in ["-namespace"] for line in res.stdout.splitlines()
+                   for part in line.split())
+    except Exception:
+        return False
+
+
+
 # Fetch PID platform independently of possibly running collector
 # and kill it.
 # Return boolean whether the kill was successful or not.
@@ -247,8 +260,10 @@ def check_outdir(out_dir: str) -> None:
         sys.exit(1)
 
 
-def apply_telemetry_flags(subcmd_args: list[str], env: dict[str,
-                                                            str]) -> list[str]:
+def apply_telemetry_flags(subcmd_args: list[str],
+                          env: dict[str, str],
+                          is_ai_agent: bool = False,
+                          supports_namespace: bool = True) -> list[str]:
     user_system = _SYSTEM_DICT.get(sys.platform, sys.platform)
 
     user_provided_labels_present = False
@@ -266,6 +281,13 @@ def apply_telemetry_flags(subcmd_args: list[str], env: dict[str,
         result.append("tool=siso")
         result.append(f"host_os={user_system}")
         subcmd_args = subcmd_args + ["--metrics_labels", ",".join(result)]
+
+    if supports_namespace:
+        namespace = "developer"
+        if is_ai_agent:
+            namespace += ":ai-agent"
+        subcmd_args = subcmd_args + [f"--namespace={namespace}"]
+
 
     telemetry_flags = [
         "enable_cloud_monitoring", "enable_cloud_profiler",
@@ -431,6 +453,27 @@ def main(args: list[str],
     # To prevent issues with shared state, always work with a copy.
     env = (os.environ if env is None else env).copy()
 
+    args = list(args)
+    use_virtual_paths = "--virtual-build-path" in args
+    if use_virtual_paths:
+        args.remove("--virtual-build-path")
+    else:
+        use_virtual_paths = os.environ.get('SISO_USE_VIRTUAL_BUILD_PATH',
+                                           '0') == '1'
+
+    if use_virtual_paths and sys.platform != "linux":
+        print(
+            "Warning: --virtual-build-path is only supported on Linux. Ignoring flag.",
+            file=sys.stderr)
+        use_virtual_paths = False
+
+    if not {"-h", "--help", "-help"}.isdisjoint(args):
+        print("Siso wrapper options:", file=sys.stderr)
+        print(
+            "  --virtual-build-path: Virtualize paths to /tmp/siso_virtual_build_path to share the local build cache state across workspaces (Linux only). Override path with SISO_VIRTUAL_BUILD_PATH.",
+            file=sys.stderr)
+        print("", file=sys.stderr)
+
     _fix_system_limits()
 
     def _ignore(signum, frame):
@@ -479,6 +522,23 @@ def main(args: list[str],
 
     # Get gclient root + src.
     primary_solution_path = gclient_paths.GetPrimarySolutionPath(out_dir)
+
+    if use_virtual_paths and sys.platform == "linux" and primary_solution_path:
+        if not env.get("SISO_PY_IS_ISOLATED"):
+            virtual_path = env.get("SISO_VIRTUAL_BUILD_PATH",
+                                   "/tmp/siso_virtual_build_path")
+            print(
+                f"depot_tools/siso.py: Virtualizing paths from {primary_solution_path} to {virtual_path}. All file paths in log output will show the virtual path.",
+                file=sys.stderr)
+
+            os.makedirs(virtual_path, exist_ok=True)
+
+            bash_cmd = f"mount --bind {shlex.quote(primary_solution_path)} {shlex.quote(virtual_path)} && cd {shlex.quote(virtual_path)} && SISO_PY_IS_ISOLATED=1 python3 {shlex.quote(sys.argv[0])} {shlex.join(args[1:])}"
+            unshare_cmd = [
+                "unshare", "--mount", "--map-root-user", "bash", "-c", bash_cmd
+            ]
+
+            return runner(unshare_cmd, env=env)
     gclient_root_path = gclient_paths.FindGclientRoot(out_dir)
     gclient_src_root_path = None
     if gclient_root_path:
@@ -530,6 +590,9 @@ def main(args: list[str],
             return 1
         global_flags, subcmd_flags = load_sisorc(
             os.path.join(base_path, 'build', 'config', 'siso', '.sisorc'))
+        should_print_flags = False
+        if global_flags:
+            should_print_flags = True
         siso_paths = [
             siso_override_path,
             os.path.join(base_path, 'third_party', 'siso', 'cipd',
@@ -551,7 +614,10 @@ def main(args: list[str],
 
                 if subcmd:
                     # Apply subcommand-specific flags from .sisorc
-                    subcmd_args = subcmd_flags.get(subcmd, []) + subcmd_args
+                    sub_flags = subcmd_flags.get(subcmd, [])
+                    if sub_flags:
+                        should_print_flags = True
+                    subcmd_args = sub_flags + subcmd_args
 
                     # fast_nop, fast_local, fast_last_failure, fast_exit are set
                     # to false when stdout is not a TTY (see
@@ -576,22 +642,29 @@ def main(args: list[str],
                         (telemetry_cfg.enabled(), subcmd == "ninja",
                          no_help_flag(args)))
                     if should_collect_logs:
-                        subcmd_args = apply_telemetry_flags(subcmd_args, env)
+                        supports_namespace = _supports_namespace(siso_path)
+                        subcmd_args = apply_telemetry_flags(
+                            subcmd_args, env, is_ai_agent, supports_namespace)
                         env = _handle_collector(siso_path, subcmd_args, env)
 
                     new_args = pre_args + [subcmd] + subcmd_args
                 else:
                     new_args = pre_args
 
-                if args[1:] != new_args:
+                if should_print_flags:
                     print('depot_tools/siso.py: %s' % shlex.join(new_args),
                           file=sys.stderr)
                 check_outdir(out_dir)
                 ret = runner([siso_path] + new_args, env=env)
                 # --quiet suppresses siso's own success output which
                 # can confuse AI agents into thinking the build failed.
-                if is_ai_agent and subcmd == "ninja" and ret == 0:
-                    print('Success')
+                if is_ai_agent and subcmd == "ninja":
+                    # Agents seem to also sometimes not notice when the build
+                    # finishes. Try to help them.
+                    if ret == 0:
+                        print('The build has finished successfully.')
+                    else:
+                        print('The build has finished with an error.')
                 return ret
         print(
             'depot_tools/siso.py: Could not find siso in third_party/siso '

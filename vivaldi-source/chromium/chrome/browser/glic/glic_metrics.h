@@ -22,7 +22,6 @@
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/public/glic_instance.h"
 #include "chrome/browser/glic/public/glic_instance_metrics_backwards_compatibility.h"
-#include "components/prefs/pref_change_registrar.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
 #include "ui/display/display.h"
 
@@ -68,27 +67,9 @@ enum class DisplayPosition {
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:DisplayPosition)
 
-// LINT.IfChange(PercentOverlap)
-enum class PercentOverlap {
-  k0 = 0,
-  k10 = 1,
-  k20 = 2,
-  k30 = 3,
-  k40 = 4,
-  k50 = 5,
-  k60 = 6,
-  k70 = 7,
-  k80 = 8,
-  k90 = 9,
-  k100 = 10,
-  kNoVisibleChromeBrowser = 11,
-  kMaxValue = kNoVisibleChromeBrowser,
-};
-// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:PercentOverlap)
-
 // LINT.IfChange(ShareImageResult)
 enum class ShareImageResult {
-  kSuccess = 0,
+  kSentImageToClient = 0,
   kFailedNoTab = 1,
   kFailedNoFrame = 2,
   kFailedNoBrowser = 3,
@@ -103,7 +84,18 @@ enum class ShareImageResult {
   kFailedClipboardPastePolicy = 12,
   kFailedNoInstance = 13,
   kFailedClientUnreadied = 14,
-  kMaxValue = kFailedClientUnreadied,
+  kFailedTimedOutNoInstance = 15,
+  kFailedTimedOutNoWebClient = 16,
+  kFailedTimedOutDidNotCompleteOnboarding = 17,
+  kFailedLostInstance = 18,
+  kFailedSawNavigationDidNotCompleteOnboarding = 19,
+  kFailedUnknown = 20,
+  kFailedInvalidConversationId = 21,
+  kFailedInvokeInProgress = 22,
+  kFailedInvalidConfiguration = 23,
+  kFailedNoClientFrame = 24,
+  kFailedNoClipboardMetadata = 25,
+  kMaxValue = kFailedNoClipboardMetadata,
 };
 
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:ShareImageResult)
@@ -129,7 +121,8 @@ enum class EntryPointStatus {
   kAfterFreBrowserAndOs = 6,
   kAfterFreThreeDotOnly = 7,
   kAfterFreNotEligible = 8,
-  kMaxValue = kAfterFreNotEligible,
+  kAfterFreAnchoredButIneligible = 9,
+  kMaxValue = kAfterFreAnchoredButIneligible,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicEntryPointStatus)
 
@@ -144,27 +137,15 @@ enum class InputModesUsed {
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicInputModesUsed)
 
-// LINT.IfChange(AttachChangeReason)
-enum class AttachChangeReason {
-  // Attach state changed because of a drag gesture.
-  kDrag = 0,
-  // Attach state changed because of a menu click.
-  kMenu = 1,
-  // Attachment state initialized.
-  kInit = 2,
-
-  kMaxValue = kInit,
-};
-// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicAttachChangeReason)
-
 // Events related to requests to the Glic API from the web client.
 // LINT.IfChange(GlicRequestEvent)
 enum class GlicRequestEvent {
   kRequestReceived = 0,
   kRequestSent = 1,
   kRequestHandlerException = 2,
-  kRequestReceivedWhileHidden = 3,
-  kMaxValue = kRequestReceivedWhileHidden,
+  // Deprecated: kRequestReceivedWhileHidden = 3,
+  kRequestReceivedWhileInactive = 4,
+  kMaxValue = kRequestReceivedWhileInactive,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicRequestEvent)
 
@@ -177,7 +158,14 @@ enum class GlicTabPinnedForSharingResult {
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicTabPinnedForSharingResult)
 
-class GlicEnabling;
+// LINT.IfChange(GlicOptInFlowSource)
+enum class OptInFlow {
+  kGlicFre = 0,
+  kExperimentalTriggering = 1,
+  kMaxValue = kExperimentalTriggering,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicOptInFlowSource)
+
 class GlicSharingManager;
 
 namespace internal {
@@ -208,14 +196,9 @@ class GlicMetrics : public GlicInstanceMetricsBackwardsCompatibility {
 
   // `GlicInstanceMetricsBackwardsCompatibility`:
   void OnUserInputSubmitted(mojom::WebClientMode mode) override;
-  void OnReaction(mojom::MetricUserInputReactionType reaction_type) override;
   void OnResponseStarted() override;
   void OnResponseStopped(mojom::ResponseStopCause cause) override;
-  void OnTurnCompleted(mojom::WebClientModel model,
-                       base::TimeDelta duration) override;
   void DidRequestContextFromTab(tabs::TabInterface& tab) override;
-  void OnGlicScrollAttempt() override;
-  void OnGlicScrollComplete(bool success) override;
 
   // See glic.mojom for details. These are events from the web client. The
   // lifetime of the web client is scoped to that of the window, so if these
@@ -224,10 +207,6 @@ class GlicMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   void OnContextUploadCompleted();
   void OnSessionTerminated();
   void OnResponseRated(bool positive);
-  void OnRecordUseCounter(uint16_t counter);
-
-  void OnAttachedToBrowser(AttachChangeReason reason);
-  void OnDetachedFromBrowser(AttachChangeReason reason);
 
   // ----Public API called by other glic classes-----
   // Called when the user completes the onboarding flow (consents).
@@ -238,6 +217,16 @@ class GlicMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   void OnInstanceClosed();
   // Called when the user clicks Accept in the FRE.
   void OnFreAccepted();
+  // Called when an opt-in dialog or onboarding flow is shown.
+  void OnOptInShown(OptInFlow flow);
+  // Called when an opt-in dialog or onboarding flow finishes loading content.
+  void OnOptInImpression(OptInFlow flow);
+  // Called when an opt-in dialog or onboarding flow is accepted.
+  void OnOptInAccepted(OptInFlow flow);
+  // Called when an opt-in dialog or onboarding flow is implicitly dismissed.
+  void OnOptInDismissed(OptInFlow flow);
+  // Called when an opt-in dialog or onboarding flow is explicitly rejected.
+  void OnOptInRejected(OptInFlow flow);
   // Called when the glic window starts to open.
   void OnGlicWindowStartedOpening(bool attached,
                                   mojom::InvocationSource source);
@@ -324,9 +313,6 @@ class GlicMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   // Called when kGlicCompletedFre or GlicEnabling::IsAllowed() changes.
   void OnMaybeEnabledAndConsentForProfileChanged();
 
-  // Called when kGlicPinnedToTabstrip changes.
-  void OnPinningPrefChanged();
-
   // Records the time from startup until Glic was enabled for the profile.
   void RecordStartupEnablement();
 
@@ -341,10 +327,6 @@ class GlicMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   ChromeRelativePosition GetChromeRelativePositionOfPoint(
       Browser* browser,
       const gfx::Point& glic_center_point);
-  // Returns the percent overlap of the given glic bounds and the given chrome
-  // browser.
-  PercentOverlap GetPercentOverlapWithBrowser(Browser* browser,
-                                              const gfx::Rect& glic_bounds);
 #endif
 
   base::TimeTicks fre_accepted_time_;
@@ -356,8 +338,6 @@ class GlicMetrics : public GlicInstanceMetricsBackwardsCompatibility {
     // OnResponseStopped(). This is a workaround and should be removed, see
     // crbug.com/399151164.
     bool response_started_ = false;
-    bool reported_reaction_time_canned_ = false;
-    bool reported_reaction_time_modelled_ = false;
     // A chosen source id from which context was requested.
     ukm::SourceId chosen_source_id_ = ukm::NoURLSourceId();
   };
@@ -370,7 +350,6 @@ class GlicMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   // The last web client input mode used by the user.
   mojom::WebClientMode input_mode_ = mojom::WebClientMode::kUnknown;
   std::set<mojom::WebClientMode> inputs_modes_used_;
-  int attach_change_count_ = 0;
 
   // Tracks the source ID from the latest tab context requested by the web
   // client. It is reset when user input is submitted.
@@ -408,11 +387,6 @@ class GlicMetrics : public GlicInstanceMetricsBackwardsCompatibility {
 
   std::vector<base::CallbackListSubscription> subscriptions_;
 
-  // Cache the last value of the kGlicPinnedToTabstrip pref so that we only emit
-  // metrics for changes to the last value.
-  bool is_pinned_ = false;
-  PrefChangeRegistrar pref_registrar_;
-
   // The following two variables are used together for recording metrics and are
   // reset together after the metric is recorded.
   // The timestamp when the glic window starts to be shown.
@@ -425,14 +399,6 @@ class GlicMetrics : public GlicInstanceMetricsBackwardsCompatibility {
   // The number of scroll attempts  (tracked per session and reset when the
   // session ends).
   int scroll_attempt_count_ = 0;
-  // These two variables mirror `input_submitted_time_` and
-  // `input_mode_`, but are only set when `OnGlicScrollAttempt()` is
-  // called. They are reset in `OnGlicScrollComplete()`. They are separately
-  // tracked because `OnGlicScrollComplete()` could potentially be called after
-  // `OnResponseStopped()`, which resets `input_submitted_time_` and
-  // `input_mode_`.
-  base::TimeTicks scroll_input_submitted_time_;
-  mojom::WebClientMode scroll_input_mode_ = mojom::WebClientMode::kUnknown;
 
   std::optional<base::TimeTicks> last_upload_start_time_;
 

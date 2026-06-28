@@ -22,6 +22,7 @@
 #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_controller.h"
 #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_expand_on_hover_lock.h"
 #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_view.h"
+#include "components/tabs/public/tab_interface.h"
 #include "ui/base/interaction/element_tracker.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/events/event_handler.h"
@@ -132,7 +133,7 @@ class VerticalTabStripRegionView final
   bool IsTabStripCloseable() const override;
   void UpdateLoadingAnimations(const base::TimeDelta& elapsed_time) override;
   std::optional<int> GetFocusedTabIndex() const override;
-  const tabs::TabData& GetTabData(int tab_index) override;
+  const tabs::TabData& GetTabData(const tabs::TabHandle& tab) override;
   views::View* GetTabAnchorViewAt(int tab_index) override;
   views::View* GetTabGroupAnchorView(
       const tab_groups::TabGroupId& group) override;
@@ -230,11 +231,6 @@ class VerticalTabStripRegionView final
     raw_ptr<VerticalTabStripRegionView> region_view_;
   };
 
-  // Handles reporting performance metrics for each side panel animation. This
-  // needs to be created per animation and the metrics are emitted during
-  // destruction of the the object.
-  class AnimationPerfReporter;
-
   // Used to create and destroy locks for the expand on hover state.
   friend class VerticalTabStripExpandOnHoverLock;
 
@@ -328,7 +324,6 @@ class VerticalTabStripRegionView final
   raw_ptr<actions::ActionItem> root_action_item_ = nullptr;
   std::unique_ptr<TabHoverCardController> hover_card_controller_;
   std::unique_ptr<HoverTabSelector> hover_tab_selector_;
-  std::unique_ptr<AnimationPerfReporter> animation_perf_reporter_;
 
   base::CallbackListSubscription collapsed_state_changed_subscription_;
   std::optional<base::CallbackListSubscription>
@@ -347,7 +342,7 @@ class VerticalTabStripRegionView final
 
   // The width of the vertical tabstrip at the beginning of the current resize
   // operation. Is std::nullopt when not resizing.
-  std::optional<int> starting_width_on_resize_ = std::nullopt;
+  std::optional<int> starting_width_on_resize_;
 
   // The intended collapse state by the user as a result of dragging the resize
   // area. This differs from the state controller in that its uncollapsed_width
@@ -372,8 +367,10 @@ class VerticalTabStripRegionView final
   // Given that both lock counters are non-zero, force_collapse_lock_count_ will
   // always take precedence.
   int force_collapse_lock_count_ = 0;
+  int keep_current_state_lock_count_ = 0;
   int keep_expanded_lock_count_ = 0;
   std::unique_ptr<ExpandOnHoverLock> omnibox_open_lock_;
+  std::unique_ptr<ExpandOnHoverLock> link_drag_lock_;
   base::flat_set<raw_ptr<VerticalTabStripExpandOnHoverLock>> hover_locks_;
 
   std::unique_ptr<TabHoverCardController::ScopedHideHoverCardLock>

@@ -111,7 +111,8 @@
   self.syncCreateAccountPasswordViewController = nil;
   self.syncActivateAccountViewController = nil;
   self.mediator = nil;
-  if (self.showCancelButton && self.baseNavigationController.presentingViewController) {
+  if (self.showCancelButton &&
+      self.baseNavigationController.presentingViewController) {
     [self.baseNavigationController dismissViewControllerAnimated:YES
                                                       completion:nil];
   }

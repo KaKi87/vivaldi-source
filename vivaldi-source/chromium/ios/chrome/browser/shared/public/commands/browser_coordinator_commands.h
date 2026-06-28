@@ -9,7 +9,7 @@
 #import <UIKit/UIKit.h>
 
 #import "base/ios/block_types.h"
-#import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_metrics.h"
+#import "ios/chrome/browser/fullscreen/public/fullscreen_metrics.h"
 
 enum class ComposeboxEntrypoint;
 namespace base {
@@ -24,6 +24,7 @@ enum class AccessPoint;
 namespace trusted_vault {
 enum class TrustedVaultUserActionTriggerForUMA;
 }
+@class ComposeboxFocusParams;
 
 // Protocol for commands that will be handled by the BrowserCoordinator.
 // TODO(crbug.com/41427057) : Rename this protocol to one that is more
@@ -85,6 +86,9 @@ enum class TrustedVaultUserActionTriggerForUMA;
 // Shows the composebox from the `entryPoint` with `query`.
 - (void)showComposeboxFromEntrypoint:(ComposeboxEntrypoint)entryPoint
                            withQuery:(NSString*)query;
+
+// Shows the composebox with the given `params`.
+- (void)showComposeboxWithParams:(ComposeboxFocusParams*)params;
 
 // Hides the composebox on the next run loop.
 - (void)hideComposebox;
@@ -149,9 +153,6 @@ enum class TrustedVaultUserActionTriggerForUMA;
 // Dismiss the card unmask authentication prompt.
 - (void)dismissCardUnmaskAuthentication;
 
-// Dismiss the plus address bottom sheet.
-- (void)dismissPlusAddressBottomSheet;
-
 // Dismiss the virtual card enrollment bottom sheet.
 - (void)dismissVirtualCardEnrollmentBottomSheet;
 
@@ -193,6 +194,10 @@ enum class TrustedVaultUserActionTriggerForUMA;
 // Show the add account view
 - (void)showAddAccountWithAccessPoint:(signin_metrics::AccessPoint)accessPoint
                        prefilledEmail:(NSString*)email;
+
+// Shows and dismisses the multimodal actions menu.
+- (void)showMultimodalActionsMenu;
+- (void)dismissMultimodalActionsMenu;
 
 // Forces fullscreen mode which means that toolbars are collapsed.
 - (void)forceFullscreenMode:(FullscreenModeTransitionTrigger)trigger;

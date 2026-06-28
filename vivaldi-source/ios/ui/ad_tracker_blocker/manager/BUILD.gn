@@ -4,15 +4,15 @@ source_set("manager") {
   sources = [
     "vivaldi_atb_manager.h",
     "vivaldi_atb_manager.mm",
-    "vivaldi_atb_manager_helper.h",
-    "vivaldi_atb_manager_helper.mm",
     "vivaldi_atb_manager_bridge.h",
     "vivaldi_atb_manager_bridge.mm",
+    "vivaldi_atb_manager_helper.h",
+    "vivaldi_atb_manager_helper.mm",
   ]
 
   deps = [
-    "//ui/base",
     "//services/network/public/mojom",
+    "//ui/base",
   ]
 
   frameworks = [

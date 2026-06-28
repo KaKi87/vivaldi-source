@@ -6,6 +6,7 @@
 //
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
+// SPDX-License-Identifier: MPL-2.0
 #include "sparse.h"
 #include <Eigen/SparseQR>
 
@@ -132,9 +133,150 @@ void test_sparseqr_scalar() {
   dQ = solver.matrixQ();
   VERIFY_IS_APPROX(Q, dQ);
 }
+
+void test_sparseqr_factorize_uncompressed_input() {
+  typedef SparseMatrix<double, ColMajor> MatrixType;
+  typedef VectorXd Vector;
+  typedef SparseQR<MatrixType, NaturalOrdering<int> > Solver;
+
+  MatrixType uncompressed(2, 2);
+  VectorXi reserve(2);
+  reserve << 2, 3;
+  uncompressed.reserve(reserve);
+  uncompressed.insert(0, 0) = 1.0;
+  uncompressed.insert(0, 1) = 0.5;
+  uncompressed.insert(1, 1) = 1.0;
+
+  // Poison inactive capacity so factorize() must ignore unused slots in the
+  // uncompressed input instead of treating reserved space as structural nnz.
+  uncompressed.innerIndexPtr()[1] = 1;
+  uncompressed.valuePtr()[1] = 7.0;
+
+  MatrixType compressed = uncompressed;
+  compressed.makeCompressed();
+
+  Vector b(2);
+  b << 1.0, 2.0;
+  Vector expected(2);
+  expected << 0.0, 2.0;
+
+  Solver compressed_solver;
+  compressed_solver.compute(compressed);
+  VERIFY_IS_EQUAL(compressed_solver.info(), Success);
+  VERIFY_IS_APPROX(compressed_solver.solve(b), expected);
+
+  Solver two_step_solver;
+  two_step_solver.analyzePattern(compressed);
+  two_step_solver.factorize(uncompressed);
+  VERIFY_IS_EQUAL(two_step_solver.info(), Success);
+  VERIFY_IS_APPROX(two_step_solver.solve(b), expected);
+}
+
+template <typename OrderingType, typename DenseMat, typename DenseRhs>
+void verify_sparseqr_solves(const DenseMat& denseA, const DenseRhs& b, Index expectedRank) {
+  typedef typename DenseMat::Scalar Scalar;
+  typedef SparseMatrix<Scalar, ColMajor> MatrixType;
+  typedef Matrix<Scalar, Dynamic, 1> SolutionType;
+
+  MatrixType A = denseA.sparseView();
+  A.makeCompressed();
+
+  SparseQR<MatrixType, OrderingType> solver(A);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VERIFY_IS_EQUAL(solver.rank(), expectedRank);
+  VERIFY(!solver.lastPivotLookAheadSkipped());
+
+  SolutionType x = solver.solve(b);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VERIFY_IS_APPROX(denseA * x, b);
+}
+
+void test_sparseqr_lookahead_rejects_replaceable_weak_pivot() {
+  Matrix<double, 4, 5> denseA;
+  denseA << 10.875, 0.0, 0.0, 0.0, 0.0, -0.397597, 12.1403, 0.0, 0.0, 0.0317254, -0.851737, -0.0269339, 11.3113,
+      0.0130592, 0.0, -0.676106, 0.0, 0.138752, 8.57745, 0.0;
+  Matrix<double, 4, 1> b;
+  b << 10.3612, -2.27836, -10.3179, -7.49344;
+
+  verify_sparseqr_solves<COLAMDOrdering<int> >(denseA, b, 4);
+}
+
+void test_sparseqr_tiny_independent_column() {
+  Matrix<double, 2, 3> denseA;
+  Matrix<double, 2, 1> b;
+
+  denseA << 0.5, 0.0, 0.0, 0.0, 1e12, 0.0;
+  b << 0.5, 0.0;
+  verify_sparseqr_solves<COLAMDOrdering<int> >(denseA, b, 2);
+
+  denseA << 1e12, 1e12, 0.0, 0.0, 0.5, 0.0;
+  b << 0.0, 0.5;
+  verify_sparseqr_solves<COLAMDOrdering<int> >(denseA, b, 2);
+}
+
+void test_sparseqr_lookahead_preserves_needed_weak_direction() {
+  Matrix<double, 3, 4> denseA;
+  Matrix<double, 3, 1> b;
+
+  denseA << 1.0, 1.0, 0.0, 0.0, 0.0, 5e-13, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0;
+  b << 0.0, 5.0, 0.0;
+  verify_sparseqr_solves<NaturalOrdering<int> >(denseA, b, 3);
+
+  denseA << 1.0, 1.0, 0.0, 0.0, 0.0, 5e-13, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0;
+  b << 0.0, 5.0, 0.0;
+  verify_sparseqr_solves<NaturalOrdering<int> >(denseA, b, 3);
+}
+
+void test_sparseqr_explicit_threshold_disables_lookahead() {
+  typedef SparseMatrix<double, ColMajor> MatrixType;
+  typedef SparseQR<MatrixType, NaturalOrdering<int> > Solver;
+
+  Matrix<double, 2, 3> denseA;
+  const double weak_pivot = 5e-13;
+  denseA << 1.0, 1.0, 0.0, 0.0, weak_pivot, 1.0;
+
+  MatrixType A = denseA.sparseView();
+  A.makeCompressed();
+
+  Solver default_solver(A);
+  VERIFY_IS_EQUAL(default_solver.info(), Success);
+  VERIFY_IS_EQUAL(default_solver.rank(), 2);
+  VERIFY(!default_solver.lastPivotLookAheadSkipped());
+
+  const Solver::PermutationType::IndicesType& defaultPerm = default_solver.colsPermutation().indices();
+  VERIFY_IS_EQUAL(defaultPerm.size(), 3);
+  for (Index j = 0; j < defaultPerm.size(); ++j) {
+    VERIFY(defaultPerm(j) >= 0);
+    VERIFY(defaultPerm(j) < defaultPerm.size());
+    for (Index k = j + 1; k < defaultPerm.size(); ++k) {
+      VERIFY_IS_NOT_EQUAL(defaultPerm(j), defaultPerm(k));
+    }
+  }
+  Matrix<double, 2, 1> b;
+  b << 1.0, 1.0;
+  VectorXd x = default_solver.solve(b);
+  VERIFY_IS_EQUAL(default_solver.info(), Success);
+  VERIFY_IS_APPROX(denseA * x, b);
+
+  Solver explicit_threshold_solver;
+  explicit_threshold_solver.setPivotThreshold(1e-14);
+  explicit_threshold_solver.compute(A);
+  VERIFY_IS_EQUAL(explicit_threshold_solver.info(), Success);
+  VERIFY_IS_EQUAL(explicit_threshold_solver.rank(), 2);
+  VERIFY(!explicit_threshold_solver.lastPivotLookAheadSkipped());
+  VERIFY_IS_EQUAL(explicit_threshold_solver.colsPermutation().indices()(0), 0);
+  VERIFY_IS_EQUAL(explicit_threshold_solver.colsPermutation().indices()(1), 1);
+  VERIFY_IS_EQUAL(explicit_threshold_solver.colsPermutation().indices()(2), 2);
+}
+
 EIGEN_DECLARE_TEST(sparseqr) {
   for (int i = 0; i < g_repeat; ++i) {
     CALL_SUBTEST_1(test_sparseqr_scalar<double>());
     CALL_SUBTEST_2(test_sparseqr_scalar<std::complex<double> >());
   }
+  CALL_SUBTEST_3(test_sparseqr_factorize_uncompressed_input());
+  CALL_SUBTEST_4(test_sparseqr_lookahead_rejects_replaceable_weak_pivot());
+  CALL_SUBTEST_5(test_sparseqr_tiny_independent_column());
+  CALL_SUBTEST_6(test_sparseqr_explicit_threshold_disables_lookahead());
+  CALL_SUBTEST_7(test_sparseqr_lookahead_preserves_needed_weak_direction());
 }

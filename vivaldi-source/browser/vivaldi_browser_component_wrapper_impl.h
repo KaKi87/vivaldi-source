@@ -205,10 +205,9 @@ class VivaldiBrowserComponentWrapperImpl
       const content::MediaStreamRequest& request,
       content::MediaResponseCallback callback,
       const extensions::Extension* extension) override;
-  bool CheckMediaAccessPermission(
-    content::RenderFrameHost* render_frame_host,
-    const url::Origin& security_origin,
-    blink::mojom::MediaStreamType type) override;
+  bool CheckMediaAccessPermission(content::RenderFrameHost* render_frame_host,
+                                  const url::Origin& security_origin,
+                                  blink::mojom::MediaStreamType type) override;
   std::vector<Profile*> GetLoadedProfiles() override;
   void CloseAllDevtools() override;
   void AttemptRestart() override;

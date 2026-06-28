@@ -94,6 +94,7 @@ PortalInteractionStrategy::CreateActiveDisplayMonitor(
     base::RepeatingCallback<void(webrtc::ScreenId)> callback) {
   return nullptr;
 }
+
 std::unique_ptr<DesktopDisplayInfoMonitor>
 PortalInteractionStrategy::CreateDisplayInfoMonitor() {
   return std::make_unique<DelegatingDesktopDisplayInfoMonitor>(

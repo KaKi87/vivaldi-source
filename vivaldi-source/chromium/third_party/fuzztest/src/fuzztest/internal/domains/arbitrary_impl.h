@@ -22,6 +22,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
@@ -31,6 +32,7 @@
 
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "./fuzztest/internal/domains/absl_helpers.h"
@@ -48,6 +50,7 @@
 #include "./fuzztest/internal/domains/special_values.h"
 #include "./fuzztest/internal/domains/value_mutation_helpers.h"
 #include "./fuzztest/internal/domains/variant_of_impl.h"
+#include "./fuzztest/internal/enum_reflection.h"
 #include "./fuzztest/internal/meta.h"
 #include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/status.h"
@@ -64,6 +67,21 @@ class ArbitraryImpl {
   );
 };
 
+// Arbitrary for enums.
+// See limitations in fuzztest::internal::enum_reflection::GetEnumValues
+template <typename T>
+class ArbitraryImpl<
+    T, std::enable_if_t<std::is_enum_v<T> && !is_protocol_buffer_enum_v<T>>>
+    : public ElementOfImpl<T> {
+  static_assert(enum_reflection::HasEnumValuesInRange<T>(),
+                "Arbitrary<T>() for enums requires at least one value in the "
+                "supported range [-128, 127] for automatic reflection. "
+                "Please use ElementOf directly with explicit values.");
+
+ public:
+  ArbitraryImpl() : ElementOfImpl<T>(enum_reflection::GetEnumValues<T>()) {}
+};
+
 // Arbitrary for monostate.
 //
 // For monostate types with a default constructor, just give the single value.
@@ -78,7 +96,9 @@ class ArbitraryImpl<T, std::enable_if_t<is_monostate_v<T>>>
   void Mutate(value_type&, absl::BitGenRef,
               const domain_implementor::MutationMetadata&, bool) {}
 
-  value_type GetRandomCorpusValue(absl::BitGenRef prng) { return value_type{}; }
+  value_type GetRandomCorpusValue(absl::BitGenRef /*prng*/) {
+    return value_type{};
+  }
 
   absl::Status ValidateCorpusValue(const value_type&) const {
     return absl::OkStatus();  // Nothing to validate.
@@ -361,8 +381,8 @@ class ArbitraryImpl<std::basic_string_view<Char>>
     return IRObject::FromCorpus(v);
   }
 
-  absl::Status ValidateCorpusValue(const corpus_type&) const {
-    return absl::OkStatus();  // Nothing to validate.
+  absl::Status ValidateCorpusValue(const corpus_type& val) const {
+    return inner_.ValidateCorpusValue(val);
   }
 
  private:
@@ -420,8 +440,8 @@ class ArbitraryImpl<absl::string_view>
     return IRObject::FromCorpus(v);
   }
 
-  absl::Status ValidateCorpusValue(const corpus_type&) const {
-    return absl::OkStatus();  // Nothing to validate.
+  absl::Status ValidateCorpusValue(const corpus_type& val) const {
+    return inner_.ValidateCorpusValue(val);
   }
 
  private:
@@ -579,6 +599,59 @@ class ArbitraryImpl<absl::Time>
               return std::optional{std::tuple{time - absl::UnixEpoch()}};
             },
             ArbitraryImpl<absl::Duration>()) {}
+};
+
+// Arbitrary for absl::StatusCode.
+using StatusCodeUnderlyingT = std::underlying_type_t<absl::StatusCode>;
+
+template <>
+class ArbitraryImpl<absl::StatusCode>
+    : public ReversibleMapImpl<
+          absl::StatusCode (*)(StatusCodeUnderlyingT),
+          std::optional<std::tuple<StatusCodeUnderlyingT>> (*)(
+              absl::StatusCode),
+          InRangeImpl<StatusCodeUnderlyingT>> {
+ public:
+  ArbitraryImpl()
+      : ReversibleMapImpl<absl::StatusCode (*)(StatusCodeUnderlyingT),
+                          std::optional<std::tuple<StatusCodeUnderlyingT>> (*)(
+                              absl::StatusCode),
+                          InRangeImpl<StatusCodeUnderlyingT>>(
+            [](StatusCodeUnderlyingT code) {
+              return static_cast<absl::StatusCode>(code);
+            },
+            [](absl::StatusCode code) {
+              return std::optional{
+                  std::tuple{static_cast<StatusCodeUnderlyingT>(code)}};
+            },
+            InRangeImpl<StatusCodeUnderlyingT>(0, 16)) {}
+};
+
+// Arbitrary for absl::Status.
+// Note: This does not generate payloads. Payloads in seeds are ignored.
+template <>
+class ArbitraryImpl<absl::Status>
+    : public ReversibleMapImpl<
+          absl::Status (*)(absl::StatusCode, std::string),
+          std::optional<std::tuple<absl::StatusCode, std::string>> (*)(
+              absl::Status),
+          ArbitraryImpl<absl::StatusCode>, ArbitraryImpl<std::string>> {
+ public:
+  ArbitraryImpl()
+      : ReversibleMapImpl<
+            absl::Status (*)(absl::StatusCode, std::string),
+            std::optional<std::tuple<absl::StatusCode, std::string>> (*)(
+                absl::Status),
+            ArbitraryImpl<absl::StatusCode>, ArbitraryImpl<std::string>>(
+            [](absl::StatusCode code, std::string msg) {
+              return absl::Status(code, msg);
+            },
+            +[](absl::Status status)
+                -> std::optional<std::tuple<absl::StatusCode, std::string>> {
+              return std::optional{
+                  std::tuple{status.code(), std::string(status.message())}};
+            },
+            ArbitraryImpl<absl::StatusCode>(), ArbitraryImpl<std::string>()) {}
 };
 
 // Arbitrary for absl::BitGenRef.

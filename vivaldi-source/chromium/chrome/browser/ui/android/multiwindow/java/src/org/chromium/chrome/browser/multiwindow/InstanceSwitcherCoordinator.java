@@ -84,7 +84,7 @@ public class InstanceSwitcherCoordinator {
 
     private final ModelList mActiveModelList = new ModelList();
     private final ModelList mInactiveModelList = new ModelList();
-    private final UiUtils mUiUtils;
+    private final InstanceSwitcherFaviconHelper mFaviconHelper;
     private final View mDialogView;
     private final boolean mIsIncognitoWindow;
     private final TabLayout mTabHeaderRow;
@@ -141,7 +141,7 @@ public class InstanceSwitcherCoordinator {
             boolean isIncognitoWindow) {
         mContext = context;
         mModalDialogManager = modalDialogManager;
-        mUiUtils = new UiUtils(mContext, iconBridge);
+        mFaviconHelper = new InstanceSwitcherFaviconHelper(mContext, iconBridge);
         mDelegate = delegate;
         mMaxInstanceCount = maxInstanceCount;
         mMinCommandItemHeightPx =
@@ -531,7 +531,7 @@ public class InstanceSwitcherCoordinator {
 
     private PropertyModel generateListItem(InstanceInfo item) {
         String title = UiUtils.getItemTitle(mContext, item);
-        String desc = mUiUtils.getItemDesc(item);
+        String desc = UiUtils.getItemDesc(mContext, item);
         boolean isCurrentWindow = item.type == InstanceInfo.Type.CURRENT;
         PropertyModel.Builder builder =
                 new PropertyModel.Builder(InstanceSwitcherItemProperties.ALL_KEYS)
@@ -569,7 +569,7 @@ public class InstanceSwitcherCoordinator {
         builder.with(InstanceSwitcherItemProperties.IS_SELECTED, false);
 
         PropertyModel model = builder.build();
-        mUiUtils.setFavicon(model, InstanceSwitcherItemProperties.FAVICON, item);
+        mFaviconHelper.setFavicon(model, InstanceSwitcherItemProperties.FAVICON, item);
         return model;
     }
 
@@ -646,8 +646,11 @@ public class InstanceSwitcherCoordinator {
 
         // 1. Update positive button state.
         boolean positiveButtonDisabled = true;
-        if (selectionCount > 0) {
-            if (selectionCount == 1 && mActiveModelList.size() < mMaxInstanceCount) {
+        if (selectionCount == 1) {
+            // If the active instances list is showing, or if the inactive instances list is showing
+            // when within instance limit, enable the button for opening the active window or for
+            // restoring an inactive window respectively.
+            if (!mIsInactiveListShowing || mActiveModelList.size() < mMaxInstanceCount) {
                 positiveButtonDisabled = false;
             }
         }
@@ -809,7 +812,7 @@ public class InstanceSwitcherCoordinator {
         }
         ((TextView) dialog.findViewById(R.id.title)).setText(title);
         TextView messageView = dialog.findViewById(R.id.message);
-        messageView.setText(mUiUtils.getConfirmationMessage(item));
+        messageView.setText(UiUtils.getConfirmationMessage(mContext, item));
 
         TextView positiveButton = dialog.findViewById(R.id.positive_button);
         positiveButton.setText(res.getString(R.string.close));

@@ -1,6 +1,6 @@
 // Copyright (c) 2018 Vivaldi Technologies AS. All rights reserved
 
-#include "chrome/browser/ui/browser_navigator_params.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "content/browser/renderer_host/navigation_controller_impl.h"
 #include "content/browser/renderer_host/navigation_entry_impl.h"
 #include "content/browser/web_contents/web_contents_impl.h"

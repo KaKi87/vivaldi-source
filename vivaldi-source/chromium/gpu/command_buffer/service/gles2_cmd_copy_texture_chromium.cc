@@ -21,6 +21,7 @@
 #include "gpu/command_buffer/service/gles2_cmd_copy_tex_image.h"
 #include "gpu/command_buffer/service/shader_manager.h"
 #include "gpu/command_buffer/service/texture_manager.h"
+#include "gpu/command_buffer/service/transform_feedback_manager.h"
 #include "ui/gl/gl_enums.h"
 #include "ui/gl/gl_version_info.h"
 
@@ -677,6 +678,10 @@ bool PrepareUnpackBuffer(base::span<const GLuint> buffer,
     return false;
   }
 
+  // We're about to read pixels, so we need to reset PACK params
+  glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+  glPixelStorei(GL_PACK_ALIGNMENT, 1);
+
   // Result of glReadPixels with format == GL_RGB and type == GL_UNSIGNED_BYTE
   // from read framebuffer in RGBA format is not correct on desktop core
   // profile on both Linux Mesa and Linux NVIDIA. This may be a driver bug.
@@ -711,6 +716,7 @@ bool PrepareUnpackBuffer(base::span<const GLuint> buffer,
     // GLCopyTextureCHROMIUMES3Test.FormatCombinations in gl_tests. This is seen
     // on Nexus 5 but not Nexus 4. Read pixels to client memory, then upload to
     // pixel unpack buffer with glBufferData.
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
     auto pixels = base::HeapArray<uint8_t>::Uninit(pixel_num * 4);
     glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
     auto data = base::HeapArray<float>::Uninit(pixel_num * 3);
@@ -839,8 +845,14 @@ void DoReadbackAndTexImage(TexImageCommandType command_type,
       decoder->RestoreActiveTexture();
       decoder->RestoreFramebufferBindings();
       decoder->RestoreBufferBindings();
+      decoder->RestoreGlobalState();
       return;
     }
+
+    // Our buffer is tightly packed, so reset unpack params.
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_IMAGE_HEIGHT, 0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
     if (command_type == kTexImage) {
       glTexImage2D(dest_target, dest_level, dest_internal_format, width, height,
@@ -858,6 +870,7 @@ void DoReadbackAndTexImage(TexImageCommandType command_type,
   decoder->RestoreActiveTexture();
   decoder->RestoreFramebufferBindings();
   decoder->RestoreBufferBindings();
+  decoder->RestoreGlobalState();
 }
 
 class CopyTextureResourceManagerImpl
@@ -1271,6 +1284,16 @@ void CopyTextureResourceManagerImpl::DoCopyTextureInternal(
   const gl::GLVersionInfo& gl_version_info =
       decoder->GetFeatureInfo()->gl_version_info();
 
+  // glUseProgram fails with INVALID_OPERATION if transform feedback is active
+  // and not paused, and on a GLES 3.2 driver the glDrawArrays(GL_TRIANGLE_FAN)
+  // below would then capture vertices with the user's program, advancing the
+  // driver's transform-feedback write cursor without the validating decoder
+  // updating its vertices_drawn_ counter. Pause TF for the duration of the
+  // internal blit. (Mirrors gles2_cmd_clear_framebuffer.cc.)
+  const ContextState* state = decoder->GetContextState();
+  ScopedPauseResumeTransformFeedback pause_transform_feedback(
+      state ? state->bound_transform_feedback.get() : nullptr);
+
   if (vertex_array_object_id_) {
     glBindVertexArrayOES(vertex_array_object_id_);
   } else {
@@ -1413,6 +1436,9 @@ void CopyTextureResourceManagerImpl::DoCopyTextureInternal(
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     glDepthMask(GL_FALSE);
     glDisable(GL_BLEND);
+    if (decoder->GetFeatureInfo()->IsWebGL2OrES3OrHigherContext()) {
+      glDisable(GL_RASTERIZER_DISCARD);
+    }
 
     bool need_scissor =
         xoffset || yoffset || width != dest_width || height != dest_height;

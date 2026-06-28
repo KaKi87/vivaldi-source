@@ -15,8 +15,8 @@
 #include "chrome/browser/extensions/window_controller_list.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/common/extensions/api/tabs.h"
 #include "chrome/common/webui_url_constants.h"
 #include "components/sessions/core/session_id.h"
@@ -38,7 +38,8 @@
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"  // nogncheck
+#include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"  // nogncheck
 #include "chrome/browser/ui/scoped_tabbed_browser_displayer.h"
 #include "chrome/browser/ui/singleton_tabs.h"
 #endif
@@ -111,9 +112,6 @@ BrowserExtensionWindowController::BrowserExtensionWindowController(
     BrowserWindowInterface* browser)
     : WindowController(browser->GetWindow(), browser->GetProfile()),
       browser_(CHECK_DEREF(browser)),
-#if !BUILDFLAG(IS_ANDROID)
-      window_(CHECK_DEREF(browser->GetBrowserForMigrationOnly()->window())),
-#endif  // !BUILDFLAG(IS_ANDROID)
       tab_list_(CHECK_DEREF(TabListInterface::From(browser))),
       session_id_(browser->GetSessionID()),
       window_type_(GetTabsWindowType(browser)),
@@ -145,8 +143,10 @@ void BrowserExtensionWindowController::SetFullscreenMode(
 #if BUILDFLAG(IS_ANDROID)
   NOTIMPLEMENTED();
 #else
-  if (window_->IsFullscreen() != is_fullscreen) {
-    GetBrowser()->ToggleFullscreenModeWithExtension(extension_url);
+  if (window()->IsFullscreen() != is_fullscreen) {
+    ExclusiveAccessManager::From(&browser_.get())
+        ->fullscreen_controller()
+        ->ToggleBrowserFullscreenModeWithExtension(extension_url);
   }
 #endif
 }

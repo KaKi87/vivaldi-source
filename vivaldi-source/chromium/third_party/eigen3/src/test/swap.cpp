@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
 
@@ -39,7 +40,7 @@ void swap(const MatrixType& m) {
   typedef typename other_matrix_type<MatrixType>::type OtherMatrixType;
   typedef typename MatrixType::Scalar Scalar;
 
-  eigen_assert((!internal::is_same<MatrixType, OtherMatrixType>::value));
+  eigen_assert((!std::is_same<MatrixType, OtherMatrixType>::value));
   Index rows = m.rows();
   Index cols = m.cols();
 

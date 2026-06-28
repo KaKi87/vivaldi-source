@@ -10,7 +10,7 @@
 #include "base/no_destructor.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/permissions/features.h"
 #include "components/permissions/permission_request_enums.h"
@@ -118,12 +118,24 @@ class ChromePermissionsClient : public permissions::PermissionsClient {
   std::optional<GURL> GetEmbeddingOriginOverride(
       const GURL& requesting_origin,
       content::WebContents* web_contents) override;
+
+  bool IsFromNewTabPage(content::WebContents* web_contents,
+                        const GURL& requester,
+                        bool already_overrode_requester) override;
+
+  bool IsPrivilegedInternalWebUI(content::WebContents* web_contents,
+                                 const GURL& requester,
+                                 bool already_overrode_requester) override;
+
+  bool IsPrivilegedInternalWebUIForUIRouting(
+      content::WebContents* web_contents) override;
+
 #if BUILDFLAG(IS_ANDROID)
   bool IsDseOrigin(content::BrowserContext* browser_context,
                    const url::Origin& origin) override;
   std::unique_ptr<PermissionMessageDelegate> MaybeCreateMessageUI(
       content::WebContents* web_contents,
-      ContentSettingsType type,
+      const permissions::PermissionRequest& request,
       base::WeakPtr<permissions::PermissionPromptAndroid> prompt) override;
   void RepromptForAndroidPermissions(
       content::WebContents* web_contents,
@@ -160,6 +172,10 @@ class ChromePermissionsClient : public permissions::PermissionsClient {
       content::WebContents* web_contents) const override;
 
  private:
+  bool IsPrivilegedInternalWebUIForUIRouting(
+      const url::Origin& embedding_origin);
+  url::Origin GetEmbeddingOrigin(content::WebContents* web_contents);
+  url::Origin GetGoogleURLOrigin();
   friend base::NoDestructor<ChromePermissionsClient>;
 
   ChromePermissionsClient() = default;

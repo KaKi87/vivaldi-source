@@ -8,6 +8,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -16,12 +17,15 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.app.PictureInPictureParams;
 import android.app.RemoteAction;
 import android.content.Intent;
+import android.util.Size;
 import android.widget.FrameLayout;
 
 import androidx.activity.ComponentActivity;
 import androidx.core.pip.PictureInPictureDelegate;
+import androidx.lifecycle.Lifecycle;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -33,19 +37,27 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 import org.robolectric.annotation.Config;
+import org.robolectric.shadows.ShadowLooper;
 
+import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.actor.ui.ActorPictureInPictureOverlayCoordinator;
 import org.chromium.chrome.browser.actor.ui.R;
+import org.chromium.chrome.browser.glic.GlicKeyedService;
+import org.chromium.chrome.browser.glic.GlicKeyedServiceFactory;
 import org.chromium.chrome.browser.notifications.NotificationConstants;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileResolver;
 import org.chromium.chrome.browser.profiles.ProfileResolverJni;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
+import org.chromium.content_public.browser.WebContents;
+import org.chromium.ui.base.WindowAndroid;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /** Unit tests for {@link ActorPictureInPictureController}. */
@@ -56,9 +68,17 @@ public class ActorPictureInPictureControllerTest {
     @Mock private Profile mProfile;
     @Mock private ActorKeyedService mActorService;
     @Mock private ActorKeyedServiceFactory.Natives mActorKeyedServiceFactoryJni;
+    @Mock private GlicKeyedService mGlicKeyedService;
     @Mock private ActorPictureInPictureOverlayCoordinator mMockCoordinator;
     @Mock private ProfileResolver.Natives mProfileResolverJni;
     @Mock private TabModelSelector mTabModelSelector;
+    @Mock private Callback<Boolean> mToggleGlicCallback;
+    @Mock private OffscreenRenderingManager mOffscreenRenderingManager;
+    @Mock private Callback<Boolean> mOnPipChangedCallback;
+    @Mock private Tab mTab;
+    @Mock private WebContents mWebContents;
+    @Mock private WindowAndroid mWindowAndroid;
+    @Mock private Lifecycle mLifecycle;
 
     private ComponentActivity mActivity;
     private Supplier<Profile> mProfileSupplier;
@@ -67,6 +87,8 @@ public class ActorPictureInPictureControllerTest {
     @Before
     public void setUp() {
         ActorKeyedServiceFactoryJni.setInstanceForTesting(mActorKeyedServiceFactoryJni);
+        GlicKeyedServiceFactory.setForTesting(mGlicKeyedService);
+        OffscreenRenderingManager.setInstanceForTesting(mOffscreenRenderingManager);
 
         ComponentActivity realActivity =
                 Robolectric.buildActivity(ComponentActivity.class).create().get();
@@ -85,13 +107,23 @@ public class ActorPictureInPictureControllerTest {
                         mProfileSupplier,
                         () -> mActivity.findViewById(android.R.id.content),
                         () -> mTabModelSelector,
-                        () -> {});
+                        () -> {},
+                        mToggleGlicCallback,
+                        new Size(1920, 1080),
+                        mOnPipChangedCallback);
         mController.setOverlayCoordinatorForTesting(mMockCoordinator);
 
         ProfileResolverJni.setInstanceForTesting(mProfileResolverJni);
         when(mProfileResolverJni.tokenizeProfile(any())).thenReturn("test_token");
 
         ActorKeyedServiceFactory.setForTesting(mActorService);
+
+        when(mTab.getWebContents()).thenReturn(mWebContents);
+        when(mWebContents.getTopLevelNativeWindow()).thenReturn(mWindowAndroid);
+        when(mTabModelSelector.getTabById(anyInt())).thenReturn(mTab);
+
+        when(mActivity.getLifecycle()).thenReturn(mLifecycle);
+        when(mLifecycle.getCurrentState()).thenReturn(Lifecycle.State.RESUMED);
     }
 
     private ActorTask createMockActorTask(int taskId, String title, @ActorTaskState int state) {
@@ -99,8 +131,10 @@ public class ActorPictureInPictureControllerTest {
         when(mockTask.getId()).thenReturn(taskId);
         when(mockTask.getTitle()).thenReturn(title);
         when(mockTask.getState()).thenReturn(state);
+        when(mockTask.getLastActedTabs()).thenReturn(Collections.singleton(1));
         when(mActorService.getCurrentActiveTask()).thenReturn(mockTask);
         when(mActorService.getActiveTasksCount()).thenReturn(1);
+        when(mActorService.getTask(taskId)).thenReturn(mockTask);
         return mockTask;
     }
 
@@ -143,7 +177,10 @@ public class ActorPictureInPictureControllerTest {
                         mProfileSupplier,
                         () -> mActivity.findViewById(android.R.id.content),
                         () -> mTabModelSelector,
-                        mockHideTabSwitcher);
+                        mockHideTabSwitcher,
+                        mToggleGlicCallback,
+                        new Size(1920, 1080),
+                        mOnPipChangedCallback);
 
         ActorTask mockTask = createMockActorTask(101, "Task", ActorTaskState.ACTING);
         when(mockTask.getLastActedTabs()).thenReturn(Collections.singleton(1));
@@ -153,7 +190,11 @@ public class ActorPictureInPictureControllerTest {
         mController.setInActorPiPForTesting(true);
         mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.EXITED, null);
 
+        // Allow the delayed tab selection task to run.
+        ShadowLooper.idleMainLooper();
+
         verify(mockHideTabSwitcher).run();
+        verify(mToggleGlicCallback).onResult(true);
     }
 
     @Test
@@ -161,6 +202,137 @@ public class ActorPictureInPictureControllerTest {
         mController.setInActorPiPForTesting(true);
         mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.EXITED, null);
         verify(mMockCoordinator).setVisibility(false);
+    }
+
+    @Test
+    public void testExitPip_WithNonActorIntent_SkipsTabSelection() {
+        Runnable mockHideTabSwitcher = mock(Runnable.class);
+        mController =
+                new ActorPictureInPictureController(
+                        mActivity,
+                        mProfileSupplier,
+                        () -> mActivity.findViewById(android.R.id.content),
+                        () -> mTabModelSelector,
+                        mockHideTabSwitcher,
+                        mToggleGlicCallback,
+                        new Size(1920, 1080),
+                        mOnPipChangedCallback);
+
+        // Enter PiP
+        mController.setInActorPiPForTesting(true);
+
+        // Receive a non-actor intent while in PiP
+        Intent nonActorIntent = new Intent();
+        nonActorIntent.putExtra(ActorNotificationFactory.EXTRA_SHOW_ACTOR_CONTROL, false);
+        mController.onNewIntent(nonActorIntent);
+
+        // Exit PiP
+        mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.EXITED, null);
+
+        // Run delayed task
+        ShadowLooper.idleMainLooper();
+
+        // Verify tab selection was skipped
+        verify(mockHideTabSwitcher, never()).run();
+        verify(mToggleGlicCallback, never()).onResult(any());
+    }
+
+    @Test
+    public void testExitPip_ManualExpand_PerformsTabSelection() {
+        Runnable mockHideTabSwitcher = mock(Runnable.class);
+        mController =
+                new ActorPictureInPictureController(
+                        mActivity,
+                        mProfileSupplier,
+                        () -> mActivity.findViewById(android.R.id.content),
+                        () -> mTabModelSelector,
+                        mockHideTabSwitcher,
+                        mToggleGlicCallback,
+                        new Size(1920, 1080),
+                        mOnPipChangedCallback);
+
+        createMockActorTask(101, "Task", ActorTaskState.ACTING);
+
+        // Enter PiP
+        mController.setInActorPiPForTesting(true);
+
+        // Exit PiP (No intent received -> Manual expand)
+        mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.EXITED, null);
+
+        // Run delayed task
+        ShadowLooper.idleMainLooper();
+
+        // Verify tab selection was performed
+        verify(mockHideTabSwitcher).run();
+        verify(mToggleGlicCallback).onResult(true);
+    }
+
+    @Test
+    public void testExitPip_WithActorIntent_PerformsTabSelection() {
+        Runnable mockHideTabSwitcher = mock(Runnable.class);
+        mController =
+                new ActorPictureInPictureController(
+                        mActivity,
+                        mProfileSupplier,
+                        () -> mActivity.findViewById(android.R.id.content),
+                        () -> mTabModelSelector,
+                        mockHideTabSwitcher,
+                        mToggleGlicCallback,
+                        new Size(1920, 1080),
+                        mOnPipChangedCallback);
+
+        createMockActorTask(101, "Task", ActorTaskState.ACTING);
+
+        // Enter PiP
+        mController.setInActorPiPForTesting(true);
+
+        // Receive an actor intent while in PiP
+        Intent actorIntent = new Intent();
+        actorIntent.putExtra(ActorNotificationFactory.EXTRA_SHOW_ACTOR_CONTROL, true);
+        mController.onNewIntent(actorIntent);
+
+        // Exit PiP
+        mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.EXITED, null);
+
+        // Run delayed task
+        ShadowLooper.idleMainLooper();
+
+        // Verify tab selection was performed
+        verify(mockHideTabSwitcher).run();
+        verify(mToggleGlicCallback).onResult(true);
+    }
+
+    @Test
+    public void testEnterPip_CancelsPendingTabSelection() {
+        Runnable mockHideTabSwitcher = mock(Runnable.class);
+        mController =
+                new ActorPictureInPictureController(
+                        mActivity,
+                        mProfileSupplier,
+                        () -> mActivity.findViewById(android.R.id.content),
+                        () -> mTabModelSelector,
+                        mockHideTabSwitcher,
+                        mToggleGlicCallback,
+                        new Size(1920, 1080),
+                        mOnPipChangedCallback);
+
+        createMockActorTask(101, "Task", ActorTaskState.ACTING);
+
+        // Enter PiP
+        mController.setInActorPiPForTesting(true);
+
+        // Exit PiP -> Posts tab selection
+        mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.EXITED, null);
+
+        // Immediately Enter PiP again
+        mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.ENTERED, null);
+
+        // Run delayed tasks
+        ShadowLooper.idleMainLooper();
+
+        // Verify tab selection was NOT performed
+        verify(mockHideTabSwitcher, never()).run();
+        verify(mToggleGlicCallback, never()).onResult(any());
     }
 
     @Test
@@ -207,7 +379,7 @@ public class ActorPictureInPictureControllerTest {
         mController.destroy();
 
         verify(mMockCoordinator).destroy();
-        verify(mActorService).stopTask(101, StoppedReason.STOPPED_BY_USER);
+        verify(mActorService).stopTask(101, StoppedReason.SHUTDOWN);
         verify(mActorService).removeObserver(mController);
     }
 
@@ -224,52 +396,26 @@ public class ActorPictureInPictureControllerTest {
         when(mActorService.getTask(101)).thenReturn(mockTask);
         when(mActorService.getActiveTasksCount()).thenReturn(0);
 
+        var exitWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Actor.Pip.ExitReason", ActorMetrics.ActorPipExitReason.COMPLETED);
+        var durationWatcher =
+                HistogramWatcher.newBuilder().expectAnyRecord("Actor.Pip.Duration").build();
+
         mController.onTaskStateChanged(101, ActorTaskState.FINISHED);
 
         // Should NOT exit immediately
         verify(mActivity, never()).moveTaskToBack(true);
 
         // Advance time by 1 hour
-        org.robolectric.shadows.ShadowLooper.idleMainLooper(
-                60 * 60, java.util.concurrent.TimeUnit.SECONDS);
+        ShadowLooper.idleMainLooper(1, TimeUnit.MINUTES);
+
+        exitWatcher.assertExpected();
+        durationWatcher.assertExpected();
 
         // Now it should exit
         verify(mActivity).moveTaskToBack(true);
         verify(mMockCoordinator).setVisibility(false);
-    }
-
-    @Test
-    public void testOnTaskStateChanged_NewTaskCancelsExit() {
-        mController.setOverlayCoordinatorForTesting(mMockCoordinator);
-
-        // Enter PiP
-        mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.ENTERED, null);
-
-        // Task finishes
-        ActorTask mockTask1 = createMockActorTask(101, "Task 1", ActorTaskState.FINISHED);
-        when(mockTask1.isCompleted()).thenReturn(true);
-        when(mActorService.getTask(101)).thenReturn(mockTask1);
-        when(mActorService.getActiveTasksCount()).thenReturn(0);
-
-        mController.onTaskStateChanged(101, ActorTaskState.FINISHED);
-
-        // Advance time by 30 mins
-        org.robolectric.shadows.ShadowLooper.idleMainLooper(
-                30, java.util.concurrent.TimeUnit.MINUTES);
-        verify(mActivity, never()).moveTaskToBack(true);
-
-        // New task starts
-        ActorTask mockTask2 = createMockActorTask(102, "Task 2", ActorTaskState.ACTING);
-        when(mActorService.getTask(102)).thenReturn(mockTask2);
-        when(mActorService.getActiveTasksCount()).thenReturn(1);
-        mController.onTaskStateChanged(102, ActorTaskState.ACTING);
-
-        // Advance time by another 45 mins (total 75 mins > 1 hour)
-        org.robolectric.shadows.ShadowLooper.idleMainLooper(
-                45, java.util.concurrent.TimeUnit.MINUTES);
-
-        // Should NOT exit because a new task is active
-        verify(mActivity, never()).moveTaskToBack(true);
     }
 
     @Test
@@ -289,8 +435,8 @@ public class ActorPictureInPictureControllerTest {
         createMockActorTask(101, "Task", ActorTaskState.ACTING);
         mController.updatePipState();
 
-        ArgumentCaptor<android.app.PictureInPictureParams> captor =
-                ArgumentCaptor.forClass(android.app.PictureInPictureParams.class);
+        ArgumentCaptor<PictureInPictureParams> captor =
+                ArgumentCaptor.forClass(PictureInPictureParams.class);
         verify(mActivity).setPictureInPictureParams(captor.capture());
 
         List<RemoteAction> actions = captor.getValue().getActions();
@@ -305,14 +451,28 @@ public class ActorPictureInPictureControllerTest {
 
         mController.updatePipState();
 
-        ArgumentCaptor<android.app.PictureInPictureParams> captor =
-                ArgumentCaptor.forClass(android.app.PictureInPictureParams.class);
+        ArgumentCaptor<PictureInPictureParams> captor =
+                ArgumentCaptor.forClass(PictureInPictureParams.class);
         verify(mActivity).setPictureInPictureParams(captor.capture());
 
         List<RemoteAction> actions = captor.getValue().getActions();
         assertEquals(1, actions.size());
         assertEquals(
                 mActivity.getString(R.string.actor_pip_paused_status), actions.get(0).getTitle());
+    }
+
+    @Test
+    public void testUpdatePausePlayActions_WaitingOnUser_Hidden() {
+        createMockActorTask(101, "Task", ActorTaskState.WAITING_ON_USER);
+
+        mController.updatePipState();
+
+        ArgumentCaptor<PictureInPictureParams> captor =
+                ArgumentCaptor.forClass(PictureInPictureParams.class);
+        verify(mActivity).setPictureInPictureParams(captor.capture());
+
+        List<RemoteAction> actions = captor.getValue().getActions();
+        assertTrue(actions.isEmpty());
     }
 
     @Test
@@ -334,5 +494,82 @@ public class ActorPictureInPictureControllerTest {
         // Case 4: Task has last acted tabs
         when(mockTask.getLastActedTabs()).thenReturn(Collections.singleton(1));
         assertEquals(1, mController.getActiveTaskLastActedTabId());
+    }
+
+    @Test
+    public void testEnterPip_StartsOffscreenRendering() {
+        createMockActorTask(101, "Test Title", ActorTaskState.ACTING);
+        mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.ENTERED, null);
+
+        verify(mOffscreenRenderingManager).startOffscreenRendering(mTab, 1920, 1080);
+        verify(mOnPipChangedCallback).onResult(true);
+    }
+
+    @Test
+    public void testExitPip_StopsOffscreenRendering() {
+        createMockActorTask(101, "Test Title", ActorTaskState.ACTING);
+        // Enter first to set mActingTab and mOriginalWindow
+        mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.ENTERED, null);
+
+        mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.EXITED, null);
+
+        verify(mOffscreenRenderingManager).stopOffscreenRendering(mTab);
+        verify(mOnPipChangedCallback).onResult(false);
+    }
+
+    @Test
+    public void testOnTaskStateChanged_Completed_StopsOffscreenRendering() {
+        createMockActorTask(101, "Test Title", ActorTaskState.ACTING);
+        mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.ENTERED, null);
+
+        // Task finishes
+        ActorTask mockTask = createMockActorTask(101, "Test Title", ActorTaskState.FINISHED);
+        when(mockTask.isCompleted()).thenReturn(true);
+        when(mActorService.getTask(101)).thenReturn(mockTask);
+
+        mController.onTaskStateChanged(101, ActorTaskState.FINISHED);
+
+        verify(mOffscreenRenderingManager).stopOffscreenRendering(mTab);
+        verify(mOnPipChangedCallback).onResult(false);
+    }
+
+    @Test
+    public void testExitPip_Expand_RecordsMetrics() {
+        createMockActorTask(101, "Task", ActorTaskState.ACTING);
+        mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.ENTERED, null);
+
+        var exitWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Actor.Pip.ExitReason", ActorMetrics.ActorPipExitReason.EXPAND);
+        var durationWatcher =
+                HistogramWatcher.newBuilder().expectAnyRecord("Actor.Pip.Duration").build();
+
+        mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.EXITED, null);
+
+        ShadowLooper.idleMainLooper();
+
+        exitWatcher.assertExpected();
+        durationWatcher.assertExpected();
+    }
+
+    @Test
+    public void testExitPip_Close_RecordsMetrics() {
+        createMockActorTask(101, "Task", ActorTaskState.ACTING);
+        mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.ENTERED, null);
+
+        // Set lifecycle to background to simulate CLOSE
+        when(mLifecycle.getCurrentState()).thenReturn(Lifecycle.State.CREATED);
+
+        var exitWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Actor.Pip.ExitReason", ActorMetrics.ActorPipExitReason.CLOSE);
+        var durationWatcher =
+                HistogramWatcher.newBuilder().expectAnyRecord("Actor.Pip.Duration").build();
+
+        mController.onPictureInPictureEvent(PictureInPictureDelegate.Event.EXITED, null);
+        ShadowLooper.idleMainLooper();
+
+        exitWatcher.assertExpected();
+        durationWatcher.assertExpected();
     }
 }

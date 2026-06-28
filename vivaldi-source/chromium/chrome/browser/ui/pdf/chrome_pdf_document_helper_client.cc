@@ -7,9 +7,8 @@
 #include "base/files/file_path.h"
 #include "base/metrics/histogram_functions.h"
 #include "chrome/browser/download/download_stats.h"
-#include "chrome/browser/glic/public/glic_enabling.h"
+//#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/pdf/pdf_extension_util.h"
-#include "chrome/browser/pdf/pdf_viewer_stream_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/screen_ai/screen_ai_install_state.h"
 #include "chrome/browser/ui/tab_contents/core_tab_helper.h"
@@ -23,6 +22,7 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "extensions/browser/guest_view/mime_handler_view/mime_handler_view_guest.h"
+#include "extensions/browser/mime_handler/mime_handler_stream_manager.h"
 #include "pdf/pdf_features.h"
 
 namespace {
@@ -71,8 +71,7 @@ void LogGlicSummarizeMetrics(content::RenderFrameHost* render_frame_host) {
       Profile::FromBrowserContext(web_contents_to_use->GetBrowserContext()));
   base::UmaHistogramBoolean("PDF.GlicEnabled", glic_enabled);
   bool glic_summarize_button_enabled =
-      pdf_extension_util::ShouldShowGlicSummarizeButton(
-          web_contents_to_use->GetBrowserContext());
+      pdf_extension_util::ShouldShowGlicSummarizeButton(web_contents_to_use);
   base::UmaHistogramBoolean("PDF.GlicSummarizeButtonEnabled",
                             glic_summarize_button_enabled);
 }
@@ -105,7 +104,7 @@ void ChromePDFDocumentHelperClient::UpdateContentRestrictions(
     content::RenderFrameHost* render_frame_host,
     int content_restrictions) {
   // Speculative short-term-fix while we get at the root of
-  // https://crbug.com/752822 .
+  // https://crbug.com/41337937 .
   content::WebContents* web_contents_to_use =
       GetWebContentsToUse(render_frame_host);
   if (!web_contents_to_use) {
@@ -128,10 +127,10 @@ void ChromePDFDocumentHelperClient::SetPluginCanSave(
     content::RenderFrameHost* render_frame_host,
     bool can_save) {
   if (chrome_pdf::features::IsOopifPdfEnabled()) {
-    auto* pdf_viewer_stream_manager =
-        pdf::PdfViewerStreamManager::FromWebContents(
+    auto* mime_handler_stream_manager =
+        extensions::mime_handler::MimeHandlerStreamManager::FromWebContents(
             content::WebContents::FromRenderFrameHost(render_frame_host));
-    if (!pdf_viewer_stream_manager) {
+    if (!mime_handler_stream_manager) {
       return;
     }
 
@@ -139,7 +138,7 @@ void ChromePDFDocumentHelperClient::SetPluginCanSave(
         pdf_frame_util::GetEmbedderHost(render_frame_host);
     CHECK(embedder_host);
 
-    pdf_viewer_stream_manager->SetPluginCanSave(embedder_host, can_save);
+    mime_handler_stream_manager->SetPluginCanSave(embedder_host, can_save);
     return;
   }
 

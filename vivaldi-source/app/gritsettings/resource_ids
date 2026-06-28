@@ -143,4 +143,8 @@
   "app/resources/ios_share_extension_strings/vivaldi_ios_share_extension_branded_strings.grd": {
     "messages": [93700],
   },
+  "app/resources/browser_resources/vivaldi_browser_resources.grd": {
+    "includes": [93800],
+    "structures": [93900],
+  }
 }

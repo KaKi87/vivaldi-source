@@ -32,6 +32,8 @@ import org.junit.runner.RunWith;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.DisableIf;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
@@ -53,6 +55,7 @@ import org.chromium.components.messages.MessageDispatcher;
 import org.chromium.components.messages.MessageDispatcherProvider;
 import org.chromium.components.signin.SigninFeatures;
 import org.chromium.components.signin.test.util.TestAccounts;
+import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.PropertyModel;
 
@@ -68,6 +71,7 @@ import java.util.concurrent.TimeoutException;
     SigninFeatures.ENABLE_SEAMLESS_SIGNIN,
     SigninFeatures.ENABLE_ACTIVITYLESS_SIGNIN_ALL_ENTRY_POINT
 })
+@DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288155
 public class MismatchNotificationControllerTest {
     private static final String TEST_URL = "https://www.google.com";
 
@@ -137,6 +141,7 @@ public class MismatchNotificationControllerTest {
 
     @Test
     @MediumTest
+    @DisabledTest(message = "Flaky. crbug.com/502972111")
     @DisableFeatures({
         SigninFeatures.ENABLE_SEAMLESS_SIGNIN,
         SigninFeatures.ENABLE_ACTIVITYLESS_SIGNIN_ALL_ENTRY_POINT
@@ -169,36 +174,21 @@ public class MismatchNotificationControllerTest {
         // Verify that the bottom sheet is displayed
         onView(
                         allOf(
-                                withId(
-                                        org.chromium.chrome.browser.ui.signin.R.id
-                                                .account_picker_header_title),
-                                withParent(
-                                        withId(
-                                                org.chromium.chrome.browser.ui.signin.R.id
-                                                        .account_picker_state_collapsed))))
+                                withId(R.id.account_picker_header_title),
+                                withParent(withId(R.id.account_picker_state_collapsed))))
                 .check(matches(isDisplayed()));
         onView(
                         allOf(
-                                withId(
-                                        org.chromium.chrome.browser.ui.signin.R.id
-                                                .account_picker_header_subtitle),
-                                withParent(
-                                        withId(
-                                                org.chromium.chrome.browser.ui.signin.R.id
-                                                        .account_picker_state_collapsed))))
+                                withId(R.id.account_picker_header_subtitle),
+                                withParent(withId(R.id.account_picker_state_collapsed))))
                 .check(matches(isDisplayed()));
         onView(withText(TestAccounts.ACCOUNT1.getFullName())).check(matches(isDisplayed()));
 
         // Accept sign in
         onView(
                         allOf(
-                                withId(
-                                        org.chromium.chrome.browser.ui.signin.R.id
-                                                .account_picker_continue_as_button),
-                                withParent(
-                                        withId(
-                                                org.chromium.chrome.browser.ui.signin.R.id
-                                                        .account_picker_state_collapsed))))
+                                withId(R.id.account_picker_continue_as_button),
+                                withParent(withId(R.id.account_picker_state_collapsed))))
                 .perform(click());
 
         mSigninTestRule.completeDeviceLockIfOnAutomotive();

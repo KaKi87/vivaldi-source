@@ -37,13 +37,20 @@ UIImage* ImageForPage(TabGridPage page) {
     return nil;
   } // End Vivaldi
 
+  BOOL nextIaEnabled = IsChromeNextIaEnabled();
   switch (page) {
     case TabGridPageIncognitoTabs:
-      return [UIImage imageNamed:@"tab_grid_incognito_tabs_empty"];
+      return [UIImage imageNamed:nextIaEnabled
+                                     ? @"tab_grid_incognito_tabs_empty"
+                                     : @"tab_grid_incognito_tabs_empty_legacy"];
     case TabGridPageRegularTabs:
-      return [UIImage imageNamed:@"tab_grid_regular_tabs_empty"];
+      return [UIImage imageNamed:nextIaEnabled
+                                     ? @"tab_grid_regular_tabs_empty"
+                                     : @"tab_grid_regular_tabs_empty_legacy"];
     case TabGridPageTabGroups:
-      return [UIImage imageNamed:@"tab_grid_tab_groups_empty"];
+      return [UIImage imageNamed:nextIaEnabled
+                                     ? @"tab_grid_tab_groups_empty"
+                                     : @"tab_grid_tab_groups_empty_legacy"];
 
     // Vivaldi
     case TabGridPageRemoteTabs:

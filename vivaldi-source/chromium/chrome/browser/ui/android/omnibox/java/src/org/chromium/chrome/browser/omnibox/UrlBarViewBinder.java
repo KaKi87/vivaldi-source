@@ -33,7 +33,9 @@ class UrlBarViewBinder {
      * @see PropertyModelChangeProcfessor.ViewBinder#bind(Object, Object, Object)
      */
     public static void bind(PropertyModel model, UrlBar view, PropertyKey propertyKey) {
-        if (UrlBarProperties.ACTION_MODE_CALLBACK.equals(propertyKey)) {
+        if (UrlBarProperties.ACCESSIBILITY_WARNING.equals(propertyKey)) {
+            view.setAccessibilityWarning(model.get(UrlBarProperties.ACCESSIBILITY_WARNING));
+        } else if (UrlBarProperties.ACTION_MODE_CALLBACK.equals(propertyKey)) {
             ActionMode.Callback callback = model.get(UrlBarProperties.ACTION_MODE_CALLBACK);
             if (callback == null && view.getCustomSelectionActionModeCallback() == null) return;
             view.setCustomSelectionActionModeCallback(callback);
@@ -67,6 +69,9 @@ class UrlBarViewBinder {
             view.setCursorVisible(model.get(UrlBarProperties.SHOW_CURSOR));
         } else if (UrlBarProperties.TEXT_CONTEXT_MENU_DELEGATE.equals(propertyKey)) {
             view.setTextContextMenuDelegate(model.get(UrlBarProperties.TEXT_CONTEXT_MENU_DELEGATE));
+        } else if (UrlBarProperties.MANAGE_SEARCH_ENGINES_CALLBACK.equals(propertyKey)) {
+            view.setManageSearchEnginesCallback(
+                    model.get(UrlBarProperties.MANAGE_SEARCH_ENGINES_CALLBACK));
         } else if (UrlBarProperties.TEXT_STATE.equals(propertyKey)) {
             UrlBarTextState state = model.get(UrlBarProperties.TEXT_STATE);
             view.setIgnoreTextChangesForAutocomplete(true);
@@ -182,7 +187,7 @@ class UrlBarViewBinder {
 
     private static void updateCursorAndSelectHandleColor(UrlBar view, boolean useIncognitoColors) {
         // These get* methods may fail on some devices, so we're calling all of them before
-        // applying tint to any of the drawables. See https://crbug.com/1263630.
+        // applying tint to any of the drawables. See https://crbug.com/40800314.
         final Drawable textCursor = assumeNonNull(view.getTextCursorDrawable());
         final Drawable textSelectHandle = assumeNonNull(view.getTextSelectHandle());
         final Drawable textSelectHandleLeft = assumeNonNull(view.getTextSelectHandleLeft());

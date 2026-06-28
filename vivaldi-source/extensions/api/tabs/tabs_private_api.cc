@@ -9,11 +9,13 @@
 
 #include "app/vivaldi_apptools.h"
 #include "app/vivaldi_constants.h"
+#include "base/functional/bind.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_string_value_serializer.h"
 #include "base/json/json_writer.h"
 #include "base/numerics/clamped_math.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/sequenced_task_runner.h"
 #include "browser/menus/vivaldi_device_menu_controller.h"
 #include "browser/related_tab_strip_helper.h"
 #include "browser/startup_vivaldi_browser.h"
@@ -35,7 +37,6 @@
 #include "chrome/browser/sync/device_info_sync_service_factory.h"
 #include "chrome/browser/sync/send_tab_to_self_sync_service_factory.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/performance_controls/tab_resource_usage_tab_helper.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/tabs/tab_utils.h"
@@ -70,6 +71,7 @@
 #include "extensions/api/tabs/tabs_motion_helper.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extensions_browser_client.h"
+#include "extensions/helper/ext_data_helper.h"
 #include "extensions/schema/tabs_private.h"
 #include "extensions/schema/vivaldi_utilities.h"
 #include "extensions/schema/window_private.h"
@@ -110,11 +112,10 @@ namespace {
 static constexpr bool kAllowOtherWindowTypes = true;
 
 void Unstack(::vivaldi::TabExtData* ext_data) {
-  ext_data->Remove(::vivaldi::TabExtKey::kGroupId);
+  ext_data->Ungroup();
 }
 
 }  // namespace
-
 
 const int& VivaldiPrivateTabObserver::kUserDataKey =
     VivaldiTabCheck::kVivaldiTabObserverContextKey;
@@ -1357,7 +1358,9 @@ void VivaldiGuestViewContentObserver::RenderFrameCreated(
   UpdateAllowTabCycleIntoUI();
   CommitSettings();
 
-  const GURL& site = render_frame_host->GetSiteInstance()->GetSiteURL();
+  const GURL& site = render_frame_host->GetSiteInstance()
+                         ->GetSecurityPrincipal()
+                         .GetDeprecatedSiteURL();
   if (::vivaldi::IsVivaldiApp(site.host())) {
     auto* security_policy = content::ChildProcessSecurityPolicy::GetInstance();
     int process_id = render_frame_host->GetProcess()->GetID().value();
@@ -1420,18 +1423,29 @@ void VivaldiGuestViewContentObserver::SetZoomLevelForTab(double new_level,
         ->Set(::vivaldi::TabExtKey::kTabZoom, new_level);
   } else if (!called_host_zoom_ && old_level != tab_zoom_level_) {
     called_host_zoom_ = true;
-    // Make sure the view has the correct zoom level set.
-    content::HostZoomMap* host_zoom_map_ =
-        content::HostZoomMap::GetForWebContents(web_contents());
-
-    host_zoom_map_->SetTemporaryZoomLevel(
-        web_contents()->GetPrimaryMainFrame()->GetGlobalId(), tab_zoom_level_);
-    called_host_zoom_ = false;
+    // VB-129419: OnZoomChanged triggers SetZoomLevelForTab which triggers
+    // OnZoomChanged itself recursively => crash in reentracy guard in
+    // zoom::ZoomController::UpdateState(). Reposting to the UI tread to avoid
+    // the recursion.
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE,
+        base::BindOnce(
+            &VivaldiGuestViewContentObserver::SetTemporaryZoomLevelForTab,
+            weak_ptr_factory_.GetWeakPtr()));
   }
 }
 
-void VivaldiGuestViewContentObserver::PrimaryMainDocumentElementAvailable() {
+void VivaldiGuestViewContentObserver::SetTemporaryZoomLevelForTab() {
+  // Keep called_host_zoom_ set while SetTemporaryZoomLevel synchronously
+  // notifies ZoomController observers.
+  content::HostZoomMap* host_zoom_map =
+      content::HostZoomMap::GetForWebContents(web_contents());
+  host_zoom_map->SetTemporaryZoomLevel(
+      web_contents()->GetPrimaryMainFrame()->GetGlobalId(), tab_zoom_level_);
+  called_host_zoom_ = false;
+}
 
+void VivaldiGuestViewContentObserver::PrimaryMainDocumentElementAvailable() {
   GURL url = web_contents()->GetURL();
 
   if (vivaldi_user_agent::SpoofStableChromiumVersion(url)) {
@@ -1450,12 +1464,10 @@ void VivaldiGuestViewContentObserver::PrimaryMainDocumentElementAvailable() {
         "navigator.userAgent = '" +
         current_useragent + "';";
 
-    web_contents()
-        ->GetPrimaryMainFrame()->AllowInjectingJavaScript();
+    web_contents()->GetPrimaryMainFrame()->AllowInjectingJavaScript();
     web_contents()->GetPrimaryMainFrame()->ExecuteJavaScript(
         base::ASCIIToUTF16(script), base::NullCallback());
   }
-
 }
 
 VivaldiGuestViewContentObserver* VivaldiGuestViewContentObserver::FromTabId(
@@ -1536,6 +1548,11 @@ TabsPrivateGetSendTabToSelfEntriesFunction::Run() {
   std::vector<extensions::vivaldi::tabs_private::SendTabToSelfEntry> list;
   Profile* profile =
       Profile::FromBrowserContext(browser_context())->GetOriginalProfile();
+
+  if (profile->IsGuestSession()) {
+    // There is no SendTabToSelfModel in guest-profiles. Just bail.
+    return RespondNow(ArgumentList(Results::Create(list)));
+  }
 
   std::vector<SendTabToSelfEntry*> entries;
   bool ok = VivaldiBrowserComponentWrapper::GetInstance()
@@ -1856,15 +1873,11 @@ bool TabsPrivateMoveFunction::MoveTab(int tab_id,
 }
 
 ExtensionFunction::ResponseAction TabsPrivateMoveFunction::ErrorMoveResponse(
-    const std::string& message,
-    bool log) {
+    const std::string& message) {
   vivaldi::tabs_private::VivaldiTabsMoveResult result;
   namespace Results = tabs_private::Move::Results;
   result.success = false;
   result.message = message;
-  if (log) {
-    LOG(INFO) << "tabsPrivate.move FAILED: " << message;
-  }
   return RespondNow(ArgumentList(Results::Create(result)));
 }
 
@@ -1888,7 +1901,7 @@ ExtensionFunction::ResponseAction TabsPrivateMoveFunction::Run() {
     return ErrorMoveResponse(error.error_message);
   }
 
-  const TabsMotionHelper &helper = *helper_or_error.value();
+  const TabsMotionHelper& helper = *helper_or_error.value();
 
   // Debug output
   if (verbose) {
@@ -1934,12 +1947,29 @@ ExtensionFunction::ResponseAction TabsPrivateMoveFunction::Run() {
     }
   }
 
-  if (!helper.Has(TabMotionTweaks::kPreserveGroup)) {
+  if (helper.Has(TabMotionTweaks::kOn) && helper.SuggestGroup()) {
+    for (const ::vivaldi::TabProbe& info : helper.GetExpandedProbes()) {
+      helper.ConfigureGroup(info);
+    }
+    std::optional<::vivaldi::TabProbe> probe = helper.GetTargetProbe();
+    if (probe) {
+      helper.ConfigureGroup(*probe);
+    }
+  } else {
     for (const ::vivaldi::TabProbe& info : helper.GetExpandedProbes()) {
       TabExtData* ext_data = TabExtData::Get(info.contents);
 
       if (helper.Has(TabMotionTweaks::kUngroup)) {
-        ext_data->Remove(::vivaldi::TabExtKey::kGroupId);
+        ext_data->Ungroup();
+        continue;
+      }
+
+      auto current_group = ext_data->GetGroupId();
+      if (helper.Has(TabMotionTweaks::kStripUp) &&
+          !helper.Has(TabMotionTweaks::kOn)) {
+        if (current_group && !helper.IsEntireGroupMoving(*current_group)) {
+          ext_data->Ungroup();
+        }
         continue;
       }
 
@@ -1948,17 +1978,13 @@ ExtensionFunction::ResponseAction TabsPrivateMoveFunction::Run() {
         continue;
       }
 
-      auto current_group = ext_data->GetGroupId();
       if (!current_group)
         continue;
 
-      // Handle the case, when you drag a few tabs out of the group.
-      int count = helper.GetGroupsCount(*current_group);
-      if (count > 1 && count == helper.GetGroupsExpandedCount(*current_group)) {
-        // All the tabs of this group were moved. Keep the group.
+      if (helper.IsEntireGroupMoving(*current_group)) {
         continue;
       }
-      ext_data->Remove(::vivaldi::TabExtKey::kGroupId);
+      ext_data->Ungroup();
     }
 
     if (helper.Has(TabMotionTweaks::kOn) && helper.SuggestGroup()) {
@@ -1999,63 +2025,29 @@ ExtensionFunction::ResponseAction TabsPrivateMoveFunction::Run() {
 
   VivaldiTabsMoveResult result;
   result.success = true;
-  if (!helper.Has(TabMotionTweaks::kPreserveGroup)) {
-    result.group = helper.SuggestGroup();
-    ;
-  }
+  result.group = helper.GetNewGroupId();
   result.existing_group = false;
 
   return RespondNow(ArgumentList(Results::Create(result)));
 }
 
-namespace {
-template <typename T>
-void SetIfHasValue(content::WebContents* contents,
-                   TabExtKey key,
-                   const std::optional<T>& value) {
-  if (!contents || !value)
-    return;
-
-  auto* ext = TabExtData::Get(contents);
-  ext->Set(key, *value);
-}
-}  // namespace
-
-ExtensionFunction::ResponseAction TabsPrivateSetExtDataFunction::Run() {
-  namespace Results = tabs_private::SetExtData::Results;
-  using tabs_private::SetExtData::Params;
+ExtensionFunction::ResponseAction TabsPrivateSetGroupPropertiesFunction::Run() {
+  namespace ext_helper = ::vivaldi::ext_data_helper;
+  namespace Results = tabs_private::SetGroupProperties::Results;
+  using tabs_private::SetGroupProperties::Params;
 
   std::optional<Params> call_params = Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(call_params);
-  for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
-    TabStripModel* tab_strip = browser->GetTabStripModel();
-    for (tabs::TabInterface* tab : *tab_strip) {
-      content::WebContents* contents = tab->GetContents();
 
-      bool affected = false;
+  auto& params = call_params->ext_data;
 
-      auto* ext = TabExtData::Get(contents);
-      auto& params = call_params->ext_data;
-      if (params.ext_id) {
-        if (params.ext_id == ext->GetGroupId() ||
-            params.ext_id == ext->GetExtId()) {
-          affected = true;
-        }
-      }
-      if (!affected && params.tab_id) {
-        if (sessions::SessionTabHelper::IdForTab(contents).id() ==
-            params.tab_id) {
-          affected = true;
-        }
-      }
-
-      if (!affected)
-        continue;
-
-      SetIfHasValue(contents, TabExtKey::kGroupColor, params.group_color);
-      SetIfHasValue(contents, TabExtKey::kFixedGroupTitle, params.group_title);
-    }
+  if (params.group_title) {
+    ext_helper::SetGroupTitle(params.group_ext_id, params.group_title);
   }
+  if (params.group_color) {
+    ext_helper::SetGroupColor(params.group_ext_id, params.group_color);
+  }
+
   return RespondNow(ArgumentList(Results::Create("ok")));
 }
 

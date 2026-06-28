@@ -35,10 +35,12 @@
 #include <utility>
 #include <vector>
 
+#include "src/utils/compiler.h"
+
 // This must be included instead of vulkan.h so that we can wrap it with vulkan_platform.h.
-#include "dawn/common/vulkan_platform.h"
-#include "dawn/tests/white_box/SharedTextureMemoryTests.h"
 #include "partition_alloc/pointers/raw_ptr.h"
+#include "src/dawn/common/vulkan_platform.h"
+#include "src/dawn/tests/white_box/SharedTextureMemoryTests.h"
 
 namespace dawn {
 namespace {
@@ -95,9 +97,9 @@ class Backend : public SharedTextureMemoryTestVulkanBackend {
         DAWN_ASSERT(dmaBufDesc.planeCount <= GBM_MAX_PLANES);
 
         for (uint32_t plane = 0; plane < dmaBufDesc.planeCount; ++plane) {
-            planes[plane].fd = gbm_bo_get_fd(bo);
-            planes[plane].stride = gbm_bo_get_stride_for_plane(bo, plane);
-            planes[plane].offset = gbm_bo_get_offset(bo, plane);
+            DAWN_UNSAFE_TODO(planes[plane]).fd = gbm_bo_get_fd(bo);
+            DAWN_UNSAFE_TODO(planes[plane]).stride = gbm_bo_get_stride_for_plane(bo, plane);
+            DAWN_UNSAFE_TODO(planes[plane]).offset = gbm_bo_get_offset(bo, plane);
         }
 
         std::string label = MakeLabel(dmaBufDesc);
@@ -108,7 +110,7 @@ class Backend : public SharedTextureMemoryTestVulkanBackend {
         auto ret = createFn(desc);
 
         for (uint32_t plane = 0; plane < dmaBufDesc.planeCount; ++plane) {
-            close(planes[plane].fd);
+            close(DAWN_UNSAFE_TODO(planes[plane]).fd);
         }
         gbm_bo_destroy(bo);
 

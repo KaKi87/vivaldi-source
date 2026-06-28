@@ -103,6 +103,7 @@ public class ContentView extends FrameLayout
     private EventOffsetHandler mDragDropEventOffsetHandler;
     private boolean mDeferKeepScreenOnChanges;
     private Boolean mPendingKeepScreenOnValue;
+    private boolean mIgnoreClearFocus;
 
     /**
      * Constructs a new ContentView for the appropriate Android version.
@@ -210,6 +211,14 @@ public class ContentView extends FrameLayout
 
     public void setVirtualStructureProvider(VirtualStructureProvider virtualStructureProvider) {
         mVirtualStructureProvider = virtualStructureProvider;
+    }
+
+    /**
+     * Sets whether clear focus events should be ignored. This is useful for cases where the clear
+     * focus event is unavoidable.
+     */
+    public void setIgnoreClearFocus(boolean ignore) {
+        mIgnoreClearFocus = ignore;
     }
 
     @Override
@@ -408,6 +417,12 @@ public class ContentView extends FrameLayout
     }
 
     @Override
+    public void clearFocus() {
+        if (mIgnoreClearFocus) return;
+        super.clearFocus();
+    }
+
+    @Override
     public void onWindowFocusChanged(boolean hasWindowFocus) {
         super.onWindowFocusChanged(hasWindowFocus);
         if (hasValidWebContents()) {
@@ -461,8 +476,7 @@ public class ContentView extends FrameLayout
                 && Build.VERSION.SDK_INT <= 38
                 && DeviceInfo.isDesktop()) {
             if (MotionEventUtils.isTrackpadEvent(event)
-                    && event.getClassification() == MotionEvent.CLASSIFICATION_TWO_FINGER_SWIPE
-                    && forwarder != null) {
+                    && event.getClassification() == MotionEvent.CLASSIFICATION_TWO_FINGER_SWIPE) {
                 if (mPendingTwoFingerSwipeDownEvent != null) {
                     MotionEvent lastEvent = mPendingTwoFingerSwipeDownEvent;
                     mPendingTwoFingerSwipeDownEvent = null;

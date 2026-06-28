@@ -25,6 +25,7 @@
 #include "chrome/browser/ui/autofill/autofill_keyboard_accessory_view.h"
 #include "chrome/browser/ui/autofill/autofill_popup_view.h"
 #include "chrome/browser/ui/autofill/autofill_suggestion_controller_utils.h"
+#include "chrome/browser/ui/autofill/chrome_autofill_client.h"
 #include "chrome/browser/ui/autofill/next_idle_barrier.h"
 #include "components/autofill/core/browser/data_manager/addresses/address_data_manager.h"
 #include "components/autofill/core/browser/data_manager/payments/payments_data_manager.h"
@@ -35,6 +36,8 @@
 #include "components/autofill/core/browser/suggestions/suggestion_type.h"
 #include "components/autofill/core/browser/ui/autofill_suggestion_delegate.h"
 #include "components/autofill/core/browser/ui/popup_open_enums.h"
+#include "components/autofill/core/common/autofill_features.h"
+#include "components/autofill/core/common/autofill_util.h"
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
 #include "components/strings/grit/components_strings.h"
 #include "content/public/browser/render_widget_host_view.h"
@@ -81,7 +84,6 @@ Suggestion::Text FormatLabelsByFillingProduct(
               : base::StrCat({additional_label, kLabelSeparator,
                               ExtractPassword(label)}));
     case FillingProduct::kAddress:
-    case FillingProduct::kPlusAddresses:
     case FillingProduct::kCreditCard:
     case FillingProduct::kIban:
     case FillingProduct::kAutocomplete:
@@ -256,7 +258,7 @@ AutofillSuggestionController::GetOrCreate(
   if (AutofillKeyboardAccessoryControllerImpl* previous_impl =
           static_cast<AutofillKeyboardAccessoryControllerImpl*>(previous.get());
       previous_impl && previous_impl->delegate_.get() == delegate.get() &&
-      previous_impl->container_view() == controller_common.container_view &&
+      previous_impl->container_view() == web_contents->GetNativeView() &&
       previous_impl->GetSuggestionTriggerSource() == trigger_source) {
     if (previous_impl->self_deletion_weak_ptr_factory_.HasWeakPtrs()) {
       previous_impl->self_deletion_weak_ptr_factory_.InvalidateWeakPtrs();
@@ -288,6 +290,14 @@ AutofillKeyboardAccessoryControllerImpl::
 
 void AutofillKeyboardAccessoryControllerImpl::Hide(
     SuggestionHidingReason reason) {
+  // Ignore kEndEditing for @memory sources because showing the bottom sheet
+  // causes focus loss on the text field, which triggers kEndEditing. This
+  // keeps the sheet open.
+  if (IsAtMemoryTriggerSource(trigger_source_) &&
+      reason == SuggestionHidingReason::kEndEditing) {
+    return;
+  }
+
   // For tests, keep open when hiding is due to external stimuli.
   if (keep_popup_open_for_testing_ &&
       (reason == SuggestionHidingReason::kWidgetChanged ||
@@ -312,7 +322,7 @@ void AutofillKeyboardAccessoryControllerImpl::Hide(
 void AutofillKeyboardAccessoryControllerImpl::HideViewAndDie() {
   // Invalidates in particular ChromeAutofillClient's WeakPtr to `this`, which
   // prevents recursive calls triggered by `view_->Hide()`
-  // (crbug.com/1267047).
+  // (crbug.com/40204318).
   weak_ptr_factory_.InvalidateWeakPtrs();
 
   // Mark the popup-like filling sources as unavailable.
@@ -327,8 +337,8 @@ void AutofillKeyboardAccessoryControllerImpl::HideViewAndDie() {
     }
   }
 
-  // TODO(crbug.com/1341374, crbug.com/1277218): Move this into the asynchronous
-  // call?
+  // TODO(crbug.com/40230669, crbug.com/40207703): Move this into the
+  // asynchronous call?
   if (view_) {
     view_->Hide();
     view_.reset();
@@ -355,7 +365,7 @@ void AutofillKeyboardAccessoryControllerImpl::ViewDestroyed() {
 
 gfx::NativeView AutofillKeyboardAccessoryControllerImpl::container_view()
     const {
-  return controller_common_.container_view;
+  return web_contents_ ? web_contents_->GetNativeView() : gfx::NativeView();
 }
 
 content::WebContents* AutofillKeyboardAccessoryControllerImpl::GetWebContents()
@@ -403,14 +413,14 @@ void AutofillKeyboardAccessoryControllerImpl::AcceptSuggestion(
     int index,
     autofill::AutofillMetrics::SuggestionAcceptedMethod accept_method) {
   // Ignore clicks immediately after the popup was shown. This is to prevent
-  // users accidentally accepting suggestions (crbug.com/1279268).
+  // users accidentally accepting suggestions (crbug.com/40058217).
   if (!barrier_for_accepting_.value() && !disable_threshold_for_testing_) {
     return;
   }
 
   if (base::checked_cast<size_t>(index) >= suggestions_.size() ||
       !IsAcceptableSuggestionType(suggestions_[index].type)) {
-    // Prevents crashes from crbug.com/521133. It seems that in rare cases or
+    // Prevents crashes from crbug.com/41195069. It seems that in rare cases or
     // races the suggestions_ and the user-selected index may be out of sync.
     // If the index points out of bounds, Chrome will crash. Prevent this by
     // ignoring the selection and wait for another signal from the user.
@@ -533,7 +543,6 @@ void AutofillKeyboardAccessoryControllerImpl::OnDeletionDialogClosed(
     case FillingProduct::kPassword:
     case FillingProduct::kPasskey:
     case FillingProduct::kCompose:
-    case FillingProduct::kPlusAddresses:
     case FillingProduct::kAutofillAi:
     case FillingProduct::kLoyaltyCard:
     case FillingProduct::kIdentityCredential:
@@ -617,6 +626,17 @@ void AutofillKeyboardAccessoryControllerImpl::Show(
     return;
   }
 
+  if (IsAtMemoryTriggerSource(trigger_source)) {
+    trigger_source_ = trigger_source;
+    suggestions_filling_product_ = FillingProduct::kAtMemory;
+    if (auto* client =
+            ChromeAutofillClient::FromWebContents(web_contents_.get())) {
+      client->ShowAtMemoryBottomSheet(suggestions);
+    }
+    delegate_->OnSuggestionsShown(suggestions);
+    return;
+  }
+
   AutofillPopupHideHelper::HidingParams hiding_params = {
       .hide_on_web_contents_lost_focus = true};
   AutofillPopupHideHelper::HidingCallback hiding_callback = base::BindRepeating(
@@ -690,8 +710,8 @@ void AutofillKeyboardAccessoryControllerImpl::UpdateDataListValues(
 }
 
 bool AutofillKeyboardAccessoryControllerImpl::HasSuggestions() const {
-  return !suggestions_.empty() &&
-         IsStandaloneSuggestionType(suggestions_[0].type);
+  return std::ranges::any_of(suggestions_, &IsStandaloneSuggestionType,
+                             &Suggestion::type);
 }
 
 // AutofillKeyboardAccessoryController implementation:

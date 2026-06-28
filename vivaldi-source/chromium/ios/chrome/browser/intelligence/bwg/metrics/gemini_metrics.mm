@@ -7,9 +7,9 @@
 #import "base/metrics/histogram_functions.h"
 #import "base/metrics/user_metrics.h"
 #import "base/metrics/user_metrics_action.h"
-#import "base/time/time.h"
+#import "components/optimization_guide/core/hints/optimization_guide_decision.h"
 #import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
-#import "ios/public/provider/chrome/browser/bwg/bwg_api.h"
+#import "ios/public/provider/chrome/browser/bwg/gemini_api.h"
 
 namespace {
 // Minimum time between FRE entry point impression logs.
@@ -75,6 +75,9 @@ const char kEligibilityHistogram[] = "IOS.Gemini.Eligibility";
 
 const char kEntryPointHistogram[] = "IOS.Gemini.EntryPoint";
 
+const char kSignInRequiredSnackbarShownHistogram[] =
+    "IOS.Gemini.SignInRequiredSnackbarShown";
+
 const char kEntryPointImpressionHistogram[] =
     "IOS.Gemini.EntryPoint.Impression";
 
@@ -92,6 +95,9 @@ const char kFREEntryPointHistogram[] = "IOS.Gemini.FRE.EntryPoint";
 const char kPromoActionHistogram[] = "IOS.Gemini.FRE.PromoAction";
 
 const char kConsentActionHistogram[] = "IOS.Gemini.FRE.ConsentAction";
+
+const char kGeminiInvocationPageTypeHistogram[] =
+    "IOS.Gemini.InvocationPageType";
 
 const char kGeminiPageAvailabilityHistogram[] = "IOS.Gemini.PageAvailability";
 
@@ -124,6 +130,9 @@ const char kGeminiSessionTimeHistogram[] = "IOS.Gemini.Session.Time";
 const char kFirstPromptSubmissionMethodHistogram[] =
     "IOS.Gemini.FirstPrompt.SubmissionMethod";
 
+const char kPromptSubmissionMethodHistogram[] =
+    "IOS.Gemini.Prompt.SubmissionMethod";
+
 const char kPromptImagesAttachedCountHistogram[] =
     "IOS.Gemini.Prompt.ImagesAttached.Count";
 
@@ -138,6 +147,9 @@ const char kPromptContextAttachmentHistogram[] =
 
 const char kResponseGeneratedImageIncluded[] =
     "IOS.Gemini.Response.GeneratedImage.Included";
+
+const char kRegenerateButtonTappedHistogram[] =
+    "IOS.Gemini.RegenerateButton.Tapped";
 
 const char kResponseLatencyWithContextHistogram[] =
     "IOS.Gemini.Response.Latency.WithContext";
@@ -193,6 +205,9 @@ const char kCameraFlowCameraPickerResultHistogram[] =
 const char kEditMenuSelectedTextLengthHistogram[] =
     "IOS.Gemini.EditMenuPrompt.SelectedText.Length";
 
+const char kGlicContextualCueDecisionHistogram[] =
+    "IOS.Gemini.GlicContextualCue.Decision";
+
 void RecordFREPromoAction(IOSGeminiFREAction action) {
   switch (action) {
     case IOSGeminiFREAction::kAccept:
@@ -222,6 +237,10 @@ void RecordFREConsentAction(IOSGeminiFREAction action) {
       break;
   }
   base::UmaHistogramEnumeration(kConsentActionHistogram, action);
+}
+
+void RecordGeminiInvocationPageType(IOSGeminiInvocationPageType page_type) {
+  base::UmaHistogramEnumeration(kGeminiInvocationPageTypeHistogram, page_type);
 }
 
 void RecordGeminiPageAvailability(IOSGeminiPageAvailability reason) {
@@ -333,6 +352,10 @@ void RecordFirstPromptSubmission(IOSGeminiFirstPromptSubmissionMethod method) {
   base::RecordAction(
       base::UserMetricsAction("MobileGeminiFirstPromptSubmitted"));
   base::UmaHistogramEnumeration(kFirstPromptSubmissionMethodHistogram, method);
+}
+
+void RecordPromptSubmissionMethod(IOSGeminiFirstPromptSubmissionMethod method) {
+  base::UmaHistogramEnumeration(kPromptSubmissionMethodHistogram, method);
 }
 
 void RecordGeminiResponseReceived(bool generated_image_included) {
@@ -474,8 +497,19 @@ void RecordGeminiEntryPointClick(gemini::EntryPoint entry_point,
   }
 }
 
+void RecordSignInRequiredSnackbarShown(gemini::EntryPoint entry_point) {
+  base::UmaHistogramEnumeration(kSignInRequiredSnackbarShownHistogram,
+                                entry_point);
+}
+
 void RecordGeminiNewChatButtonTapped() {
   base::RecordAction(base::UserMetricsAction("MobileGeminiNewChatTapped"));
+}
+
+void RecordGeminiRegenerateButtonTapped(gemini::RegenerateOptionType option) {
+  base::RecordAction(
+      base::UserMetricsAction("MobileGeminiRegenerateButtonTapped"));
+  base::UmaHistogramEnumeration(kRegenerateButtonTappedHistogram, option);
 }
 
 void RecordAIHubNewBadgeTapped() {
@@ -626,4 +660,9 @@ void RecordGeminiInputPlateAttachmentOptionTapped(
 
 void RecordGeminiEditMenuSelectedTextLength(int length) {
   base::UmaHistogramCounts1000(kEditMenuSelectedTextLengthHistogram, length);
+}
+
+void RecordGeminiGlicContextualCueDecision(
+    optimization_guide::OptimizationGuideDecision decision) {
+  base::UmaHistogramEnumeration(kGlicContextualCueDecisionHistogram, decision);
 }

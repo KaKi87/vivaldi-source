@@ -8,7 +8,6 @@
 #include <string>
 #include <utility>
 
-#include "audio_capture_permission_checker_mac.h"
 #include "base/command_line.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
@@ -22,8 +21,8 @@
 #include "chrome/browser/media/webrtc/desktop_media_picker_controller.h"
 #include "chrome/browser/media/webrtc/desktop_media_picker_manager.h"
 #include "chrome/browser/media/webrtc/desktop_media_picker_utils.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/extensions/extensions_container.h"
 #include "chrome/browser/ui/layout_constants.h"
@@ -72,6 +71,11 @@
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/style/typography.h"
 #include "ui/views/widget/widget.h"
+
+#if BUILDFLAG(IS_MAC)
+#include "chrome/browser/ui/views/desktop_capture/audio_capture_permission_checker_mac.h"
+#endif
+
 #if defined(USE_AURA)
 #include "ui/aura/window_tree_host.h"
 #endif
@@ -155,15 +159,6 @@ void RecordUma(GDMResult result, base::TimeTicks dialog_open_time) {
   histogram->AddTime(elapsed);
 }
 
-// These values are persisted to logs. Entries should not be renumbered and
-// numeric values should never be reused.
-enum class PermissionInteraction {
-  kNotShown = 0,
-  kShown = 1,
-  kClicked = 2,
-  kMaxValue = kClicked
-};
-
 void RecordUmaCancellation(base::TimeTicks dialog_open_time) {
   RecordAction(base::UserMetricsAction("GetDisplayMedia.Cancel"));
   RecordUma(GDMResult::kUserCancelled, dialog_open_time);
@@ -215,11 +210,6 @@ void RecordUmaSelection(content::GlobalRenderFrameHostId capturer_global_id,
 }
 
 #if BUILDFLAG(IS_MAC)
-void RecordUma(PermissionInteraction permission_interaction) {
-  base::UmaHistogramEnumeration(
-      "Media.Ui.GetDisplayMedia.PermissionInteractionMac",
-      permission_interaction);
-}
 
 void RecordPermissionButtonOpenedAction(DesktopMediaList::Type type) {
   switch (type) {
@@ -263,8 +253,10 @@ std::u16string GetLabelForReselectButton(DesktopMediaList::Type type) {
 // the picker choices may have been restricted.
 std::unique_ptr<views::View> CreatePolicyRestrictedView() {
   auto icon = std::make_unique<views::ImageView>();
-  icon->SetImage(ui::ImageModel::FromVectorIcon(vector_icons::kBusinessIcon,
-                                                ui::kColorIcon, 18));
+  icon->SetImage(ui::ImageModel::FromVectorIcon(
+      features::IsRoundedIconsEnabled() ? vector_icons::kDomainIcon
+                                        : vector_icons::kBusinessOldIcon,
+      ui::kColorIcon, 18));
 
   auto policy_label = std::make_unique<views::Label>();
   policy_label->SetMultiLine(true);
@@ -682,7 +674,9 @@ DesktopMediaPickerDialogView::DesktopMediaPickerDialogView(
 
   bool modal_dialog = MediaPickerCanShowAsWebModal(params.web_contents);
   views::Widget* widget = CreateMediaPickerDialogWidget(
-      modal_dialog ? chrome::FindBrowserWithTab(params.web_contents) : nullptr,
+      modal_dialog ? GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+                         params.web_contents)
+                   : nullptr,
       params.web_contents,
       /*delegate=*/this, params.context, /*parent=*/gfx::NativeView());
 
@@ -722,11 +716,7 @@ DesktopMediaPickerDialogView::DesktopMediaPickerDialogView(
   GetSelectedController()->FocusView();
 }
 
-DesktopMediaPickerDialogView::~DesktopMediaPickerDialogView() {
-#if BUILDFLAG(IS_MAC)
-  RecordPermissionInteractionUma();
-#endif
-}
+DesktopMediaPickerDialogView::~DesktopMediaPickerDialogView() = default;
 
 void DesktopMediaPickerDialogView::RecordUmaDismissal() const {
   RecordUma(GDMResult::kDialogDismissed, dialog_open_time_);
@@ -761,7 +751,6 @@ void DesktopMediaPickerDialogView::ConfigureUIForNewPane(int index) {
   }
 #if BUILDFLAG(IS_MAC)
   if (category.pane->IsPermissionPaneVisible()) {
-    permission_pane_was_shown_ = true;
     RecordPermissionButtonOpenedAction(category.type);
   }
 #endif
@@ -1289,10 +1278,6 @@ void DesktopMediaPickerDialogView::OnCanReselectChanged(
 void DesktopMediaPickerDialogView::OnPermissionUpdate(bool has_permission) {
   CHECK(screen_capture_permission_checker_);
 
-  if (!initial_permission_state_.has_value()) {
-    initial_permission_state_ = has_permission;
-  }
-
   if (has_permission) {
     // Avoid needless polling.
     // (A user who revokes permission while the media-picker is visible,
@@ -1305,26 +1290,7 @@ void DesktopMediaPickerDialogView::OnPermissionUpdate(bool has_permission) {
   }
 }
 
-void DesktopMediaPickerDialogView::RecordPermissionInteractionUma() const {
-  if (initial_permission_state_.value_or(true)) {
-    return;
-  }
 
-  bool permission_button_was_clicked = false;
-  for (auto& category : categories_) {
-    if (category.pane->WasPermissionButtonClicked()) {
-      permission_button_was_clicked = true;
-      break;
-    }
-  }
-
-  const PermissionInteraction permission_interaction =
-      permission_button_was_clicked ? PermissionInteraction::kClicked
-      : permission_pane_was_shown_  ? PermissionInteraction::kShown
-                                    : PermissionInteraction::kNotShown;
-
-  RecordUma(permission_interaction);
-}
 
 void DesktopMediaPickerDialogView::OnAudioSharingApprovedByUserUpdate() {
   const int index = GetSelectedTabIndex();

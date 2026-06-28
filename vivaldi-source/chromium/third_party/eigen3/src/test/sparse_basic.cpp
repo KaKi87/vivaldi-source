@@ -8,6 +8,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef EIGEN_SPARSE_TEST_INCLUDED_FROM_SPARSE_EXTRA
 static long g_realloc_count = 0;
@@ -54,7 +55,7 @@ void sparse_basic(const SparseMatrixType& ref) {
     // test coeff and coeffRef
     for (std::size_t i = 0; i < zeroCoords.size(); ++i) {
       VERIFY_IS_MUCH_SMALLER_THAN(m.coeff(zeroCoords[i].x(), zeroCoords[i].y()), eps);
-      if (internal::is_same<SparseMatrixType, SparseMatrix<Scalar, Flags>>::value)
+      if (std::is_same<SparseMatrixType, SparseMatrix<Scalar, Flags>>::value)
         VERIFY_RAISES_ASSERT(m.coeffRef(zeroCoords[i].x(), zeroCoords[i].y()) = 5);
     }
     VERIFY_IS_APPROX(m, refMat);
@@ -796,10 +797,28 @@ void sparse_basic(const SparseMatrixType& ref) {
     m3 -= m2.template selfadjointView<Lower>();
     VERIFY_IS_APPROX(m3, refMat3);
 
+    Scalar s2 = internal::random<Scalar>();
+    refMat3 = DenseMatrix(refMat2.template selfadjointView<Upper>());
+    refMat3 *= s2;
+    SparseMatrixType m4 = s2 * m2.template selfadjointView<Upper>();
+    VERIFY_IS_APPROX(m4, refMat3);
+    refMat3 = DenseMatrix(refMat2.template selfadjointView<Upper>());
+    refMat3 *= s2;
+    m4 = m2.template selfadjointView<Upper>() * s2;
+    VERIFY_IS_APPROX(m4, refMat3);
+    refMat3 = DenseMatrix(refMat2.template selfadjointView<Lower>());
+    refMat3 *= s2;
+    m4 = s2 * m2.template selfadjointView<Lower>();
+    VERIFY_IS_APPROX(m4, refMat3);
+    refMat3 = DenseMatrix(refMat2.template selfadjointView<Lower>());
+    refMat3 *= s2;
+    m4 = m2.template selfadjointView<Lower>() * s2;
+    VERIFY_IS_APPROX(m4, refMat3);
+
     // selfadjointView only works for square matrices:
-    SparseMatrixType m4(rows, rows + 1);
-    VERIFY_RAISES_ASSERT(m4.template selfadjointView<Lower>());
-    VERIFY_RAISES_ASSERT(m4.template selfadjointView<Upper>());
+    SparseMatrixType m5(rows, rows + 1);
+    VERIFY_RAISES_ASSERT(m5.template selfadjointView<Lower>());
+    VERIFY_RAISES_ASSERT(m5.template selfadjointView<Upper>());
   }
 
   // test sparseView
@@ -916,6 +935,38 @@ void sparse_basic(const SparseMatrixType& ref) {
     }
   }
 
+  // test resize / conservativeResize with Eigen::NoChange (bug #656)
+  {
+    SparseMatrixType m1(rows, cols);
+    DenseMatrix refMat1 = DenseMatrix::Zero(rows, cols);
+    initSparse<Scalar>(density, refMat1, m1);
+
+    SparseMatrixType m2 = m1;
+
+    m1.conservativeResize(NoChange, cols + 2);
+    refMat1.conservativeResize(NoChange, cols + 2);
+    refMat1.rightCols(2).setZero();
+    VERIFY_IS_APPROX(m1, refMat1);
+
+    m1.conservativeResize(rows + 1, NoChange);
+    refMat1.conservativeResize(rows + 1, NoChange);
+    refMat1.bottomRows(1).setZero();
+    VERIFY_IS_APPROX(m1, refMat1);
+
+    m2.resize(NoChange, cols + 4);
+    VERIFY(m2.rows() == rows && m2.cols() == cols + 4);
+    VERIFY(m2.nonZeros() == 0);
+
+    m2.resize(rows + 2, NoChange);
+    VERIFY(m2.rows() == rows + 2 && m2.cols() == cols + 4);
+
+    SparseVector<Scalar, ColMajor, StorageIndex> v(rows);
+    v.resize(NoChange, 1);
+    VERIFY(v.size() == rows);
+    v.resize(rows + 3, NoChange);
+    VERIFY(v.size() == rows + 3);
+  }
+
   // test Identity matrix
   {
     DenseMatrix refMat1 = DenseMatrix::Identity(rows, rows);
@@ -960,6 +1011,32 @@ void sparse_basic(const SparseMatrixType& ref) {
     std::vector<IteratorType> iters(2);
     iters[0] = IteratorType(m2, 0);
     iters[1] = IteratorType(m2, m2.outerSize() - 1);
+  }
+
+  // test InnerIterator equality (bug #1192)
+  {
+    typedef typename SparseMatrixType::InnerIterator IteratorType;
+    SparseMatrixType m2(rows, cols);
+    DenseMatrix refMat2 = DenseMatrix::Zero(rows, cols);
+    initSparse<Scalar>(density, refMat2, m2);
+    Index outer_with_two = -1;
+    for (Index o = 0; o < m2.outerSize(); ++o)
+      if (m2.innerVector(o).nonZeros() >= 2) {
+        outer_with_two = o;
+        break;
+      }
+    if (outer_with_two >= 0) {
+      IteratorType a(m2, outer_with_two), b(m2, outer_with_two);
+      VERIFY(a == b);
+      ++b;
+      VERIFY(a != b);
+      VERIFY(!(a == b));
+      ++a;
+      VERIFY(a == b);
+      while (a) ++a;
+      while (b) ++b;
+      VERIFY(a == b);
+    }
   }
 
   // test reserve with empty rows/columns
@@ -1091,6 +1168,161 @@ void ambivector_coeff() {
   VERIFY_IS_EQUAL(vec.coeff(0), 0.0);
 }
 
+template <typename Pattern, typename SparseMatrixType>
+void verify_sparsity_pattern_ref_matches(const Pattern& pattern, const SparseMatrixType& expected) {
+  VERIFY_IS_EQUAL(pattern.outerSize, expected.cols());
+  VERIFY_IS_EQUAL(pattern.innerSize, expected.rows());
+
+  Index pattern_nonzeros = 0;
+  for (Index j = 0; j < pattern.outerSize; ++j) {
+    const Index nz = pattern.nonZeros(j);
+    pattern_nonzeros += nz;
+    for (Index k = pattern.outer[j], end = k + nz; k < end; ++k) {
+      VERIFY(expected.coeff(pattern.inner[k], j) != typename SparseMatrixType::Scalar(0));
+    }
+  }
+  VERIFY_IS_EQUAL(pattern_nonzeros, expected.nonZeros());
+}
+
+template <int>
+void sparsity_pattern_ref_sparse_expressions() {
+  typedef std::complex<double> Scalar;
+  typedef SparseMatrix<Scalar, ColMajor, int> SparseMatrixType;
+  typedef SparseMatrix<double, ColMajor, int> RealSparseMatrixType;
+  typedef SparseMatrix<double, RowMajor, int> RowMajorSparseMatrixType;
+  typedef Matrix<int, Dynamic, 1> VectorI;
+
+  SparseMatrixType a(3, 3);
+  std::vector<Triplet<Scalar, int>> triplets;
+  triplets.emplace_back(0, 0, Scalar(1.0, 1.0));
+  triplets.emplace_back(1, 0, Scalar(2.0, -1.0));
+  triplets.emplace_back(2, 1, Scalar(3.0, 2.0));
+  triplets.emplace_back(2, 2, Scalar(4.0, -3.0));
+  a.setFromTriplets(triplets.begin(), triplets.end());
+
+  PermutationMatrix<Dynamic, Dynamic, int> p(3);
+  p.indices() << 1, 2, 0;
+
+  VectorI outer, inner;
+  SparseMatrixType permuted = p * a;
+  const internal::SparsityPatternRef<int> permuted_pattern = internal::make_col_major_pattern_ref(p * a, outer, inner);
+  verify_sparsity_pattern_ref_matches(permuted_pattern, permuted);
+
+  RealSparseMatrixType real_part = a.real();
+  const internal::SparsityPatternRef<int> real_pattern = internal::make_col_major_pattern_ref(a.real(), outer, inner);
+  verify_sparsity_pattern_ref_matches(real_pattern, real_part);
+
+  RowMajorSparseMatrixType row_major = real_part;
+  const internal::SparsityPatternRef<int> row_major_pattern =
+      internal::make_col_major_pattern_ref(row_major, outer, inner);
+  verify_sparsity_pattern_ref_matches(row_major_pattern, real_part);
+}
+
+// Verify that two compressed column-major sparse matrices have the same
+// sparsity pattern (rows, cols, and per-column inner indices).
+template <typename SparseA, typename SparseB>
+void verify_same_pattern(const SparseA& got, const SparseB& expected) {
+  VERIFY_IS_EQUAL(got.rows(), expected.rows());
+  VERIFY_IS_EQUAL(got.cols(), expected.cols());
+  for (Index j = 0; j < expected.cols(); ++j) {
+    std::vector<Index> got_rows, expected_rows;
+    for (typename SparseA::InnerIterator it(got, j); it; ++it) got_rows.push_back(it.row());
+    for (typename SparseB::InnerIterator it(expected, j); it; ++it) expected_rows.push_back(it.row());
+    std::sort(got_rows.begin(), got_rows.end());
+    std::sort(expected_rows.begin(), expected_rows.end());
+    VERIFY_IS_EQUAL(Index(got_rows.size()), Index(expected_rows.size()));
+    for (size_t k = 0; k < got_rows.size(); ++k) VERIFY_IS_EQUAL(got_rows[k], expected_rows[k]);
+  }
+}
+
+template <int>
+void materialize_at_plus_a_pattern_basic() {
+  typedef SparseMatrix<double, ColMajor, int> SparseMatrixType;
+  typedef SparseMatrix<signed char, ColMajor, int> PatternMatrixType;
+  typedef Matrix<int, Dynamic, 1> VectorI;
+
+  // Asymmetric pattern: (0,0), (1,0), (2,1), (0,2), (2,2). Its A^T+A pattern
+  // adds (0,1), (1,2), (2,0).
+  SparseMatrixType a(3, 3);
+  std::vector<Triplet<double, int>> triplets;
+  triplets.emplace_back(0, 0, 1.0);
+  triplets.emplace_back(1, 0, 2.0);
+  triplets.emplace_back(2, 1, 3.0);
+  triplets.emplace_back(0, 2, 4.0);
+  triplets.emplace_back(2, 2, 5.0);
+  a.setFromTriplets(triplets.begin(), triplets.end());
+
+  VectorI outer, inner;
+  internal::SparsityPatternRef<int> pat = internal::make_col_major_pattern_ref(a, outer, inner);
+
+  PatternMatrixType got;
+  internal::materialize_at_plus_a_pattern(pat, got);
+
+  // Reference: pattern of (a + a.transpose()), keeping structural nonzeros.
+  SparseMatrixType expected = a + SparseMatrixType(a.transpose());
+  verify_same_pattern(got, expected);
+  // Output values must be the placeholder sentinel.
+  const signed char one = 1;
+  for (Index j = 0; j < got.cols(); ++j) {
+    for (PatternMatrixType::InnerIterator it(got, j); it; ++it) {
+      VERIFY_IS_EQUAL(it.value(), one);
+    }
+  }
+}
+
+template <int>
+void materialize_at_plus_a_pattern_random() {
+  typedef SparseMatrix<double, ColMajor, int> SparseMatrixType;
+  typedef SparseMatrix<signed char, ColMajor, int> PatternMatrixType;
+  typedef Matrix<double, Dynamic, Dynamic, ColMajor> DenseMatrixType;
+  typedef Matrix<int, Dynamic, 1> VectorI;
+
+  const int n = internal::random<int>(8, 64);
+  DenseMatrixType ref(n, n);
+  SparseMatrixType a(n, n);
+  initSparse<double>(0.4, ref, a, ForceNonZeroDiag);
+
+  VectorI outer, inner;
+  internal::SparsityPatternRef<int> pat = internal::make_col_major_pattern_ref(a, outer, inner);
+  PatternMatrixType got;
+  internal::materialize_at_plus_a_pattern(pat, got);
+
+  SparseMatrixType expected = a + SparseMatrixType(a.transpose());
+  verify_same_pattern(got, expected);
+}
+
+template <unsigned int UpLo>
+void materialize_selfadjoint_pattern_random_impl() {
+  typedef SparseMatrix<double, ColMajor, int> SparseMatrixType;
+  typedef SparseMatrix<signed char, ColMajor, int> PatternMatrixType;
+  typedef Matrix<double, Dynamic, Dynamic, ColMajor> DenseMatrixType;
+  typedef Matrix<int, Dynamic, 1> VectorI;
+
+  // Build a random sparse matrix that may have entries on both triangles; the
+  // selfadjoint pattern must filter to only the requested triangle.
+  const int n = internal::random<int>(8, 64);
+  DenseMatrixType ref(n, n);
+  SparseMatrixType a(n, n);
+  initSparse<double>(0.4, ref, a, ForceNonZeroDiag);
+  a.makeCompressed();
+
+  VectorI outer, inner;
+  internal::SparsityPatternRef<int> pat = internal::make_col_major_pattern_ref(a, outer, inner);
+  PatternMatrixType got;
+  internal::materialize_selfadjoint_pattern<UpLo>(pat, got);
+
+  // Reference: explicit symmetrization of the requested triangle.
+  SparseMatrixType expected(n, n);
+  expected = a.template selfadjointView<UpLo>();
+  verify_same_pattern(got, expected);
+}
+
+template <int>
+void materialize_selfadjoint_pattern_lower_upper() {
+  materialize_selfadjoint_pattern_random_impl<Lower>();
+  materialize_selfadjoint_pattern_random_impl<Upper>();
+}
+
 template <int>
 void bug1105() {
   // Regression test for bug 1105
@@ -1142,5 +1374,11 @@ EIGEN_DECLARE_TEST(sparse_basic) {
   CALL_SUBTEST_5(bug1105<0>());
   CALL_SUBTEST_1(sparse_sub_assign_eigenbase<0>());
   CALL_SUBTEST_1(ambivector_coeff<0>());
+  CALL_SUBTEST_1(sparsity_pattern_ref_sparse_expressions<0>());
+  CALL_SUBTEST_1(materialize_at_plus_a_pattern_basic<0>());
+  for (int i = 0; i < g_repeat; ++i) {
+    CALL_SUBTEST_1(materialize_at_plus_a_pattern_random<0>());
+    CALL_SUBTEST_1(materialize_selfadjoint_pattern_lower_upper<0>());
+  }
 }
 #endif

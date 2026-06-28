@@ -131,7 +131,7 @@ public class TraceEvent implements AutoCloseable {
             if (end == -1) {
                 end = logLine.length();
             }
-            return start != -1 ? logLine.substring(start + 2, end) : "";
+            return start != -1 && (end - start) >= 2 ? logLine.substring(start + 2, end) : "";
         }
     }
 
@@ -726,6 +726,7 @@ public class TraceEvent implements AutoCloseable {
 
         // Convert the Object back into the ArrayList of ActivityInfo, lifetime of this object is
         // maintained by the Runnable that we are running in currently.
+        @SuppressWarnings("unchecked")
         ArrayList<ActivityInfo> activities = (ArrayList<ActivityInfo>) list;
 
         for (ActivityInfo activity : activities) {

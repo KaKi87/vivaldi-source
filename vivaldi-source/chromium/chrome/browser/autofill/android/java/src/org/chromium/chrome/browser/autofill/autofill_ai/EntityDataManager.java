@@ -20,6 +20,7 @@ import org.chromium.components.autofill.autofill_ai.AutofillAiOptInStatus;
 import org.chromium.components.autofill.autofill_ai.EntityInstance;
 import org.chromium.components.autofill.autofill_ai.EntityInstanceWithLabels;
 import org.chromium.components.autofill.autofill_ai.EntityType;
+import org.chromium.components.autofill.autofill_ai.EntityTypeName;
 
 import java.text.Collator;
 import java.util.ArrayList;
@@ -94,11 +95,19 @@ public class EntityDataManager implements Destroyable {
     }
 
     /** Saves or update an entity. */
-    public void addOrUpdateEntityInstance(EntityInstance entity, Runnable onLocalSaveFallback) {
+    public void addOrUpdateEntityInstance(
+            EntityInstance entity,
+            int descriptionStringId,
+            int acceptButtonStringId,
+            Runnable onLocalSaveFallback) {
         ThreadUtils.assertOnUiThread();
         EntityDataManagerJni.get()
                 .addOrUpdateEntityInstance(
-                        mNativeEntityDataManagerAndroid, entity, onLocalSaveFallback);
+                        mNativeEntityDataManagerAndroid,
+                        entity,
+                        descriptionStringId,
+                        acceptButtonStringId,
+                        onLocalSaveFallback);
     }
 
     /**
@@ -191,12 +200,35 @@ public class EntityDataManager implements Destroyable {
     }
 
     /**
-     * Returns whether the user might perform `AutofillAiAction::kListEntityInstancesInSettings`.
+     * When default availability is on, this checks whether the user is eligible for Autofill AI
+     * features, such as to opt-into identity docs, travel etc. It runs high level checks such as
+     * address pref state, policies etc. for a given type.
      */
+    public boolean canEnableOrDisableAutofillAiForType(@EntityTypeName int entityType) {
+        ThreadUtils.assertOnUiThread();
+        return EntityDataManagerJni.get()
+                .canEnableOrDisableAutofillAiForType(mNativeEntityDataManagerAndroid, entityType);
+    }
+
+    /** Returns whether the user is eligible for Autofill AI for a given type. */
+    public boolean isEligibleToAutofillAiForType(@EntityTypeName int entityType) {
+        ThreadUtils.assertOnUiThread();
+        return EntityDataManagerJni.get()
+                .isEligibleToAutofillAiForType(mNativeEntityDataManagerAndroid, entityType);
+    }
+
+    /** Returns whether the user might perform `AutofillAiAction::kListEntityInstancesInSettings`. */
     public boolean canListEntityInstancesInSettings() {
         ThreadUtils.assertOnUiThread();
         return EntityDataManagerJni.get()
                 .canListEntityInstancesInSettings(mNativeEntityDataManagerAndroid);
+    }
+
+    /** Returns whether the user can see the Wallet data sharing promotion. */
+    public boolean canShowWalletDataSharingPromotion() {
+        ThreadUtils.assertOnUiThread();
+        return EntityDataManagerJni.get()
+                .canShowWalletDataSharingPromotion(mNativeEntityDataManagerAndroid);
     }
 
     /** Returns the opt-in status for Autofill AI. */
@@ -224,18 +256,27 @@ public class EntityDataManager implements Destroyable {
                 .getIsAutofillAiDisabledByEnterprisePolicy(mNativeEntityDataManagerAndroid);
     }
 
-    /** Returns whether Autofill AI is enabled by enterprise policy but without logging. */
-    public boolean getIsAutofillAiEnabledByEnterprisePolicyWithoutLogging() {
+    /** Returns whether Autofill AI is enabled by enterprise policy including logging. */
+    public boolean getIsAutofillAiAllowedByEnterprisePolicy() {
         ThreadUtils.assertOnUiThread();
         return EntityDataManagerJni.get()
-                .getIsAutofillAiEnabledByEnterprisePolicyWithoutLogging(
-                        mNativeEntityDataManagerAndroid);
+                .getIsAutofillAiAllowedByEnterprisePolicy(mNativeEntityDataManagerAndroid);
     }
 
     public boolean isWalletPublicPassStorageEnabled() {
         ThreadUtils.assertOnUiThread();
         return EntityDataManagerJni.get()
                 .isWalletPublicPassStorageEnabled(mNativeEntityDataManagerAndroid);
+    }
+
+    public static boolean isPersonalContextSettingVisible(Profile profile) {
+        ThreadUtils.assertOnUiThread();
+        return EntityDataManagerJni.get().isPersonalContextSettingVisible(profile);
+    }
+
+    public static String getPersonalContextSettingsUrl() {
+        ThreadUtils.assertOnUiThread();
+        return EntityDataManagerJni.get().getPersonalContextSettingsUrl();
     }
 
     @NativeMethods
@@ -249,7 +290,15 @@ public class EntityDataManager implements Destroyable {
 
         boolean canEnableOrDisableAutofillAi(long nativeEntityDataManagerAndroid);
 
+        boolean canEnableOrDisableAutofillAiForType(
+                long nativeEntityDataManagerAndroid, @EntityTypeName int entityType);
+
+        boolean isEligibleToAutofillAiForType(
+                long nativeEntityDataManagerAndroid, @EntityTypeName int entityType);
+
         boolean canListEntityInstancesInSettings(long nativeEntityDataManagerAndroid);
+
+        boolean canShowWalletDataSharingPromotion(long nativeEntityDataManagerAndroid);
 
         boolean getAutofillAiOptInStatus(long nativeEntityDataManagerAndroid);
 
@@ -259,10 +308,14 @@ public class EntityDataManager implements Destroyable {
 
         boolean getIsAutofillAiDisabledByEnterprisePolicy(long nativeEntityDataManagerAndroid);
 
-        boolean getIsAutofillAiEnabledByEnterprisePolicyWithoutLogging(
-                long nativeEntityDataManagerAndroid);
+        boolean getIsAutofillAiAllowedByEnterprisePolicy(long nativeEntityDataManagerAndroid);
 
         boolean isWalletPublicPassStorageEnabled(long nativeEntityDataManagerAndroid);
+
+        boolean isPersonalContextSettingVisible(@JniType("Profile*") Profile profile);
+
+        @JniType("std::string")
+        String getPersonalContextSettingsUrl();
 
         void removeEntityInstance(
                 long nativeEntityDataManagerAndroid, @JniType("std::string") String guid);
@@ -275,6 +328,8 @@ public class EntityDataManager implements Destroyable {
         void addOrUpdateEntityInstance(
                 long nativeEntityDataManagerAndroid,
                 EntityInstance entity,
+                int descriptionStringId,
+                int acceptButtonStringId,
                 @JniType("base::OnceClosure") Runnable onLocalSaveFallback);
 
         @JniType("std::vector<EntityInstanceWithLabels>")

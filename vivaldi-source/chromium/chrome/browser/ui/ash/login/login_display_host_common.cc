@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "ash/constants/ash_features.h"
+#include "ash/constants/ash_login_pref_names.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/public/cpp/login_accelerators.h"
 #include "ash/public/cpp/wallpaper/wallpaper_controller.h"
@@ -33,7 +34,6 @@
 #include "chrome/browser/ash/login/choobe_flow_controller.h"
 #include "chrome/browser/ash/login/existing_user_controller.h"
 #include "chrome/browser/ash/login/lock_screen_utils.h"
-#include "chrome/browser/ash/login/login_pref_names.h"
 #include "chrome/browser/ash/login/oobe_cros_events_metrics.h"
 #include "chrome/browser/ash/login/oobe_metrics_helper.h"
 #include "chrome/browser/ash/login/oobe_quick_start/second_device_auth_broker.h"
@@ -431,7 +431,8 @@ void LoginDisplayHostCommon::OnGaiaScreenReady() {
   if (GetExistingUserController()) {
     GetExistingUserController()->OnGaiaScreenReady();
   } else {
-    // Used to debug crbug.com/902315. Feel free to remove after that is fixed.
+    // Used to debug crbug.com/41424664. Feel free to remove after that is
+    // fixed.
     LOG(ERROR) << "OnGaiaScreenReady: there is no existing user controller";
   }
 }

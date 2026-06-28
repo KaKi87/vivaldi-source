@@ -39,6 +39,7 @@
 #import "components/autofill/ios/browser/ios_test_event_waiter.h"
 #import "components/keyed_service/core/service_access_type.h"
 #import "components/password_manager/core/browser/password_manager_util.h"
+#import "components/password_manager/core/browser/password_store/password_form_converters.h"
 #import "components/password_manager/core/browser/password_store/password_store_consumer.h"
 #import "components/password_manager/core/browser/password_store/password_store_interface.h"
 #import "ios/chrome/browser/autofill/model/personal_data_manager_factory.h"
@@ -79,47 +80,40 @@ GetPasswordProfileStore() {
 // processing.
 class TestStoreConsumer : public password_manager::PasswordStoreConsumer {
  public:
-  void OnGetPasswordStoreResults(
-      std::vector<std::unique_ptr<password_manager::PasswordForm>> obtained)
-      override {
-    obtained_ = std::move(obtained);
+  void OnGetPasswordStoreResultsOrErrorFrom(
+      password_manager::PasswordStoreInterface* store,
+      password_manager::LoginsResultOrError results_or_error) override {
+    if (std::holds_alternative<password_manager::PasswordStoreBackendError>(
+            results_or_error)) {
+      obtained_ = std::vector<password_manager::PasswordForm>();
+    } else {
+      obtained_ = password_manager::ToPasswordForms(
+          std::get<password_manager::LoginsResult>(
+              std::move(results_or_error)));
+    }
   }
 
   const std::vector<password_manager::PasswordForm>& GetStoreResults() {
     results_.clear();
-    ResetObtained();
+    obtained_.reset();
     GetPasswordProfileStore()->GetAllLogins(weak_ptr_factory_.GetWeakPtr());
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-result"
     base::test::ios::WaitUntilConditionOrTimeout(
         base::test::ios::kWaitForFileOperationTimeout, ^bool {
-          return !AreObtainedReset();
+          return obtained_.has_value();
         });
 #pragma clang diagnostic pop
-    AppendObtainedToResults();
+    if (obtained_.has_value()) {
+      results_ = std::move(obtained_.value());
+      obtained_.reset();
+    }
     return results_;
   }
 
  private:
-  // Puts `obtained_` in a known state not corresponding to any PasswordStore
-  // state.
-  void ResetObtained() {
-    obtained_.clear();
-    obtained_.emplace_back(nullptr);
-  }
-
-  // Returns true if `obtained_` are in the reset state.
-  bool AreObtainedReset() { return obtained_.size() == 1 && !obtained_[0]; }
-
-  void AppendObtainedToResults() {
-    for (const auto& source : obtained_) {
-      results_.emplace_back(*source);
-    }
-    ResetObtained();
-  }
-
   // Temporary cache of obtained store results.
-  std::vector<std::unique_ptr<password_manager::PasswordForm>> obtained_;
+  std::optional<std::vector<password_manager::PasswordForm>> obtained_;
 
   // Combination of fillable and blocked credentials from the store.
   std::vector<password_manager::PasswordForm> results_;
@@ -130,7 +124,7 @@ class TestStoreConsumer : public password_manager::PasswordStoreConsumer {
 // Saves `form` to the profile password store and waits until the async
 // processing is done.
 void SaveToPasswordProfileStore(const password_manager::PasswordForm& form) {
-  GetPasswordProfileStore()->AddLogin(form);
+  GetPasswordProfileStore()->AddLogin(password_manager::FromPasswordForm(form));
   // When we retrieve the form from the store, `in_store` should be set.
   password_manager::PasswordForm expected_form = form;
   expected_form.in_store = password_manager::PasswordForm::Store::kProfileStore;
@@ -721,6 +715,66 @@ class FakeCreditCardServer : public CreditCardSaveManager::ObserverForTest {
       base::Time::FromNSDate(time), base::Time::Now());
 }
 
++ (BOOL)savePassportEntity {
+  autofill::AutofillClient& client =
+      autofill::FakeCreditCardServer::GetAutofillClient();
+
+  autofill::EntityDataManager* entityDataManager =
+      client.GetEntityDataManager();
+
+  if (!entityDataManager) {
+    return NO;
+  }
+
+  autofill::EntityInstance entity = autofill::test::GetPassportEntityInstance();
+  entityDataManager->AddOrUpdateEntityInstance(entity);
+  return YES;
+}
+
++ (NSString*)saveServerWalletPassportEntity {
+  autofill::EntityDataManager* entityDataManager = [self entityDataManager];
+  if (!entityDataManager) {
+    return nil;
+  }
+
+  autofill::test::PassportEntityOptions options = {};
+  base::Uuid uuid = base::Uuid::GenerateRandomV4();
+  std::string guid_str = uuid.AsLowercaseString();
+  options.guid = guid_str;
+  options.record_type = autofill::EntityInstance::RecordType::kServerWallet;
+
+  autofill::EntityInstance entity =
+      autofill::test::GetPassportEntityInstance(options);
+  autofill::EntityInstance masked_entity =
+      autofill::test::MaskEntityInstance(entity);
+  entityDataManager->AddOrUpdateEntityInstance(masked_entity);
+  return base::SysUTF8ToNSString(guid_str);
+}
+
++ (BOOL)saveVehicleEntity {
+  autofill::AutofillClient& client =
+      autofill::FakeCreditCardServer::GetAutofillClient();
+
+  autofill::EntityDataManager* entityDataManager =
+      client.GetEntityDataManager();
+
+  if (!entityDataManager) {
+    return NO;
+  }
+
+  autofill::EntityInstance entity = autofill::test::GetVehicleEntityInstance();
+  size_t entity_count = entityDataManager->GetEntityInstances().size();
+  entityDataManager->AddOrUpdateEntityInstance(entity);
+
+  ConditionBlock conditionBlock = ^bool {
+    return entity_count < entityDataManager->GetEntityInstances().size();
+  };
+
+  CHECK(base::test::ios::WaitUntilConditionOrTimeout(
+      base::test::ios::kWaitForFileOperationTimeout, conditionBlock));
+  return YES;
+}
+
 #pragma mark - Private
 
 // The PersonalDataManager instance for the current profile.
@@ -748,22 +802,6 @@ class FakeCreditCardServer : public CreditCardSaveManager::ObserverForTest {
 + (autofill::EntityDataManager*)entityDataManager {
   return autofill::FakeCreditCardServer::GetAutofillClient()
       .GetEntityDataManager();
-}
-
-+ (BOOL)savePassportEntity {
-  autofill::AutofillClient& client =
-      autofill::FakeCreditCardServer::GetAutofillClient();
-
-  autofill::EntityDataManager* entityDataManager =
-      client.GetEntityDataManager();
-
-  if (!entityDataManager) {
-    return NO;
-  }
-
-  autofill::EntityInstance entity = autofill::test::GetPassportEntityInstance();
-  entityDataManager->AddOrUpdateEntityInstance(entity);
-  return YES;
 }
 
 @end

@@ -1,15 +1,17 @@
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
+
 #ifndef GPU_TEST_HELPER_H
 #define GPU_TEST_HELPER_H
 
 #include <Eigen/Core>
 
 // Allow gpu** macros for generic tests.
+#define EIGEN_PERMANENTLY_ENABLE_GPU_HIP_CUDA_DEFINES
 #include <Eigen/src/Core/util/GpuHipCudaDefines.inc>
 
-// std::tuple cannot be used on device, and there is a bug in cuda < 9.2 that
-// doesn't allow std::tuple to compile for host code either. In these cases,
-// use our custom implementation.
-#if defined(EIGEN_GPU_COMPILE_PHASE) || (defined(EIGEN_CUDACC) && EIGEN_CUDA_SDK_VER < 92000)
+// std::tuple cannot be used on device, so use our custom implementation there.
+#if defined(EIGEN_GPU_COMPILE_PHASE)
 #define EIGEN_USE_CUSTOM_TUPLE 1
 #else
 #define EIGEN_USE_CUSTOM_TUPLE 0
@@ -42,6 +44,9 @@ using tuple_impl::tuple;
 #undef EIGEN_USE_CUSTOM_TUPLE
 }  // namespace test_detail
 
+template <typename Func, typename... Args>
+using kernel_result_t = decltype(std::declval<Func>()(std::declval<Args>()...));
+
 template <size_t N, size_t Idx, typename OutputIndexSequence, typename... Ts>
 struct extract_output_indices_helper;
 
@@ -60,10 +65,10 @@ template <size_t N, size_t Idx, size_t... OutputIndices, typename T1, typename..
 struct extract_output_indices_helper<N, Idx, std::index_sequence<OutputIndices...>, T1, Ts...> {
   using type = typename extract_output_indices_helper<
       N - 1, Idx + 1,
-      typename std::conditional<
+      std::conditional_t<
           // If is a non-const l-value reference, append index.
           std::is_lvalue_reference<T1>::value && !std::is_const<std::remove_reference_t<T1>>::value,
-          std::index_sequence<OutputIndices..., Idx>, std::index_sequence<OutputIndices...>>::type,
+          std::index_sequence<OutputIndices..., Idx>, std::index_sequence<OutputIndices...>>,
       Ts...>::type;
 };
 
@@ -85,28 +90,28 @@ struct void_helper {
 
   // Converts void -> Void, T otherwise.
   template <typename T>
-  using ReturnType = typename std::conditional<std::is_same<T, void>::value, Void, T>::type;
+  using ReturnType = std::conditional_t<std::is_same<T, void>::value, Void, T>;
 
   // Non-void return value.
   template <typename Func, typename... Args>
   static EIGEN_ALWAYS_INLINE EIGEN_DEVICE_FUNC auto call(Func&& func, Args&&... args)
-      -> std::enable_if_t<!std::is_same<decltype(func(args...)), void>::value, decltype(func(args...))> {
+      -> std::enable_if_t<!std::is_same<kernel_result_t<Func&&, Args&&...>, void>::value,
+                          kernel_result_t<Func&&, Args&&...>> {
     return func(std::forward<Args>(args)...);
   }
 
   // Void return value.
   template <typename Func, typename... Args>
   static EIGEN_ALWAYS_INLINE EIGEN_DEVICE_FUNC auto call(Func&& func, Args&&... args)
-      -> std::enable_if_t<std::is_same<decltype(func(args...)), void>::value, Void> {
+      -> std::enable_if_t<std::is_same<kernel_result_t<Func&&, Args&&...>, void>::value, Void> {
     func(std::forward<Args>(args)...);
     return Void{};
   }
 
   // Restores the original return type, Void -> void, T otherwise.
   template <typename T>
-  static EIGEN_ALWAYS_INLINE EIGEN_DEVICE_FUNC
-      std::enable_if_t<!std::is_same<typename std::decay<T>::type, Void>::value, T>
-      restore(T&& val) {
+  static EIGEN_ALWAYS_INLINE EIGEN_DEVICE_FUNC std::enable_if_t<!std::is_same<std::decay_t<T>, Void>::value, T> restore(
+      T&& val) {
     return val;
   }
 
@@ -135,18 +140,18 @@ EIGEN_DEVICE_FUNC void run_serialized(std::index_sequence<Indices...>, std::inde
   const uint8_t* read_end = buffer + capacity;
   read_ptr = Eigen::deserialize(read_ptr, read_end, input_size);
   // Create value-type instances to populate.
-  auto args = make_tuple(typename std::decay<Args>::type{}...);
+  auto args = make_tuple(std::decay_t<Args>{}...);
   EIGEN_UNUSED_VARIABLE(args);  // Avoid NVCC compile warning.
   // NVCC 9.1 requires us to spell out the template parameters explicitly.
-  read_ptr = Eigen::deserialize(read_ptr, read_end, get<Indices, typename std::decay<Args>::type...>(args)...);
+  read_ptr = Eigen::deserialize(read_ptr, read_end, get<Indices, std::decay_t<Args>...>(args)...);
 
   // Call function, with void->Void conversion so we are guaranteed a complete
   // output type.
-  auto result = void_helper::call(kernel, get<Indices, typename std::decay<Args>::type...>(args)...);
+  auto result = void_helper::call(kernel, get<Indices, std::decay_t<Args>...>(args)...);
 
   // Determine required output size.
   size_t output_size = Eigen::serialize_size(capacity);
-  output_size += Eigen::serialize_size(get<OutputIndices, typename std::decay<Args>::type...>(args)...);
+  output_size += Eigen::serialize_size(get<OutputIndices, std::decay_t<Args>...>(args)...);
   output_size += Eigen::serialize_size(result);
 
   // Always serialize required buffer size.
@@ -157,7 +162,7 @@ EIGEN_DEVICE_FUNC void run_serialized(std::index_sequence<Indices...>, std::inde
   // Serialize outputs if they fit in the buffer.
   if (output_size <= capacity) {
     // Collect outputs and result.
-    write_ptr = Eigen::serialize(write_ptr, write_end, get<OutputIndices, typename std::decay<Args>::type...>(args)...);
+    write_ptr = Eigen::serialize(write_ptr, write_end, get<OutputIndices, std::decay_t<Args>...>(args)...);
     write_ptr = Eigen::serialize(write_ptr, write_end, result);
   }
 }
@@ -282,7 +287,7 @@ auto run_serialized_on_gpu(size_t buffer_capacity_hint, std::index_sequence<Indi
  * \return kernel(args...).
  */
 template <typename Kernel, typename... Args>
-auto run_on_cpu(Kernel kernel, Args&&... args) -> decltype(kernel(args...)) {
+auto run_on_cpu(Kernel kernel, Args&&... args) -> internal::kernel_result_t<Kernel, Args&&...> {
   return kernel(std::forward<Args>(args)...);
 }
 
@@ -301,7 +306,7 @@ auto run_on_cpu(Kernel kernel, Args&&... args) -> decltype(kernel(args...)) {
  * \return kernel(args...).
  */
 template <typename Kernel, typename... Args>
-auto run_on_gpu(Kernel kernel, Args&&... args) -> decltype(kernel(args...)) {
+auto run_on_gpu(Kernel kernel, Args&&... args) -> internal::kernel_result_t<Kernel, Args&&...> {
   return internal::run_serialized_on_gpu<Kernel, Args...>(
       /*buffer_capacity_hint=*/0, std::make_index_sequence<sizeof...(Args)>{},
       internal::extract_output_indices<Args...>{}, kernel, std::forward<Args>(args)...);
@@ -322,7 +327,8 @@ auto run_on_gpu(Kernel kernel, Args&&... args) -> decltype(kernel(args...)) {
  * \sa run_on_gpu
  */
 template <typename Kernel, typename... Args>
-auto run_on_gpu_with_hint(size_t buffer_capacity_hint, Kernel kernel, Args&&... args) -> decltype(kernel(args...)) {
+auto run_on_gpu_with_hint(size_t buffer_capacity_hint, Kernel kernel, Args&&... args)
+    -> internal::kernel_result_t<Kernel, Args&&...> {
   return internal::run_serialized_on_gpu<Kernel, Args...>(
       buffer_capacity_hint, std::make_index_sequence<sizeof...(Args)>{}, internal::extract_output_indices<Args...>{},
       kernel, std::forward<Args>(args)...);
@@ -409,7 +415,7 @@ void print_gpu_device_info() {
  * \return kernel(args...).
  */
 template <typename Kernel, typename... Args>
-auto run(Kernel kernel, Args&&... args) -> decltype(kernel(args...)) {
+auto run(Kernel kernel, Args&&... args) -> internal::kernel_result_t<Kernel, Args&&...> {
 #ifdef EIGEN_GPUCC
   return run_on_gpu(kernel, std::forward<Args>(args)...);
 #else
@@ -432,7 +438,8 @@ auto run(Kernel kernel, Args&&... args) -> decltype(kernel(args...)) {
  * \sa run
  */
 template <typename Kernel, typename... Args>
-auto run_with_hint(size_t buffer_capacity_hint, Kernel kernel, Args&&... args) -> decltype(kernel(args...)) {
+auto run_with_hint(size_t buffer_capacity_hint, Kernel kernel, Args&&... args)
+    -> internal::kernel_result_t<Kernel, Args&&...> {
 #ifdef EIGEN_GPUCC
   return run_on_gpu_with_hint(buffer_capacity_hint, kernel, std::forward<Args>(args)...);
 #else

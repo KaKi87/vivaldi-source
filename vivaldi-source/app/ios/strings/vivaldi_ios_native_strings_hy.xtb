@@ -29,6 +29,7 @@
 <translation id="1381484244248892686">Պահպանված գաղտնաբառերը կարող եք օգտագործել ցանկացած սարքում։ Դրանք պահպանված են Vivaldi-ի գաղտնաբառերի կառավարչում <ph name="EMAIL" />-ի համար</translation>
 <translation id="1383876407941801731">Որոնել</translation>
 <translation id="1397515084080510783">Սինքրոնացված ներդիրներ չկան</translation>
+<translation id="1401336397986481078">Ավելացված է՝</translation>
 <translation id="1410197035576869800">Հավելվածի պատկերակ</translation>
 <translation id="1430638949087011281">Չարգելափակել</translation>
 <translation id="1446108955355168157">Ձեր սինքրոնացման տվյալները (գաղտնաբառեր, էջանիշեր, նոթեր և ավելին) գաղտնագրելու և պաշտպանելու համար խնդրում ենք ստեղծել գաղտնագրման գաղտնաբառ։ Այս գաղտնաբառը երբեք չի ուղարկվելու մեզ։</translation>
@@ -58,6 +59,7 @@
 <translation id="1809939268435598390">Ջնջել պանակը</translation>
 <translation id="1813686536470127172">Այլ պանակ</translation>
 <translation id="1828800626900562968">Հպեք պլյուսի նշանը ստորև՝ նոր ներդիր ստեղծելու համար։</translation>
+<translation id="1852679645333476285">Թույլ տալ մեդիայի ֆոնային նվագարկումը</translation>
 <translation id="1861262398884155592">Այս պանակը դատարկ է</translation>
 <translation id="1921508034244765766">Vivaldi-ն դանդաղ է, խափանվում է, կամ տաքացնում է սարքը</translation>
 <translation id="1929299157575856072">ՍՏԱՆԴԱՐՏ ԱՐԳԵԼԱՓԱԿՄԱՆ ՄԱԿԱՐԴԱԿ</translation>
@@ -68,6 +70,7 @@
 <translation id="2048247880942380698">Արաբերեն (<ph name="ORIGIN" />)</translation>
 <translation id="2079545284768500474">Հետ բերել</translation>
 <translation id="2148384276939959392">Սինքրոնացնել ընտրվածը</translation>
+<translation id="2179052183774520942">Ավելացնել որոնիչ</translation>
 <translation id="2195713384412091023">Սինքրոնացման բոլոր տվյալները մեր սերվերից կջնջվեն, Ձեր գաղտնագրման գաղտնաբառը կզրոյացվի և կիրագործվի ելք Ձեր հաշվից։</translation>
 <translation id="2240680014596059312">Գաղտնի։ Արագ։ Սակավ գովազդով։</translation>
 <translation id="2243210264130642074">Նոթը պահպանված է</translation>
@@ -111,6 +114,7 @@
 <translation id="2843343418360315034">Հունգարերեն (<ph name="ORIGIN" />)</translation>
 <translation id="2850144663494818309">Սինքրոնացման մեկնարկ…</translation>
 <translation id="2884735088411646852">Դասավորում</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (Արգելափակում է տարատեսակ խանգարող բաներ)</translation>
 <translation id="2898963176829412617">Նոր պանակ…</translation>
 <translation id="2924890236896835588">Խմբի անուն</translation>
 <translation id="294138200684170250">Գովազդի ու հետևիչների արգելափակիչ և կայքերի կարգավորումներ</translation>
@@ -214,6 +218,7 @@
 <translation id="4553717494760925411">Հետ նավիգացիա</translation>
 <translation id="4563480492836333884">Էլ. փոստը չի ընդունվել։ Խնդրում ենք օգտագործել այլ դոմեն։</translation>
 <translation id="457386861538956877">Ավելին…</translation>
+<translation id="4591413025758301858">Թարգմանել <ph name="SOURCE_LANGUAGE" />ից <ph name="DESTINATION_LANGUAGE" /></translation>
 <translation id="460370326897402035">Գաղտնաբառը վավեր չէ։</translation>
 <translation id="4619615317237390068">Այլ սարքերի ներդիրներ</translation>
 <translation id="462860218383788109">Խմբագրման ամսաթվով</translation>
@@ -294,6 +299,7 @@
 <translation id="6005497458542935062">Պանակից դուրս հանել</translation>
 <translation id="6042308850641462728">Ավելին</translation>
 <translation id="6052689967593623141">Vivaldi-ն կարող է գործընկերային միջնորդավճար ստանալ, եթե Դուք այս հղումներից որևէ մեկը բացելուց հետո գնում կատարեք։ Սա նպաստում է Vivaldi-ի զարգացմանն ու պահում է այն անկախ։ Շնորհակա՛լ ենք Ձեր աջակցության համար։</translation>
+<translation id="6056094614114332761">Հասցեի դաշտի առաջարկներ</translation>
 <translation id="6077943432358741146">Արագ կոճակ</translation>
 <translation id="6119047040189002834">Դուրս եկեք հսկողությունից և ընտրեք որոնիչ, որը համապատասխանում է Ձեր արժեքներին.</translation>
 <translation id="614539368862754027"><ph name="NUMBER_OF_SELECTED_NOTES" /> նոթ տեղափոխված է</translation>
@@ -304,10 +310,12 @@
 <translation id="6365929278691047681">Գերմաներեն (<ph name="ORIGIN" />)</translation>
 <translation id="6406506848690869874">Սինքրոնացում</translation>
 <translation id="6438416544409849235"><ph name="NUMBER_OF_SELECTED_NOTES" /> ընտրված</translation>
+<translation id="6464909711355014884">Ավելացնել մեկ այլ որոնիչ</translation>
 <translation id="6487150267908786236"><ph name="BEGIN_LINK" />Ներմուծել<ph name="END_LINK" /></translation>
 <translation id="6517411226162529295">Պահուստային գաղտնագրման բանալի</translation>
 <translation id="6527303717912515753">Կիսվել</translation>
 <translation id="6535988230515403205">Լեհերեն (<ph name="ORIGIN" />)</translation>
+<translation id="6544880104552732240">Ընտրեք թարգմանության լեզուն</translation>
 <translation id="659351303388691480">Մաքրել դիտման տվյալները…</translation>
 <translation id="6602272356389933803">Արտաքին տեսք և ոճ</translation>
 <translation id="6614744450826097546">Գովազդի մանրամասներ</translation>
@@ -324,6 +332,7 @@
 <translation id="6798469570047202628">Մուտքագրված է սխալ գաղտնաբառ</translation>
 <translation id="681368974849482173">Նոթը ստեղծված է</translation>
 <translation id="6830986331692390764">Սինքրոնացման տվյալները մաքրվում են։ Խնդրում ենք սպասել։</translation>
+<translation id="6850275739048136176">Փոխում է սկզբնական և թարգմանության լեզուները</translation>
 <translation id="6875510405870945573">Ընտրեք Ձեր ուզած արգելափակման մարակդակը։</translation>
 <translation id="6887143077297974801">Սինքրոնացումը չհաջողվեց մեկնարկել։</translation>
 <translation id="691132463664340655">Բրաուզերի ոճ</translation>
@@ -378,6 +387,7 @@
 <translation id="7732622593814325274">Կառավարել հետևիչների արգելափակման աղբյուրները</translation>
 <translation id="7765158879357617694">Տեղափոխել</translation>
 <translation id="7771452384635174008">Դասավորում</translation>
+<translation id="7791543448312431591">Ավելացնել</translation>
 <translation id="7801204999757211519">Արդեն ունե՞ք հաշիվ։ <ph name="BEGIN_LINK" />Մուտք գործեք ➔<ph name="END_LINK" /></translation>
 <translation id="7850070199083838600">Ստեղծե՞լ նոր խումբ։</translation>
 <translation id="7914995060146784406">Խմբագրել նոթը</translation>
@@ -426,6 +436,7 @@
 <translation id="8562452229998620586">Պահպանված գաղտնաբառերը կերևան այստեղ։</translation>
 <translation id="8591818185775466306">Ջնջել <ph name="ITEM_TYPE" />ը</translation>
 <translation id="8605953154325672921">Օգտանունը պարտադիր է</translation>
+<translation id="861259508026988871">Ավելացնել որպես որոնիչ</translation>
 <translation id="8675578805254882416">Ստացում</translation>
 <translation id="8677007239430848917">Ավելացրեք Ձեր առաջին նոթը՝ հպելով պլյուսի նշանը ստորև</translation>
 <translation id="8684294196284714094">Պատրա՞ստ եք դարձնել Vivaldi-ն Ձեր հիմնական բրաուզերը։</translation>

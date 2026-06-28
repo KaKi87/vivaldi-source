@@ -4,9 +4,11 @@
 
 #include "gpu/command_buffer/service/transform_feedback_manager.h"
 
+#include "base/check.h"
 #include "base/notreached.h"
 #include "base/numerics/checked_math.h"
 #include "gpu/command_buffer/service/buffer_manager.h"
+#include "gpu/command_buffer/service/program_manager.h"
 #include "ui/gl/gl_version_info.h"
 
 namespace gpu {
@@ -69,6 +71,19 @@ void TransformFeedback::DoBindTransformFeedback(
     }
     SetIsBound(true);
   }
+}
+
+void TransformFeedback::SetActiveProgram(Program* program) {
+  CHECK(!active_program_);
+  CHECK(program);
+  active_program_ = program;
+  program->IncrementActiveTransformFeedbackCount();
+}
+
+void TransformFeedback::ClearActiveProgram() {
+  CHECK(active_program_);
+  active_program_->DecrementActiveTransformFeedbackCount();
+  active_program_ = nullptr;
 }
 
 void TransformFeedback::DoBeginTransformFeedback(GLenum primitive_mode) {
@@ -180,6 +195,23 @@ TransformFeedback* TransformFeedbackManager::GetTransformFeedback(
 void TransformFeedbackManager::RemoveTransformFeedback(GLuint client_id) {
   if (client_id) {
     transform_feedbacks_.erase(client_id);
+  }
+}
+
+ScopedPauseResumeTransformFeedback::ScopedPauseResumeTransformFeedback(
+    TransformFeedback* transform_feedback)
+    : transform_feedback_(transform_feedback) {
+  if (transform_feedback_ && transform_feedback_->active() &&
+      !transform_feedback_->paused()) {
+    transform_feedback_->DoPauseTransformFeedback();
+  } else {
+    transform_feedback_ = nullptr;
+  }
+}
+
+ScopedPauseResumeTransformFeedback::~ScopedPauseResumeTransformFeedback() {
+  if (transform_feedback_) {
+    transform_feedback_->DoResumeTransformFeedback();
   }
 }
 

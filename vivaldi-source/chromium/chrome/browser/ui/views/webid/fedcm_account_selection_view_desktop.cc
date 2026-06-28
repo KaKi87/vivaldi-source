@@ -16,7 +16,9 @@
 #include "chrome/browser/actor/actor_util.h"
 #include "chrome/browser/net/system_network_context_manager.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "chrome/browser/ui/page_action/page_action_controller.h"
 #include "chrome/browser/ui/tabs/inactive_window_mouse_event_controller.h"
 #include "chrome/browser/ui/tabs/public/tab_dialog_manager.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
@@ -24,7 +26,6 @@
 #include "chrome/browser/ui/views/extensions/security_dialog_tracker.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
-#include "chrome/browser/ui/views/page_action/page_action_controller.h"
 #include "chrome/browser/ui/views/webid/account_selection_bubble_view.h"
 #include "chrome/browser/ui/views/webid/account_selection_modal_view.h"
 #include "chrome/browser/ui/views/webid/account_selection_view_base.h"
@@ -40,6 +41,7 @@
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
+#include "third_party/blink/public/mojom/manifest/display_mode.mojom.h"
 #include "third_party/blink/public/mojom/webid/federated_auth_request.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/image/image_skia_operations.h"
@@ -50,6 +52,7 @@
 #include "ui/views/window/dialog_delegate.h"
 
 #include "app/vivaldi_apptools.h"
+#include "chrome/browser/ui/browser_finder.h"
 #include "ui/vivaldi_browser_window.h"
 
 namespace {
@@ -167,12 +170,12 @@ void FedCmAccountSelectionView::OnPageActionClicked() {
 
     // After clicking on the chip or the icon, we sign the user in and show the
     // "Signing in ..." text.
+    state_ = State::VERIFYING;
     controller->OverrideText(
         kActionFederation,
         l10n_util::GetStringUTF16(IDS_FEDERATION_SIGNING_IN_TITLE));
     controller->ShowSuggestionChip(kActionFederation);
     controller->Show(kActionFederation);
-    state_ = State::VERIFYING;
     NotifyDelegateOfAccountSelection(*accounts_[0],
                                      *accounts_[0]->identity_provider);
   } else {
@@ -281,7 +284,7 @@ bool FedCmAccountSelectionView::Show(
     rp_context = identity_provider->rp_context;
   }
 
-  if (base::FeatureList::IsEnabled(features::kFedCmAmbientUI)) {
+  if (IsAmbientEnabled()) {
     if (rp_mode == blink::mojom::RpMode::kPassive) {
       if (ShowPageAction(idp_list, accounts)) {
         dialog_type_ = DialogType::AMBIENT;
@@ -536,11 +539,11 @@ bool FedCmAccountSelectionView::ShowLoadingDialog(
   return true;
 }
 
-void FedCmAccountSelectionView::SetCanShowWidget(bool can_show_widget) {
-  if (can_show_widget == can_show_widget_) {
+void FedCmAccountSelectionView::SetCanShowUi(bool can_show_ui) {
+  if (can_show_ui == can_show_ui_) {
     return;
   }
-  can_show_widget_ = can_show_widget;
+  can_show_ui_ = can_show_ui;
   UpdateDialogVisibilityAndPosition();
 }
 
@@ -601,8 +604,10 @@ bool FedCmAccountSelectionView::ShowVerifyingDialog(
 }
 
 void FedCmAccountSelectionView::ShowUrl(LinkType link_type, const GURL& url) {
-  Browser* browser = chrome::FindBrowserWithTab(delegate_->GetWebContents());
-  TabStripModel* tab_strip_model = browser->tab_strip_model();
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          delegate_->GetWebContents());
+  TabStripModel* tab_strip_model = browser->GetTabStripModel();
 
   DCHECK(tab_strip_model);
   // Add a tab for the URL at the end of the tab strip, in the foreground.
@@ -874,8 +879,19 @@ content::WebContents* FedCmAccountSelectionView::ShowModalDialog(
   UpdateDialogVisibilityAndPosition();
 
   if (tabs::TabInterface* initiating_task_tab = InitiatingTaskTab(tab_)) {
-    if (actor::IsRunningBackgroundActorTask(
-            *initiating_task_tab->GetContents())) {
+    content::WebContents* initiating_contents =
+        initiating_task_tab->GetContents();
+    // We check `GetDisplayMode` to track both tab and browser fullscreen.
+    bool in_fullscreen =
+        initiating_contents->GetDelegate() &&
+        initiating_contents->GetDelegate()->GetDisplayMode(
+            initiating_contents) == blink::mojom::DisplayMode::kFullscreen;
+    // If the tab is running a background actor task and is not in fullscreen,
+    // withhold the pop-up until the tab is foregrounded. Fullscreen tabs are
+    // not withheld because in that case we'd open a new tab instead of a pop-up
+    // window, so there's no need to withhold.
+    if (actor::IsRunningBackgroundActorTask(*initiating_contents) &&
+        !in_fullscreen) {
       tab_subscriptions_.push_back(
           initiating_task_tab->RegisterDidActivate(base::BindRepeating(
               &FedCmAccountSelectionView::BackgroundTaskTabForegrounded,
@@ -1035,7 +1051,7 @@ bool FedCmAccountSelectionView::NotifyDelegateOfAccountSelection(
                                    account.browser_trusted_login_state));
 
   // AccountSelectionView::Delegate::OnAccountSelected() might delete this.
-  // See https://crbug.com/1393650 for details.
+  // See https://crbug.com/40248291 for details.
   return static_cast<bool>(weak_ptr);
 }
 
@@ -1075,7 +1091,7 @@ SheetType FedCmAccountSelectionView::GetSheetType() {
 
 void FedCmAccountSelectionView::Close(bool notify_delegate, bool hide_widget) {
   scoped_user_data_.reset();
-  if (base::FeatureList::IsEnabled(features::kFedCmAmbientUI) && tab_) {
+  if (IsAmbientEnabled() && tab_) {
     if (auto* features = tab_->GetTabFeatures()) {
       if (auto* controller = features->page_action_controller()) {
         controller->Hide(kActionFederation);
@@ -1121,9 +1137,10 @@ std::unique_ptr<views::Widget> FedCmAccountSelectionView::CreateDialogWidget() {
         base::WrapUnique(views::AsViewClass<AccountSelectionBubbleView>(
             parked_dialog_view_.release())),
         GetAnchorView());
-    dialog_widget = base::WrapUnique(views::BubbleDialogDelegate::CreateBubble(
-        widget_delegate_.get()->AsBubbleDialogDelegate(),
-        views::Widget::InitParams::CLIENT_OWNS_WIDGET));
+    dialog_widget =
+        base::WrapUnique(views::BubbleDialogDelegate::CreateBubbleDeprecated(
+            widget_delegate_.get()->AsBubbleDialogDelegate(),
+            views::Widget::InitParams::CLIENT_OWNS_WIDGET));
   } else {
     // Create and show the dialog widget. This is functionally a tab-modal
     // dialog.
@@ -1431,6 +1448,9 @@ void FedCmAccountSelectionView::UpdateDialogVisibilityAndPosition() {
 void FedCmAccountSelectionView::ResetDialogWidgetStateOnAnyShow() {
   accounts_widget_shown_callback_.Reset();
   hide_dialog_widget_after_idp_login_popup_ = false;
+  chip_impression_recorded_ = false;
+  icon_impression_recorded_ = false;
+  chip_requested_for_flow_ = false;
 }
 
 gfx::Rect FedCmAccountSelectionView::GetDialogBounds() {
@@ -1441,7 +1461,7 @@ gfx::Rect FedCmAccountSelectionView::GetDialogBounds() {
 }
 
 void FedCmAccountSelectionView::ShouldShowDialog(bool& should_show) {
-  if (!can_show_widget_) {
+  if (!can_show_ui_) {
     should_show = false;
     return;
   }
@@ -1542,9 +1562,17 @@ bool FedCmAccountSelectionView::ShowPageAction(
   // Registers this class as an observer of the page action, so that we can
   // determine the state of the page action when the user clicks on it.
   RegisterAsPageActionObserver(*controller);
+  chip_requested_for_flow_ = true;
   controller->Show(kActionFederation);
   controller->ShowSuggestionChip(kActionFederation);
   return true;
+}
+
+bool FedCmAccountSelectionView::IsAmbientEnabled() const {
+  return base::FeatureList::IsEnabled(features::kFedCmAmbientUI) ||
+         (delegate_ && delegate_->GetPassiveDialogVolume() ==
+                           content::IdentityRequestDialogController::
+                               PassiveDialogVolume::kAmbient);
 }
 
 void FedCmAccountSelectionView::RecordPageActionImpression(
@@ -1561,14 +1589,52 @@ void FedCmAccountSelectionView::RecordPageActionImpression(
 
 void FedCmAccountSelectionView::OnPageActionIconShown(
     const page_actions::PageActionState& next) {
+  // When the user clicks on the UI, the state transitions to `VERIFYING` and
+  // the page action is updated to show a "Signing in..." chip. This is part of
+  // the authentication process and should not be recorded as a new impression.
+  if (state_ == State::VERIFYING || icon_impression_recorded_) {
+    return;
+  }
+  // If we requested the page action to be shown as a chip, we ignore this
+  // initial icon shown notification because the UI is supposed to show a
+  // suggestion chip. We will log the icon impression later if and when the chip
+  // collapses.
+  if (chip_requested_for_flow_) {
+    return;
+  }
+  icon_impression_recorded_ = true;
   RecordPageActionImpression(next, AmbientImpression::kSignInIcon,
                              AmbientImpression::kSignUpIcon);
 }
 
 void FedCmAccountSelectionView::OnPageActionChipShown(
     const page_actions::PageActionState& next) {
+  // When the user clicks on the UI, the state transitions to `VERIFYING` and
+  // the page action is updated to show a "Signing in..." chip. This is part of
+  // the authentication process and should not be recorded as a new impression.
+  if (state_ == State::VERIFYING || chip_impression_recorded_) {
+    return;
+  }
+  chip_impression_recorded_ = true;
   RecordPageActionImpression(next, AmbientImpression::kSignInChip,
                              AmbientImpression::kSignUpChip);
+}
+
+void FedCmAccountSelectionView::OnPageActionChipHidden(
+    const page_actions::PageActionState& next) {
+  // When the user clicks on the UI, the state transitions to `VERIFYING` and
+  // the page action is updated to show a "Signing in..." chip. This is part of
+  // the authentication process and should not be recorded as a new impression.
+  if (state_ == State::VERIFYING) {
+    return;
+  }
+  // If the chip is hidden, but the icon is still showing, then it has collapsed
+  // to a static icon. This is when the user actually sees it as an icon.
+  if (next.showing && !icon_impression_recorded_) {
+    icon_impression_recorded_ = true;
+    RecordPageActionImpression(next, AmbientImpression::kSignInIcon,
+                               AmbientImpression::kSignUpIcon);
+  }
 }
 
 void FedCmAccountSelectionView::OnPageActionAnchoredMessageShown(

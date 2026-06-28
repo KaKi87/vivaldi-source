@@ -120,8 +120,6 @@ constexpr CGFloat kFacePileAvatarSize = 16;
   ProfileIOS* profile = self.profile;
   CHECK(profile);
   self.tabStripViewController = [[TabStripViewController alloc] init];
-  self.tabStripViewController.layoutGuideCenter =
-      LayoutGuideCenterForBrowser(self.browser);
   self.tabStripViewController.overrideUserInterfaceStyle =
       profile->IsOffTheRecord() ? UIUserInterfaceStyleDark
                                 : UIUserInterfaceStyleUnspecified;
@@ -247,8 +245,7 @@ constexpr CGFloat kFacePileAvatarSize = 16;
 
   AuthenticationService* authenticationService =
       AuthenticationServiceFactory::GetForProfile(self.profile);
-  id<SystemIdentity> identity =
-      authenticationService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
+  id<SystemIdentity> identity = authenticationService->GetPrimaryIdentity();
 
   base::WeakPtr<Browser> weakBrowser = command.originBrowser->AsWeakPtr();
   __weak __typeof(self) weakSelf = self;

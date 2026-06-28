@@ -7,6 +7,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "packetmath_test_shared.h"
 #include "random_without_cast_overflow.h"
@@ -333,7 +334,7 @@ struct test_cast {
 template <typename SrcPacket, typename TgtScalar,
           typename TgtPacket = typename internal::packet_traits<TgtScalar>::type,
           bool Vectorized = internal::packet_traits<TgtScalar>::Vectorizable,
-          bool HasHalf = !internal::is_same<typename internal::unpacket_traits<TgtPacket>::half, TgtPacket>::value>
+          bool HasHalf = !std::is_same<typename internal::unpacket_traits<TgtPacket>::half, TgtPacket>::value>
 struct test_cast_runner;
 
 template <typename SrcPacket, typename TgtScalar, typename TgtPacket>
@@ -458,8 +459,7 @@ struct packetmath_boolean_mask_ops_notcomplex_test {
 
 template <typename Scalar, typename Packet>
 struct packetmath_boolean_mask_ops_notcomplex_test<
-    Scalar, Packet,
-    std::enable_if_t<internal::packet_traits<Scalar>::HasCmp && !internal::is_same<Scalar, bool>::value>> {
+    Scalar, Packet, std::enable_if_t<internal::packet_traits<Scalar>::HasCmp && !std::is_same<Scalar, bool>::value>> {
   static void run() {
     const int PacketSize = internal::unpacket_traits<Packet>::size;
     const int size = 2 * PacketSize;
@@ -525,8 +525,8 @@ struct eigen_optimization_barrier_test {
 
 template <typename Packet>
 struct eigen_optimization_barrier_test<
-    Packet, std::enable_if_t<!NumTraits<Packet>::IsComplex && !internal::is_same<Packet, Eigen::half>::value &&
-                             !internal::is_same<Packet, Eigen::bfloat16>::value>> {
+    Packet, std::enable_if_t<!NumTraits<Packet>::IsComplex && !std::is_same<Packet, Eigen::half>::value &&
+                             !std::is_same<Packet, Eigen::bfloat16>::value>> {
   static void run() {
     typedef typename internal::unpacket_traits<Packet>::type Scalar;
     Scalar s = internal::random<Scalar>();
@@ -572,7 +572,7 @@ void packetmath() {
     std::cerr << "=== Testing packet of type '" << typeid(Packet).name() << "' and scalar type '"
               << typeid(Scalar).name() << "' and size '" << PacketSize << "' ===\n";
 
-  const int max_size = PacketSize > 4 ? PacketSize : 4;
+  constexpr int max_size = PacketSize > 4 ? PacketSize : 4;
   const int size = PacketSize * max_size;
   EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data1[size];
   EIGEN_ALIGN_TO_BOUNDARY(sizeof(Packet)) Scalar data2[size];
@@ -730,7 +730,7 @@ void packetmath() {
   for (int i = 0; i < PacketSize; ++i) ref[0] += data1[i];
   VERIFY(test::isApproxAbs(ref[0], internal::predux(internal::pload<Packet>(data1)), refvalue) && "internal::predux");
 
-  if (!internal::is_same<Packet, typename internal::unpacket_traits<Packet>::half>::value) {
+  if (!std::is_same<Packet, typename internal::unpacket_traits<Packet>::half>::value) {
     int HalfPacketSize = PacketSize > 4 ? PacketSize / 2 : PacketSize;
     for (int i = 0; i < HalfPacketSize; ++i) ref[i] = Scalar(0);
     for (int i = 0; i < PacketSize; ++i) ref[i % HalfPacketSize] += data1[i];
@@ -851,7 +851,7 @@ void packetmath() {
 }
 
 // Notice that this definition works for complex types as well.
-// c++11 has std::log2 for real, but not for complex types.
+// std::log2 only supports real types, not complex.
 template <typename Scalar>
 Scalar log2(Scalar x) {
   return Scalar(EIGEN_LOG2E) * std::log(x);
@@ -872,7 +872,7 @@ void packetmath_real() {
     test::packet_helper<PacketTraits::HasNegate, Packet> h;
     data1[0] = Scalar{-0};
     h.store(data2, internal::pnegate(h.load(data1)));
-    typedef typename internal::make_unsigned<typename internal::make_integer<Scalar>::type>::type Bits;
+    typedef std::make_unsigned_t<typename internal::make_integer<Scalar>::type> Bits;
     Bits bits = numext::bit_cast<Bits>(data2[0]);
     VERIFY_IS_EQUAL(bits, static_cast<Bits>(Bits(1) << (sizeof(Scalar) * CHAR_BIT - 1)));
   }
@@ -886,6 +886,7 @@ void packetmath_real() {
 
   CHECK_CWISE1_IF(PacketTraits::HasLog, std::log, internal::plog);
   CHECK_CWISE1_IF(PacketTraits::HasLog, log2, internal::plog2);
+  CHECK_CWISE1_IF(PacketTraits::HasLog10, std::log10, internal::plog10);
   CHECK_CWISE1_IF(PacketTraits::HasRsqrt, numext::rsqrt, internal::prsqrt);
 
   for (int i = 0; i < size; ++i) {
@@ -1030,6 +1031,17 @@ void packetmath_real() {
     data1[0] = Scalar(std::ldexp(Scalar(1.0), NumTraits<Scalar>::max_exponent() - 1));
     data1[PacketSize] = Scalar(+NumTraits<Scalar>::min_exponent() - NumTraits<Scalar>::max_exponent());
     CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    // Near-max magnitude with small negative exponents.  Regression guard for
+    // the 4-way scale-factor split: the remainder factor c2 = 2^(e-3*floor(e/4))
+    // is > 1 for e in {-1, -2, -5, -6, ...}, so the multiply tree must apply
+    // the downscale c1 before c2 -- otherwise (numext::abs(a)) * c2 spuriously
+    // overflows to inf for finite results like ldexp((numext::numeric_limits)
+    // <Scalar>::max(), -1).
+    for (int i = 0; i < PacketSize; ++i) {
+      data1[i] = (numext::numeric_limits<Scalar>::max)();
+      data1[i + PacketSize] = Scalar(-1 - (i % 8));  // -1, -2, ..., -8
+    }
+    CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
   }
 
   for (int i = 0; i < size; ++i) {
@@ -1064,6 +1076,20 @@ void packetmath_real() {
     h.store(data2, internal::pexp(h.load(data1)));
     VERIFY_IS_APPROX(std::exp(std::numeric_limits<Scalar>::denorm_min()), data2[0]);
     VERIFY_IS_APPROX(std::exp(-std::numeric_limits<Scalar>::denorm_min()), data2[1]);
+
+    // pexp must produce subnormal outputs for inputs in
+    // [log(denorm_min), log(min)).
+#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+    if (std::numeric_limits<Scalar>::has_denorm == std::denorm_present) {
+      const Scalar log_min = numext::log((std::numeric_limits<Scalar>::min)());
+      const Scalar log_denorm_min = numext::log(std::numeric_limits<Scalar>::denorm_min());
+      data1[0] = log_min - Scalar(0.5);                     // just inside subnormal cliff
+      data1[1] = Scalar(0.5) * (log_min + log_denorm_min);  // mid-subnormal
+      h.store(data2, internal::pexp(h.load(data1)));
+      VERIFY_IS_APPROX(numext::exp(data1[0]), data2[0]);
+      VERIFY_IS_APPROX(numext::exp(data1[1]), data2[1]);
+    }
+#endif
   }
 
   if (PacketTraits::HasTanh) {
@@ -1087,14 +1113,12 @@ void packetmath_real() {
     }
   }
 
-#if EIGEN_HAS_C99_MATH
   data1[0] = NumTraits<Scalar>::infinity();
   data1[1] = Scalar(-1);
   CHECK_CWISE1_IF(PacketTraits::HasLog1p, std::log1p, internal::plog1p);
   data1[0] = NumTraits<Scalar>::infinity();
   data1[1] = -NumTraits<Scalar>::infinity();
   CHECK_CWISE1_IF(PacketTraits::HasExpm1, std::expm1, internal::pexpm1);
-#endif
 
   if (PacketSize >= 2) {
     data1[0] = NumTraits<Scalar>::quiet_NaN();
@@ -1104,7 +1128,7 @@ void packetmath_real() {
       h.store(data2, internal::plog(h.load(data1)));
       VERIFY((numext::isnan)(data2[0]));
       // TODO(cantonios): Re-enable for bfloat16.
-      if (!internal::is_same<Scalar, bfloat16>::value) {
+      if (!std::is_same<Scalar, bfloat16>::value) {
         VERIFY_IS_APPROX(std::log(data1[1]), data2[1]);
       }
 
@@ -1118,7 +1142,7 @@ void packetmath_real() {
       data1[1] = -(std::numeric_limits<Scalar>::min)();
       h.store(data2, internal::plog(h.load(data1)));
       // TODO(cantonios): Re-enable for bfloat16.
-      if (!internal::is_same<Scalar, bfloat16>::value) {
+      if (!std::is_same<Scalar, bfloat16>::value) {
         VERIFY_IS_APPROX(std::log((std::numeric_limits<Scalar>::min)()), data2[0]);
       }
       VERIFY((numext::isnan)(data2[1]));
@@ -1130,7 +1154,7 @@ void packetmath_real() {
         data1[1] = -std::numeric_limits<Scalar>::denorm_min();
         h.store(data2, internal::plog(h.load(data1)));
         // TODO(rmlarsen): Re-enable for bfloat16.
-        if (!internal::is_same<Scalar, bfloat16>::value) {
+        if (!std::is_same<Scalar, bfloat16>::value) {
           VERIFY_IS_APPROX(std::log(std::numeric_limits<Scalar>::denorm_min()), data2[0]);
         }
         VERIFY((numext::isnan)(data2[1]));
@@ -1145,6 +1169,14 @@ void packetmath_real() {
       h.store(data2, internal::plog(h.load(data1)));
       VERIFY((numext::isinf)(data2[0]));
     }
+    if (PacketTraits::HasLog10) {
+      test::packet_helper<PacketTraits::HasLog10, Packet> h;
+      data1[0] = Scalar(0);
+      data1[1] = NumTraits<Scalar>::infinity();
+      h.store(data2, internal::plog10(h.load(data1)));
+      VERIFY_IS_EQUAL(std::log10(Scalar(0)), data2[0]);
+      VERIFY_IS_EQUAL(std::log10(NumTraits<Scalar>::infinity()), data2[1]);
+    }
     if (PacketTraits::HasLog1p) {
       test::packet_helper<PacketTraits::HasLog1p, Packet> h;
       data1[0] = Scalar(-2);
@@ -1155,8 +1187,7 @@ void packetmath_real() {
     }
 
     // TODO(rmlarsen): Re-enable for half and bfloat16.
-    if (PacketTraits::HasCos && !internal::is_same<Scalar, half>::value &&
-        !internal::is_same<Scalar, bfloat16>::value) {
+    if (PacketTraits::HasCos && !std::is_same<Scalar, half>::value && !std::is_same<Scalar, bfloat16>::value) {
       test::packet_helper<PacketTraits::HasCos, Packet> h;
       for (Scalar k = Scalar(1); k < Scalar(10000) / NumTraits<Scalar>::epsilon(); k *= Scalar(2)) {
         for (int k1 = 0; k1 <= 1; ++k1) {

@@ -19,10 +19,10 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/browser_list_observer.h"
+#include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/window_sizer/window_sizer.h"
 #include "components/sessions/content/session_tab_helper.h"
@@ -36,6 +36,7 @@
 #include "ui/base/ui_base_types.h"
 
 #include "browser/related_tab_strip_helper.h"
+#include "browser/tab_positioning.h"
 #include "browser/vivaldi_browser_finder.h"
 #include "extensions/api/extension_action_utils/extension_action_utils_api.h"
 #include "extensions/api/tabs/tabs_private_api.h"
@@ -91,8 +92,8 @@ ui::mojom::WindowShowState ConvertToWindowShowState(
 
 namespace {
 
-class VivaldiBrowserObserver : public BrowserListObserver,
-                               public TabStripModelObserver {
+class VivaldiBrowserObserver : public TabStripModelObserver,
+                               public BrowserCollectionObserver {
  public:
   VivaldiBrowserObserver();
 
@@ -110,11 +111,6 @@ class VivaldiBrowserObserver : public BrowserListObserver,
  private:
   friend class ::extensions::VivaldiWindowsAPI;
 
-  // chrome::BrowserListObserver implementation
-  void OnBrowserRemoved(Browser* browser) override;
-  void OnBrowserAdded(Browser* browser) override;
-  void OnBrowserSetLastActive(Browser* browser) override;
-
   // TabStripModelObserver implementation
   void OnTabChangedAt(tabs::TabInterface* tab,
                       int index,
@@ -123,6 +119,14 @@ class VivaldiBrowserObserver : public BrowserListObserver,
       TabStripModel* tab_strip_model,
       const TabStripModelChange& change,
       const TabStripSelectionChange& selection) override;
+
+  // BrowserCollectionObserver overrides:
+  void OnBrowserCreated(BrowserWindowInterface* browser) override;
+  void OnBrowserClosed(BrowserWindowInterface* browser) override;
+  void OnBrowserActivated(BrowserWindowInterface* browser) override;
+
+  base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
+      browser_collection_observation_{this};
 
   // Used to track windows being closed by profiles being closed, they should
   // not have any confirmation dialogs.
@@ -135,7 +139,8 @@ VivaldiBrowserObserver& VivaldiBrowserObserver::GetInstance() {
 }
 
 VivaldiBrowserObserver::VivaldiBrowserObserver() {
-  BrowserList::GetInstance()->AddObserver(this);
+  browser_collection_observation_.Observe(
+      GlobalBrowserCollection::GetInstance());
 }
 
 void VivaldiBrowserObserver::WindowsForProfileClosing(Profile* profile) {
@@ -163,48 +168,6 @@ size_t VivaldiBrowserObserver::FindClosingWindow(int32_t browser_id) {
   return (i != v.end()) ? std::distance(v.begin(), i) : SIZE_MAX;
 }
 
-void VivaldiBrowserObserver::OnBrowserAdded(Browser* browser) {
-  browser->tab_strip_model()->AddObserver(this);
-
-  if (browser->is_vivaldi()) {
-    ZoomAPI::AddZoomObserver(browser);
-  }
-}
-
-void VivaldiBrowserObserver::OnBrowserRemoved(Browser* browser) {
-  browser->tab_strip_model()->RemoveObserver(this);
-
-  if (browser->is_vivaldi()) {
-    ZoomAPI::RemoveZoomObserver(browser);
-  }
-
-  size_t i = FindClosingWindow(browser->session_id().id());
-  if (i != SIZE_MAX) {
-    closing_windows_.erase(closing_windows_.begin() + i);
-  }
-
-  if (chrome::GetTotalBrowserCount() == 1) {
-    ForEachCurrentAndNewBrowserWindowInterfaceOrderedByActivation(
-        [&](BrowserWindowInterface* browser) {
-          // If this is the last normal window, close the settings
-          // window so shutdown can progress normally.
-          if (browser->is_vivaldi() &&
-              static_cast<VivaldiBrowserWindow*>(browser->GetWindow())
-                      ->window_type() ==
-                  VivaldiBrowserWindow::WindowType::SETTINGS) {
-            browser->GetWindow()->Close();
-          }
-          return true;  // continue iterating
-        });
-  }
-}
-
-void VivaldiBrowserObserver::OnBrowserSetLastActive(Browser* browser) {
-  TabsPrivateAPI::FromBrowserContext(browser->profile())
-      ->NotifyTabSelectionChange(
-          browser->tab_strip_model()->GetActiveWebContents());
-}
-
 void VivaldiBrowserObserver::OnTabChangedAt(tabs::TabInterface* tab,
                                             int index,
                                             TabChangeType change_type) {
@@ -220,7 +183,6 @@ void VivaldiBrowserObserver::OnTabStripModelChanged(
     TabStripModel* tab_strip_model,
     const TabStripModelChange& change,
     const TabStripSelectionChange& selection) {
-
   // Ext data maintanance
   if (change.type() == TabStripModelChange::Type::kInserted) {
     for (const auto& contents : change.GetInsert()->contents) {
@@ -238,6 +200,7 @@ void VivaldiBrowserObserver::OnTabStripModelChanged(
 
   ::vivaldi::HandleAssociatedTabs(tab_strip_model, change);
   ::vivaldi::related_tabs::HandleOrphans(tab_strip_model, change);
+  ::vivaldi::tab_positioning::HandleStacking(tab_strip_model, change);
   ::vivaldi::related_tabs::HandleGroups(tab_strip_model, change);
 
   if (!selection.active_tab_changed() || !selection.new_contents)
@@ -246,6 +209,49 @@ void VivaldiBrowserObserver::OnTabStripModelChanged(
   TabsPrivateAPI::FromBrowserContext(
       selection.new_contents->GetBrowserContext())
       ->NotifyTabSelectionChange(selection.new_contents);
+}
+
+void VivaldiBrowserObserver::OnBrowserCreated(BrowserWindowInterface* browser) {
+  browser->GetTabStripModel()->AddObserver(this);
+
+  if (browser->is_vivaldi()) {
+    ZoomAPI::AddZoomObserver(browser);
+  }
+}
+
+void VivaldiBrowserObserver::OnBrowserClosed(BrowserWindowInterface* browser) {
+  browser->GetTabStripModel()->RemoveObserver(this);
+
+  if (browser->is_vivaldi()) {
+    ZoomAPI::RemoveZoomObserver(browser);
+  }
+
+  size_t i = FindClosingWindow(browser->GetSessionID().id());
+  if (i != SIZE_MAX) {
+    closing_windows_.erase(closing_windows_.begin() + i);
+  }
+
+  if (chrome::GetBrowserCount(browser->GetProfile()) == 1) {
+    ForEachCurrentAndNewBrowserWindowInterfaceOrderedByActivation(
+        [&](BrowserWindowInterface* browser) {
+          // If this is the last normal window, close the settings
+          // window so shutdown can progress normally.
+          if (browser->is_vivaldi() &&
+              static_cast<VivaldiBrowserWindow*>(browser->GetWindow())
+                      ->window_type() ==
+                  VivaldiBrowserWindow::WindowType::SETTINGS) {
+            browser->GetWindow()->Close();
+          }
+          return true;  // continue iterating
+        });
+  }
+}
+
+void VivaldiBrowserObserver::OnBrowserActivated(
+    BrowserWindowInterface* browser) {
+  TabsPrivateAPI::FromBrowserContext(browser->GetProfile())
+      ->NotifyTabSelectionChange(
+          browser->GetTabStripModel()->GetActiveWebContents());
 }
 
 }  // namespace
@@ -303,8 +309,8 @@ ExtensionFunction::ResponseAction WindowPrivateCreateFunction::Run() {
   }
 
   VivaldiBrowserWindow* named_window =
-    ::vivaldi::WindowRegistryService::Get(profile)
-        ->GetNamedWindow(window_key);
+      ::vivaldi::WindowRegistryService::Get(profile)->GetNamedWindow(
+          window_key);
 
   if (named_window) {
     named_window->Activate();

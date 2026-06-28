@@ -25,12 +25,13 @@ import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.toolbar.top.ToggleTabStackButton;
+import org.chromium.chrome.browser.ui.android.bars_common.TabSwitcherDrawable;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.ntp.IncognitoNewTabPageStation;
@@ -50,7 +51,7 @@ public class TabSwitcherDrawableRenderTest {
     public final ChromeRenderTestRule mRenderTestRule =
             ChromeRenderTestRule.Builder.withPublicCorpus()
                     .setBugComponent(RenderTestRule.Component.UI_BROWSER_MOBILE_TAB_GROUPS)
-                    .setRevision(5)
+                    .setRevision(6)
                     .build();
 
     @Rule
@@ -76,13 +77,34 @@ public class TabSwitcherDrawableRenderTest {
     @MediumTest
     @Feature("RenderTest")
     @EnableFeatures(ChromeFeatureList.DATA_SHARING)
+    @DisableFeatures(ChromeFeatureList.HOME_BUTTON_REMOVAL)
     public void testTabSwitcherDrawable_toggleNotificationRegular() throws Exception {
+        testTabSwitcherDrawable_toggleNotificationRegularImpl(
+                "tab_page_toolbar_view_regular_off", "tab_page_toolbar_view_regular_on");
+    }
+
+    @Test
+    @MediumTest
+    @Feature("RenderTest")
+    @EnableFeatures({
+        ChromeFeatureList.DATA_SHARING,
+        ChromeFeatureList.HOME_BUTTON_REMOVAL + ":keep_home_button_on_ntp/true"
+    })
+    public void testTabSwitcherDrawable_toggleNotificationRegular_withHomeButtonRemovalKeepOnNtp()
+            throws Exception {
+        testTabSwitcherDrawable_toggleNotificationRegularImpl(
+                "tab_page_toolbar_view_regular_off_with_home_button_removal",
+                "tab_page_toolbar_view_regular_on_with_home_button_removal");
+    }
+
+    private void testTabSwitcherDrawable_toggleNotificationRegularImpl(
+            String offGoldenId, String onGoldenId) throws Exception {
         ChromeTabbedActivity activity = mActivityTestRule.getActivity();
         mActivityTestRule.loadUrlInNewTab("about:blank", /* incognito= */ false);
 
         int tabCount = 2;
         View toolbarView = activity.findViewById(R.id.toolbar);
-        mRenderTestRule.render(toolbarView, "tab_page_toolbar_view_regular_off");
+        mRenderTestRule.render(toolbarView, offGoldenId);
 
         String contentDesc =
                 activity.getResources()
@@ -105,7 +127,7 @@ public class TabSwitcherDrawableRenderTest {
                                 tabCount,
                                 tabCount);
         assertEquals(notificationContentDesc, mToggleTabStackButton.getContentDescription());
-        mRenderTestRule.render(toolbarView, "tab_page_toolbar_view_regular_on");
+        mRenderTestRule.render(toolbarView, onGoldenId);
     }
 
     @Test

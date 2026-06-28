@@ -9,7 +9,7 @@
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_api/tab_strip_model_impl/converters/tab_converters.h"
 #include "chrome/browser/ui/tabs/tab_strip_api/tab_strip_model_impl/tree_builder/mojo_tree_builder.h"
-#include "chrome/browser/ui/tabs/tab_strip_api/types/tab_states.h"
+#include "components/browser_apis/tab_strip/types/tab_states.h"
 #include "components/tab_groups/tab_group_visual_data.h"
 #include "components/tabs/public/split_tab_collection.h"
 #include "components/tabs/public/tab_collection.h"
@@ -93,8 +93,9 @@ void TabStripModelAdapterImpl::ActivateTab(size_t index) {
   tab_strip_model_->ActivateTabAt(index);
 }
 
-void TabStripModelAdapterImpl::MoveTab(tabs::TabHandle tab,
-                                       const Position& position) {
+base::expected<void, mojo_base::mojom::ErrorPtr>
+TabStripModelAdapterImpl::MoveTab(tabs::TabHandle tab,
+                                  const Position& position) {
   auto maybe_index = GetIndexForHandle(tab);
   CHECK(maybe_index.has_value());
   auto index = maybe_index.value();
@@ -146,17 +147,20 @@ void TabStripModelAdapterImpl::MoveTab(tabs::TabHandle tab,
     case tabs::TabCollection::Type::TABSTRIP:
     case tabs::TabCollection::Type::SPLIT:
       NOTIMPLEMENTED();
-      return;
+      return base::unexpected(mojo_base::mojom::Error::New(
+          mojo_base::mojom::Code::kInvalidArgument, "unsupported move target"));
     case tabs::TabCollection::Type::VIVALDI:
       NOTREACHED() << "Vivaldi VB-119101";
   }
 
   tab_strip_model_->MoveWebContentsAt(index, to_position,
                                       /*select_after_move=*/false, to_group);
+  return base::ok();
 }
 
-void TabStripModelAdapterImpl::MoveCollection(const NodeId& id,
-                                              const Position& position) {
+base::expected<void, mojo_base::mojom::ErrorPtr>
+TabStripModelAdapterImpl::MoveCollection(const NodeId& id,
+                                         const Position& position) {
   std::optional<tabs::TabCollectionHandle> collection_handle =
       id.ToTabCollectionHandle();
   CHECK(collection_handle.has_value());
@@ -192,10 +196,13 @@ void TabStripModelAdapterImpl::MoveCollection(const NodeId& id,
     case tabs::TabCollection::Type::UNPINNED:
     case tabs::TabCollection::Type::TABSTRIP:
       NOTIMPLEMENTED();
-      return;
+      return base::unexpected(
+          mojo_base::mojom::Error::New(mojo_base::mojom::Code::kInvalidArgument,
+                                       "unsupported collection move"));
     case tabs::TabCollection::Type::VIVALDI:
       NOTREACHED() << "Vivaldi VB-119101";
   }
+  return base::ok();
 }
 
 tabs_api::mojom::ContainerPtr TabStripModelAdapterImpl::GetTabStripTopology(
@@ -332,10 +339,12 @@ InsertionParams TabStripModelAdapterImpl::CalculateInsertionParams(
   return params;
 }
 
-void TabStripModelAdapterImpl::ReplaceTabInSplit(tabs::TabHandle tab_to_replace,
-                                                 int tab_to_insert_index) {
+base::expected<void, mojo_base::mojom::ErrorPtr>
+TabStripModelAdapterImpl::ReplaceTabInSplit(tabs::TabHandle tab_to_replace,
+                                            int tab_to_insert_index) {
   tab_strip_model_->UpdateTabInSplit(tab_to_replace.Get(), tab_to_insert_index,
                                      TabStripModel::SplitUpdateType::kReplace);
+  return base::ok();
 }
 
 const tabs::TabCollection* TabStripModelAdapterImpl::GetRoot() const {

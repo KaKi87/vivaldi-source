@@ -6,13 +6,11 @@ static_library("ios") {
     "adblock_rule_service.h",
   ]
 
-  public_deps = [
-    "//vivaldi/components/ad_blocker/public/core",
-  ]
+  public_deps = [ "//vivaldi/components/ad_blocker/public/core" ]
 
   deps = [
     "//base",
     "//components/keyed_service/core",
-    "//url"
+    "//url",
   ]
 }

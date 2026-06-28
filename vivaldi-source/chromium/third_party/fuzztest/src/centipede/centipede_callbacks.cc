@@ -101,31 +101,43 @@ class CentipedeCallbacks::PersistentModeServer {
 
   const std::string& server_path() const { return server_path_; }
 
-  // Triggers the persistent mode to run one batch request. If the persistent
-  // mode finished normally, returns true with `exit_code` set to the return
-  // value of the handler (which would be returned as the command exit code if
-  // running without persistent mode, hence the name). Returns false otherwise.
-  bool RunBatch(absl::Time deadline, int& exit_code) {
+  // Requests the persistent mode client to run one batch request. Returns true
+  // if the request is sent successfully within `deadline`, false otherwise.
+  bool RequestBatch(absl::Time deadline) {
     if (!EnsureConnection(deadline)) {
       return false;
     }
     FUZZTEST_CHECK_NE(conn_socket_, -1);
+    FUZZTEST_CHECK(!in_batch_);
     if (!WriteFd(conn_socket_, deadline, PersistentModeRequest::kRunBatch)) {
       FUZZTEST_LOG(ERROR)
           << "Failed to request the persistent mode client to run a "
-             "batch - disconnecting.";
-      Disconnect();
+             "batch.";
       return false;
     }
+    in_batch_ = true;
+    return true;
+  }
+
+  // Waits for the persistent mode client to finish the batch (if previously
+  // requested) and gather the result. Returns true with `exit_code` set to the
+  // return value of the client (which would be returned as the command exit
+  // code if running without persistent mode, hence the name). Returns false
+  // otherwise.
+  bool WaitBatch(absl::Time deadline, int& exit_code) {
+    FUZZTEST_CHECK_NE(conn_socket_, -1);
+    FUZZTEST_CHECK(in_batch_);
     if (!ReadFd(conn_socket_, deadline, exit_code)) {
       FUZZTEST_LOG(ERROR)
           << "Failed to receive the batch response from the persistent "
-             "mode client - disconnecting.";
-      Disconnect();
+             "mode client.";
       return false;
     }
+    in_batch_ = false;
     return true;
   }
+
+  bool in_batch() const { return in_batch_; }
 
   void RequestExit(absl::Time deadline) {
     if (!EnsureConnection(deadline)) return;
@@ -262,8 +274,8 @@ class CentipedeCallbacks::PersistentModeServer {
     // socket at the beginning of the execution, waiting for the connection
     // should be fast if the the runner is able to connect at all. But we
     // need to give enough time for the binary to load and reach the runner
-    // logic (60s should be enough).
-    deadline = std::min(deadline, absl::Now() + absl::Seconds(60));
+    // logic (120s should be enough).
+    deadline = std::min(deadline, absl::Now() + absl::Seconds(120));
     FUZZTEST_CHECK_NE(server_socket_, -1);
     do {
       if (!PollFd(server_socket_, POLLIN, deadline)) {
@@ -288,40 +300,13 @@ class CentipedeCallbacks::PersistentModeServer {
   std::string server_path_;
   int server_socket_ = -1;
   int conn_socket_ = -1;
+  bool in_batch_ = false;
 };
-
-namespace {
-
-// When running a test binary in a subprocess, we don't want these environment
-// variables to be inherited and affect the execution of the tests.
-//
-// See list of environment variables here:
-// https://bazel.build/reference/test-encyclopedia#initial-conditions
-//
-// TODO(fniksic): Add end-to-end tests that make sure we don't observe the
-// effects of these variables in the test binary.
-std::vector<std::string> EnvironmentVariablesToUnset() {
-  return {"TEST_DIAGNOSTICS_OUTPUT_DIR",              //
-          "TEST_INFRASTRUCTURE_FAILURE_FILE",         //
-          "TEST_LOGSPLITTER_OUTPUT_FILE",             //
-          "TEST_PREMATURE_EXIT_FILE",                 //
-          "TEST_RANDOM_SEED",                         //
-          "TEST_RUN_NUMBER",                          //
-          "TEST_SHARD_INDEX",                         //
-          "TEST_SHARD_STATUS_FILE",                   //
-          "TEST_TOTAL_SHARDS",                        //
-          "TEST_UNDECLARED_OUTPUTS_ANNOTATIONS_DIR",  //
-          "TEST_UNDECLARED_OUTPUTS_DIR",              //
-          "TEST_WARNINGS_OUTPUT_FILE",                //
-          "GTEST_OUTPUT",                             //
-          "XML_OUTPUT_FILE"};
-}
-
-}  // namespace
 
 void CentipedeCallbacks::PopulateBinaryInfo(BinaryInfo& binary_info) {
   binary_info.InitializeFromSanCovBinary(
-      env_.coverage_binary, env_.objdump_path, env_.symbolizer_path, temp_dir_);
+      env_.coverage_binary, env_.env_diff_for_binaries, env_.objdump_path,
+      env_.symbolizer_path, temp_dir_);
   // Check the PC table.
   if (binary_info.pc_table.empty()) {
     if (env_.require_pc_table) {
@@ -415,7 +400,8 @@ CentipedeCallbacks::GetOrCreateCommandContextForBinary(
         std::make_unique<CentipedeCallbacks::PersistentModeServer>(
             std::move(server_path));
   }
-  std::vector<std::string> env = {ConstructRunnerFlags(
+  std::vector<std::string> env_diff = env_.env_diff_for_binaries;
+  env_diff.push_back(ConstructRunnerFlags(
       absl::StrCat(":shmem:test=", env_.test_name, ":arg1=",
                    inputs_blobseq_.path(), ":arg2=", outputs_blobseq_.path(),
                    ":failure_description_path=", failure_description_path_,
@@ -425,16 +411,16 @@ CentipedeCallbacks::GetOrCreateCommandContextForBinary(
                        : absl::StrCat(":persistent_mode_socket=",
                                       persistent_mode_server->server_path()),
                    ":"),
-      disable_coverage)};
+      disable_coverage));
 
-  if (env_.clang_coverage_binary == binary)
-    env.emplace_back(
+  if (env_.clang_coverage_binary == binary) {
+    env_diff.push_back(
         absl::StrCat("LLVM_PROFILE_FILE=",
                      WorkDir{env_}.SourceBasedCoverageRawProfilePath()));
+  }
 
   Command::Options cmd_options;
-  cmd_options.env_add = std::move(env);
-  cmd_options.env_remove = EnvironmentVariablesToUnset();
+  cmd_options.env_diff = std::move(env_diff);
   cmd_options.stdout_file_prefix = execute_log_prefix_;
   cmd_options.stderr_file_prefix = execute_log_prefix_;
   cmd_options.temp_file_path = temp_input_file_path_;
@@ -492,9 +478,17 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
       if (!execute_ret) {
         return true;
       }
+    } else {
+      last_execute_log_path_ = cmd.stdout_file();
     }
-    if (command_context.persistent_mode_server != nullptr &&
-        command_context.persistent_mode_server->RunBatch(deadline, exit_code)) {
+    if (command_context.persistent_mode_server != nullptr) {
+      if (!command_context.persistent_mode_server->RequestBatch(deadline)) {
+        return true;
+      }
+      if (!command_context.persistent_mode_server->WaitBatch(deadline,
+                                                             exit_code)) {
+        return true;
+      }
       return false;
     }
     const std::optional<int> ret = cmd.Wait(deadline);
@@ -502,35 +496,44 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
     exit_code = *ret;
     return false;
   }();
-  if (should_clean_up) {
-    exit_code = [&] {
-      if (!cmd.is_executing()) return EXIT_FAILURE;
-      FUZZTEST_LOG(ERROR) << "Cleaning up the batch execution with timeout: "
-                          << env_.runner_cleanup_timeout;
-      cmd.RequestStop();
-      const auto ret = cmd.Wait(absl::Now() + env_.runner_cleanup_timeout);
-      if (ret.has_value()) return *ret;
-      FUZZTEST_LOG(ERROR) << "Failed to wait for the batch execution cleanup.";
-      return EXIT_FAILURE;
-    }();
-    // We need to save any execution log before the destruction of the command.
-    std::error_code ec;
-    std::filesystem::rename(last_execute_log_path_, saved_execute_log_path_,
-                            ec);
-    if (ec) {
-      FUZZTEST_LOG(ERROR) << "Failed to save the execution log "
-                          << last_execute_log_path_ << " to "
-                          << saved_execute_log_path_ << "(" << ec.message()
-                          << "). Left with an empty log ...";
-      (void)std::filesystem::remove(saved_execute_log_path_, ec);
-    };
-    last_execute_log_path_ = saved_execute_log_path_;
-    command_contexts_.erase(
-        std::find_if(command_contexts_.begin(), command_contexts_.end(),
-                     [=](const auto& command_context) {
-                       return command_context->cmd.path() == binary;
-                     }));
+  if (!should_clean_up) return exit_code;
+  FUZZTEST_LOG(ERROR) << "Cleaning up the batch execution with timeout: "
+                      << env_.runner_cleanup_timeout;
+  const auto cleanup_deadline = absl::Now() + env_.runner_cleanup_timeout;
+  if (cmd.is_executing() && command_context.persistent_mode_server != nullptr &&
+      command_context.persistent_mode_server->in_batch()) {
+    // Give a chance for the batch to gracefully stop. If succeeded, we can keep
+    // the Command.
+    cmd.RequestStop();
+    if (command_context.persistent_mode_server->WaitBatch(cleanup_deadline,
+                                                          exit_code)) {
+      return exit_code;
+    }
   }
+  exit_code = [&] {
+    if (!cmd.is_executing()) return EXIT_FAILURE;
+    cmd.RequestStop();
+    const auto ret = cmd.Wait(cleanup_deadline);
+    if (ret.has_value()) return *ret;
+    FUZZTEST_LOG(ERROR) << "Failed to wait for the batch execution cleanup.";
+    return EXIT_FAILURE;
+  }();
+  // We need to save any execution log before the destruction of the command.
+  std::error_code ec;
+  std::filesystem::rename(last_execute_log_path_, saved_execute_log_path_, ec);
+  if (ec) {
+    FUZZTEST_LOG(ERROR) << "Failed to save the execution log "
+                        << last_execute_log_path_ << " to "
+                        << saved_execute_log_path_ << "(" << ec.message()
+                        << "). Left with an empty log ...";
+    (void)std::filesystem::remove(saved_execute_log_path_, ec);
+  }
+  last_execute_log_path_ = saved_execute_log_path_;
+  command_contexts_.erase(
+      std::find_if(command_contexts_.begin(), command_contexts_.end(),
+                   [=](const auto& command_context) {
+                     return command_context->cmd.path() == binary;
+                   }));
   return exit_code;
 }
 
@@ -631,8 +634,9 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
     std::vector<ByteArray>& seeds) {
   const auto output_dir = std::filesystem::path{temp_dir_} / "seed_inputs";
   std::error_code error;
-  FUZZTEST_CHECK(std::filesystem::create_directories(output_dir, error));
-  FUZZTEST_CHECK(!error);
+  std::filesystem::create_directories(output_dir, error);
+  FUZZTEST_CHECK(!error) << "Failed to create seed inputs directory "
+                         << output_dir << ": " << error.message();
 
   std::string centipede_runner_flags = absl::StrCat(
       "CENTIPEDE_RUNNER_FLAGS=:dump_seed_inputs:test=", env_.test_name,
@@ -642,8 +646,8 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
                     "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
   }
   Command::Options cmd_options;
-  cmd_options.env_add = {std::move(centipede_runner_flags)};
-  cmd_options.env_remove = EnvironmentVariablesToUnset();
+  cmd_options.env_diff = env_.env_diff_for_binaries;
+  cmd_options.env_diff.push_back(std::move(centipede_runner_flags));
   cmd_options.stdout_file_prefix = execute_log_prefix_;
   cmd_options.stderr_file_prefix = execute_log_prefix_;
   cmd_options.temp_file_path = temp_input_file_path_;
@@ -707,8 +711,8 @@ bool CentipedeCallbacks::GetSerializedTargetConfigViaExternalBinary(
                     "dl_path_suffix=", env_.runner_dl_path_suffix, ":");
   }
   Command::Options cmd_options;
-  cmd_options.env_add = {std::move(centipede_runner_flags)};
-  cmd_options.env_remove = EnvironmentVariablesToUnset();
+  cmd_options.env_diff = env_.env_diff_for_binaries;
+  cmd_options.env_diff.push_back(std::move(centipede_runner_flags));
   cmd_options.stdout_file_prefix = execute_log_prefix_;
   cmd_options.stderr_file_prefix = execute_log_prefix_;
   cmd_options.temp_file_path = temp_input_file_path_;

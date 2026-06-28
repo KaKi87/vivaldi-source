@@ -17,6 +17,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/pointer/touch_ui_controller.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/compositor/layer.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_utils.h"
@@ -80,7 +81,7 @@ TabCloseButton::TabCloseButton(PressedCallback pressed_callback,
 
   // The ink drop highlight path is the same as the focus ring highlight path,
   // but needs to be explicitly mirrored for RTL.
-  // TODO(http://crbug.com/1056490): Make ink drops in RTL work the same way as
+  // TODO(http://crbug.com/40120351): Make ink drops in RTL work the same way as
   // focus rings.
   auto ink_drop_highlight_path =
       std::make_unique<views::CircleHighlightPathGenerator>(gfx::Insets());
@@ -90,7 +91,7 @@ TabCloseButton::TabCloseButton(PressedCallback pressed_callback,
                                          std::move(ink_drop_highlight_path));
 
   SetInstallFocusRingOnFocus(true);
-  // TODO(http://crbug.com/1056490): Once this bug is solved and explicit
+  // TODO(http://crbug.com/40120351): Once this bug is solved and explicit
   // mirroring for ink drops is not needed, we can combine these two.
   auto ring_highlight_path =
       std::make_unique<views::CircleHighlightPathGenerator>(gfx::Insets());
@@ -212,7 +213,9 @@ bool TabCloseButton::GetHitTestMask(SkPath* mask) const {
   return true;
 }
 void TabCloseButton::UpdateIcon() {
-  const auto& icon = kCloseTabChromeRefreshIcon;
+  const auto& icon = features::IsRoundedIconsEnabled()
+                         ? kCloseWeight500Icon
+                         : kCloseTabChromeRefreshOldIcon;
 
   SetImageModel(views::Button::STATE_NORMAL,
                 ui::ImageModel::FromVectorIcon(

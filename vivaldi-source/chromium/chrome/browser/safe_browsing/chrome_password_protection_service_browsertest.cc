@@ -5,6 +5,7 @@
 
 #include "base/command_line.h"
 #include "base/functional/bind.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
@@ -28,12 +29,15 @@
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/os_crypt/async/browser/os_crypt_async.h"
 #include "components/os_crypt/async/browser/test_utils.h"
+#include "components/os_crypt/async/common/encryptor.h"
 #include "components/password_manager/core/browser/hash_password_manager.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
 #include "components/password_manager/core/browser/password_manager_test_utils.h"
 #include "components/password_manager/core/browser/password_reuse_manager.h"
 #include "components/password_manager/core/browser/password_store/fake_password_store_backend.h"
+#include "components/password_manager/core/browser/password_store/password_form_converters.h"
+#include "components/password_manager/core/browser/password_store/test_password_store.h"
 #include "components/password_manager/core/browser/ui/password_check_referrer.h"
 #include "components/password_manager/core/common/password_manager_pref_names.h"
 #include "components/prefs/pref_service.h"
@@ -93,13 +97,10 @@ PasswordForm CreatePasswordFormWithPhishedEntry(std::string signon_realm,
 
 void AddFormToStore(PasswordStoreInterface* password_store,
                     const PasswordForm& form) {
-  password_store->AddLogin(form);
+  password_store->AddLogin(password_manager::FromPasswordForm(form));
   base::RunLoop().RunUntilIdle();
-  FakePasswordStoreBackend* fake_backend =
-      static_cast<FakePasswordStoreBackend*>(
-          password_store->GetBackendForTesting());
-  ASSERT_THAT(fake_backend->stored_passwords().at(form.signon_realm),
-              ElementsAre(form));
+  auto passwords_map = GetAllLoginsSync(password_store);
+  ASSERT_THAT(passwords_map.at(form.signon_realm), ElementsAre(form));
 }
 
 }  // namespace
@@ -130,10 +131,10 @@ class ChromePasswordProtectionServiceBrowserTest : public InProcessBrowserTest {
 
   void TearDownOnMainThread() override { identity_test_env_adaptor_.reset(); }
 
-  std::optional<os_crypt_async::Encryptor> CreateEncryptor() {
-    std::optional<os_crypt_async::Encryptor> encryptor;
+  scoped_refptr<os_crypt_async::Encryptor> CreateEncryptor() {
+    scoped_refptr<os_crypt_async::Encryptor> encryptor;
     os_crypt_async_->GetInstance(base::BindLambdaForTesting(
-        [&](os_crypt_async::Encryptor new_encryptor) {
+        [&](scoped_refptr<os_crypt_async::Encryptor> new_encryptor) {
           encryptor = std::move(new_encryptor);
         }));
     return encryptor;
@@ -444,13 +445,8 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_EQ(security_state::NONE, GetSecurityLevel(web_contents));
   EXPECT_EQ(security_state::MALICIOUS_CONTENT_STATUS_NONE,
             GetVisibleSecurityState(web_contents)->malicious_content_status);
-  FakePasswordStoreBackend* fake_backend =
-      static_cast<FakePasswordStoreBackend*>(
-          password_store->GetBackendForTesting());
-  EXPECT_TRUE(fake_backend->stored_passwords()
-                  .at(kSignonRealm)
-                  .at(0)
-                  .password_issues.empty());
+  auto passwords_map = GetAllLoginsSync(password_store.get());
+  EXPECT_TRUE(passwords_map.at(kSignonRealm).at(0).password_issues.empty());
 }
 #endif
 
@@ -854,7 +850,7 @@ IN_PROC_BROWSER_TEST_F(ChromePasswordProtectionServiceBrowserTest,
   auto encryptor = CreateEncryptor();
   ASSERT_TRUE(encryptor);
   password_manager::HashPasswordManager hash_password_manager(
-      std::move(*encryptor));
+      std::move(encryptor));
   hash_password_manager.set_prefs(profile->GetPrefs());
   EXPECT_FALSE(hash_password_manager.HasPasswordHash(
       user_manager::kStubUserEmail, /*is_gaia_password=*/true));
@@ -900,7 +896,7 @@ IN_PROC_BROWSER_TEST_F(ChromePasswordProtectionServiceBrowserTest,
   auto encryptor = CreateEncryptor();
   ASSERT_TRUE(encryptor);
   password_manager::HashPasswordManager hash_password_manager(
-      std::move(*encryptor));
+      std::move(encryptor));
   hash_password_manager.set_prefs(profile->GetPrefs());
   hash_password_manager.set_local_prefs(g_browser_process->local_state());
   EXPECT_FALSE(hash_password_manager.HasPasswordHash(

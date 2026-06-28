@@ -22,12 +22,10 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.tab_ui.TabModelDotInfo;
 import org.chromium.chrome.browser.theme.ThemeUtils;
 import org.chromium.chrome.browser.toolbar.R;
-import org.chromium.chrome.browser.toolbar.TabSwitcherDrawable;
-import org.chromium.chrome.browser.toolbar.TabSwitcherDrawable.TabSwitcherDrawableLocation;
+import org.chromium.chrome.browser.ui.android.bars_common.TabSwitcherDrawable;
+import org.chromium.chrome.browser.ui.android.bars_common.TabSwitcherDrawable.TabSwitcherDrawableLocation;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.ui.listmenu.ListMenuButton;
-
-import org.chromium.build.BuildConfig;
 
 /**
  * A button displaying the number of open tabs. Clicking the button toggles the tab switcher view.
@@ -47,17 +45,11 @@ public class ToggleTabStackButton extends ListMenuButton implements TabSwitcherD
     public void onFinishInflate() {
         super.onFinishInflate();
 
-        if (BuildConfig.IS_VIVALDI) {
-            mTabSwitcherButtonDrawable =
-                    TabSwitcherDrawable.createTabSwitcherDrawable(getContext());
-        } else {
         mTabSwitcherButtonDrawable =
                 TabSwitcherDrawable.createTabSwitcherDrawable(
                         getContext(),
                         BrandedColorScheme.APP_DEFAULT,
                         TabSwitcherDrawableLocation.TAB_TOOLBAR);
-        } // Vivaldi
-
         setImageDrawable(mTabSwitcherButtonDrawable);
         mTabSwitcherButtonDrawable.addTabSwitcherDrawableObserver(this);
     }

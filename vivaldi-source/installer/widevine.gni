@@ -1,4 +1,3 @@
-
 assert(is_win || is_mac)
 
 import("//build/config/python.gni")
@@ -36,12 +35,10 @@ template("widevine_sign") {
       widevine_signing_cert,
     ]
     if (!is_full_signer) {
-      inputs += [file]
+      inputs += [ file ]
     }
 
-    outputs = [
-      signature_file,
-    ]
+    outputs = [ signature_file ]
 
     args = [
       "--input",
@@ -56,7 +53,8 @@ template("widevine_sign") {
 
     if (defined(flags) && flags != 0) {
       args += [
-        "--flags", "1",
+        "--flags",
+        "1",
       ]
     }
   }
@@ -76,14 +74,12 @@ template("widevine_sign") {
       signature_file = "$file.sig"
     }
 
-    inputs = [
-      signature_file,
-    ]
+    inputs = [ signature_file ]
     if (!is_full_signer) {
-      inputs += [file]
+      inputs += [ file ]
     }
 
-    outputs = [ "${target_gen_dir}/${verify_target_name}.stamp"]
+    outputs = [ "${target_gen_dir}/${verify_target_name}.stamp" ]
 
     args = [
       "--input",
@@ -95,11 +91,12 @@ template("widevine_sign") {
 
     if (defined(flags) && flags != 0) {
       args += [
-        "--flags", "1",
+        "--flags",
+        "1",
       ]
     }
 
-    if(!defined(deps)) {
+    if (!defined(deps)) {
       deps = []
     }
     deps += [ ":${signing_target_name}" ]

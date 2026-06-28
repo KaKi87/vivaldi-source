@@ -17,6 +17,7 @@
   "minidump_stackwalk": {},
   "minidump_dump": {},
   "Vivaldi.dSYM.tar.bz2": { "versioned": true },
+  "policy_templates.zip": { "versioned": true },
   "background-bundle.js.map": { "versioned": true },
   "bundle.js.map": { "versioned": true },
   "inject-root-bundle.js.map": { "versioned": true },

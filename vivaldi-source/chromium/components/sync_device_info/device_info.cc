@@ -7,6 +7,8 @@
 #include <optional>
 #include <utility>
 
+#include "base/memory/ptr_util.h"
+
 namespace syncer {
 
 bool DeviceInfo::SharingTargetInfo::operator==(
@@ -81,8 +83,12 @@ DeviceInfo::DeviceInfo(
     std::optional<base::Time> auto_sign_out_last_signin_timestamp,
     bool desktop_to_ios_promo_receiving_enabled,
     const MobilePromoOnDesktopPromoTypeSet&
-        desktop_to_ios_promo_receiving_types)
-    : guid_(guid),
+        desktop_to_ios_promo_receiving_types //,
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    GlicExperimentalTriggeringState glic_experimental_triggering_state,
+    std::optional<int> glic_experimental_triggering_version
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    ) : guid_(guid),
       client_name_(client_name),
       chrome_version_(chrome_version),
       sync_user_agent_(sync_user_agent),
@@ -105,9 +111,21 @@ DeviceInfo::DeviceInfo(
       desktop_to_ios_promo_receiving_enabled_(
           desktop_to_ios_promo_receiving_enabled),
       desktop_to_ios_promo_receiving_types_(
-          desktop_to_ios_promo_receiving_types) {}
+          desktop_to_ios_promo_receiving_types) //,
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+      glic_experimental_triggering_state_(glic_experimental_triggering_state),
+      glic_experimental_triggering_version_(
+          glic_experimental_triggering_version) {}
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+      {}
+
+DeviceInfo::DeviceInfo(const DeviceInfo& other) = default;
 
 DeviceInfo::~DeviceInfo() = default;
+
+std::unique_ptr<DeviceInfo> DeviceInfo::DeepCopyForTesting() const {
+  return base::WrapUnique(new DeviceInfo(*this));
+}
 
 const std::string& DeviceInfo::guid() const {
   return guid_;
@@ -183,6 +201,17 @@ DeviceInfo::desktop_to_ios_promo_receiving_types() const {
   return desktop_to_ios_promo_receiving_types_;
 }
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+DeviceInfo::GlicExperimentalTriggeringState
+DeviceInfo::glic_experimental_triggering_state() const {
+  return glic_experimental_triggering_state_;
+}
+
+std::optional<int> DeviceInfo::glic_experimental_triggering_version() const {
+  return glic_experimental_triggering_version_;
+}
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
 const std::optional<DeviceInfo::SharingInfo>& DeviceInfo::sharing_info() const {
   return sharing_info_;
 }
@@ -231,6 +260,18 @@ void DeviceInfo::set_desktop_to_ios_promo_receiving_types(
     const MobilePromoOnDesktopPromoTypeSet& new_types) {
   desktop_to_ios_promo_receiving_types_ = new_types;
 }
+
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+void DeviceInfo::set_glic_experimental_triggering_state(
+    GlicExperimentalTriggeringState state) {
+  glic_experimental_triggering_state_ = state;
+}
+
+void DeviceInfo::set_glic_experimental_triggering_version(
+    std::optional<int> version) {
+  glic_experimental_triggering_version_ = version;
+}
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 void DeviceInfo::set_sharing_info(
     const std::optional<SharingInfo>& sharing_info) {

@@ -8,17 +8,14 @@
 #include "base/feature_list.h"
 #include "base/notimplemented.h"
 #include "build/buildflag.h"
+#include "chrome/browser/enterprise/util/affiliation.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/webauthn/webauthn_pref_names.h"
 #include "chrome/browser/webauthn/webauthn_switches.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
+#include "components/webapps/isolated_web_apps/scheme.h"
 #include "device/fido/public/features.h"
-
-#if BUILDFLAG(IS_CHROMEOS)
-#include "components/user_manager/user.h"
-#include "components/user_manager/user_manager.h"
-#endif
 
 namespace {
 
@@ -67,19 +64,11 @@ bool IsGoogleCorpCrdOrigin(content::BrowserContext* browser_context,
 bool RemoteDesktopClientOverrideAllowedByPolicy(
     content::BrowserContext* browser_context,
     const url::Origin& caller_origin) {
-  const Profile* profile = Profile::FromBrowserContext(browser_context);
+  Profile* profile = Profile::FromBrowserContext(browser_context);
 
-#if BUILDFLAG(IS_CHROMEOS)
-  const user_manager::User* user =
-      user_manager::UserManager::Get()->GetActiveUser();
-  if (!user || !user->IsAffiliated()) {
-    // On ChromeOS, if the user is not affiliated with the device's
-    // managing organization, the origin isn't allowed to use the
-    // remoteDesktopClientOverride.
+  if (!enterprise_util::IsProfileAffiliated(profile)) {
     return false;
   }
-#endif
-
   const PrefService* prefs = profile->GetPrefs();
   const base::ListValue& allowed_origins =
       prefs->GetList(webauthn::pref_names::kRemoteDesktopAllowedOrigins);
@@ -109,6 +98,14 @@ bool ChromeWebAuthenticationDelegateBase::
     OriginMayUseRemoteDesktopClientOverride(
         content::BrowserContext* browser_context,
         const url::Origin& caller_origin) {
+  // Isolated Web Apps may be configured to use the
+  // remoteDesktopClientOverride extension only if the feature flag is
+  // enabled.
+  if (caller_origin.scheme() == webapps::kIsolatedAppScheme &&
+      !base::FeatureList::IsEnabled(
+          device::kWebAuthnIWARemoteDesktopAllowedOriginsPolicy)) {
+    return false;
+  }
   // Allow an origin access to the RemoteDesktopClientOverride extension and
   // make WebAuthn requests on behalf of other origins, if a any of the
   // following are true:

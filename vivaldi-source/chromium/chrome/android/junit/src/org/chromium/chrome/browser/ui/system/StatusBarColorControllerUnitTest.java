@@ -34,21 +34,23 @@ import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.RobolectricUtil;
-import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ActivityTabProvider;
+import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.layouts.LayoutManager;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.ntp.NewTabPage;
 import org.chromium.chrome.browser.ntp_customization.NtpCustomizationConfigManager;
 import org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType;
-import org.chromium.chrome.browser.ntp_customization.theme.chrome_colors.NtpThemeColorInfo;
 import org.chromium.chrome.browser.ntp_customization.theme.chrome_colors.NtpThemeColorInfo.NtpThemeColorId;
 import org.chromium.chrome.browser.ntp_customization.theme.chrome_colors.NtpThemeColorUtils;
+import org.chromium.chrome.browser.ntp_customization.theme_sync.data.NtpBackgroundDataBase;
+import org.chromium.chrome.browser.ntp_customization.theme_sync.data.NtpBackgroundDataColor;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiThemeUtil;
 import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 import org.chromium.chrome.browser.ui.desktop_windowing.AppHeaderUtils;
 import org.chromium.chrome.browser.ui.system.StatusBarColorController.StatusBarColorProvider;
+import org.chromium.chrome.browser.ui.theme.ChromeSemanticColorUtils;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
 import org.chromium.ui.base.TestActivity;
 import org.chromium.ui.edge_to_edge.EdgeToEdgeSystemBarColorHelper;
@@ -68,6 +70,7 @@ public class StatusBarColorControllerUnitTest {
     @Mock private TopUiThemeColorProvider mTopUiThemeColorProvider;
     @Mock private EdgeToEdgeSystemBarColorHelper mSystemBarColorHelper;
     @Mock private DesktopWindowStateManager mDesktopWindowStateManager;
+    @Mock private BrowserControlsStateProvider mBrowserControlsStateProvider;
     @Mock private Tab mNtpTab;
     @Mock private NewTabPage mNewTabPage;
 
@@ -230,20 +233,24 @@ public class StatusBarColorControllerUnitTest {
     @Test
     public void testBackgroundColorForNtp() {
         @ColorInt
-        int defaultNtpBackground = mActivity.getColor(R.color.home_surface_background_color);
-        NtpThemeColorInfo colorInfo =
-                NtpThemeColorUtils.createNtpThemeColorInfo(
-                        mActivity, NtpThemeColorId.NTP_COLORS_AQUA);
+        int defaultNtpBackground =
+                ChromeSemanticColorUtils.getHomeSurfaceBackgroundColor(mActivity);
+        NtpBackgroundDataColor dataColor =
+                new NtpBackgroundDataColor(
+                        NtpBackgroundDataBase.PlatformType.ANDROID_LOCAL,
+                        /* isChromeColorDailyRefreshEnabled= */ false,
+                        NtpThemeColorUtils.createNtpThemeColorInfo(
+                                mActivity, NtpThemeColorId.NTP_COLORS_AQUA));
         @ColorInt
         int currentNtpBackground =
-                NtpThemeColorUtils.getBackgroundColorFromColorInfo(mActivity, colorInfo);
+                NtpThemeColorUtils.getBackgroundColorFromNtpBackgroundData(mActivity, dataColor);
 
         NtpCustomizationConfigManager ntpCustomizationConfigManager =
                 new NtpCustomizationConfigManager();
         NtpCustomizationConfigManager.setInstanceForTesting(ntpCustomizationConfigManager);
 
         ntpCustomizationConfigManager.setBackgroundTypeForTesting(NtpBackgroundType.CHROME_COLOR);
-        ntpCustomizationConfigManager.setNtpThemeColorInfoForTesting(colorInfo);
+        ntpCustomizationConfigManager.setNtpBackgroundDataForTesting(dataColor);
 
         // Verifies when customized NTP background isn't supported, the status bar color is set to
         // the default NTP background color.
@@ -274,7 +281,8 @@ public class StatusBarColorControllerUnitTest {
                 /* isInDesktopWindow= */ false,
                 /* supportEdgeToEdge= */ true);
         @ColorInt
-        int defaultNtpBackground = mActivity.getColor(R.color.home_surface_background_color);
+        int defaultNtpBackground =
+                ChromeSemanticColorUtils.getHomeSurfaceBackgroundColor(mActivity);
         assertEquals(
                 defaultNtpBackground,
                 mStatusBarColorController.getBackgroundColorForNtpForTesting());
@@ -293,7 +301,8 @@ public class StatusBarColorControllerUnitTest {
                 /* isInDesktopWindow= */ false,
                 /* supportEdgeToEdge= */ true);
         @ColorInt
-        int defaultNtpBackground = mActivity.getColor(R.color.home_surface_background_color);
+        int defaultNtpBackground =
+                ChromeSemanticColorUtils.getHomeSurfaceBackgroundColor(mActivity);
         assertEquals(
                 defaultNtpBackground,
                 mStatusBarColorController.getBackgroundColorForNtpForTesting());
@@ -344,7 +353,8 @@ public class StatusBarColorControllerUnitTest {
                         mTopUiThemeColorProvider,
                         mSystemBarColorHelper,
                         mDesktopWindowStateManager,
-                        mOverviewColorSupplier);
+                        mOverviewColorSupplier,
+                        mBrowserControlsStateProvider);
         mStatusBarColorController.maybeInitializeForCustomizedNtp(mActivity, supportEdgeToEdge);
         RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();
     }

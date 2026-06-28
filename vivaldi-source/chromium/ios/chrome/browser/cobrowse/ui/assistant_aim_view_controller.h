@@ -8,7 +8,9 @@
 #import <UIKit/UIKit.h>
 
 #import "ios/chrome/browser/cobrowse/ui/assistant_aim_consumer.h"
+#import "ios/chrome/browser/shared/ui/util/ui_view_controller_with_display_tracing.h"
 
+@protocol AssistantAIMMutator;
 @class AssistantAIMViewController;
 @class ComposeboxInputPlateViewController;
 
@@ -32,12 +34,20 @@
 - (void)assistantAIMViewControllerDidRequestEndEditing:
     (AssistantAIMViewController*)viewController;
 
+// Called when the trait collection changes (e.g., orientation change).
+- (void)assistantAIMViewControllerDidChangeTraits:
+    (AssistantAIMViewController*)viewController;
+
 @end
 
-@interface AssistantAIMViewController : UIViewController <AssistantAIMConsumer>
+@interface AssistantAIMViewController
+    : UIViewControllerWithDisplayTracing <AssistantAIMConsumer>
 
 // The delegate for this view controller.
 @property(nonatomic, weak) id<AssistantAIMViewControllerDelegate> delegate;
+
+// The mutator for this view controller.
+@property(nonatomic, weak) id<AssistantAIMMutator> mutator;
 
 // Adds the input view controller to this ViewController.
 - (void)addInputViewController:
@@ -45,6 +55,12 @@
 
 // Adjusts the UI based on the percentage open of the container.
 - (void)adjustForContainerOpenPercentage:(CGFloat)percentage;
+
+// Returns YES if the scroll view should be paused for the given gesture,
+// transitioning tracking priority to the container.
+- (BOOL)shouldPauseScrollView:(UIScrollView*)scrollView
+                   forGesture:(UIGestureRecognizer*)gesture
+            isInLargestDetent:(BOOL)isInLargestDetent;
 
 @end
 

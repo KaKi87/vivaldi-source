@@ -61,7 +61,6 @@ import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabHidingType;
 import org.chromium.chrome.browser.tab.TabId;
-import org.chromium.chrome.browser.tab.TabLoadIfNeededCaller;
 import org.chromium.chrome.browser.tab.TabSelectionType;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
@@ -444,7 +443,7 @@ public class HubLayout extends Layout implements HubLayoutController, AppHeaderO
             assumeNonNull(mTabModelSelector);
             Tab currentTab = mTabModelSelector.getCurrentTab();
             if (currentTab != null && currentTab.isHidden()) {
-                currentTab.show(TabSelectionType.FROM_USER, TabLoadIfNeededCaller.SET_TAB);
+                currentTab.show(TabSelectionType.FROM_USER);
             }
 
             int tabId = mTabModelSelector.getCurrentTabId();
@@ -587,7 +586,8 @@ public class HubLayout extends Layout implements HubLayoutController, AppHeaderO
                         animationDataSupplier,
                         backgroundColor,
                         HUB_LAYOUT_EXPAND_NEW_TAB_DURATION_MS,
-                        mOnToolbarAlphaChange);
+                        mOnToolbarAlphaChange,
+                        newIsIncognito);
 
         // TODO(crbug.com/40285429): Supply this from HubController so it can look like the
         // animation originated from wherever on the Hub was clicked. This defaults to the top
@@ -779,7 +779,7 @@ public class HubLayout extends Layout implements HubLayoutController, AppHeaderO
             finalRect.offset(0, -searchBoxHeight);
             finalRect.bottom += searchBoxHeight;
         }
-        // Ignore edge offset and just ensure the width is correct. See crbug.com/1502437.
+        // Ignore edge offset and just ensure the width is correct. See crbug.com/40942799.
         finalRect.offset(-finalRect.left, -containerViewRect.top);
     }
 
@@ -909,12 +909,14 @@ public class HubLayout extends Layout implements HubLayoutController, AppHeaderO
     }
 
     /**
-     * @return The y-offset for the container view that may be impacted by the status indicator and
-     *     app header heights.
+     * Returns the y-offset for the container view that may be impacted by the status indicator and
+     * app header heights.
      */
     private float getContainerYOffset() {
-        var params = (FrameLayout.LayoutParams) mHubController.getContainerView().getLayoutParams();
-        return params.topMargin;
+        var params =
+                (FrameLayout.LayoutParams)
+                        mHubController.getContainerViewUnchecked().getLayoutParams();
+        return params == null ? 0 : params.topMargin;
     }
 
     /**
@@ -938,7 +940,7 @@ public class HubLayout extends Layout implements HubLayoutController, AppHeaderO
         if (isActive()) {
             PostTask.postTask(
                     TaskTraits.UI_DEFAULT,
-                    () -> mHubController.getContainerView().setY(getContainerYOffset()));
+                    () -> mHubController.getContainerViewUnchecked().setY(getContainerYOffset()));
         }
     }
 

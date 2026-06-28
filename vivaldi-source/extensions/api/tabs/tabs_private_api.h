@@ -131,6 +131,7 @@ class VivaldiGuestViewContentObserver
 
   void SaveZoomLevelToExtData(double zoom_level);
   void SetZoomLevelForTab(double new_level, double old_level);
+  void SetTemporaryZoomLevelForTab();
 
   void UpdateAllowTabCycleIntoUI();
   void OnPrefsChanged(const std::string& path);
@@ -138,8 +139,8 @@ class VivaldiGuestViewContentObserver
   // We want to communicate changes in some prefs to the renderer right away.
   PrefChangeRegistrar prefs_registrar_;
 
-  // Set to true when we are calling HostZoomMapImpl::SetTemporaryZoomLevel
-  // to prevent infinite recursion in observer notification calls
+  // VB-129419 Set while a corrective HostZoomMapImpl::SetTemporaryZoomLevel
+  // call is pending or notifying observers, to prevent recursive updates.
   bool called_host_zoom_ = false;
 
   // Show images for all pages loaded in this tab. Default is true.
@@ -543,7 +544,7 @@ class TabsPrivateMoveFunction : public ExtensionFunction {
 
  private:
   ResponseAction Run() override;
-  ResponseAction ErrorMoveResponse(const std::string& message, bool log = true);
+  ResponseAction ErrorMoveResponse(const std::string& message);
   bool MoveTab(int tab_id,
                int new_index,
                const std::optional<int>& window_id,
@@ -577,15 +578,15 @@ class TabsPrivateUnstackFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
-class TabsPrivateSetExtDataFunction : public ExtensionFunction {
+class TabsPrivateSetGroupPropertiesFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("tabsPrivate.setExtData",
-                             TABSPRIVATE_SET_GROUP_PROPERTY)
+  DECLARE_EXTENSION_FUNCTION("tabsPrivate.setGroupProperties",
+                             TABSPRIVATE_SET_GROUP_PROPERTIES)
 
-  TabsPrivateSetExtDataFunction() = default;
+  TabsPrivateSetGroupPropertiesFunction() = default;
 
  protected:
-  ~TabsPrivateSetExtDataFunction() override = default;
+  ~TabsPrivateSetGroupPropertiesFunction() override = default;
 
  private:
   ResponseAction Run() override;

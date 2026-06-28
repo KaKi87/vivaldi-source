@@ -7,6 +7,7 @@
 #include "base/command_line.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
+#include "base/memory_coordinator/utils.h"
 #include "base/notimplemented.h"
 #include "base/task/sequenced_task_runner.h"
 #include "build/build_config.h"
@@ -25,7 +26,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
-#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_switches.h"
 #include "components/prefs/pref_service.h"
@@ -44,6 +45,7 @@ bool g_prewarming_enabled_for_testing_ = true;
 std::optional<Profile*> g_forced_profile_for_launch_;
 std::optional<net::NetworkChangeNotifier::ConnectionType>
     g_forced_connection_type_;
+
 }  // namespace
 
 namespace glic {
@@ -64,17 +66,9 @@ void AutoOpenGlicPanel() {
   mojom::InvocationSource pretend_source = mojom::InvocationSource::kOsButton;
   if (base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
           ::switches::kGlicOpenOnStartup) == "attached") {
-    // Attachment is best effort; FindLastActiveWithProfile() may return null
-    // here.
-    GlobalBrowserCollection::GetInstance()->ForEach(
-        [&](BrowserWindowInterface* bwi) {
-          if (bwi->GetProfile() == profile) {
-            last_active = bwi;
-            return false;
-          }
-          return true;
-        },
-        BrowserCollection::Order::kActivation);
+    // Attachment is best effort; GetLastActiveBrowser() may return null here.
+    last_active = ProfileBrowserCollection::GetForProfile(profile)
+                      ->GetLastActiveBrowser();
     pretend_source = mojom::InvocationSource::kTopChromeButton;
   }
   GlicKeyedServiceFactory::GetGlicKeyedService(profile)->ToggleUI(
@@ -88,10 +82,12 @@ GlicProfileManager* GlicProfileManager::GetInstance() {
 }
 
 GlicProfileManager::GlicProfileManager()
-    : memory_pressure_listener_registration_(
-          FROM_HERE,
-          base::MemoryPressureListenerTag::kGlicProfileManager,
-          this) {
+    : memory_consumer_registration_(
+          /*consumer_name=*/kMemoryConsumerName,
+          /*traits=*/std::nullopt,  // TODO(crbug.com/489671163): Fill traits.
+          this,
+          base::MemoryConsumerRegistration::CheckUnregister::kDisabled,
+          base::MemoryConsumerRegistration::CheckRegistryExists::kDisabled) {
   ProfileManager* profile_manager = g_browser_process->profile_manager();
   if (profile_manager) {
     profile_manager->AddObserver(this);
@@ -108,17 +104,13 @@ Profile* GlicProfileManager::GetProfileForLaunch() const {
     return *g_forced_profile_for_launch_;
   }
 
-  // If the glic window is currently showing detached use that profile. When
-  // GlicMultiInstance is enabled, this profile is the one where a detached
-  // instance was most recently used.
-  if (!GlicEnabling::IsMultiInstanceEnabled() && last_active_glic_ &&
-      last_active_glic_->IsWindowDetached()) {
-    return last_active_glic_->profile();
-  } else if (GlicEnabling::IsMultiInstanceEnabled() && current_detached_glic_) {
+  // If the glic window is currently showing detached use that profile. This
+  // profile is the one where a detached instance was most recently used.
+  if (current_detached_glic_) {
     return current_detached_glic_->profile();
   }
 
-  // Look for a profile to based on most recently used browser windows
+  // Look for a profile to use based on most recently used browser windows
   Profile* profile_from_browser_window = nullptr;
   ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
       [&](BrowserWindowInterface* browser) {
@@ -149,24 +141,6 @@ Profile* GlicProfileManager::GetProfileForLaunch() const {
   return nullptr;
 }
 
-void GlicProfileManager::SetActiveGlic(GlicKeyedService* glic) {
-  if (last_active_glic_ && last_active_glic_.get() != glic &&
-      last_active_glic_->IsWindowShowing()) {
-    // This is only relevant to single-instance glic, as IsWindowShowing remains
-    // unimplemented in multi-instance.
-    last_active_glic_->instance_coordinator().Close({});
-  }
-  Profile* last_active_glic_profile = nullptr;
-  if (glic) {
-    last_active_glic_ = glic->GetWeakPtr();
-    last_active_glic_profile = last_active_glic_->profile();
-  } else {
-    last_active_glic_.reset();
-  }
-  observers_.Notify(&Observer::OnLastActiveGlicProfileChanged,
-                    last_active_glic_profile);
-}
-
 void GlicProfileManager::SetCurrentDetachedGlic(Profile* profile) {
   if (!profile) {
     current_detached_glic_.reset();
@@ -176,12 +150,6 @@ void GlicProfileManager::SetCurrentDetachedGlic(Profile* profile) {
     current_detached_glic_->instance_coordinator().Close({});
   }
   current_detached_glic_ = GlicKeyedService::Get(profile)->GetWeakPtr();
-}
-
-void GlicProfileManager::OnServiceShutdown(GlicKeyedService* glic) {
-  if (last_active_glic_ && last_active_glic_.get() == glic) {
-    SetActiveGlic(nullptr);
-  }
 }
 
 void GlicProfileManager::Shutdown() {
@@ -215,13 +183,16 @@ void GlicProfileManager::ShouldPreloadForProfile(
     case mojom::ProfileReadyState::kDisabledByAdmin:
       result = GlicPrewarmingChecksResult::kProfileDisallowedByAdmin;
       break;
+    case mojom::ProfileReadyState::kLocationMismatch:
+      result = GlicPrewarmingChecksResult::kProfileNotEligibleLocationMismatch;
+      break;
+    case mojom::ProfileReadyState::kIneligibleAccount:
+      result =
+          GlicPrewarmingChecksResult::kProfileNotEligibleAccountCapabilities;
+      break;
   }
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), result));
-}
-
-GlicKeyedService* GlicProfileManager::GetLastActiveGlic() const {
-  return last_active_glic_.get();
 }
 
 void GlicProfileManager::MaybeAutoOpenGlicPanel() {
@@ -242,8 +213,8 @@ void GlicProfileManager::ShowProfilePicker() {
   base::OnceCallback<void(Profile*)> callback = base::BindOnce(
       &GlicProfileManager::DidSelectProfile, weak_ptr_factory_.GetWeakPtr());
   // If the panel is not closed it will be on top of the profile picker.
-  if (last_active_glic_) {
-    last_active_glic_->instance_coordinator().Close({});
+  if (current_detached_glic_) {
+    current_detached_glic_->instance_coordinator().Close({});
   }
 
   // TODO(crbug.com/450679848): Profile Picker doesn't make sense on ChromeOS.
@@ -264,49 +235,10 @@ void GlicProfileManager::DidSelectProfile(Profile* profile) {
   GlicKeyedService* service =
       GlicKeyedServiceFactory::GetGlicKeyedService(profile);
 
-  if (!GlicEnabling::HasConsentedForProfile(profile) &&
-      !GlicEnabling::IsTrustFirstOnboardingEnabledForProfile(profile)) {
-#if !BUILDFLAG(IS_ANDROID)
-    // Open a browser and show the FRE in a new tab.
-    chrome::ScopedTabbedBrowserDisplayer displayer(profile);
-    service->OpenFreDialogInNewTab(displayer.browser(),
-                                   mojom::InvocationSource::kProfilePicker);
-#else
-    NOTIMPLEMENTED() << "OpenFreDialogInNewTab";
-#endif
-  } else if (GlicEnabling::IsTrustFirstOnboardingEnabledForProfile(profile)) {
-#if !BUILDFLAG(IS_ANDROID)
-    // Open a browser and show the FRE in a new tab.
-    chrome::ScopedTabbedBrowserDisplayer displayer(profile);
-    Browser* browser = displayer.browser();
-    chrome::AddAndReturnTabAt(browser, GURL(), /*index=*/-1,
-                              /*foreground=*/true);
-    service->ToggleUI(browser, /*prevent_close=*/true,
-                      mojom::InvocationSource::kProfilePicker);
-#else
-    NOTIMPLEMENTED() << "ToggleUIOnNewTab";
-#endif
-  } else {
-    // Toggle glic but prevent close if it is already open for the selected
-    // profile.
-    service->ToggleUI(nullptr, /*prevent_close=*/true,
-                      mojom::InvocationSource::kProfilePicker);
-  }
-}
-
-void GlicProfileManager::AddObserver(Observer* observer) {
-  observers_.AddObserver(observer);
-}
-
-void GlicProfileManager::RemoveObserver(Observer* observer) {
-  observers_.RemoveObserver(observer);
-}
-
-bool GlicProfileManager::IsShowing() const {
-  if (!last_active_glic_) {
-    return false;
-  }
-  return last_active_glic_->IsWindowOrFreShowing();
+  // Toggle glic but prevent close if it is already open for the selected
+  // profile.
+  service->ToggleUI(nullptr, /*prevent_close=*/true,
+                    mojom::InvocationSource::kProfilePicker);
 }
 
 void GlicProfileManager::OnProfileAdded(Profile* profile) {
@@ -337,8 +269,6 @@ void GlicProfileManager::OnProfileWillBeDestroyed(Profile* profile) {
   profile_observations_.RemoveObservation(profile);
 }
 
-void GlicProfileManager::OnMemoryPressure(base::MemoryPressureLevel level) {}
-
 // static
 void GlicProfileManager::SetPrewarmingEnabledForTesting(bool enabled) {
   g_prewarming_enabled_for_testing_ = enabled;
@@ -357,7 +287,7 @@ void GlicProfileManager::ForceConnectionTypeForTesting(
 }
 
 bool GlicProfileManager::IsUnderMemoryPressure() const {
-  return memory_pressure_level() == base::MEMORY_PRESSURE_LEVEL_CRITICAL;
+  return memory_limit() <= base::kCriticalMemoryPressureThreshold;
 }
 
 void GlicProfileManager::CanPreloadForProfile(Profile* profile,
@@ -388,10 +318,6 @@ void GlicProfileManager::CanPreloadForProfile(Profile* profile,
 
   if (!profile->GetPrefs()->GetBoolean(prefs::kGlicPinnedToTabstrip)) {
     return produce_result(GlicPrewarmingChecksResult::kNotPinnedToTabstrip);
-  }
-
-  if (last_active_glic_ && last_active_glic_->profile() == profile) {
-    return produce_result(GlicPrewarmingChecksResult::kProfileIsLastActive);
   }
 
   if (IsUnderMemoryPressure()) {

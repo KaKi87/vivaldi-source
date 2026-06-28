@@ -208,6 +208,12 @@ SPECIAL_CASES = {
           "/../ios/reader_mode/resources/LICENSE",
         ],
     },
+    join('..', 'thirdparty', 'brave'): {
+        "Name": "Brave Query Filter, Debounce and URL Sanitizer",
+        "URL": "https://github.com/brave/brave-core",
+        "License": "MIT",
+        "License File": ["/../thirdparty/brave/license.txt"],
+    },
 }
 
 ADDITIONAL_PATHS = tuple(SPECIAL_CASES.keys())

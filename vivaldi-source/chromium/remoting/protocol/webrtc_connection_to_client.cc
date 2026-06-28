@@ -13,8 +13,8 @@
 #include "base/task/single_thread_task_runner.h"
 #include "components/webrtc/thread_wrapper.h"
 #include "net/base/io_buffer.h"
+#include "remoting/base/fifo_buffer.h"
 #include "remoting/base/logging.h"
-#include "remoting/codec/video_encoder.h"
 #include "remoting/codec/webrtc_video_encoder_vpx.h"
 #include "remoting/protocol/audio_source.h"
 #include "remoting/protocol/audio_stream.h"
@@ -27,6 +27,8 @@
 #include "remoting/protocol/input_stub.h"
 #include "remoting/protocol/message_pipe.h"
 #include "remoting/protocol/transport_context.h"
+#include "remoting/protocol/webrtc_audio_fifo_sink_adapter.h"
+#include "remoting/protocol/webrtc_audio_module.h"
 #include "remoting/protocol/webrtc_audio_stream.h"
 #include "remoting/protocol/webrtc_transport.h"
 #include "remoting/protocol/webrtc_video_encoder_factory.h"
@@ -62,6 +64,9 @@ WebrtcConnectionToClient::WebrtcConnectionToClient(
   transport_ = std::make_unique<WebrtcTransport>(
       webrtc::ThreadWrapper::current(), transport_context,
       std::move(video_encoder_factory), this);
+  if (audio_task_runner_) {
+    transport_->audio_module()->SetAudioTaskRunner(audio_task_runner_);
+  }
   session_->SetEventHandler(this);
   session_->SetTransport(transport_.get());
 }
@@ -115,6 +120,19 @@ std::unique_ptr<AudioStream> WebrtcConnectionToClient::StartAudioStream(
   std::unique_ptr<WebrtcAudioStream> stream(new WebrtcAudioStream());
   stream->Start(audio_task_runner_, std::move(audio_source), transport_.get());
   return std::move(stream);
+}
+
+void WebrtcConnectionToClient::SetAudioWriter(
+    std::unique_ptr<FifoBufferWriter> writer) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+
+  audio_fifo_sink_adapter_ = std::make_unique<WebrtcAudioFifoSinkAdapter>(
+      std::move(writer),
+      base::BindRepeating(
+          &WebrtcConnectionToClient::OnIncomingAudioFormatChanged,
+          weak_factory_.GetWeakPtr()));
+
+  BindAudioFifoSinkAdapter();
 }
 
 // Return pointer to ClientStub.
@@ -264,12 +282,61 @@ void WebrtcConnectionToClient::OnWebrtcTransportIncomingDataChannel(
 void WebrtcConnectionToClient::OnWebrtcTransportMediaStreamAdded(
     webrtc::scoped_refptr<webrtc::MediaStreamInterface> stream) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-  LOG(WARNING) << "The client created an unexpected media stream.";
+
+  if (stream->GetAudioTracks().empty()) {
+    LOG(WARNING) << "The client created an unexpected media stream.";
+    return;
+  }
+
+  if (incoming_audio_stream_) {
+    LOG(ERROR) << "Multiple audio streams received. Only one is supported.";
+    return;
+  }
+
+  incoming_audio_stream_ = stream;
+  BindAudioFifoSinkAdapter();
 }
 
 void WebrtcConnectionToClient::OnWebrtcTransportMediaStreamRemoved(
     webrtc::scoped_refptr<webrtc::MediaStreamInterface> stream) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  if (incoming_audio_stream_ == stream) {
+    if (audio_fifo_sink_adapter_) {
+      audio_fifo_sink_adapter_->SetTrack(nullptr);
+    }
+    incoming_audio_stream_ = nullptr;
+  }
+}
+
+void WebrtcConnectionToClient::OnIncomingAudioFormatChanged(
+    const AudioSampleInfo& info,
+    base::OnceCallback<void(bool)> acknowledgment_callback) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  if (event_handler_) {
+    event_handler_->OnIncomingAudioFormatChanged(
+        info, std::move(acknowledgment_callback));
+  } else {
+    std::move(acknowledgment_callback).Run(false);
+  }
+}
+
+void WebrtcConnectionToClient::BindAudioFifoSinkAdapter() {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  if (!audio_fifo_sink_adapter_ || !incoming_audio_stream_) {
+    return;
+  }
+
+  webrtc::AudioTrackVector audio_tracks =
+      incoming_audio_stream_->GetAudioTracks();
+  if (!audio_tracks.empty()) {
+    audio_fifo_sink_adapter_->SetTrack(audio_tracks[0]);
+  }
+}
+
+bool WebrtcConnectionToClient::FormatHandshakeCompleteForTesting() const {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  return audio_fifo_sink_adapter_ &&
+         audio_fifo_sink_adapter_->FormatHandshakeCompleteForTesting();
 }
 
 void WebrtcConnectionToClient::OnWebrtcTransportRouteChanged(

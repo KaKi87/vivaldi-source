@@ -29,10 +29,10 @@
 #include <unordered_set>
 #include <vector>
 
-#include "dawn/common/Enumerator.h"
-#include "dawn/tests/DawnTest.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/common/Enumerator.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/WGPUHelpers.h"
 
 namespace dawn {
 namespace {
@@ -460,6 +460,8 @@ TEST_P(SizedBindingArrayTests, BindingArrayOfSampledTexturesPassedAsArgument) {
     DAWN_SUPPRESS_TEST_IF(IsImgTec() && IsVulkan());
     // Crashes on the Intel Windows Vulkan shader compiler.
     DAWN_SUPPRESS_TEST_IF(IsVulkan() && IsWindows() && IsIntel());
+    // TODO(crbug.com/492539239): Access violation during test teardown.
+    DAWN_SUPPRESS_TEST_IF(IsWindows11() && IsAMD() && IsVulkan());
 
     // TODO(https://crbug.com/496253718): The OpenGL backend is not passing the correct metadata for
     // the texture builtin polyfills.

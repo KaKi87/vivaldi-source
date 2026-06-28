@@ -107,31 +107,27 @@ const char kWebViewUseStartupTasksLogicP2[] =
 const char kWebViewStartupTasksYieldToNative[] =
     "webview-startup-tasks-yield-to-native";
 
-// Enables running native startup tasks asynchronously if WebView startup is
-// asynchronous in addition to preventing multiprocess enabled checks from
-// starting chromium.
-const char kWebViewStartupTasksPlusMultiProcess[] =
-    "webview-startup-tasks-plus-multi-process";
-
-// Stop browser startup in isMultiProcessEnabled.
-const char kWebViewStopBrowserStartupInIsMultiProcessEnabled[] =
-    "webview-stop-browser-startup-in-is-multi-process-enabled";
-
+// Enables non-blocking WebView constructor.
 const char kStartupNonBlockingWebViewConstructor[] =
     "startup-non-blocking-webview-constructor";
 
-// Defers GMS calls during startup.
-const char kWebViewDeferStartupGmsCalls[] = "webview-defer-startup-gms-calls";
+// Post Chromium startup in the WebView constructor. Only has any effect
+// when kStartupNonBlockingWebViewConstructor is enabled.
+const char kPostChromiumStartupInWebViewConstructor[] =
+    "post-chromium-startup-in-webview-constructor";
+
+// Certain static methods in SharedStatics do not trigger startup.
+const char kWebViewStaticMethodsNotTriggerStartup[] =
+    "webview-static-methods-not-trigger-startup";
+
+// Certain ProfileStore methods do not trigger startup.
+const char kWebViewProfileStoreNotTriggerStartup[] =
+    "webview-profile-store-not-trigger-startup";
 
 // Opts in WebView to GMSCore's bindService optimizations
 const char kWebViewOptInToGmsBindServiceOptimization[] =
     "webview-opt-in-to-gms-bind-service-optimization";
 
-// Enables/disables renderer-side native library prefetching.
-const char kWebViewRendererLibraryPrefetch[] =
-    "webview-renderer-library-prefetch";
-const char kWebViewRendererLibraryPrefetchDisabled[] = "disabled";
-const char kWebViewRendererLibraryPrefetchEnabled[] = "enabled";
 
 // Enables different reductions of the user-agent.
 const char kWebViewReduceUserAgentMinorVersion[] =

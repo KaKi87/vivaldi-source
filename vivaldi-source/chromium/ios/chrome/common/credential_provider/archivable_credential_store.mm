@@ -6,7 +6,10 @@
 
 #import <ostream>
 
+#import "base/apple/backup_util.h"
+#import "base/apple/foundation_util.h"
 #import "base/check.h"
+#import "base/files/file_path.h"
 #import "base/notreached.h"
 #import "base/strings/sys_string_conversions.h"
 #import "ios/chrome/common/credential_provider/archivable_credential.h"
@@ -191,9 +194,12 @@
                          options:NSFileCoordinatorWritingForReplacing
                            error:&error
                       byAccessor:^(NSURL* newURL) {
-                        [data writeToURL:newURL
-                                 options:NSDataWritingAtomic
-                                   error:&error];
+                        if ([data writeToURL:newURL
+                                     options:NSDataWritingAtomic
+                                       error:&error]) {
+                          base::apple::SetBackupExclusion(
+                              base::apple::NSURLToFilePath(newURL));
+                        }
                       }];
 
   // On error, still call completion block. This is for debugging purposes only.
@@ -211,7 +217,9 @@
                                                  attributes:nil
                                                       error:&error]) {
     *outError = error;
+    return;
   }
+  base::apple::SetBackupExclusion(base::apple::NSURLToFilePath(directoryURL));
 }
 
 @end

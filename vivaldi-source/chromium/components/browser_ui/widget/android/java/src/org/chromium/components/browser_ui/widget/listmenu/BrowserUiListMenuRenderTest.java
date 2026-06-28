@@ -37,7 +37,7 @@ import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.components.browser_ui.widget.BrowserUiListMenuUtils;
 import org.chromium.components.browser_ui.widget.ListItemBuilder;
-import org.chromium.components.browser_ui.widget.test.R;
+import org.chromium.components.browser_ui.widget.R;
 import org.chromium.ui.listmenu.BasicListMenu;
 import org.chromium.ui.listmenu.ListMenu;
 import org.chromium.ui.listmenu.ListMenuUtils;
@@ -97,7 +97,7 @@ public class BrowserUiListMenuRenderTest {
                     ListMenu.Delegate delegate = (item, view) -> {};
                     BasicListMenu listMenu =
                             BrowserUiListMenuUtils.getBasicListMenu(activity, data, delegate);
-                    listMenu.setupCallbacksRecursively(
+                    listMenu.setupCallbacks(
                             /* dismissDialog= */ () -> {},
                             ListMenuUtils.createHierarchicalMenuController(activity));
 
@@ -140,7 +140,8 @@ public class BrowserUiListMenuRenderTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @UseMethodParameter(NightModeParams.class)
+    // TODO(crbug.com/500214072): Re-enable NightModeDisabled.
+    @UseMethodParameter(NightModeOnlyParameterProvider.class)
     public void testRender_BasicListMenu_SubmenuScroll(boolean nightMode) throws IOException {
         setup(getModelListWithSubmenu(/* incognito= */ false), nightMode, /* incognito= */ false);
         ThreadUtils.runOnUiThreadBlocking(

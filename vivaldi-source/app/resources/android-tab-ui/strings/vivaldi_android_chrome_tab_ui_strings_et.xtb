@@ -10,17 +10,24 @@
           =1 {Loodud <ph name="NUM_YEARS_ONE" /> aasta eest}
           other {Loodud <ph name="NUM_YEARS_MANY" /> aasta eest}
         }</translation>
+<translation id="1133985792690629147"><ph name="COLOR_NAME" /> kaardivirna värvi ikoon</translation>
 <translation id="1329584516321524826">Uuendatud hetk tagasi</translation>
+<translation id="1455797424496857273">{TABS_COUNT, plural,
+          =1 {Lisa kaart uude virna}
+          other {Lisa kaardid uude virna}
+        }</translation>
 <translation id="149054111719651807">{NUM_MINS, plural,
           =1 {Loodud <ph name="NUM_MINS_ONE" /> minuti eest}
           other {Loodud <ph name="NUM_MINS_MANY" /> minuti eest}
         }</translation>
 <translation id="1625440863545383011">Eemalda kaart ja välju virnast</translation>
+<translation id="2221077170275765262">Kaardivirn „<ph name="TAB_GROUP_NAME" />” pole enam saadaval</translation>
+<translation id="2299756585602735249">Kaardivirnade loend on avatud pooles kõrguses</translation>
 <translation id="2330212241471632770">{TABS_COUNT, plural,
           =1 {Lisa kaart järjehoidjatesse}
           other {Lisa kaardid järjehoidjatesse}
         }</translation>
-<translation id="2498435670446402865">Kaardivirna nime muutmine</translation>
+<translation id="2416147124259461944">Virnasta</translation>
 <translation id="2734252994837336591">{NUM_WEEKS, plural,
           =1 {Uuendatud <ph name="NUM_WEEKS_ONE" /> nädala eest}
           other {Uuendatud <ph name="NUM_WEEKS_MANY" /> nädala eest}
@@ -34,21 +41,40 @@
           other {Loodud <ph name="NUM_HOURS_MANY" /> tunni eest}
         }</translation>
 <translation id="2947471979790858922">Sellest seadmest eemaldatakse nende privaatsete kaartidega seotud toimingud</translation>
+<translation id="3285228391229471836">{TABS_COUNT, plural,
+          =1 {Lisa kaart virna}
+          other {Lisa kaardid virna}
+        }</translation>
 <translation id="3298614730029636660">Välju kaardivirnast</translation>
 <translation id="354698175756845966">Muuda kaardivirna värvi</translation>
+<translation id="3832906837818406941">Kaardivirna „<ph name="TITLE_OF_GROUP" />” valikud</translation>
+<translation id="3917319257151883508">Kaardivirnade loend on avatud täiskõrguses</translation>
 <translation id="4009732926939031387">{NUM_DAYS, plural,
           =1 {Loodud <ph name="NUM_DAYS_ONE" /> päeva eest}
           other {Loodud <ph name="NUM_DAYS_MANY" /> päeva eest}
         }</translation>
+<translation id="4166594760689356813">Sulge kõik kaardid ja virnad</translation>
+<translation id="423046824994248930">Vali olemasolev kaardivirn või loo uus</translation>
 <translation id="4453940245650019914">{NUM_DAYS, plural,
           =1 {Uuendatud <ph name="NUM_DAYS_ONE" /> päeva eest}
           other {Uuendatud <ph name="NUM_DAYS_MANY" /> päeva eest}
         }</translation>
+<translation id="451604412571753027">{TABS_COUNT, plural,
+          =1 {Lisa <ph name="TABS_COUNT_ONE" /> kaart virna}
+          other {Lisa <ph name="TABS_COUNT_MANY" /> kaarti virna}
+        }</translation>
+<translation id="4583669313366060453">{TABS_COUNT, plural,
+          =1 {Eemalda kaart virnast}
+          other {Eemalda kaardid virnast}
+        }</translation>
 <translation id="4686942373615810936">Loodud hetk tagasi</translation>
 <translation id="4870911314065352661">Kas sulgeda kõik kaardid?</translation>
 <translation id="4871187110787939393">Kas sulgeda kõik privaatsed kaardid?</translation>
+<translation id="5011517165747668569">Vali kaardivirn</translation>
 <translation id="5494920125229734069">Vali kõik</translation>
+<translation id="570198925265232174">Virna nime muutmine</translation>
 <translation id="6807841890213931603">Eemalda kaart ja kustuta virn</translation>
+<translation id="692024099672685501">Kaardid ja kaardivirnad</translation>
 <translation id="750227952939161636">Kaardivirnad salvestatakse automaatselt ja uuendatakse kõigis seadmetes, kus sünkimisteenusesse sisse loginud oled.</translation>
 <translation id="7640137753339219124">Kustuta kaardivirn</translation>
 <translation id="7653857400289671414">Kaardivirnad salvestatakse automaatselt.</translation>
@@ -56,21 +82,31 @@
           =1 {Uuendatud <ph name="NUM_YEARS_ONE" /> aasta eest}
           other {Uuendatud <ph name="NUM_YEARS_MANY" /> aasta eest}
         }</translation>
-<translation id="7825973332242257878">Kaardivirnad</translation>
+<translation id="7797448773120597519">{TAB_COUNT, plural,
+          =1 {Eemalda kaart virnast}
+          other {Eemalda kaardid virnast}}</translation>
+<translation id="7861101756732813803">Kas virnastada töö hõlbustamiseks <ph name="NUMBER_OF_TABS" /> kaarti?</translation>
+<translation id="8176081848609891478">Kaardivirnad „<ph name="TAB_GROUP_NAME_1" />” ja „”<ph name="TAB_GROUP_NAME_2" /> pole enam saadaval</translation>
 <translation id="8207688828622594111">{NUM_MINS, plural,
           =1 {Uuendatud <ph name="NUM_MINS_ONE" /> minuti eest}
           other {Uuendatud <ph name="NUM_MINS_MANY" /> minuti eest}
         }</translation>
+<translation id="825209846084758814"><ph name="TABS_COUNT_ONE" /> kaart virna lisatud</translation>
 <translation id="8374451057714760401">{NUM_MONTHS, plural,
                 =1 {Uuendatud <ph name="NUM_MONTHS_ONE" /> kuu eest}
                 other {Uuendatud <ph name="NUM_MONTHS_MANY" /> kuu eest}
               }</translation>
 <translation id="8440938071054361204">Muuda kaardivirna nime</translation>
 <translation id="8602902357364871325">Sulge kaardivirn</translation>
+<translation id="8660513434781407996"><ph name="TABS_COUNT_MANY" /> kaarti virna lisatud</translation>
+<translation id="8685478989144570078">Kaardivirnad</translation>
 <translation id="875848103419578654">{NUM_MONTHS, plural,
                 =1 {Loodud <ph name="NUM_MONTHS_ONE" /> kuu eest}
                 other {Loodud <ph name="NUM_MONTHS_MANY" /> kuu eest}
               }</translation>
 <translation id="8851621822786801079">Eemalda kaardivirnast</translation>
-<translation id="8887921976452567404">Hiljuti suletud kaarte ja kaardivirnu saab uuesti avada viimatiste kaartide ja kaardivirnade jaotistest.</translation>
+<translation id="9080816060085763385">{TABS_COUNT, plural,
+          =1 {Lisa valitud <ph name="TABS_COUNT_ONE" /> kaart virna}
+          other {Lisa valitud <ph name="TABS_COUNT_MANY" /> kaarti virna}
+        }</translation>
 </translationbundle>

@@ -37,10 +37,10 @@
 #include <vector>
 
 #include "VideoViewsTests.h"
-#include "dawn/common/Assert.h"
 #include "dawn/native/D3DBackend.h"
-#include "dawn/utils/SystemHandle.h"
-#include "dawn/utils/TextureUtils.h"
+#include "src/dawn/common/Assert.h"
+#include "src/dawn/utils/SystemHandle.h"
+#include "src/dawn/utils/TextureUtils.h"
 
 namespace dawn {
 namespace {
@@ -225,6 +225,7 @@ class VideoViewsTestBackendWin : public VideoViewsTestBackend {
         beginDesc.concurrentRead = false;
         beginDesc.fenceCount = 1;
         beginDesc.fences = &wgpuFence;
+        beginDesc.signaledValueCount = 1;
         beginDesc.signaledValues = &signaled_value;
 
         auto wgpuTexture = sharedTextureMemory.CreateTexture(&textureDesc);

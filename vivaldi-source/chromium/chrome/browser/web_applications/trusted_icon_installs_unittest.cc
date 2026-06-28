@@ -78,7 +78,7 @@ class TrustedIconInstallUnitTest : public WebAppTest {
 
     auto manifest = blink::mojom::Manifest::New();
     manifest->start_url = app_url();
-    manifest->id = GenerateManifestIdFromStartUrlOnly(app_url());
+    manifest->id = GenerateManifestIdFromStartUrlOnly(app_url()).value();
     manifest->scope = app_url().GetWithoutFilename();
     manifest->display = DisplayMode::kStandalone;
     manifest->name = u"Foo Bar App";
@@ -110,7 +110,7 @@ class TrustedIconInstallUnitTest : public WebAppTest {
         provider().web_contents_manager());
   }
 
-  SizeToBitmap LoadIconsFromDisk(const webapps::AppId& app_id) {
+  OrderedSizeToBitmap LoadIconsFromDisk(const webapps::AppId& app_id) {
     base::test::TestFuture<IconMetadataFromDisk> bitmap_future;
     provider().icon_manager().ReadTrustedIconsWithFallbackToManifestIcons(
         app_id, {32, 96, kTrustedIconSize}, IconPurpose::ANY,

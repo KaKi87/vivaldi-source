@@ -42,7 +42,7 @@ enum class ImageFormat {
   kWEBP = 5,
   kSVG = 6,
   kTIFF = 7,
-  kAVIF= 8
+  kAVIF = 8
 };
 
 enum class BatchItemState {

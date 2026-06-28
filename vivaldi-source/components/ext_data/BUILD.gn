@@ -6,10 +6,10 @@ source_set("ext_data") {
     "tab_ext_data_impl.h",
     "tab_ext_data_observer.cc",
     "tab_ext_data_observer.h",
-    "tab_weak_ext_data.h",
+    "tab_positioning_params.h",
   ]
   deps = [
-    "//base:base",
-    "//content/public/browser"
+    "//base",
+    "//content/public/browser",
   ]
 }

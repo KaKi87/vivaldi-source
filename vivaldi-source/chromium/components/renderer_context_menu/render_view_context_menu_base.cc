@@ -25,6 +25,7 @@
 #include "third_party/blink/public/mojom/context_menu/context_menu.mojom.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/models/image_model.h"
+#include "ui/base/ui_base_features.h"
 #include "url/origin.h"
 
 #include "app/vivaldi_apptools.h"
@@ -111,9 +112,11 @@ void RenderViewContextMenuBase::AddCustomItemsToMenu(
                 item->action),
             item->label);
         if (item->is_experimental_feature) {
-          menu_model->SetMinorIcon(
-              menu_model->GetItemCount() - 1,
-              ui::ImageModel::FromVectorIcon(vector_icons::kScienceIcon));
+          menu_model->SetMinorIcon(menu_model->GetItemCount() - 1,
+                                   ui::ImageModel::FromVectorIcon(
+                                       features::IsRoundedIconsEnabled()
+                                           ? vector_icons::kScienceIcon
+                                           : vector_icons::kScienceOldIcon));
         }
         if (!item->feature_name.empty()) {
           menu_model->SetIsNewFeatureAt(
@@ -138,9 +141,11 @@ void RenderViewContextMenuBase::AddCustomItemsToMenu(
                 item->action),
             item->label);
         if (item->is_experimental_feature) {
-          menu_model->SetMinorIcon(
-              menu_model->GetItemCount() - 1,
-              ui::ImageModel::FromVectorIcon(vector_icons::kScienceIcon));
+          menu_model->SetMinorIcon(menu_model->GetItemCount() - 1,
+                                   ui::ImageModel::FromVectorIcon(
+                                       features::IsRoundedIconsEnabled()
+                                           ? vector_icons::kScienceIcon
+                                           : vector_icons::kScienceOldIcon));
         }
         break;
       }

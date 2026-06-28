@@ -16,8 +16,6 @@
 
 namespace web {
 
-static const int kMaxAnnotationsTextLength = 65535;
-
 AnnotationsTextManagerImpl::AnnotationsTextManagerImpl(WebState* web_state)
     : web_state_(web_state), seq_id_(1), is_viewport_extraction_(true) {
   DCHECK(web_state_);
@@ -60,10 +58,6 @@ void AnnotationsTextManagerImpl::RemoveDecorationsWithType(
   seq_id_++;
   AnnotationsJavaScriptFeature::GetInstance()->RemoveDecorationsWithType(
       web_state_, type);
-}
-
-void AnnotationsTextManagerImpl::RemoveHighlight() {
-  AnnotationsJavaScriptFeature::GetInstance()->RemoveHighlight(web_state_);
 }
 
 void AnnotationsTextManagerImpl::StartExtractingText() {

@@ -187,6 +187,8 @@ class TabModel : public TabListInterface {
     FROM_LINK_CREATING_NEW_WINDOW,
     // Like FROM_CHROME_UI, and opens a tip notification, creating a new tab.
     FROM_TIPS_NOTIFICATIONS,
+    // Open tab using the TabListInterface API in the background.
+    FROM_TAB_LIST_INTERFACE_BACKGROUND,
     // Must be last.
     SIZE
   };
@@ -269,6 +271,7 @@ class TabModel : public TabListInterface {
   virtual content::WebContents* GetWebContentsAt(int index) const = 0;
   // This will return NULL if the tab has not yet been initialized.
   virtual TabAndroid* GetTabAt(int index) const = 0;
+  virtual std::vector<tabs::TabHandle> GetOrderedMultiSelectedTabs() const = 0;
   virtual base::android::ScopedJavaLocalRef<jobject> GetJavaObject() const = 0;
 
   virtual void SetActiveIndex(int index) = 0;

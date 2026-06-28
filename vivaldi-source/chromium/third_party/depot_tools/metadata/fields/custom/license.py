@@ -23,6 +23,12 @@ import metadata.fields.util as util
 import metadata.validation_result as vr
 import metadata.fields.custom.license_allowlist as allowlist_util
 
+import json
+import logging
+import subprocess
+
+RESTRICTED_APPROVAL_FILENAME = "restrictive_license_approval.textproto"
+
 
 class LicenseField(field_types.SingleLineTextField):
     """Custom field for the package's license type(s).
@@ -57,7 +63,7 @@ class LicenseField(field_types.SingleLineTextField):
             allowlist_util.is_license_allowed(license, is_open_source_project)
             for license in self._extract_licenses(license_field_value))
 
-    def validate(self, value: str) -> Optional[vr.ValidationResult]:
+    def validate(self, value: str, source_file_dir: Optional[str] = None) -> Optional[vr.ValidationResult]:
         """Checks the given value consists of recognized license types.
 
         Note: this field supports multiple values.
@@ -82,13 +88,24 @@ class LicenseField(field_types.SingleLineTextField):
                 not_allowlisted.append(license)
 
         if not_allowlisted:
-            return vr.ValidationWarning(
-                reason="License not in the allowlist."
-                " Follow the steps at https://source.chromium.org/chromium/chromium/tools/depot_tools/+/main:metadata/fields/custom/license_allowlist.py.",
-                additional=[
-                    "Licenses not allowlisted: "
-                    f"{util.quoted(not_allowlisted)}.",
-                ])
+            covered = set()
+            if source_file_dir:
+                restricted_approval_filepath = os.path.join(source_file_dir, RESTRICTED_APPROVAL_FILENAME)
+                if os.path.isfile(restricted_approval_filepath):
+                    covered.update(
+                        allowlist_util.
+                        load_restrictive_license_approval_textproto(
+                            restricted_approval_filepath))
+
+            missing = [lic for lic in not_allowlisted if lic.lower() not in covered]
+            if missing:
+                return vr.ValidationWarning(
+                    reason="License not in the allowlist."
+                    " Follow the steps at https://source.chromium.org/chromium/chromium/tools/depot_tools/+/main:metadata/fields/custom/license_allowlist.py.",
+                    additional=[
+                        "Licenses not allowlisted: "
+                        f"{util.quoted(missing)}.",
+                    ])
 
         return None
 

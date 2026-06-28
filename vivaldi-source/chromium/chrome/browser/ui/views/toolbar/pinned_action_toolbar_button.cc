@@ -8,6 +8,8 @@
 #include <type_traits>
 
 #include "base/auto_reset.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/metrics/user_metrics.h"
 #include "base/notreached.h"
 #include "base/strings/strcat.h"
@@ -19,6 +21,7 @@
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/side_panel/side_panel_action_callback.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
+#include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_ids.h"
 #include "chrome/browser/ui/views/event_utils.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/toolbar/pinned_action_toolbar_button_menu_model.h"
@@ -34,6 +37,7 @@
 #include "ui/actions/actions.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/menu_separator_types.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/insets.h"
@@ -59,12 +63,17 @@ DEFINE_UI_CLASS_PROPERTY_KEY(
     std::underlying_type_t<PinnedToolbarActionFlexPriority>(
         PinnedToolbarActionFlexPriority::kLow))
 
+DEFINE_UI_CLASS_PROPERTY_TYPE(CreateCustomPinnedActionToolbarButtonCallback*)
+DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(
+    CreateCustomPinnedActionToolbarButtonCallback,
+    kCustomPinnedActionToolbarButtonFactoryKey)
+
 PinnedActionToolbarButton::PinnedActionToolbarButton(
     Browser* browser,
     actions::ActionId action_id,
     base::WeakPtr<PinnedToolbarActionsContainer> container)
     : ToolbarButton(
-          PressedCallback(),
+          views::Button::PressedCallback(),
           std::make_unique<PinnedActionToolbarButtonMenuModel>(browser,
                                                                action_id),
           nullptr,
@@ -72,9 +81,11 @@ PinnedActionToolbarButton::PinnedActionToolbarButton(
       browser_(browser),
       action_id_(action_id),
       container_(container) {
-  SetProperty(views::kElementIdentifierKey,
-              kPinnedActionToolbarButtonElementId);
-  ConfigureInkDropForToolbar(this);
+  if (auto element_id =
+          pinned_toolbar_actions::GetElementIdentifierForAction(action_id)) {
+    SetProperty(views::kElementIdentifierKey, element_id);
+  }
+  ConfigureInkDrop(this);
   SetHorizontalAlignment(gfx::ALIGN_CENTER);
   // Pinned action toolbar buttons have right margin and no left margin.
   SetProperty(
@@ -202,7 +213,9 @@ void PinnedActionToolbarButton::Layout(PassKey) {
       image_container_view()->GetLocalBounds();
   const int new_x = image_container_bounds.x() +
                     (image_container_bounds.width() - status_rect.width()) / 2;
-  const int new_y = image_container_bounds.bottom() + kStatusIndicatorSpacing;
+  const int new_y =
+      image_container_bounds.bottom() +
+      (features::IsRoundedIconsEnabled() ? 0 : kStatusIndicatorSpacing);
   // Set the new origin for status_rect
   status_rect.set_origin(gfx::Point(new_x, new_y));
   status_indicator_->SetBoundsRect(status_rect);

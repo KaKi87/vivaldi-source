@@ -7,14 +7,13 @@
 
 #include "base/check.h"
 #include "base/logging.h"
-#include "base/uuid.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/uuid.h"
 #include "browser/related_tab_strip_helper.h"
 #include "browser/tab_probe.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/extensions/window_controller_list.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/ext_data/tab_ext_data.h"
@@ -27,6 +26,10 @@ namespace {
 // No-reparent is also reparent. Setting it invalid means we are certain at the
 // moment, the reparent_id should be none.
 static constexpr const char* INVALID_EXT_ID = "-";
+
+std::string GenId() {
+  return base::Uuid::GenerateRandomV4().AsLowercaseString();
+}
 
 TabStripModel* GetTabStripForWindowId(int window_id) {
   if (window_id == -1)
@@ -41,18 +44,8 @@ TabStripModel* GetTabStripForWindowId(int window_id) {
   return nullptr;
 }
 
-void CopyExtValue(TabExtKey key, TabExtData* target, TabExtData* source) {
-  CHECK(target);
-  const base::Value* value = source ? source->Get(key) : nullptr;
-  if (value) {
-    target->Set(key, *value);
-  } else {
-    target->Remove(key);
-  }
-}
-
 bool IsDirectionTweak(TabsMotionHelper::TabMotionTweaks tweak) {
-  switch(tweak) {
+  switch (tweak) {
     case TabsMotionHelper::TabMotionTweaks::kBelow:
     case TabsMotionHelper::TabMotionTweaks::kAbove:
     case TabsMotionHelper::TabMotionTweaks::kOn:
@@ -68,7 +61,7 @@ bool IsSortedByIndex(const std::vector<::vivaldi::TabProbe>& probes) {
       [](const auto& a, const auto& b) { return a.index < b.index; });
 }
 
-void LogLines(const std::vector<std::string> &lines, const char * prefix) {
+void LogLines(const std::vector<std::string>& lines, const char* prefix) {
   for (const std::string& line : lines) {
     LOG(INFO) << prefix << line;
   }
@@ -76,21 +69,31 @@ void LogLines(const std::vector<std::string> &lines, const char * prefix) {
 }  // namespace
 
 TabsMotionHelper::TabsMotionHelper(Params params)
-    : params_(std::move(params)) {
-}
+    : params_(std::move(params)) {}
 
 std::optional<std::string> TabsMotionHelper::CheckGroupChange() {
-  if (is_step_
-    && Has(TabMotionTweaks::kStripDown)
-    && !GetTabProbes().empty())
-  {
-    std::optional<std::string> group =
-      tab_probe::GetGroupId(GetTabProbes()[0]);
+  if (is_step_ && Has(TabMotionTweaks::kStripDown) && !GetTabProbes().empty()) {
+    std::optional<std::string> group = tab_probe::GetGroupId(GetTabProbes()[0]);
 
     if (group && SuggestGroup() != group) {
       return "can't change group";
     }
   }
+
+  if (Has(TabMotionTweaks::kStripDown)) {
+    if (!target_group_) {
+      return "strip-down must have the target group defined";
+    }
+    if (Has(TabMotionTweaks::kOn)) {
+      return "invalid tweaks combination (strip-down, on)";
+    }
+  }
+
+  if (!Has(TabMotionTweaks::kDetached) && IsLinearStrip() && common_group_ &&
+      SuggestGroup()) {
+    return "can't join accordion groups";
+  }
+
   return std::nullopt;
 }
 
@@ -103,19 +106,30 @@ void TabsMotionHelper::ForceInDirection(bool reverse) {
 }
 
 void TabsMotionHelper::HandleMoveLeftRight(bool reverse) {
+  vivaldi::TabProbe probe;
   if (reverse) {
-    target_probe_ = tab_probe::GetNext(GetTabProbes().front(), reverse);
+    probe = GetTabProbes().front();
   } else {
-    target_probe_ = tab_probe::GetNext(GetTabProbes().back(), reverse);
+    probe = GetTabProbes().back();
   }
-  if (!target_probe_)
+
+  std::optional<::vivaldi::TabProbe> new_target;
+  new_target = tab_probe::GetNext(probe, reverse);
+  if (!new_target)
     return;
 
-  if (Has(TabMotionTweaks::kStripUp)) {
-    // Movig tab/group to the right/left, we need to jump over the group if we
-    // are in the regular tab-strip. In the sub-strip, we're moveing withing the
-    // group.
+  if (tab_probe::GetGroupId(probe) &&
+      tab_probe::GetGroupId(probe) != tab_probe::GetGroupId(*new_target)) {
+    // The tab can't get out of the group by moving left/right.
+    return;
+  }
+
+  target_probe_ = new_target;
+
+  if (!tab_probe::GetGroupId(probe)) {
+    // Tab, which is not in the group jups over the groups.
     target_probe_ = tab_probe::GetLastInGroup(*target_probe_, reverse);
+    avoid_groups_ = true;
   }
 
   ForceInDirection(reverse);
@@ -128,7 +142,8 @@ void TabsMotionHelper::HandleMoveFirstLast(bool reverse) {
   if (group_cache_) {
     target_probe_ = tab_probe::GetLastInGroup(GetTabProbes().front(), reverse);
   } else {
-    target_probe_ = tab_probe::GetLastInWorkspace(GetTabProbes().front(), reverse);
+    target_probe_ =
+        tab_probe::GetLastInWorkspace(GetTabProbes().front(), reverse);
   }
   ForceInDirection(reverse);
 }
@@ -148,12 +163,12 @@ void TabsMotionHelper::RecognizeSpecialTarget(const std::string_view& target) {
   }
 }
 
-std::optional<std::string> TabsMotionHelper::RecognizeTarget() {
-  // Window id can be either included in the params, or deduced form the target
-  // tab.
-  int window_id = params_.move_properties.window_id.value_or(
-      SessionID::InvalidValue().id());
+bool TabsMotionHelper::IsLinearStrip() const {
+  return Has(TabMotionTweaks::kStripAccordion) ||
+         Has(TabMotionTweaks::kStripNoStacks);
+}
 
+std::optional<std::string> TabsMotionHelper::RecognizeTarget() {
   const bool target_is_tab = Has(TabMotionTweaks::kTargetIsTab);
   bool below = Has(TabMotionTweaks::kBelow);
   bool is_group = false;
@@ -162,7 +177,6 @@ std::optional<std::string> TabsMotionHelper::RecognizeTarget() {
   // 2 - another tab defined by extId + above/below tweak
   // 3 - index
   //
-
   if (target_is_tab) {
     if (params_.move_properties.target.as_integer) {
       target_probe_ = ResolveTab(*params_.move_properties.target.as_integer);
@@ -197,7 +211,7 @@ std::optional<std::string> TabsMotionHelper::RecognizeTarget() {
 
     if (is_group) {
       // The extId is group. So, it is above or below the group.
-      if (!IsFollowingTarget()) {
+      if (Has(TabMotionTweaks::kOn)) {
         // Normal behavior is to fall into the group
         // TODO: this is confusing, investigate and simplify.
         target_group_ = *params_.move_properties.target.as_string;
@@ -209,22 +223,15 @@ std::optional<std::string> TabsMotionHelper::RecognizeTarget() {
         CHECK(target_probe_);
       }
     } else {
-      if (IsFollowingTarget()) {
+      if (!Has(TabMotionTweaks::kOn)) {
         // Below or above a tab which is in the a group.
         target_group_ = tab_probe::GetGroupId(*target_probe_);
       }
     }
 
-    window_id_ =
-        extensions::ExtensionTabUtil::GetWindowIdOfTab(target_probe_->contents);
+    if (std::optional<std::string> err = ChooseTargetWindowAndTabStrip())
+      return err;
 
-    if (window_id_ == SessionID::InvalidValue().id()) {
-      return "invalid window";
-    }
-
-    // The target tab is determined. Now we need to shift the actual index
-    // according to on/above/below tweaks. (above is by default)
-    tab_strip_ = target_probe_->tab_strip_model;
     target_index_ = target_probe_->index;
 
     if (below && Has(TabMotionTweaks::kCollapsedAbove)) {
@@ -250,28 +257,8 @@ std::optional<std::string> TabsMotionHelper::RecognizeTarget() {
       below = true;
     }
 
-    if (params_.move_properties.workspace_id.value_or(0) != 0) {
-      double workspace_id = *params_.move_properties.workspace_id;
-      BrowserWindowInterface* browser = FindWorkspace(workspace_id);
-      if (browser) {
-        window_id_ = browser->GetSessionID().id();
-        tab_strip_ = browser->GetTabStripModel();
-      }
-    }
-
-    if (window_id == SessionID::InvalidValue().id()) {
-      CHECK(!tab_probes_.empty());
-      tab_strip_ = tab_probes_[0].tab_strip_model;
-      window_id_ = extensions::ExtensionTabUtil::GetWindowIdOfTab(
-          tab_probes_[0].contents);
-    } else {
-      tab_strip_ = GetTabStripForWindowId(window_id);
-      window_id_ = window_id;
-    }
-
-    if (!tab_strip_ || window_id_ == -1) {
-      return "unknown target browser window";
-    }
+    if (std::optional<std::string> err = ChooseTargetWindowAndTabStrip())
+      return err;
 
     if (idx == -1 || idx >= tab_strip_->count()) {
       // idx == -1 - the last tab in the workspace.
@@ -370,12 +357,6 @@ void TabsMotionHelper::UpdateTargetIndexByTweaks() {
   }
 }
 
-bool TabsMotionHelper::IsFollowingTarget() const {
-  if (Has(TabMotionTweaks::kOn))
-    return false;
-  return Has(TabMotionTweaks::kGroupFollowsTarget);
-}
-
 TabProbe TabsMotionHelper::GetLast() const {
   size_t size = GetExpandedProbes().size();
   CHECK(size > 0);
@@ -413,6 +394,21 @@ std::optional<std::string> TabsMotionHelper::UpdateGroupsCount() {
   return std::nullopt;
 }
 
+bool TabsMotionHelper::IsEntireGroupMoving(const std::string& groupId) const {
+  auto total_it = groups_count_.find(groupId);
+  if (total_it == groups_count_.end())
+    return false;
+
+  if (total_it->second <= 1)  // 1 can't be entire group
+    return false;
+
+  auto expanded_it = groups_expanded_count_.find(groupId);
+  if (expanded_it == groups_expanded_count_.end())
+    return false;
+
+  return total_it->second == expanded_it->second;
+}
+
 int TabsMotionHelper::GetGroupsCount(const std::string& group_ext_id) const {
   auto it = groups_count_.find(group_ext_id);
   if (it == groups_count_.end())
@@ -442,6 +438,7 @@ void TabsMotionHelper::ConfigureGroup(const vivaldi::TabProbe& probe) const {
 
   std::optional<std::string> group = SuggestGroup();
   if (!group) {
+    ext_data->Ungroup();
     return;
   }
 
@@ -450,9 +447,12 @@ void TabsMotionHelper::ConfigureGroup(const vivaldi::TabProbe& probe) const {
     source = TabExtData::Get(group_sample_->contents);
   }
 
-  ext_data->Set(::vivaldi::TabExtKey::kGroupId, *group);
-  CopyExtValue(TabExtKey::kGroupColor, ext_data, source);
-  CopyExtValue(TabExtKey::kFixedGroupTitle, ext_data, source);
+  if (source) {
+    ext_data->JoinGroup(*source);
+  } else {
+    ext_data->SetUnsafe(::vivaldi::TabExtKey::kGroupId_,
+                        base::Value(std::string(*group)));
+  }
 }
 
 std::optional<std::string> TabsMotionHelper::RecognizeTargetGroup() {
@@ -462,14 +462,14 @@ std::optional<std::string> TabsMotionHelper::RecognizeTargetGroup() {
   group_cache_valid_ = true;
 
   if (Has(TabMotionTweaks::kCreateNewGroup)) {
-    group_cache_ = base::Uuid::GenerateRandomV4().AsLowercaseString();
+    group_cache_ = GenId();
     new_group_ = true;
     return std::nullopt;
   }
 
   group_cache_ = SuggestGroupInternal();
   if (!group_cache_ && Has(TabMotionTweaks::kCreateGroup)) {
-    group_cache_ = base::Uuid::GenerateRandomV4().AsLowercaseString();
+    group_cache_ = GenId();
     new_group_ = true;
     return std::nullopt;
   }
@@ -484,6 +484,12 @@ std::optional<std::string> TabsMotionHelper::RecognizeTargetGroup() {
   if (!is_group) {
     group_sample_ = std::nullopt;
   }
+  return std::nullopt;
+}
+
+std::optional<std::string> TabsMotionHelper::GetNewGroupId() const {
+  if (new_group_)
+    return SuggestGroup();
   return std::nullopt;
 }
 
@@ -507,6 +513,8 @@ std::optional<std::string> TabsMotionHelper::HandlePinning() {
 
 // The tabs are ready to move. Now we need to decide, into what group.
 std::optional<std::string> TabsMotionHelper::SuggestGroupInternal() const {
+  if (avoid_groups_)
+    return std::nullopt;
   if (!Has(TabMotionTweaks::kOn) && Has(TabMotionTweaks::kStripUp)) {
     // The user is dropping the tab in between another two tabs in the upper
     // tab-strip. This operation will never put the tab into a group.
@@ -537,85 +545,18 @@ std::optional<std::string> TabsMotionHelper::SuggestGroupInternal() const {
     return group_above;
   }
 
-  if (IsFollowingTarget()) {
-    return target_group_;
-  }
-
-  // Collapsed group node above => no group
-  if (Has(TabMotionTweaks::kCollapsedAbove)) {
+  if (IsLinearStrip()) {
     return std::nullopt;
   }
 
-  // There are 2 different group above and below. The hint help us decide which
-  // one we should take.
-  if (params_.move_properties.group_hint) {
-    if ((group_above && *params_.move_properties.group_hint == *group_above) ||
-        (group_below && *params_.move_properties.group_hint == *group_below)) {
-      return *params_.move_properties.group_hint;
-    }
+  auto group = tab_probe::GetGroupId(GetExpandedProbes());
+  // ...if all the dragged tabs have the same group.
+  if (group && (group_above != group_below)) {
+    // Dragging entire group in between 2 another groups.
+    return group;
   }
 
-  // Target ext_id is a group (typically a group node in the WindowTree).
-  if (target_group_) {
-    // Moving tab ON the group node = obviously the group.
-    if (Has(TabMotionTweaks::kOn))
-      return *target_group_;
-
-    return std::nullopt;
-  }
-
-  if (Has(TabMotionTweaks::kOn)) {
-    return group_below;
-  }
-
-  TabExtData* first_moving_ext = TabExtData::Get(GetFirstMove().contents);
-
-  if (!group_above && group_below) {
-    // The target is just above a group.
-    if (Has(TabMotionTweaks::kInto)) {
-      // so we need this tweak. We need to choose between those cases:
-      // a * [ b c ]
-      // a [ * b c ]
-      // By just the given position, we can't decide, whether to drop the tab
-      // into the group. This is why we need the tweak.
-      return *group_below;
-    }
-    // Above first in group.
-    return std::nullopt;
-  }
-
-  // moving below the last tab in the group
-  if (group_above && !group_below) {
-    // This is for better user experience.
-    // The user drags the tab just below itself. As this is the last tab in the
-    // group, he probably wants to move the tab out of the group.
-    if (first_moving_ext->GetExtId() == ext_id_above) {
-      return std::nullopt;
-    }
-
-    if (common_group_ && GetMoves().size() > 1) {
-      return common_group_;
-    }
-
-    return *group_above;
-  }
-
-  std::optional<std::string> moving_group = first_moving_ext->GetGroupId();
-
-  if (Has(TabMotionTweaks::kBelow) && !group_below) {
-    return std::nullopt;
-  }
-
-  // A [ B  C ] D - moving above B, tha tab will land in the group.
-  if (group_below && Has(TabMotionTweaks::kAbove))
-    return *group_below;
-
-  if (moving_group &&
-      (moving_group == group_above || moving_group == group_below)) {
-    return moving_group;
-  }
-
-  return std::nullopt;
+  return target_group_;
 }
 
 bool TabsMotionHelper::IsVoidMotion() {
@@ -659,6 +600,69 @@ bool TabsMotionHelper::IsVoidMotion() {
   }
 
   return false;
+}
+
+// How the target window is chosen:
+// - If the target is a tab, the window containing the target tab is chosen.
+// - If workspaceId is defined, the window containing the workspace is chosen.
+// - If the target is an index, the windowId argument is used. If windowId
+//   is not defined, the window of the first moving tab is used.
+//
+// If windowId is defined, but a previous rule selected a different window,
+// or the rules contradict each other, an "ambiguous windowId" error is
+// returned.
+std::optional<std::string> TabsMotionHelper::ChooseTargetWindowAndTabStrip() {
+  const double target_workspace_id =
+      params_.move_properties.workspace_id.value_or(0);
+  const int window_id = params_.move_properties.window_id.value_or(
+      SessionID::InvalidValue().id());
+
+  BrowserWindowInterface* browser = FindWorkspace(target_workspace_id);
+
+  if (Has(TabMotionTweaks::kTargetIsTab)) {
+    CHECK(target_probe_);
+    tab_strip_ = target_probe_->tab_strip_model;
+    window_id_ =
+        extensions::ExtensionTabUtil::GetWindowIdOfTab(target_probe_->contents);
+
+    if (target_workspace_id != 0 && browser &&
+        browser->GetTabStripModel() != tab_strip_) {
+      // The tab is requested to be moved to a workspace, but the workspace is
+      // in a different window than the target tab.
+      return "ambiguous windowId";
+    }
+  } else {
+    if (target_workspace_id != 0 && browser) {
+      // The workspace exists, we choose the window where the
+      // workspace is.
+      window_id_ = browser->GetSessionID().id();
+      tab_strip_ = browser->GetTabStripModel();
+
+      if (window_id != SessionID::InvalidValue().id() &&
+          window_id_ != window_id) {
+        return "ambiguous windowId";
+      }
+    } else {
+      // Handle the edge case where there is no tab with the target workspaceId.
+      // In this case, we can create the first tab of the workspace in any
+      // window. We prefer the window_id specified by the call argument.
+      CHECK(!tab_probes_.empty());
+      if (window_id == SessionID::InvalidValue().id()) {
+        tab_strip_ = tab_probes_[0].tab_strip_model;
+        window_id_ = extensions::ExtensionTabUtil::GetWindowIdOfTab(
+            tab_probes_[0].contents);
+      } else {
+        tab_strip_ = GetTabStripForWindowId(window_id);
+        window_id_ = window_id;
+      }
+    }
+  }
+
+  if (!tab_strip_ || window_id_ == SessionID::InvalidValue().id()) {
+    return "unknown target browser window";
+  }
+
+  return std::nullopt;
 }
 
 const std::vector<vivaldi::TabProbe>& TabsMotionHelper::GetTabProbes() const {
@@ -815,7 +819,9 @@ std::optional<std::string> TabsMotionHelper::TweaksConsistencyCheck() {
     return "Only one of below/above/on tweak is allowed.";
   }
 
-  if (Has(TabMotionTweaks::kStripUp) || Has(TabMotionTweaks::kStripDown)) {
+  if (Has(TabMotionTweaks::kStripUp) || Has(TabMotionTweaks::kStripDown) ||
+      Has(TabMotionTweaks::kStripAccordion) ||
+      Has(TabMotionTweaks::kStripNoStacks)) {
     if (!Has(TabMotionTweaks::kTargetIsTab)) {
       return "strip-* tweak can be used together with target-is-tab only.";
     }
@@ -908,8 +914,6 @@ const TabsMotionHelper::Move& TabsMotionHelper::GetFirstMove() const {
   return moves_[0];
 }
 
-
-
 std::optional<std::string> TabsMotionHelper::CreateMoves() {
   CreateMovesInternal();
   if (GetMoves().empty()) {
@@ -917,7 +921,6 @@ std::optional<std::string> TabsMotionHelper::CreateMoves() {
   }
   return std::nullopt;
 }
-
 
 // Moving tab_probes to the given index and the window. The function creates a
 // list of moves to get the tabs in to the target state.
@@ -995,36 +998,10 @@ void TabsMotionHelper::CreateMovesInternal() {
   }
 }
 
-// Gets the common group for a list of tabs.
-// Returns the group ID if all the tabs share the same group, otherwise nullopt.
+// Finds the common group for a list of tabs.
 std::optional<std::string> TabsMotionHelper::UpdateCommonGroup() {
-  const std::vector<::vivaldi::TabProbe>& probes = GetExpandedProbes();
   CHECK(!common_group_);
-  std::optional<std::string> common_group;
-
-  for (auto probe : probes) {
-    std::optional<std::string> current_group = tab_probe::GetGroupId(probe);
-    if (!current_group) {
-      return std::nullopt;
-    }
-
-    if (!common_group) {
-      common_group = current_group;
-    } else if (common_group != current_group) {
-      return std::nullopt;
-    }
-  }
-
-  if (common_group) {
-    auto it = groups_count_.find(*common_group);
-    if (it == groups_count_.end())
-      return std::nullopt;
-
-    if (it->second != static_cast<int>(probes.size()))
-      return std::nullopt;
-  }
-
-  common_group_ = common_group;
+  common_group_ = tab_probe::IdentifyGroup(GetExpandedProbes());
   return std::nullopt;
 }
 
@@ -1045,9 +1022,10 @@ bool TabsMotionHelper::MovingOverSelf() const {
   return GetExpandedProbes()[size - 1].contents == target->contents;
 }
 
-
-TabsMotionHelper::Expected TabsMotionHelper::Create(Params params, bool verbose) {
-  std::unique_ptr<TabsMotionHelper> helper(new TabsMotionHelper(std::move(params)));
+TabsMotionHelper::Expected TabsMotionHelper::Create(Params params,
+                                                    bool verbose) {
+  std::unique_ptr<TabsMotionHelper> helper(
+      new TabsMotionHelper(std::move(params)));
   using InitFunction = std::optional<std::string> (TabsMotionHelper::*)();
   constexpr InitFunction init_functions[] = {
       &TabsMotionHelper::TweaksConsistencyCheck,
@@ -1090,55 +1068,48 @@ TabsMotionHelper::Diagnostics TabsMotionHelper::GetDiagnostics() const {
   std::vector<std::string> lines;
 
   if (params_.move_properties.debug) {
-    lines.emplace_back("MotionDebug >>>> : " +
-                       *params_.move_properties.debug);
+    lines.emplace_back("MotionDebug >>>> : " + *params_.move_properties.debug);
   }
 
   if (params_.move_properties.target.as_integer) {
-    lines.emplace_back("TARGET[i]: " +
-        base::NumberToString(
-          *params_.move_properties.target.as_integer));
+    lines.emplace_back(
+        "TARGET[i]: " +
+        base::NumberToString(*params_.move_properties.target.as_integer));
   } else if (params_.move_properties.target.as_string) {
     lines.emplace_back("TARGET[s]: " +
-        *params_.move_properties.target.as_string);
+                       *params_.move_properties.target.as_string);
   } else {
     lines.emplace_back("TARGET: n/a");
   }
 
-  lines.emplace_back("TARGET index=" +
-                     base::NumberToString(target_index_));
+  lines.emplace_back("TARGET index=" + base::NumberToString(target_index_));
 
   const auto& moves = GetMoves();
   int first_index = moves.empty() ? -1 : moves[0].insert_index;
 
   std::string target_ext_id = "-";
   if (GetTargetProbe()) {
-    target_ext_id =
-        tab_probe::GetExtId(*GetTargetProbe()).value_or("-");
+    target_ext_id = tab_probe::GetExtId(*GetTargetProbe()).value_or("-");
   }
 
   lines.emplace_back("TARGET_TAB=" + target_ext_id);
-  lines.emplace_back("TARGET_WINDOW_ID=" +
-                     base::NumberToString(GetWindowId()));
-
+  lines.emplace_back("TARGET_WINDOW_ID=" + base::NumberToString(GetWindowId()));
 
   // We want Dump to work even in case of error.
   if (tab_strip_) {
     if (GetTargetWorkspaceId()) {
       lines.emplace_back("TARGET_WORKSPACE=" +
-          base::NumberToString(
-            static_cast<int64_t>(GetTargetWorkspaceId().value())));
+                         base::NumberToString(static_cast<int64_t>(
+                             GetTargetWorkspaceId().value())));
     } else {
       lines.emplace_back("TARGET_WORKSPACE=n/a");
     }
 
     lines.emplace_back("MOVING_OVER_SELF=" +
-        std::string(MovingOverSelf() ? "true" : "false"));
+                       std::string(MovingOverSelf() ? "true" : "false"));
 
-    lines.emplace_back("MOVES count=" +
-        base::NumberToString(moves.size()) +
-        " first_index=" +
-        base::NumberToString(first_index));
+    lines.emplace_back("MOVES count=" + base::NumberToString(moves.size()) +
+                       " first_index=" + base::NumberToString(first_index));
 
     if (target_group_) {
       lines.emplace_back("TARGET_IS_GROUP: " + *target_group_);
@@ -1149,16 +1120,13 @@ TabsMotionHelper::Diagnostics TabsMotionHelper::GetDiagnostics() const {
     }
 
     if (group_cache_valid_) {
-      lines.emplace_back("SUGGESTED_GROUP: " +
-          SuggestGroup().value_or("-"));
+      lines.emplace_back("SUGGESTED_GROUP: " + SuggestGroup().value_or("-"));
     }
   } else {
-      lines.emplace_back("TAB_STRIP=n/a");
+    lines.emplace_back("TAB_STRIP=n/a");
   }
 
-  for (int i = 0;
-       i <= static_cast<int>(TabMotionTweaks::kMaxValue);
-       ++i) {
+  for (int i = 0; i <= static_cast<int>(TabMotionTweaks::kMaxValue); ++i) {
     TabMotionTweaks tweak = static_cast<TabMotionTweaks>(i);
     const std::string tweak_str =
         extensions::vivaldi::tabs_private::ToString(tweak);

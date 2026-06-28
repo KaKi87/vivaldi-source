@@ -1,22 +1,27 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="is">
+<translation id="1062777154504442433">Nýr flipabunki</translation>
 <translation id="1204037785786432551">Hlaða niður tengli</translation>
 <translation id="1206892813135768548">Afrita texta tengils</translation>
+<translation id="1223158186497001208">Sameiginlegir <ph name="GROUP_TITLE" /> flipabunkar með nýja virkni</translation>
+<translation id="1328749518742029305"><ph name="TAB_GROUP_TITLE" /> flipabunka lokað og hann vistaður</translation>
 <translation id="1397811292916898096">Leita með <ph name="PRODUCT_NAME" /> 1</translation>
 <translation id="1435593198351412143">Opna PDF-skrár sjálfkrafa</translation>
 <translation id="1456207338570705181">Að ýta til þess að leita er aðgerð, sem bara er í boði þegar Google er valin sem sjálfgefin leitarvél í Vivaldi. Þá er orðið og samhengi þessi sent inn í leitarvél Google. Slökkva má á því í <ph name="BEGIN_LINK" />stillingum<ph name="END_LINK" />.</translation>
 <translation id="1598449788754183301">Skiptu á milli venjulegra/einka flipa</translation>
+<translation id="1626105448931436644">Kynntu þér sameiginlega flipabunka</translation>
 <translation id="1644574205037202324">Saga</translation>
 <translation id="1829244130665387512">Leita á síðunni</translation>
-<translation id="1910514478706885609">Opna í nýjum flipabunka</translation>
 <translation id="1925021887439448749">Færðu inn sérsniðna vefslóð</translation>
 <translation id="2038563949887743358">Kveiktu á borðtölvuútgáfu</translation>
+<translation id="2067565353468675023">Vertu með í flipabunka sem <ph name="OWNER_FIRST_NAME" /></translation>
 <translation id="208033313373016095">Leshamur fyrir vefsíður</translation>
 <translation id="2149973817440762519">Breyta bókamerki</translation>
 <translation id="2306442503286132111">Bókamerki vistað í <ph name="FOLDER_NAME" /> möppu</translation>
 <translation id="2433507940547922241">Útlit</translation>
-<translation id="2501278716633472235">Fara til baka</translation>
+<translation id="2495373685671077949">Leitaðu að flipum og bunkum</translation>
+<translation id="2500281581698062897">Þú munt strax missa aðgang að flipabunka “<ph name="GROUP_NAME" />” og <ph name="BLOCKED_MEMBER_FULL_NAME" /> (<ph name="BLOCKED_MEMBER_EMAIL" />) mun ekki geta haft samband við þig í gegnum Google þjónustur. <ph name="BLOCKED_MEMBER_FULL_NAME" /><ph name="BLOCKED_MEMBER_FULL_NAME" /><ph name="BLOCKED_MEMBER_FULL_NAME" /><ph name="BLOCKED_MEMBER_FULL_NAME" /></translation>
 <translation id="2546283357679194313">Kökur og síðugögn</translation>
 <translation id="2633278372998075009">Einkaflipar</translation>
 <translation id="2650751991977523696">Sækja skrá aftur?</translation>
@@ -26,6 +31,7 @@
 <translation id="2871733351037274014">Forhlaða síðum</translation>
 <translation id="2904300462646366554">Sóttar PDF-skrár opnast sjálfkrafa í einum af PDF-lesurum tækisins</translation>
 <translation id="2951071800649516099">Bæta síðum á leslistann þinn til síðari nota</translation>
+<translation id="3020023775880428664">Færa flipa í bunka</translation>
 <translation id="3029276696788198026">Engin forhleðsla</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> bókamerki}
@@ -35,6 +41,8 @@
 <translation id="3232293466644486101">Eyða sögu vafranotkunar…</translation>
 <translation id="3234355010754616171">Nýr einkaflipi</translation>
 <translation id="3237087289225714896">Hefðbundin forhleðsla:</translation>
+<translation id="3298614730029636660">Fara úr bunka</translation>
+<translation id="3359462099791810823">Eigðu þennan bunka til að endurnýta síðar, eða eyddu ef ekki er þörf á honum.</translation>
 <translation id="3478414204555961127">Leshamur</translation>
 <translation id="3504699618187058974">Flipabunkar</translation>
 <translation id="3518985090088779359">Samþykkja og halda áfram</translation>
@@ -43,9 +51,11 @@
 <translation id="3700829948786686853">Velkomin/n í Vivaldi</translation>
 <translation id="3719826155360621982">Heimasíða</translation>
 <translation id="3738139272394829648">Snertileit</translation>
-<translation id="385051799172605136">Til baka</translation>
+<translation id="3900825170941000696">Endurheimta flipabunka <ph name="TITLE_OF_GROUP" />, litur <ph name="COLOR_NAME" />, sem nýjan flipabunka í bakgrunni.</translation>
+<translation id="395421286877117532">Stilltu flipastiku fyrir þig og samþykktu</translation>
 <translation id="3987993985790029246">Afrita tengil</translation>
 <translation id="399014816462153200">Lestu greinar:</translation>
+<translation id="4048089913902125176">Opna <ph name="TITLE_OF_GROUP" /> flipabunka, litur <ph name="COLOR_NAME" />, með síðum <ph name="URL_LIST" />.</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> flipi}
           other {<ph name="TAB_COUNT_MANY" /> flipar <ph name="TAB_COUNT_INCOGNITO" /> einka}}</translation>
@@ -54,25 +64,41 @@
 <translation id="4137746084635924146">Núverandi tungumál tækis</translation>
 <translation id="4167670741834902166">Nýr einkaflipi</translation>
 <translation id="4195643157523330669">Opna í nýjum flipa</translation>
+<translation id="4219031106525503429">Deila “<ph name="GROUP_NAME" />” flipabunka</translation>
 <translation id="4225895483398857530">Flýtileið á tækjastiku</translation>
 <translation id="4243710787042215766">Opna í einkaflipa</translation>
 <translation id="4269820728363426813">Afrita slóð tengils</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Kveiktu á skjálás í stillingum Android<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Lykilorðastýring</translation>
-<translation id="441100617989818073">Ónotaðir eða tvöfaldir flipar og grúppur</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {<ph name="TABS_COUNT_ONE" /> hefðbundinn flipi með nýrri virkni í samnýttum flipabunkum}
+          other {<ph name="TABS_COUNT_MANY" /> hefðbundnir flipar með nýrri virkni í samnýttum flipabunkum}
+        }</translation>
+<translation id="4445802392779002787">bæta flipa í bunka</translation>
 <translation id="451872707440238414">Leita í bókamerkjunum þínum</translation>
 <translation id="4526803704855831732">Einkaflipar</translation>
 <translation id="4532845899244822526">Velja möppu</translation>
+<translation id="454284936014822050"><ph name="GROUP_TITLE" /> flipabunki</translation>
+<translation id="4614713783237504866">Ónotaðir eða tvíteknir flipar og bunkar</translation>
+<translation id="463284870544181537">Haltu í þennan bunka til að endurnýta síðar, eða farður úr honum ef þú þarfnast hans ekki lengur</translation>
+<translation id="4638726726741656531">Hér getur þú á einfaldan hátt bætt flipum í bunka</translation>
 <translation id="4699172675775169585">Myndir og skrár í skyndiminni</translation>
 <translation id="4719086422742491124">Kynntu þér efni vefsíða án þess að yfirgefa síðuna. Veldu eitt eða fleiri orð á síðunni, til þess að leita þeirra.
 
 Að ýta til þess að leita er aðgerð, sem bara er í boði þegar Google er valin sem sjálfgefin leitarvél í Vivaldi.</translation>
 <translation id="4759238208242260848">Niðurhöl</translation>
-<translation id="4777866634702576038">Eyða flipagrúppu?</translation>
+<translation id="4771820744342013314">Eyða flipabunka?</translation>
 <translation id="4850886885716139402">Sjá</translation>
 <translation id="4883379392681899581">Fara úr einkaham</translation>
+<translation id="4883812026489706387">Flipabunki “<ph name="TAB_GROUP_TITLE" />” er með nýja virkni</translation>
+<translation id="4887248255051238988">Fara úr bunka?</translation>
 <translation id="4943872375798546930">Engin niðurstaða</translation>
 <translation id="49576331685473090">Innihaldssía</translation>
+<translation id="4964059453543967592">Enduropna lokaðan bunka</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" /> flipabunki}
+          other {<ph name="TAB_GROUPS_MANY" /> flipabunkar}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> einkaflipi}
           other {<ph name="TAB_COUNT_NORMAL" /> einkaflipar}}</translation>
@@ -83,19 +109,26 @@ Að ýta til þess að leita er aðgerð, sem bara er í boði þegar Google er 
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {Sæki skrá…}
             other {Sæki # skrár…}}</translation>
+<translation id="5210689723585747462"><ph name="TAB_GROUP_TITLE" /> flipabunka lokað</translation>
 <translation id="5233638681132016545">Nýr flipi</translation>
 <translation id="5375131951310889874">Kynntu þér efni vefsíða án þess að yfirgefa síðuna. Að ýta til þess að leita er aðgerð, sem bara er í boði þegar Google er valin sem sjálfgefin leitarvél í Vivaldi. Þá er orðið og samhengi þessi sent inn í leitarvél Google, sem skilar þá skilgreiningum, myndum, leitarniðurstöðum, og fleiru.
 
 Ýttu lengi til að velja leitarorð. Fyrir nákvæmari leitarskilyrði má draga spjald alla leið upp og slá á leitarboxið.</translation>
+<translation id="5570837353202786816">Allir munu strax missa aðgang að “<ph name="GROUP_NAME" />” flipabunka og boðshlekkir gerðir óvirkir</translation>
+<translation id="5614794348925178470">Sameiginlegur flibabunki: <ph name="GROUP_TITLE" /></translation>
 <translation id="572328651809341494">Nýlegir flipar</translation>
 <translation id="5833984609253377421">Deila tengli</translation>
+<translation id="6129507335719227488">Flipar í bunka</translation>
 <translation id="6150320133806434356">Bókamerki vistað</translation>
 <translation id="6193448654517602979">Velja flipa</translation>
+<translation id="6221225660285238685">Færa bunka í annan glugga</translation>
+<translation id="6277377952699614191">Flipabunki</translation>
 <translation id="6336451774241870485">Nýr einkaflipi</translation>
 <translation id="6337323516034698937">Til þess að geta sent flipa yfir á annað tæki, þarftu að skrá þig inn á Vivaldi samstillingu á báðum tækjum. Gættu þess að slá inn lykilorð fyrir dulkóðun sé þess krafist.</translation>
 <translation id="6341580099087024258">Spyja hvar á að vista skrár</translation>
 <translation id="6364438453358674297">Fjarlægja tillögur ú sögu?</translation>
 <translation id="6404511346730675251">Breyta bókamerki</translation>
+<translation id="6453011654157908292">Nánar um flipabunka</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
           =1 {Skrá sótt}
           other {# skrár sóttar}}</translation>
@@ -104,11 +137,13 @@ Að ýta til þess að leita er aðgerð, sem bara er í boði þegar Google er 
 <translation id="6593061639179217415">Nota borðtölvuútlit</translation>
 <translation id="6610147964972079463">Loka einkagluggum</translation>
 <translation id="6627583120233659107">Breyta möppu</translation>
+<translation id="6785740335511995065">Halda í bunka?</translation>
 <translation id="6865313869410766144">Gögn sjálfvirkrar útfyllingar eyðublaða</translation>
 <translation id="6909589135458168665">Forhlaða síðum</translation>
 <translation id="7029995644714925509">Þegar síða biður um að fá að forsækja tengt efni þá mun Vivaldi dulkóða og sækja efni frá Google án þess að nota kökur. Þetta gerir tengdum síðum ókleyft að sjá persónuauðkenni þín.</translation>
 <translation id="706339621163631076">Persónuverndarstefna vafrans</translation>
 <translation id="7100573672995171864">Sérsníddu og stjórnaðu Vivaldi</translation>
+<translation id="7133879160432070247">Blokka og fara úr bunka?</translation>
 <translation id="732145680195464316">Bókamerki vistað í <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Senda „Do Not Track“ beiðni</translation>
 <translation id="7359002509206457351">Fá aðgang að greiðslumátum</translation>
@@ -117,24 +152,33 @@ Að ýta til þess að leita er aðgerð, sem bara er í boði þegar Google er 
 <translation id="7456774706094330779">Aukin forhleðsla</translation>
 <translation id="7465104139234185284">Loka öllum einkagluggum</translation>
 <translation id="7481312909269577407">Áfram</translation>
+<translation id="759273611317559136"><ph name="TAB_GROUP_TITLE" /> flipabunka eytt</translation>
+<translation id="7630413501995820846">Halda í bunka</translation>
+<translation id="7640137753339219124">Eyða bunka</translation>
 <translation id="7764225426217299476">Bæta við heimilisfangi</translation>
+<translation id="7910753230807645596">Tvíteknir flipar og bunkar eða þeir sem hafa verið ónotaðir í <ph name="DAYS_INACTIVE" /> daga færast hingað <ph name="AUTODELETE_SECTION" />. Þú getur breytt þessu hvenær sem er í <ph name="DECLUTTER_SETTINGS_TITLE" />.</translation>
 <translation id="7968014550143838305">Bætt við leslista</translation>
 <translation id="804786196054284061">Leyfisskilmálar notenda</translation>
 <translation id="8062594758852531064">Aukin forhleðsla:</translation>
 <translation id="8073388330009372546">Opna mynd í nýjum flipa</translation>
 <translation id="8127542551745560481">Breyta heimasíðu</translation>
+<translation id="8149776854955817519">Skoðaðu óvirka flipa og flipabunka hér</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
           =1 {(1) óvirkt atriði}
           other {(#) óvirk atriði}}</translation>
 <translation id="8266862848225348053">Niðurhalsmappa</translation>
 <translation id="8348430946834215779">Nota HTTPS þegar hægt er og fá viðvörun áður en síðum sem styðja það ekki er hlaðið</translation>
+<translation id="8480628728881718381">Opna í nýjum flipa í bunka</translation>
+<translation id="8543049482641423692">Bæta flipa í nýjan bunka</translation>
 <translation id="8560602726703398413">Finndu leslistann þinn í bókamerkjum</translation>
 <translation id="85991616550051997">Fara á heimasíðu</translation>
+<translation id="8680308397617585416">Þú munt strax missa aðgang að “<ph name="GROUP_NAME" />” flipabunka, og honum verður eytt á öllum þínum tækjum</translation>
 <translation id="8738163682604285902">Skoða lesham?</translation>
 <translation id="8820817407110198400">Bókamerki</translation>
 <translation id="9042893549633094279">Friðhelgi og öryggi</translation>
 <translation id="9063523880881406963">Slökktu á borðtölvuútgáfu</translation>
 <translation id="9080642952018487277">Fara í einkaham</translation>
+<translation id="9099398755190923267">Allir munu strax missa aðgang að flipabunka “<ph name="GROUP_NAME" />”, og honum verður eytt á öllum tækjum</translation>
 <translation id="930124987204876019">Eyddu sögu, fótsporum, vefsvæðagögnum, skyndiminni…</translation>
 <translation id="961856697154696964">Eyða sögu vafranotkunar</translation>
 </translationbundle>

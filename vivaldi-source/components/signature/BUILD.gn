@@ -2,13 +2,9 @@
 
 source_set("signature") {
   sources = [
+    "vivaldi_signature.cc",
     "vivaldi_signature.h",
-    "vivaldi_signature.cc"
   ]
-  deps = [
-    "//base",
-  ]
-  configs += [
-     "//vivaldi/gn/config:release_kind"
-  ]
+  deps = [ "//base" ]
+  configs += [ "//vivaldi/gn/config:release_kind" ]
 }

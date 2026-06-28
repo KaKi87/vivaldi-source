@@ -17,6 +17,7 @@ import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.view.AttachedSurfaceControl;
 import android.view.Surface;
+import android.view.SurfaceControl.Transaction;
 import android.view.View;
 import android.view.Window;
 import android.widget.FrameLayout;
@@ -30,8 +31,8 @@ import org.jni_zero.JNINamespace;
 import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
-import org.chromium.base.ScreenOffBroadcastReceiver;
-import org.chromium.base.ScreenOffBroadcastReceiver.ScreenOffListener;
+import org.chromium.base.ScreenStateReceiver;
+import org.chromium.base.ScreenStateReceiver.ScreenStateObserver;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.TraceEvent;
 import org.chromium.base.task.PostTask;
@@ -125,19 +126,23 @@ public class CompositorView extends FrameLayout
     private @Nullable Integer mSurfaceId;
     private boolean mHasActiveTouchInterceptors;
 
+    private int mPreviousWidth;
+    private int mResizeSeqNo;
+    private boolean mIsDrawPaused;
+
     // On P and above, toggling the screen off gets us in a state where the Surface is destroyed but
     // it is never recreated when it is turned on again. This is the only workaround that seems to
-    // be working, see crbug.com/931195.
-    class ScreenStateReceiverWorkaround implements ScreenOffListener {
+    // be working, see crbug.com/40613559.
+    class ScreenStateReceiverWorkaround implements ScreenStateObserver {
         // True indicates we should destroy and recreate the surface manager.
         private boolean mNeedsReset;
 
         ScreenStateReceiverWorkaround() {
-            ScreenOffBroadcastReceiver.addListener(this);
+            ScreenStateReceiver.addObserver(this);
         }
 
         void shutDown() {
-            ScreenOffBroadcastReceiver.removeListener(this);
+            ScreenStateReceiver.removeObserver(this);
         }
 
         @Override
@@ -350,8 +355,8 @@ public class CompositorView extends FrameLayout
     @Initializer
     public void initNativeCompositor(
             WindowAndroid windowAndroid, TabContentManager tabContentManager) {
-        // https://crbug.com/802160. We can't call setWindowAndroid here because updating the window
-        // visibility here breaks exiting Reader Mode somehow.
+        // https://crbug.com/41364848. We can't call setWindowAndroid here because updating the
+        // window visibility here breaks exiting Reader Mode somehow.
         mWindowAndroid = windowAndroid;
         mWindowAndroid.addSelectionHandlesObserver(this);
 
@@ -421,7 +426,7 @@ public class CompositorView extends FrameLayout
      */
     public void setOverlayImmersiveArMode(boolean enabled, boolean domSurfaceNeedsConfiguring) {
         // Disable SurfaceControl for the duration of the session. This works around a black
-        // screen after activating the screen keyboard (IME), see https://crbug.com/1166248.
+        // screen after activating the screen keyboard (IME), see https://crbug.com/40741986.
         mIsInXr = enabled;
 
         updateXrStateForCurrentSurfaceInputTransferHandler();
@@ -432,8 +437,8 @@ public class CompositorView extends FrameLayout
 
         CompositorViewJni.get().setOverlayImmersiveArMode(mNativeCompositorView, enabled);
         // Entering or exiting AR mode can leave SurfaceControl in a confused state, especially if
-        // the screen keyboard (IME) was activated, see https://crbug.com/1166248 and
-        // https://crbug.com/1169822. Reset the surface manager at session start and exit to work
+        // the screen keyboard (IME) was activated, see https://crbug.com/40741986 and
+        // https://crbug.com/40744115. Reset the surface manager at session start and exit to work
         // around this.
         mCompositorSurfaceManager.shutDown();
         createCompositorSurfaceManager();
@@ -513,7 +518,7 @@ public class CompositorView extends FrameLayout
     @Override
     public void surfaceRedrawNeededAsync(Runnable drawingFinished) {
         // Do not hold onto more than one draw callback, to prevent deadlock.
-        // See https://crbug.com/1174273 and https://crbug.com/1223299 for more details.
+        // See https://crbug.com/40746676 and https://crbug.com/40187558 for more details.
         //
         // `drawingFinished` can, and often will, be run before this returns, since we cannot hold
         // onto more than one (android) callback without risking a deadlock in the framework.
@@ -530,6 +535,12 @@ public class CompositorView extends FrameLayout
         // Always finish any previous draw request before starting a new one. This ensures we
         // don't leak callbacks and hang the WindowManager.
         runDrawFinishedCallbackMaybeNotOnUiThread();
+
+        if (mIsDrawPaused) {
+            // It doesn't make sense to wait for a draw if we are explicitly paused.
+            drawingFinished.run();
+            return;
+        }
 
         final int requestId;
         synchronized (mDrawingFinishedCallbackLock) {
@@ -589,6 +600,42 @@ public class CompositorView extends FrameLayout
             }
         }
 
+        int oldWidth = mPreviousWidth;
+        mPreviousWidth = width;
+
+        mResizeSeqNo++;
+        final int seqNo = mResizeSeqNo;
+
+        boolean isWidthShrink = oldWidth > 0 && width < oldWidth;
+        boolean isFluidResize = isFluidResizeEnabledAndLff();
+
+        boolean shouldPause =
+                isWidthShrink
+                        && isFluidResize
+                        && android.os.Build.VERSION.SDK_INT
+                                >= android.os.Build.VERSION_CODES.TIRAMISU
+                        && getRootSurfaceControl() != null;
+
+        if (shouldPause) {
+            mIsDrawPaused = true;
+            CompositorViewJni.get().setDrawPaused(mNativeCompositorView, true);
+            runDrawFinishedCallbackMaybeNotOnUiThread();
+
+            AttachedSurfaceControl rootSurfaceControl = getRootSurfaceControl();
+            assert rootSurfaceControl != null;
+            Transaction t = new Transaction();
+            t.addTransactionCommittedListener(
+                    ThreadUtils::postOnUiThread,
+                    () -> {
+                        if (seqNo != mResizeSeqNo) return;
+                        unpauseDraw();
+                    });
+            rootSurfaceControl.applyTransactionOnDraw(t);
+            invalidate();
+        } else {
+            unpauseDraw();
+        }
+
         Integer surfaceId =
                 CompositorViewJni.get()
                         .surfaceChanged(
@@ -599,6 +646,7 @@ public class CompositorView extends FrameLayout
                                 canUseSurfaceControl(),
                                 surface,
                                 browserInputToken);
+
         mRenderHost.onSurfaceResized(width, height);
 
         if (InputUtils.isTransferInputToVizSupported()
@@ -615,6 +663,22 @@ public class CompositorView extends FrameLayout
             // the InputTransferHandler is aware that we are in Xr.
             handler.setIsInXr(mIsInXr);
         }
+    }
+
+    private void unpauseDraw() {
+        mIsDrawPaused = false;
+        if (mNativeCompositorView != 0) {
+            CompositorViewJni.get().setDrawPaused(mNativeCompositorView, false);
+            CompositorViewJni.get().setNeedsComposite(mNativeCompositorView);
+        }
+    }
+
+    private void resetFluidResizeState() {
+        if (mIsDrawPaused) {
+            unpauseDraw();
+        }
+        mPreviousWidth = 0;
+        mResizeSeqNo++; // Invalidate pending callbacks
     }
 
     @Override
@@ -644,8 +708,11 @@ public class CompositorView extends FrameLayout
 
         CompositorViewJni.get().surfaceDestroyed(mNativeCompositorView);
 
+        resetFluidResizeState();
+
         if (mScreenStateReceiver != null) {
-            mScreenStateReceiver.maybeResetCompositorSurfaceManager();
+            ThreadUtils.postOnUiThread(
+                    () -> mScreenStateReceiver.maybeResetCompositorSurfaceManager());
         }
         if (InputUtils.isTransferInputToVizSupported() && mSurfaceId != null) {
             SurfaceInputTransferHandlerMap.remove(mSurfaceId);
@@ -794,7 +861,7 @@ public class CompositorView extends FrameLayout
         //  - If we are holding a draw callback when our surface is destroyed, then call it back.
         //  - Otherwise, defer the callback until we swap the right size buffer.
         //
-        // See https://crbug.com/1174273 and https://crbug.com/1223299 for more details.
+        // See https://crbug.com/40746676 and https://crbug.com/40187558 for more details.
         if (swappedCurrentSize) {
             runDrawFinishedCallbackMaybeNotOnUiThread();
         }
@@ -891,6 +958,7 @@ public class CompositorView extends FrameLayout
     }
 
     private void createCompositorSurfaceManager() {
+        if (mNativeCompositorView == 0) return;
         mCompositorSurfaceManager = new CompositorSurfaceManagerImpl(this, this);
         mCompositorSurfaceManager.requestSurface(getSurfacePixelFormat());
         CompositorViewJni.get().setNeedsComposite(mNativeCompositorView);
@@ -964,6 +1032,8 @@ public class CompositorView extends FrameLayout
         void finalizeLayers(long nativeCompositorView);
 
         void setNeedsComposite(long nativeCompositorView);
+
+        void setDrawPaused(long nativeCompositorView, boolean paused);
 
         void setLayoutBounds(long nativeCompositorView);
 

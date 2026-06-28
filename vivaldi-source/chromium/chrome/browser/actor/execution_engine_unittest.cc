@@ -16,16 +16,13 @@
 #include "base/test/test_future.h"
 #include "base/time/time.h"
 #include "base/timer/elapsed_timer.h"
-#include "chrome/browser/actor/actor_features.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/actor/actor_keyed_service_factory.h"
 #include "chrome/browser/actor/actor_tab_data.h"
 #include "chrome/browser/actor/actor_task.h"
 #include "chrome/browser/actor/actor_test_util.h"
 #include "chrome/browser/actor/autofill_selection_dialog_event_handler.h"
-#include "chrome/browser/actor/enterprise_policy_url_checker.h"
-#include "chrome/browser/actor/safety_list_manager.h"
-#include "chrome/browser/actor/shared_types.h"
+#include "chrome/browser/actor/enterprise_policy_checker.h"
 #include "chrome/browser/actor/tool_request_variant.h"
 #include "chrome/browser/actor/tools/click_tool_request.h"
 #include "chrome/browser/actor/tools/fake_tool.h"
@@ -41,8 +38,13 @@
 #include "chrome/common/chrome_render_frame.mojom.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
+#include "components/actor/core/actor_features.h"
+#include "components/actor/core/safety_list_manager.h"
+#include "components/actor/core/shared_types.h"
+#include "components/actor/public/mojom/actor_types.mojom.h"
 #include "components/autofill/core/browser/integrators/actor/actor_form_filling_types.h"
 #include "components/optimization_guide/content/browser/page_content_proto_provider.h"
+#include "components/page_content_annotations/content/mojom/page_stability.mojom.h"
 #include "components/tabs/public/mock_tab_interface.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/test/mock_navigation_handle.h"
@@ -176,11 +178,13 @@ class FakeChromeRenderFrame : public chrome::mojom::ChromeRenderFrame {
       mojo::PendingAssociatedRemote<actor::mojom::JournalClient> client)
       override {}
   void CreatePageStabilityMonitor(
-      mojo::PendingReceiver<actor::mojom::PageStabilityMonitor> monitor,
+      mojo::PendingReceiver<
+          page_content_annotations::mojom::PageStabilityMonitor> monitor,
       const TaskId& task_id,
       bool supports_paint_stability) override {}
   void CancelTool(const TaskId& task_id) override {}
   void GetCrossDocumentScriptToolResult(
+      const base::UnguessableToken& execution_id,
       GetCrossDocumentScriptToolResultCallback callback) override {
     std::move(callback).Run("");
   }
@@ -196,55 +200,6 @@ class FakeChromeRenderFrame : public chrome::mojom::ChromeRenderFrame {
   }
 
   mojo::AssociatedReceiverSet<chrome::mojom::ChromeRenderFrame> receivers_;
-};
-
-class MockActorTaskDelegate : public ActorTaskDelegate {
- public:
-  MockActorTaskDelegate() = default;
-  ~MockActorTaskDelegate() override = default;
-
-  MOCK_METHOD(void,
-              OnTabAddedToTask,
-              (TaskId task_id, const tabs::TabInterface::Handle& tab_handle),
-              (override));
-
-  MOCK_METHOD(void,
-              RequestToShowCredentialSelectionDialog,
-              (TaskId task_id,
-               (const base::flat_map<std::string, gfx::Image>&)icons,
-               const std::vector<actor_login::Credential>& credentials,
-               CredentialSelectedCallback callback),
-              (override));
-
-  MOCK_METHOD(void,
-              RequestToShowUserConfirmationDialog,
-              (TaskId task_id,
-               const url::Origin& destination,
-               bool for_blocklisted_origin,
-               UserConfirmationDialogCallback callback),
-              (override));
-
-  MOCK_METHOD(void,
-              RequestToConfirmNavigation,
-              (TaskId task_id,
-               const url::Origin& destination,
-               NavigationConfirmationCallback callback),
-              (override));
-
-  MOCK_METHOD(void,
-              RequestToShowAutofillSuggestionsDialog,
-              (actor::TaskId task_id,
-               std::vector<autofill::ActorFormFillingRequest> requests,
-               base::WeakPtr<AutofillSelectionDialogEventHandler> handler,
-               AutofillSuggestionSelectedCallback callback),
-              (override));
-
-  base::WeakPtr<MockActorTaskDelegate> GetWeakPtr() {
-    return weak_factory_.GetWeakPtr();
-  }
-
- private:
-  base::WeakPtrFactory<MockActorTaskDelegate> weak_factory_{this};
 };
 
 class ExecutionEngineTest : public ChromeRenderViewHostTestHarness {
@@ -374,7 +329,7 @@ class ExecutionEngineTest : public ChromeRenderViewHostTestHarness {
   std::optional<TestTabState> tab_state_;
 
   MockPolicyChecker no_enterprise_checker_{
-      EnterprisePolicyBlockReason::kNotBlocked};
+      EnterprisePolicyChecker::UrlBlockReason::kNotBlocked};
 };
 
 // TODO(crbug.com/480230075): Crashing on Android.
@@ -893,7 +848,8 @@ TEST_F(ExecutionEngineTest,
        MAYBE_VisibleNotVisibleActuationCompletedHistogram) {
   content::NavigationSimulator::NavigateAndCommitFromBrowser(
       web_contents(), GURL("http://localhost/"));
-  task_->AddTab(GetTab()->GetHandle(), base::DoNothing());
+  task_->AddTab(GetTab()->GetHandle(), /*stop_task_on_detach=*/true,
+                base::DoNothing());
   web_contents()->WasShown();
 
   // Simulate visible actuation.
@@ -928,7 +884,8 @@ TEST_P(ExecutionEngineStopReasonParamTest,
        MAYBE_VisibleNotVisibleActuationStoppedHistogram) {
   content::NavigationSimulator::NavigateAndCommitFromBrowser(
       web_contents(), GURL("http://localhost/"));
-  task_->AddTab(GetTab()->GetHandle(), base::DoNothing());
+  task_->AddTab(GetTab()->GetHandle(), /*stop_task_on_detach=*/true,
+                base::DoNothing());
   web_contents()->WasShown();
 
   // Simulate visible actuation.
@@ -965,7 +922,8 @@ TEST_F(ExecutionEngineTest,
        MAYBE_VisibleNotVisibleActuationWithPauseHistogram) {
   content::NavigationSimulator::NavigateAndCommitFromBrowser(
       web_contents(), GURL("http://localhost/"));
-  task_->AddTab(GetTab()->GetHandle(), base::DoNothing());
+  task_->AddTab(GetTab()->GetHandle(), /*stop_task_on_detach=*/true,
+                base::DoNothing());
   web_contents()->WasShown();
 
   // Simulate visible actuation.
@@ -1005,7 +963,8 @@ TEST_F(ExecutionEngineTest,
        MAYBE_VisibleNotVisibleActuationWithWaitingHistogram) {
   content::NavigationSimulator::NavigateAndCommitFromBrowser(
       web_contents(), GURL("http://localhost/"));
-  task_->AddTab(GetTab()->GetHandle(), base::DoNothing());
+  task_->AddTab(GetTab()->GetHandle(), /*stop_task_on_detach=*/true,
+                base::DoNothing());
   web_contents()->WasShown();
   task_->SetState(ActorTask::State::kReflecting);
 
@@ -1123,6 +1082,30 @@ TEST_F(ExecutionEngineNavigationGatingTest,
                                  /*sample=*/false, /*expected_bucket_count=*/1);
   histograms_.ExpectUniqueSample("Actor.NavigationGating.SameSiteInitiator",
                                  /*sample=*/false, /*expected_bucket_count=*/1);
+}
+
+TEST_F(ExecutionEngineNavigationGatingTest,
+       ShouldDeferNavigation_OpaqueSourceWithPrecursor) {
+  const GURL kPrecursorUrl("https://example.com/");
+  const GURL kDestinationUrl("https://example.com/other");
+
+  content::NavigationSimulator::NavigateAndCommitFromBrowser(web_contents(),
+                                                             kPrecursorUrl);
+
+  // Navigate to a data URL to get an opaque origin with the precursor.
+  content::NavigationSimulator::NavigateAndCommitFromDocument(
+      GURL("data:text/html,foo"), main_rfh());
+
+  content::MockNavigationHandle navigation_handle(kDestinationUrl, main_rfh());
+
+  EXPECT_EQ(task_->GetExecutionEngine().ShouldDeferNavigation(
+                navigation_handle, base::NullCallback()),
+            content::NavigationThrottle::PROCEED);
+
+  // Verify that SameOriginSource is true, indicating it used the precursor
+  // origin.
+  histograms_.ExpectUniqueSample("Actor.NavigationGating.SameOriginSource",
+                                 /*sample=*/true, /*expected_bucket_count=*/1);
 }
 
 }  // namespace

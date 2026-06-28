@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://new-tab-page/strings.m.js';
+import 'chrome://contextual-tasks/strings.m.js';
 import 'chrome://resources/cr_components/composebox/composebox_match.js';
 
 import {PageCallbackRouter, PageHandlerRemote} from 'chrome://resources/cr_components/composebox/composebox.mojom-webui.js';
@@ -94,7 +94,8 @@ suite('ComposeboxMatch', () => {
 
   test('focusing a match fires `match-focusin` event', async () => {
     matchElement.matchIndex = 2;
-    const whenMatchFocusin = eventToPromise('match-focusin', matchElement);
+    const whenMatchFocusin = eventToPromise<CustomEvent<{index: number}>>(
+        'match-focusin', matchElement);
 
     matchElement.dispatchEvent(new FocusEvent('focusin'));
 

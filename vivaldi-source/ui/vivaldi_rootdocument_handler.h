@@ -129,7 +129,8 @@ class VivaldiRootDocumentHandler : public KeyedService,
   void AddGlobalError(
       std::unique_ptr<VivaldiExtensionDisabledGlobalError> error);
 
-  void RemoveGlobalError(VivaldiExtensionDisabledGlobalError* error);
+  std::unique_ptr<VivaldiExtensionDisabledGlobalError> RemoveGlobalError(
+      VivaldiExtensionDisabledGlobalError* error);
 
   raw_ptr<VivaldiExtensionDisabledGlobalError>
   GetGlobalErrorByMenuItemCommandID(int commandid);

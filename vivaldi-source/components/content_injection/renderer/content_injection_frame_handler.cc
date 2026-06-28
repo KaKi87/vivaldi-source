@@ -239,7 +239,7 @@ void FrameHandler::InjectCSS(const std::string& key,
                               : blink::WebCssOrigin::kUser;
 
   render_frame()->GetWebFrame()->GetDocument().InsertStyleSheet(
-      blink::WebString::FromUTF8(content),
+      blink::WebString::FromUtf8(content),
       style_sheet_key.IsEmpty() ? nullptr : &style_sheet_key, blink_css_origin);
 }
 void FrameHandler::RemoveInjectedCSS(const std::string& key,
@@ -258,7 +258,7 @@ void FrameHandler::InjectJS(const std::string& key,
                             int world_id) {
   std::vector<blink::WebScriptSource> sources(
       1,
-      blink::WebScriptSource(blink::WebString::FromUTF8(content), GURL(key)));
+      blink::WebScriptSource(blink::WebString::FromUtf8(content), GURL(key)));
 
   render_frame()->GetWebFrame()->RequestExecuteScript(
       world_id, sources, blink::mojom::UserActivationOption::kDoNotActivate,

@@ -8,6 +8,7 @@
 #import <UIKit/UIKit.h>
 
 #import "ios/chrome/browser/keyboard/ui_bundled/key_command_actions.h"
+#import "ios/chrome/browser/shared/ui/util/ui_view_controller_with_display_tracing.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/grid/disabled_grid_view_controller.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/grid/grid_consumer.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/tab_grid_consumer.h"
@@ -41,6 +42,7 @@ enum class IPHDismissalReasonType;
 @protocol TabGridToolbarsCommandsWrangler;
 @class TabGridTopToolbar;
 @class TabGroupsPanelViewController;
+@class LayoutState;
 
 // Vivaldi
 @protocol RecentTabsConsumer;
@@ -98,13 +100,17 @@ enum class TabGridPageConfiguration {
 // View controller representing a tab switcher. The tab switcher has an
 // incognito tab grid, regular tab grid, and tab groups grid.
 @interface TabGridViewController
-    : UIViewController <DisabledGridViewControllerDelegate,
-                        GridConsumer,
-                        KeyCommandActions,
-                        TabGridConsumer,
-                        TabGridIdleStatusHandler,
-                        TabGridToolbarsMainTabGridDelegate,
-                        UISearchBarDelegate>
+    : UIViewControllerWithDisplayTracing <DisabledGridViewControllerDelegate,
+                                          GridConsumer,
+                                          KeyCommandActions,
+                                          TabGridConsumer,
+                                          TabGridIdleStatusHandler,
+                                          TabGridToolbarsMainTabGridDelegate,
+                                          UISearchBarDelegate>
+
+// Returns whether the child views have been set up.
+// Used by EarlGrey tests to poll for deferred setup completion.
+@property(nonatomic, readonly) BOOL childViewsAreSetUp;
 
 // Handler for Scene commands.
 @property(nonatomic, weak) id<SceneCommands> handler;
@@ -165,6 +171,9 @@ enum class TabGridPageConfiguration {
 // The layout guide center to use to refer to the bottom toolbar.
 @property(nonatomic, strong) LayoutGuideCenter* layoutGuideCenter;
 
+// The layout state of the scene.
+@property(nonatomic, weak) LayoutState* layoutState;
+
 // Top and bottom toolbars. Those must be set before -viewDidLoad is called.
 @property(nonatomic, strong) TabGridTopToolbar* topToolbar;
 @property(nonatomic, strong) TabGridBottomToolbar* bottomToolbar;
@@ -224,6 +233,14 @@ enum class TabGridPageConfiguration {
 
 // Updates the active page to be the current page.
 - (void)updateActivePageToCurrent;
+
+// Signal that child view controllers were setup externally. For testing only.
+- (void)didSetupChildViewsForTesting;
+
+// Hides or shows tab grid content views. Used to hide the tab grid content
+// while the active browser is being displayed, which prevents any visual
+// glitches or TabGrid leakage when the grid should not be visible.
+- (void)setContentVisible:(BOOL)visible;
 
 @end
 

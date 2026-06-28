@@ -12,6 +12,7 @@
 #include "base/types/expected.h"
 
 // Vivaldi
+#include "components/ext_data/tab_positioning_params.h"
 #include "ui/base/page_transition_types.h"
 
 class BrowserWindowInterface;
@@ -40,11 +41,14 @@ class OpenTabHelper {
     std::optional<ui::PageTransition> transition;
     std::optional<std::string> viv_ext_data;
     std::optional<bool> ignore_link_routing;
+    ::vivaldi::TabPositioningParams positioning_params; // VB-128442
   };
 
 #if !BUILDFLAG(IS_ANDROID)
   // Finds the current browser or creates a new browser that's appropriate to
   // show the given `validated_url`. Returns an error on failure.
+  // This variant is only available on non-Android platforms. On Android, window
+  // creation / initialization is an async process.
   static base::expected<BrowserWindowInterface*, std::string>
   FindOrCreateBrowser(const GURL& validated_url,
                       ExtensionFunction& function,

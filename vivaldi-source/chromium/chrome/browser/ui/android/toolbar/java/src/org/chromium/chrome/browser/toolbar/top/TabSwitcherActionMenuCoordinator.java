@@ -4,9 +4,6 @@
 
 package org.chromium.chrome.browser.toolbar.top;
 
-import static org.chromium.build.NullUtil.assumeNonNull;
-import static org.chromium.ui.listmenu.BasicListMenu.buildMenuDivider;
-
 import android.content.Context;
 import android.view.View;
 import android.view.View.OnLongClickListener;
@@ -22,11 +19,10 @@ import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
+import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.toolbar.MenuBuilderHelper;
 import org.chromium.chrome.browser.toolbar.R;
@@ -34,12 +30,15 @@ import org.chromium.components.browser_ui.widget.BrowserUiListMenuUtils;
 import org.chromium.components.browser_ui.widget.ListItemBuilder;
 import org.chromium.components.feature_engagement.EventConstants;
 import org.chromium.ui.listmenu.BasicListMenu;
+import org.chromium.ui.listmenu.ListItemType;
 import org.chromium.ui.listmenu.ListMenu;
 import org.chromium.ui.listmenu.ListMenuButton;
 import org.chromium.ui.listmenu.ListMenuDelegate;
 import org.chromium.ui.listmenu.ListMenuItemProperties;
+import org.chromium.ui.listmenu.ListSectionDividerProperties;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
+import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.widget.RectProvider;
 
 import java.lang.annotation.Retention;
@@ -238,12 +237,10 @@ public class TabSwitcherActionMenuCoordinator {
         if (ChromeSharedPreferences.getInstance().readInt(enabledStack, 2) == 0) return;
         // End Vivaldi
 
-        if (ChromeFeatureList.sTabModelInitFixes.isEnabled()) {
-            TabModelSelector selector = mTabModelSelectorSupplier.get();
-            if (selector == null || !selector.isTabStateInitialized()) return;
-            TabGroupModelFilter filter = selector.getCurrentTabGroupModelFilter();
-            if (filter == null || !filter.isTabModelRestored()) return;
-        }
+        TabModelSelector selector = mTabModelSelectorSupplier.get();
+        if (selector == null || !selector.isTabStateInitialized()) return;
+        TabModel tabModel = selector.getCurrentModel();
+        if (!tabModel.isTabModelRestored()) return;
 
         if (doTabGroupsExist()) {
             itemList.add(buildListItemByMenuItemType(MenuItemType.ADD_TAB_TO_GROUP));
@@ -324,17 +321,30 @@ public class TabSwitcherActionMenuCoordinator {
 
             case MenuItemType.DIVIDER:
             default:
-                return buildMenuDivider(mProfile.isIncognitoBranded());
+                return buildMenuDivider();
         }
+    }
+
+    private ListItem buildMenuDivider() {
+        PropertyModel.Builder builder =
+                new PropertyModel.Builder(ListSectionDividerProperties.ALL_KEYS);
+        if (mProfile.isIncognitoBranded()) {
+            builder.with(ListSectionDividerProperties.COLOR_ID, R.color.divider_color_light);
+        }
+        builder.with(
+                ListSectionDividerProperties.LEFT_PADDING_DIMEN_ID,
+                R.dimen.list_menu_item_horizontal_padding);
+        builder.with(
+                ListSectionDividerProperties.RIGHT_PADDING_DIMEN_ID,
+                R.dimen.list_menu_item_horizontal_padding);
+        return new ListItem(ListItemType.DIVIDER, builder.build());
     }
 
     private boolean doTabGroupsExist() {
         TabModelSelector tabModelSelector = mTabModelSelectorSupplier.get();
         if (tabModelSelector != null) {
-            TabGroupModelFilter currentTabGroupModelFilter =
-                    tabModelSelector.getCurrentTabGroupModelFilter();
-            assumeNonNull(currentTabGroupModelFilter);
-            return currentTabGroupModelFilter.getTabGroupCount() != 0;
+            TabModel tabModel = tabModelSelector.getCurrentModel();
+            return tabModel.getTabGroupCount() != 0;
         }
         return false;
     }

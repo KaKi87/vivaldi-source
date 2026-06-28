@@ -15,6 +15,7 @@
 #include "chrome/browser/sync/test/integration/web_apps/web_apps_sync_test_base.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/views/web_apps/web_app_dialog_test_support.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/ui/web_applications/web_app_dialogs.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
@@ -31,6 +32,7 @@
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/browser/web_applications/web_app_sync_bridge.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
@@ -75,6 +77,7 @@ class TwoClientWebAppsSyncTest
     if (GetSetupSyncMode() == SetupSyncMode::kSyncTransportOnly) {
       enabled_features.push_back(syncer::kReplaceSyncPromosWithSignInPromos);
     }
+    disabled_features.push_back(features::kWebAppInstallDialog);
     feature_overrides_.InitWithFeatures(enabled_features, disabled_features);
   }
 
@@ -335,7 +338,7 @@ IN_PROC_BROWSER_TEST_P(TwoClientWebAppsSyncTest,
 }
 
 // Tests that we don't crash when syncing an icon info with no size.
-// Context: https://crbug.com/1058283
+// Context: https://crbug.com/40121073
 IN_PROC_BROWSER_TEST_P(TwoClientWebAppsSyncTest, SyncFaviconOnly) {
   Profile* sourceProfile = GetProfile(0);
   Profile* destProfile = GetProfile(1);
@@ -351,12 +354,12 @@ IN_PROC_BROWSER_TEST_P(TwoClientWebAppsSyncTest, SyncFaviconOnly) {
         browser,
         embedded_test_server()->GetURL("/web_apps/favicon_only.html")));
 #if BUILDFLAG(IS_CHROMEOS)
-    SetAutoAcceptWebAppDialogForTesting(true, true);
+    web_app::test::ScopedAutoAcceptCreateShortcutDialog auto_accept;
+    web_app::test::ScopedAutoCheckChromeOsOpenInWindow auto_check;
     WebAppTestInstallObserver installObserver(sourceProfile);
     installObserver.BeginListening();
     chrome::ExecuteCommand(browser, IDC_CREATE_SHORTCUT);
     app_id = installObserver.Wait();
-    SetAutoAcceptWebAppDialogForTesting(false, false);
 #else
     // Install as DIY App.
     SetAutoAcceptDiyAppsInstallDialogForTesting(/*auto_accept=*/true);
@@ -411,7 +414,7 @@ IN_PROC_BROWSER_TEST_P(TwoClientWebAppsSyncTest, SyncUsingStartUrlFallback) {
 // Tests that we don't use the page title if there's no manifest.
 // Pages without a manifest are usually not the correct page to draw information
 // from e.g. login redirects or loading pages.
-// Context: https://crbug.com/1078286
+// Context: https://crbug.com/40689254
 IN_PROC_BROWSER_TEST_P(TwoClientWebAppsSyncTest, SyncUsingNameFallback) {
   Profile* source_profile = GetProfile(0);
   Profile* dest_profile = GetProfile(1);

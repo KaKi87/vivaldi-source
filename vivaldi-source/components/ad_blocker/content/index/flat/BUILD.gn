@@ -4,7 +4,7 @@ import("//third_party/flatbuffers/flatbuffer.gni")
 
 flatbuffer("adblock_rules_list") {
   sources = [
+    "adblock_rules_index.fbs",
     "adblock_rules_list.fbs",
-    "adblock_rules_index.fbs"
   ]
 }

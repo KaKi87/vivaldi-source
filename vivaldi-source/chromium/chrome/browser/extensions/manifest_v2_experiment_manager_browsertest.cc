@@ -2,7 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/extensions/manifest_v2_experiment_manager.h"
+#include "extensions/browser/manifest_v2_experiment_manager.h"
+
+#include <algorithm>
 
 #include "base/one_shot_event.h"
 #include "base/strings/stringprintf.h"
@@ -12,7 +14,6 @@
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "chrome/browser/extensions/extension_management_internal.h"
 #include "chrome/browser/extensions/external_provider_manager.h"
-#include "chrome/browser/extensions/mv2_experiment_stage.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/ukm/test_ukm_recorder.h"
 #include "content/public/test/browser_test.h"
@@ -21,6 +22,7 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/mock_external_provider.h"
+#include "extensions/browser/mv2_experiment_stage.h"
 #include "extensions/browser/pref_names.h"
 #include "extensions/browser/test_extension_registry_observer.h"
 #include "extensions/browser/unpacked_installer.h"
@@ -55,28 +57,23 @@ MV2ExperimentStage GetExperimentStageForTest(std::string_view test_name) {
     const char* test_name;
     MV2ExperimentStage stage;
   } test_stages[] = {
-      {"PRE_PRE_ExtensionsAreDisabledOnStartup", MV2ExperimentStage::kWarning},
-      {"PRE_ExtensionsAreDisabledOnStartup", MV2ExperimentStage::kWarning},
+      {"PRE_ExtensionsAreDisabledOnStartup",
+       MV2ExperimentStage::kDisableWithReEnable},
       {"ExtensionsAreDisabledOnStartup",
        MV2ExperimentStage::kDisableWithReEnable},
-      {"PRE_PRE_ExtensionsCanBeReEnabledByUsers", MV2ExperimentStage::kWarning},
+      {"PRE_PRE_ExtensionsCanBeReEnabledByUsers",
+       MV2ExperimentStage::kDisableWithReEnable},
       {"PRE_ExtensionsCanBeReEnabledByUsers",
        MV2ExperimentStage::kDisableWithReEnable},
       {"ExtensionsCanBeReEnabledByUsers",
        MV2ExperimentStage::kDisableWithReEnable},
       {"ExtensionsAreReEnabledWhenUpdatedToMV3",
        MV2ExperimentStage::kDisableWithReEnable},
-      {"PRE_MarkingNoticeAsAcknowledged", MV2ExperimentStage::kWarning},
       {"MarkingNoticeAsAcknowledged", MV2ExperimentStage::kDisableWithReEnable},
-      {"PRE_MarkingGlobalNoticeAsAcknowledged", MV2ExperimentStage::kWarning},
       {"MarkingGlobalNoticeAsAcknowledged",
        MV2ExperimentStage::kDisableWithReEnable},
-      {"PRE_PRE_ExtensionsAreReEnabledIfExperimentDisabled",
-       MV2ExperimentStage::kWarning},
       {"PRE_ExtensionsAreReEnabledIfExperimentDisabled",
        MV2ExperimentStage::kDisableWithReEnable},
-      {"ExtensionsAreReEnabledIfExperimentDisabled",
-       MV2ExperimentStage::kWarning},
       {"ExternalExtensionsCanBeInstalledButAreAlsoDisabled",
        MV2ExperimentStage::kDisableWithReEnable},
       {"UkmIsEmittedForExtensionWhenUninstalled",
@@ -84,10 +81,11 @@ MV2ExperimentStage GetExperimentStageForTest(std::string_view test_name) {
       {"UkmIsNotEmittedForOtherUninstallations",
        MV2ExperimentStage::kDisableWithReEnable},
       {"PRE_MV2ExtensionsAreNotDisabledIfLegacyExtensionSwitchIsApplied",
-       MV2ExperimentStage::kWarning},
+       MV2ExperimentStage::kDisableWithReEnable},
       {"MV2ExtensionsAreNotDisabledIfLegacyExtensionSwitchIsApplied",
        MV2ExperimentStage::kUnsupported},
-      {"PRE_PRE_FlowFromWarningToUnsupported", MV2ExperimentStage::kWarning},
+      {"PRE_PRE_FlowFromWarningToUnsupported",
+       MV2ExperimentStage::kDisableWithReEnable},
       {"PRE_FlowFromWarningToUnsupported",
        MV2ExperimentStage::kDisableWithReEnable},
       {"FlowFromWarningToUnsupported", MV2ExperimentStage::kUnsupported},
@@ -128,14 +126,14 @@ class ManifestV2ExperimentManagerBrowserTest : public ExtensionBrowserTest {
 
     switch (experiment_stage) {
       case MV2ExperimentStage::kWarning:
-        disabled_features.push_back(
-            extensions_features::kExtensionManifestV2Disabled);
+        enabled_features.push_back(
+            extensions_features::kExtensionManifestV2DeprecationWarning);
         disabled_features.push_back(
             extensions_features::kExtensionManifestV2Unsupported);
         break;
       case MV2ExperimentStage::kDisableWithReEnable:
-        enabled_features.push_back(
-            extensions_features::kExtensionManifestV2Disabled);
+        disabled_features.push_back(
+            extensions_features::kExtensionManifestV2DeprecationWarning);
         disabled_features.push_back(
             extensions_features::kExtensionManifestV2Unsupported);
         break;
@@ -143,8 +141,10 @@ class ManifestV2ExperimentManagerBrowserTest : public ExtensionBrowserTest {
         enabled_features.push_back(
             extensions_features::kExtensionManifestV2Unsupported);
         disabled_features.push_back(
-            extensions_features::kExtensionManifestV2Disabled);
+            extensions_features::kExtensionManifestV2DeprecationWarning);
         break;
+      case MV2ExperimentStage::kNone:
+        NOTREACHED() << "Unhandled stage.";
     }
 
     PopulateAdditionalFeatures(enabled_features, disabled_features);
@@ -172,9 +172,21 @@ class ManifestV2ExperimentManagerBrowserTest : public ExtensionBrowserTest {
         base::BindRepeating([](std::string_view) { return true; }));
   }
 
-  // Since this is testing the MV2 deprecation experiments, we don't want to
-  // bypass their disabling for testing.
-  bool ShouldAllowMV2Extensions() override { return false; }
+  // Since this is testing the MV2 deprecation experiments, we probably don't
+  // want to bypass their disabling for testing. There are some exceptions for
+  // pre-tests that explicitly need to do this as part of the setup.
+  bool ShouldAllowMV2Extensions() override {
+    std::vector<std::string> tests_allowing_mv2 = {
+        "PRE_ExtensionsAreDisabledOnStartup",
+        "PRE_PRE_ExtensionsCanBeReEnabledByUsers",
+        "PRE_MV2ExtensionsAreNotDisabledIfLegacyExtensionSwitchIsApplied",
+        "PRE_PRE_FlowFromWarningToUnsupported",
+    };
+    return std::ranges::contains(
+        tests_allowing_mv2,
+        std::string(
+            testing::UnitTest::GetInstance()->current_test_info()->name()));
+  }
 
   void WaitForExtensionSystemReady() {
     base::RunLoop run_loop;
@@ -255,37 +267,13 @@ class ManifestV2ExperimentManagerBrowserTest : public ExtensionBrowserTest {
 };
 
 // A test series to verify MV2 extensions are disabled on startup.
-// Step 1 (Warning Only Stage): Install an MV2 extension.
+// Step 1: Install an MV2 extension.
 IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
-                       PRE_PRE_ExtensionsAreDisabledOnStartup) {
-  EXPECT_EQ(MV2ExperimentStage::kWarning, GetActiveExperimentStage());
-
+                       PRE_ExtensionsAreDisabledOnStartup) {
   const Extension* extension = AddMV2Extension("Test MV2 Extension");
   ASSERT_TRUE(extension);
 }
-// Step 2 (Warning Only Stage): Verify the MV2 extension is still enabled after
-// restarting the browser. Since this is still a PRE_ stage, the disabling
-// experiment isn't active, and MV2 extensions should be unaffected.
-IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
-                       PRE_ExtensionsAreDisabledOnStartup) {
-  EXPECT_EQ(MV2ExperimentStage::kWarning, GetActiveExperimentStage());
-
-  WaitForExtensionSystemReady();
-
-  const Extension* extension = GetExtensionByName(
-      "Test MV2 Extension", extension_registry()->enabled_extensions());
-
-  ASSERT_TRUE(extension);
-  const ExtensionId extension_id = extension->id();
-  EXPECT_TRUE(
-      extension_registry()->enabled_extensions().Contains(extension_id));
-
-  EXPECT_TRUE(extension_prefs()->GetDisableReasons(extension_id).empty());
-
-  histogram_tester().ExpectTotalCount(
-      "Extensions.MV2Deprecation.MV2ExtensionState.Internal", 0);
-}
-// Step 3 (Disable Stage): Verify the extension is disabled. Now the disabling
+// Step 2 (Disable Stage): Verify the extension is disabled. Now the disabling
 // experiment is active, and any old MV2 extensions are disabled.
 IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
                        ExtensionsAreDisabledOnStartup) {
@@ -320,16 +308,16 @@ IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
 
 // A test series to verify extensions that are re-enabled by the user do not
 // get re-disabled on subsequent starts.
-// Step 1 (Warning Only Stage): Install an MV2 extension.
+// Step 1: Install an MV2 extension.
 IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
                        PRE_PRE_ExtensionsCanBeReEnabledByUsers) {
-  EXPECT_EQ(MV2ExperimentStage::kWarning, GetActiveExperimentStage());
+  EXPECT_EQ(MV2ExperimentStage::kDisableWithReEnable,
+            GetActiveExperimentStage());
 
   const Extension* extension = AddMV2Extension("Test MV2 Extension");
   ASSERT_TRUE(extension);
 }
-// Step 2 (Disable Stage): The extension will be disabled by the experiment.
-// Re-enable the extension.
+// Step 2: The extension will be disabled.
 IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
                        PRE_ExtensionsCanBeReEnabledByUsers) {
   EXPECT_EQ(MV2ExperimentStage::kDisableWithReEnable,
@@ -366,8 +354,8 @@ IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
       static_cast<int64_t>(ManifestV2ExperimentManager::
                                ExtensionMV2DeprecationAction::kReEnabled));
 }
-// Step 3 (Disable Stage): The extension should still be enabled on a subsequent
-// start since the user explicitly chose to re-enable it.
+// Step 3: The extension should still be enabled on a subsequent start since
+// the user explicitly chose to re-enable it.
 IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
                        ExtensionsCanBeReEnabledByUsers) {
   EXPECT_EQ(MV2ExperimentStage::kDisableWithReEnable,
@@ -448,140 +436,6 @@ IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
   EXPECT_TRUE(extension_prefs()->GetDisableReasons(extension_id).empty());
   // The user didn't re-enable the extension, so it shouldn't be marked as such.
   EXPECT_FALSE(WasExtensionReEnabledByUser(extension_id));
-}
-
-// Tests that the MV2 deprecation notice for an extension is only acknowledged
-// for the current stage.
-// Step 1 (Warning Stage): Mark an extension's notice as acknowledged on this
-// stage.
-IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
-                       PRE_MarkingNoticeAsAcknowledged) {
-  EXPECT_EQ(MV2ExperimentStage::kWarning, GetActiveExperimentStage());
-
-  WaitForExtensionSystemReady();
-
-  // Add an extension and verify it's notice is not marked as acknowledged on
-  // this stage.
-  const Extension* extension = AddMV2Extension("Test MV2 Extension");
-  ASSERT_TRUE(extension);
-  EXPECT_FALSE(experiment_manager()->DidUserAcknowledgeNotice(extension->id()));
-
-  // Mark the notice as acknowledged for this stage. Verify it's acknowledged.
-  experiment_manager()->MarkNoticeAsAcknowledged(extension->id());
-  EXPECT_TRUE(experiment_manager()->DidUserAcknowledgeNotice(extension->id()));
-}
-// Step 2 (Disable Stage): Verify extension's notice is not acknowledged on this
-// stage. Mark notice as acknowledged on this stage.
-IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
-                       MarkingNoticeAsAcknowledged) {
-  EXPECT_EQ(MV2ExperimentStage::kDisableWithReEnable,
-            GetActiveExperimentStage());
-
-  WaitForExtensionSystemReady();
-
-  // Verify extension's notice is not marked as acknowledged on this stage, even
-  // if it was acknowledged on the previous stage.
-  const Extension* extension = GetExtensionByName(
-      "Test MV2 Extension", extension_registry()->disabled_extensions());
-  ASSERT_TRUE(extension);
-  EXPECT_FALSE(experiment_manager()->DidUserAcknowledgeNotice(extension->id()));
-
-  // Mark the notice as acknowledged for this stage. Verify it's acknowledged.
-  experiment_manager()->MarkNoticeAsAcknowledged(extension->id());
-  EXPECT_TRUE(experiment_manager()->DidUserAcknowledgeNotice(extension->id()));
-}
-
-// Tests that the MV2 deprecation global notice is only acknowledged for the
-// current stage.
-// Step 1 (Warning Stage): Mark the global notice as acknowledged
-// on this stage.
-IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
-                       PRE_MarkingGlobalNoticeAsAcknowledged) {
-  EXPECT_EQ(MV2ExperimentStage::kWarning, GetActiveExperimentStage());
-
-  WaitForExtensionSystemReady();
-
-  // Add an extension that should make the MV2 deprecation notice visible.
-  // Verify global notice is not marked as acknowledged on this stage.
-  const Extension* extension = AddMV2Extension("Test MV2 Extension");
-  ASSERT_TRUE(extension);
-  EXPECT_FALSE(experiment_manager()->DidUserAcknowledgeNoticeGlobally());
-
-  // Mark the global notice as acknowledged for this stage. Verify it's
-  // acknowledged.
-  experiment_manager()->MarkNoticeAsAcknowledgedGlobally();
-  EXPECT_TRUE(experiment_manager()->DidUserAcknowledgeNoticeGlobally());
-}
-// Step 2 (Disable Stage): Verify global notice is not acknowledged on this
-// stage. Mark notice as acknowledged on this stage.
-IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
-                       MarkingGlobalNoticeAsAcknowledged) {
-  EXPECT_EQ(MV2ExperimentStage::kDisableWithReEnable,
-            GetActiveExperimentStage());
-
-  WaitForExtensionSystemReady();
-
-  // Verify global notice is not marked as acknowledged on this stage, even if
-  // it was acknowledged on the previous stage.
-  const Extension* extension = GetExtensionByName(
-      "Test MV2 Extension", extension_registry()->disabled_extensions());
-  ASSERT_TRUE(extension);
-  EXPECT_FALSE(experiment_manager()->DidUserAcknowledgeNoticeGlobally());
-
-  // Mark the global notice as acknowledged for this stage. Verify it's
-  // acknowledged.
-  experiment_manager()->MarkNoticeAsAcknowledgedGlobally();
-  EXPECT_TRUE(experiment_manager()->DidUserAcknowledgeNoticeGlobally());
-}
-
-// Tests that if a user moves from a later experiment stage (disable with
-// re-enable) to an earlier one (warning), any disabled extensions will be
-// automatically re-enabled.
-// First stage: install an MV2 extension.
-IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
-                       PRE_PRE_ExtensionsAreReEnabledIfExperimentDisabled) {
-  EXPECT_EQ(MV2ExperimentStage::kWarning, GetActiveExperimentStage());
-
-  const Extension* extension = AddMV2Extension("Test MV2 Extension");
-  ASSERT_TRUE(extension);
-}
-// Second stage: MV2 deprecation experiment takes effect; extension is disabled.
-IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
-                       PRE_ExtensionsAreReEnabledIfExperimentDisabled) {
-  EXPECT_EQ(MV2ExperimentStage::kDisableWithReEnable,
-            GetActiveExperimentStage());
-
-  WaitForExtensionSystemReady();
-
-  const Extension* extension = GetExtensionByName(
-      "Test MV2 Extension", extension_registry()->disabled_extensions());
-  ASSERT_TRUE(extension);
-  const ExtensionId extension_id = extension->id();
-  EXPECT_THAT(extension_prefs()->GetDisableReasons(extension_id),
-              testing::UnorderedElementsAre(
-                  disable_reason::DISABLE_UNSUPPORTED_MANIFEST_VERSION));
-}
-// Third stage: Move the user back to the warning stage. The extension should be
-// re-enabled.
-IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
-                       ExtensionsAreReEnabledIfExperimentDisabled) {
-  EXPECT_EQ(MV2ExperimentStage::kWarning, GetActiveExperimentStage());
-
-  WaitForExtensionSystemReady();
-
-  const Extension* extension = GetExtensionByName(
-      "Test MV2 Extension", extension_registry()->enabled_extensions());
-  ASSERT_TRUE(extension);
-  const ExtensionId extension_id = extension->id();
-
-  EXPECT_TRUE(extension_prefs()->GetDisableReasons(extension_id).empty());
-  // The user didn't re-enable the extension, so it shouldn't be marked as such.
-  EXPECT_FALSE(WasExtensionReEnabledByUser(extension_id));
-
-  // Since the user is no longer in the disable phase, no metrics should be
-  // reported.
-  histogram_tester().ExpectTotalCount(
-      "Extensions.MV2Deprecation.MV2ExtensionState.Internal", 0);
 }
 
 // Tests that externally-installed extensions are allowed to be installed, but
@@ -698,9 +552,10 @@ IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
 }
 
 // Tests the flow from the "warning" phase to the "unsupported" phase.
+// Since the "warning" phase is removed, this imitates it by just adding two
+// MV2 extensions.
 IN_PROC_BROWSER_TEST_F(ManifestV2ExperimentManagerBrowserTest,
                        PRE_PRE_FlowFromWarningToUnsupported) {
-  EXPECT_EQ(MV2ExperimentStage::kWarning, GetActiveExperimentStage());
   // Install two MV2 extensions.
   const Extension* extension1 = AddMV2Extension("Test MV2 Extension 1");
   ASSERT_TRUE(extension1);
@@ -911,8 +766,6 @@ class ManifestV2ExperimentWithLegacyExtensionSupportTest
 IN_PROC_BROWSER_TEST_F(
     ManifestV2ExperimentWithLegacyExtensionSupportTest,
     PRE_MV2ExtensionsAreNotDisabledIfLegacyExtensionSwitchIsApplied) {
-  EXPECT_EQ(MV2ExperimentStage::kWarning, GetActiveExperimentStage());
-
   // Load two extensions: a packed extension and an unpacked extension.
   const Extension* packed_extension =
       AddMV2Extension("Test Packed MV2 Extension");

@@ -128,7 +128,7 @@ public class HistoryManagerToolbar extends SelectableListToolbar<HistoryItem> {
     @Override
     protected boolean handleEnterKeyPress() {
         // Vivaldi
-        if (mManager.useBookmarkStyleSearch()) return false;
+        if (ChromeApplicationImpl.isVivaldi()) return false;
         // End Vivaldi
         return getMenu().performIdentifierAction(R.id.search_menu_id, 0);
     }

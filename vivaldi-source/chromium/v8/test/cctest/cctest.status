@@ -164,6 +164,18 @@
 }],
 
 ##############################################################################
+['lower_limits_mode', {
+  # These tests need longer strings.
+  # It might be possible to make some of them compatible with lower limits mode
+  # by using String::kMaxLength instead of hard-coded constants.
+  'test-heap-profiler/HeapSnapshotJSONSerialization': [SKIP],
+  'test-serialize/CodeSerializerLargeExternalString': [SKIP],
+  'test-serialize/CodeSerializerLargeStrings': [SKIP],
+  'test-strings/CheckIntlSegmentIteratorTerminateExecutionInterrupt': [SKIP],
+  'test-strings/Traverse': [SKIP],
+  'test-strings/Utf8ConversionPerf': [SKIP],
+}],
+##############################################################################
 ['arch == arm64', {
   # BUG(v8:3385).
   'test-serialize/StartupSerializerOnceRunScript': [PASS, FAIL],
@@ -383,6 +395,9 @@
   # The uint32 values are sign-extended on MIPS64.
   'test-run-load-store/RunLoadStoreZeroExtend64': [SKIP],
   'test-run-load-store/RunUnalignedLoadStoreZeroExtend64': [SKIP],
+
+  # Flush to zero is not supported yet.
+  'test-wasm-shared-engine/RunImportedWithDenormalsMismatchAndSourceUrl': [SKIP],
 }],  # 'arch == mips64el or arch == mips64'
 
 ##############################################################################
@@ -456,12 +471,16 @@
   # The uint32 values are sign-extended on loong64.
   'test-run-load-store/RunLoadStoreZeroExtend64': [SKIP],
   'test-run-load-store/RunUnalignedLoadStoreZeroExtend64': [SKIP],
+  # Flush to zero is not supported yet.
+  'test-wasm-shared-engine/RunImportedWithDenormalsMismatchAndSourceUrl': [SKIP],
 }],  # 'arch == loong64'
 
 ##############################################################################
 ['system == android', {
   # Uses too much memory.
   'test-api/NewStringRangeError': [SKIP],
+  # https://crbug.com/42202404
+  'test-ptr-compr-cage/SharedPtrComprCageRace': [SKIP],
 }],  # 'system == android'
 
 ##############################################################################
@@ -520,7 +539,7 @@
   'test-wasm-breakpoints/*' : [SKIP],
 
   # Flush to zero is not supported yet.
-  'test-wasm-shared-engine/SharedEngineRunImportedWithDenormalsMismatchAndSourceUrl': [SKIP]
+  'test-wasm-shared-engine/RunImportedWithDenormalsMismatchAndSourceUrl': [SKIP]
 
 }],  # 'arch == ppc64 or arch == s390x'
 
@@ -604,7 +623,12 @@
 
   # --experimental-wasm-fp16
   'test-run-wasm-f16/*': [SKIP],
- }],  # has_wasm_interpreter
+  'test-run-wasm/RunWasmInterpreter_Float32*': [SKIP],
+
+  # --experimental-wasm-wide-arithmetic
+  'test-run-wasm-64/RunWasmInterpreter_I64MulWideS': [SKIP],
+  'test-run-wasm-64/RunWasmInterpreter_I64MulWideU': [SKIP],
+}],  # has_wasm_interpreter
 
 ##############################################################################
 ['lite_mode or variant == jitless', {

@@ -623,8 +623,6 @@ base::Value VivaldiPrefsDefinitions::GetComputedDefault(
 
 void VivaldiPrefsDefinitions::RegisterProfilePrefs(
     user_prefs::PrefRegistrySyncable* registry) {
-  registry->RegisterDictionaryPref(
-      vivaldiprefs::kVivaldiAccountPendingRegistration);
   registry->RegisterInt64Pref(vivaldiprefs::kVivaldiLastTopSitesVacuumDate, 0);
   registry->RegisterStringPref(vivaldiprefs::kVivaldiSearchEnginesKagiToken,
                                "");

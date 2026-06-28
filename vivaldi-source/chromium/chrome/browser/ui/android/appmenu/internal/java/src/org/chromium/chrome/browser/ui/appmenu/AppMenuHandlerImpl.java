@@ -59,7 +59,6 @@ import org.chromium.ui.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 // Vivaldi
@@ -76,7 +75,8 @@ class AppMenuHandlerImpl
                 AppMenu.AppMenuVisibilityDelegate,
                 StartStopWithNativeObserver,
                 ConfigurationChangedObserver,
-                FlyoutHandler<AppMenuPopup> {
+                FlyoutHandler<AppMenuPopup>,
+                HierarchicalMenuController.SubmenuObserver {
 
     /** An {@link Adapter} for the list of items in the app menu. */
     private static final class AppMenuAdapter extends ModelListAdapter {
@@ -116,7 +116,7 @@ class AppMenuHandlerImpl
     private final WindowAndroid mWindowAndroid;
     private final BrowserControlsStateProvider mBrowserControlsStateProvider;
     private @Nullable ModelList mModelList;
-    private @Nullable HierarchicalMenuController mHierarchicalMenuController;
+    private @Nullable HierarchicalMenuController<AppMenuPopup> mHierarchicalMenuController;
     private final SubmenuHeaderFactory mSubmenuHeaderFactory;
     private final ListObserver<Void> mListObserver;
     private @Nullable Callback<Integer> mTestOptionsItemSelectedListener;
@@ -231,6 +231,9 @@ class AppMenuHandlerImpl
 
     /** Called when the containing activity is being destroyed. */
     void destroy() {
+        if (mHierarchicalMenuController != null) {
+            mHierarchicalMenuController.removeObserver(this);
+        }
         // Prevent the menu window from leaking.
         if (mKeyboardVisibilityListener != null) {
             mWindowAndroid
@@ -307,7 +310,7 @@ class AppMenuHandlerImpl
 
         // If the anchor view used to show the popup or the activity's decor view is not attached
         // to window, we don't show the app menu because the window manager might have revoked
-        // the window token for this activity. See https://crbug.com/1105831.
+        // the window token for this activity. See https://crbug.com/40706027.
         if (!mDecorView.isAttachedToWindow()
                 || !anchorView.isAttachedToWindow()
                 || !anchorView.getRootView().isAttachedToWindow()) {
@@ -327,11 +330,12 @@ class AppMenuHandlerImpl
 
         if (mHierarchicalMenuController == null) {
             mHierarchicalMenuController =
-                    new HierarchicalMenuController(
+                    new HierarchicalMenuController<>(
                             mContext, new AppMenuUtil.AppMenuKeyProvider(), mSubmenuHeaderFactory);
+            mHierarchicalMenuController.addObserver(this);
         }
 
-        mHierarchicalMenuController.setupCallbacksRecursively(
+        mHierarchicalMenuController.setupCallbacks(
                 /* headerModelList= */ null, mModelList, () -> {});
 
         if (mAppMenu == null) {
@@ -504,7 +508,7 @@ class AppMenuHandlerImpl
         }
 
         mAppMenuDelegate.onOptionsItemSelected(
-                itemId, mDelegate.getBundleForMenuItem(itemId), triggeringMotion);
+                itemId, mDelegate.getBundleForMenuItem(model), triggeringMotion);
     }
 
     @Override
@@ -582,7 +586,7 @@ class AppMenuHandlerImpl
 
         adapter.registerType(
                 AppMenuItemType.STANDARD,
-                new LayoutViewBuilder(standardItemResId),
+                new LayoutViewBuilder<>(standardItemResId),
                 AppMenuItemViewBinder::bindStandardItem);
         adapter.registerType(
                 AppMenuItemType.TITLE_BUTTON,
@@ -599,20 +603,32 @@ class AppMenuHandlerImpl
                 AppMenuItemViewBinder::bindTitleButtonItem);
         adapter.registerType(
                 AppMenuItemType.BUTTON_ROW,
-                new LayoutViewBuilder(R.layout.icon_row_menu_item),
+                new LayoutViewBuilder<>(R.layout.icon_row_menu_item),
                 AppMenuItemViewBinder::bindIconRowItem);
         adapter.registerType(
                 AppMenuItemType.MENU_ITEM_WITH_SUBMENU,
-                new LayoutViewBuilder(R.layout.menu_item_with_submenu),
+                new LayoutViewBuilder<>(R.layout.menu_item_with_submenu),
                 AppMenuItemViewBinder::bindItemWithSubmenu);
         adapter.registerType(
                 AppMenuItemType.SUBMENU_HEADER,
-                new LayoutViewBuilder(R.layout.submenu_header),
+                new LayoutViewBuilder<>(R.layout.submenu_header),
                 AppMenuItemViewBinder::bindSubmenuHeader);
         adapter.registerType(
                 AppMenuItemType.DIVIDER,
-                new LayoutViewBuilder(R.layout.divider_line_menu_item),
+                new LayoutViewBuilder<>(R.layout.divider_line_menu_item),
                 DividerLineMenuItemViewBinder::bind);
+        adapter.registerType(
+                AppMenuItemType.BOOKMARK,
+                new LayoutViewBuilder<>(standardItemResId),
+                AppMenuItemViewBinder::bindStandardItem);
+        adapter.registerType(
+                AppMenuItemType.TAB,
+                new LayoutViewBuilder<>(standardItemResId),
+                AppMenuItemViewBinder::bindStandardItem);
+        adapter.registerType(
+                AppMenuItemType.EMPTY,
+                new LayoutViewBuilder<>(R.layout.menu_item_empty),
+                AppMenuItemViewBinder::bindStandardItem);
     }
 
     private void registerViewBinders(
@@ -642,49 +658,32 @@ class AppMenuHandlerImpl
                 /* withAssertions= */ true);
     }
 
-    private void updateModelForHighlightAndClick(
-            ModelList modelList,
-            @Nullable Integer highlightedId,
-            AppMenuClickHandler appMenuClickHandler,
-            int startIndex,
-            boolean withAssertions) {
-        if (modelList == null) {
-            return;
-        }
-
-        updateModelForHighlightAndClickRecursively(
-                modelList::get,
-                modelList::size,
-                highlightedId,
-                appMenuClickHandler,
-                startIndex,
-                withAssertions);
-    }
-
     /**
-     * Recursively sets the click handler, position, and highlight state for all items in a
-     * list-like structure and its nested sub-lists. This helper is abstracted to work on any
-     * list-like structure (e.g., {@link ModelList} or {@link java.util.List}) by using function
-     * references.
+     * Sets the click handler, position, and highlight state for all items in a list-like structure.
+     * This helper is abstracted to work on any list-like structure (e.g., {@link ModelList} or
+     * {@link java.util.List}) by using function references.
      *
-     * @param itemGetter A function to retrieve a {@link ListItem} by its index (e.g., {@code
-     *     list::get}).
-     * @param sizeGetter A supplier for the list's total size (e.g., {@code list::size}).
+     * @param items A list of {@link ListItem}s.
      * @param highlightedId The menu item ID to mark as highlighted. If null, no item will be
      *     marked.
      * @param appMenuClickHandler The {@link AppMenuClickHandler} to attach to each menu item.
      * @param startIndex The index in the list to start processing from.
      * @param withAssertions Whether to run assertions (e.g., that handlers aren't already set).
      */
-    private void updateModelForHighlightAndClickRecursively(
-            Function<Integer, ListItem> itemGetter,
-            Supplier<Integer> sizeGetter,
+    private void updateModelForHighlightAndClick(
+            Iterable<ListItem> items,
             @Nullable Integer highlightedId,
             AppMenuClickHandler appMenuClickHandler,
             int startIndex,
             boolean withAssertions) {
-        for (int i = startIndex; i < sizeGetter.get(); i++) {
-            PropertyModel model = itemGetter.apply(i).model;
+        int i = 0;
+        for (ListItem item : items) {
+            if (i < startIndex) {
+                i++;
+                continue;
+            }
+
+            PropertyModel model = item.model;
 
             if (withAssertions) {
                 // Not like other keys which is set by AppMenuPropertiesDelegateImpl, CLICK_HANDLER
@@ -711,9 +710,8 @@ class AppMenuHandlerImpl
             if (model.containsKey(AppMenuItemProperties.ADDITIONAL_ICONS)) {
                 ModelList additionalIcons = model.get(AppMenuItemProperties.ADDITIONAL_ICONS);
                 if (additionalIcons != null) {
-                    updateModelForHighlightAndClickRecursively(
-                            additionalIcons::get,
-                            additionalIcons::size,
+                    updateModelForHighlightAndClick(
+                            additionalIcons,
                             highlightedId,
                             appMenuClickHandler,
                             /* startIndex= */ 0,
@@ -721,19 +719,7 @@ class AppMenuHandlerImpl
                 }
             }
 
-            if (model.containsKey(AppMenuItemWithSubmenuProperties.SUBMENU_ITEMS)) {
-                List<ListItem> submenuItems =
-                        model.get(AppMenuItemWithSubmenuProperties.SUBMENU_ITEMS);
-                if (submenuItems != null) {
-                    updateModelForHighlightAndClickRecursively(
-                            submenuItems::get,
-                            submenuItems::size,
-                            highlightedId,
-                            appMenuClickHandler,
-                            /* startIndex= */ 0,
-                            withAssertions);
-                }
-            }
+            i++;
         }
     }
 
@@ -812,23 +798,26 @@ class AppMenuHandlerImpl
     }
 
     @Override
+    public void onSubmenuLoaded(List<ListItem> items) {
+        updateModelForHighlightAndClick(
+                items, mHighlightMenuId, this, /* startIndex= */ 0, /* withAssertions= */ false);
+    }
+
+    @Override
     public AppMenuPopup createAndShowFlyoutPopup(
-            ListItem item, View view, Runnable dismissRunnable) {
-        AppMenuAdapter adapter = new AppMenuAdapter(getModelListSubtree(item));
+            List<ListItem> items, View view, Runnable dismissRunnable) {
+        ModelList modelList = new ModelList();
+
+        assert (items.size() > 0);
+        modelList.addAll(items);
+
+        AppMenuAdapter adapter = new AppMenuAdapter(modelList);
         SparseArray<BiFunction<Context, PropertyModel, Integer>> customSizingProviders =
                 new SparseArray<>();
         registerViewBinders(adapter, customSizingProviders, mDelegate.shouldShowIconBeforeItem());
 
         assert mAppMenu != null;
-        return mAppMenu.createAndShowFlyoutPopup(adapter, view, item, dismissRunnable);
-    }
-
-    private static ModelList getModelListSubtree(ListItem item) {
-        ModelList modelList = new ModelList();
-        for (ListItem listItem : item.model.get(AppMenuItemWithSubmenuProperties.SUBMENU_ITEMS)) {
-            modelList.add(listItem);
-        }
-        return modelList;
+        return mAppMenu.createAndShowFlyoutPopup(adapter, view, dismissRunnable);
     }
 
     /** Vivaldi */

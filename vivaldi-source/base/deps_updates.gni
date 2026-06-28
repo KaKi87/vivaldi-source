@@ -1,15 +1,13 @@
 update_template_instance("//base:base") {
   deps += [
     "//base/version_info:generate_version_info",
-    "//vivaldi/base:edge_version",
     "//vivaldi/base:chrome_spoof_version",
+    "//vivaldi/base:edge_version",
   ]
 }
 
 if (is_win) {
   update_target("//chrome/browser:browser") {
-    deps += [
-      "//vivaldi/base:obsolete_md5",
-    ]
+    deps += [ "//vivaldi/base:obsolete_md5" ]
   }
 }

@@ -30,16 +30,62 @@
 #include "components/strings/grit/components_strings.h"
 #include "components/strings/grit/privacy_sandbox_strings.h"
 #include "content/public/common/url_constants.h"
-#include "extensions/common/constants.h"
+#include "extensions/buildflags/buildflags.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/layout/box_layout.h"
 #include "url/gurl.h"
 
+#if BUILDFLAG(ENABLE_EXTENSIONS)
+#include "chrome/browser/extensions/extension_ui_util.h"
+#include "extensions/common/constants.h"
+#endif
+
 using bubble_anchor_util::AnchorConfiguration;
 using bubble_anchor_util::GetPageInfoAnchorConfiguration;
 using bubble_anchor_util::GetPageInfoAnchorRect;
+
+namespace {
+
+bool IsExtensionPageInfoBubble(const GURL& url,
+                               content::WebContents* web_contents) {
+#if BUILDFLAG(ENABLE_EXTENSIONS)
+  // The chrome-extension:// scheme is checked unconditionally, not via
+  // `GetEnabledExtensionNameForUrl()`, because the latter returns empty for an
+  // extension that is not currently enabled (or not installed). Such URLs still
+  // reach this routing -- e.g. via tests that navigate to a synthetic extension
+  // URL, or via stale entries left after an extension is uninstalled -- and the
+  // regular `PageInfoBubbleView` is unsafe for them:
+  // `PageInfo::ComputeUIInputs()` DCHECKs on the chrome-extension scheme.
+  // https://source.chromium.org/chromium/chromium/src/+/main:components/page_info/page_info.cc;l=1043;drc=a37b1257f15512a39c54e6b651dc28be3a50e4c5
+  return url.SchemeIs(extensions::kExtensionScheme) ||
+         !extensions::ui_util::GetEnabledExtensionNameForUrl(url, *web_contents)
+              .empty();
+#else
+  return false;
+#endif
+}
+
+// Returns true if the page-info bubble for `(url, web_contents)` should route
+// to `InternalPageInfoBubbleView` (the minimal "Page Info" surface) rather than
+// the regular `PageInfoBubbleView` with site-info / security controls.
+//
+// Routes to the internal bubble for:
+//  - File / internal pages (chrome://, chrome-untrusted://, etc).
+//  - Enabled extension pages.
+//  - chrome-distiller:// reader-mode pages.
+//  - Top-level MIME-handler-rendered tabs.
+bool ShouldRouteToInternalBubble(const GURL& url,
+                                 content::WebContents* web_contents) {
+  if (PageInfo::IsFileOrInternalPage(url) ||
+      url.SchemeIs(dom_distiller::kDomDistillerScheme)) {
+    return true;
+  }
+  return IsExtensionPageInfoBubble(url, web_contents);
+}
+
+}  // namespace
 
 // The regular PageInfoBubbleView is not supported for internal Chrome pages and
 // extension pages. Instead of the |PageInfoBubbleView|, the
@@ -88,7 +134,7 @@ InternalPageInfoBubbleView::InternalPageInfoBubbleView(
                              web_contents),
       closing_callback_(std::move(closing_callback)) /* Vivaldi */ {
   int text = IDS_PAGE_INFO_INTERNAL_PAGE;
-  if (url.SchemeIs(extensions::kExtensionScheme)) {
+  if (IsExtensionPageInfoBubble(url, web_contents)) {
     text = IDS_PAGE_INFO_EXTENSION_PAGE;
   } else if (url.SchemeIs(content::kViewSourceScheme)) {
     text = IDS_PAGE_INFO_VIEW_SOURCE_PAGE;
@@ -222,9 +268,7 @@ views::BubbleDialogDelegateView* PageInfoBubbleView::CreatePageInfoBubble(
       platform_util::GetViewForWindow(specification->parent_window());
   const GURL& url = specification->url();
 
-  if (PageInfo::IsFileOrInternalPage(url) ||
-      url.SchemeIs(extensions::kExtensionScheme) ||
-      url.SchemeIs(dom_distiller::kDomDistillerScheme)) {
+  if (ShouldRouteToInternalBubble(url, web_contents)) {
     return new InternalPageInfoBubbleView(anchor, anchor_rect, parent_view,
                                           web_contents, url,
             specification->page_info_closing_callback() /* Vivaldi */);
@@ -237,10 +281,6 @@ views::BubbleDialogDelegateView* PageInfoBubbleView::CreatePageInfoBubble(
                              specification->show_extended_site_info());
   if (specification->permission_page_type().has_value()) {
     bubble->OpenPermissionPage(specification->permission_page_type().value());
-  }
-  if (specification->show_merchant_trust_page()) {
-    bubble->OpenMerchantTrustPage(
-        page_info::MerchantBubbleOpenReferrer::kLocationBarChip);
   }
   return bubble;
 }
@@ -300,8 +340,7 @@ void PageInfoBubbleView::OpenCookiesPage() {
   AnnouncePageOpened(l10n_util::GetStringUTF16(IDS_PAGE_INFO_COOKIES));
 }
 
-void PageInfoBubbleView::OpenMerchantTrustPage(
-    page_info::MerchantBubbleOpenReferrer referrer) {
+void PageInfoBubbleView::OpenMerchantTrustPage() {
   CHECK(merchant_trust_coordinator_);
   auto title = l10n_util::GetStringUTF16(IDS_PAGE_INFO_MERCHANT_TRUST_HEADER);
   auto page_content = merchant_trust_coordinator_->CreatePageContent();
@@ -314,7 +353,7 @@ void PageInfoBubbleView::OpenMerchantTrustPage(
   page_view->SetID(PageInfoViewFactory::VIEW_ID_PAGE_INFO_CURRENT_VIEW);
   page_container_->SwitchToPage(std::move(page_view));
   AnnouncePageOpened(title);
-  merchant_trust_coordinator_->OnBubbleOpened(referrer);
+  merchant_trust_coordinator_->OnBubbleOpened();
 }
 
 void PageInfoBubbleView::CloseBubble() {
@@ -330,10 +369,10 @@ void PageInfoBubbleView::OnWidgetDestroying(views::Widget* widget) {
   PageInfoBubbleViewBase::OnWidgetDestroying(widget);
 
   // This method mostly shouldn't be re-entrant but there are a few cases where
-  // it can be (see crbug/966308). In that case, we have already run the closing
-  // callback so should not attempt to do it again. As there will always be a
-  // |closing_callback_|, this is also used to ensure that the |presenter_| is
-  // informed exactly once.
+  // it can be (see crbug.com/41460626). In that case, we have already run the
+  // closing callback so should not attempt to do it again. As there will always
+  // be a |closing_callback_|, this is also used to ensure that the |presenter_|
+  // is informed exactly once.
   if (closing_callback_) {
     bool reload_prompt;
     presenter_->OnUIClosing(&reload_prompt);
@@ -389,10 +428,9 @@ void ShowPageInfoDialogImpl(Browser* browser,
                             std::optional<ContentSettingsType> type) {
   AnchorConfiguration configuration =
       GetPageInfoAnchorConfiguration(browser, anchor);
-  gfx::Rect anchor_rect =
-      std::holds_alternative<std::nullptr_t>(configuration.anchor)
-          ? GetPageInfoAnchorRect(browser)
-          : gfx::Rect();
+  gfx::Rect anchor_rect = configuration.anchor.IsNull()
+                              ? GetPageInfoAnchorRect(browser)
+                              : gfx::Rect();
   gfx::NativeWindow parent_window = browser->window()->GetNativeWindow();
 
   PageInfoBubbleSpecification::Builder page_info_bubble_builder(

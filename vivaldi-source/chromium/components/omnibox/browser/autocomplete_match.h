@@ -13,6 +13,7 @@
 #include <optional>
 #include <ranges>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -23,6 +24,7 @@
 #include "base/uuid.h"
 #include "build/build_config.h"
 #include "components/omnibox/browser/actions/omnibox_action_concepts.h"
+#include "components/omnibox/browser/autocomplete_enums.h"
 #include "components/omnibox/browser/autocomplete_input.h"
 #include "components/omnibox/browser/autocomplete_match_type.h"
 #include "components/omnibox/browser/buildflags.h"
@@ -67,6 +69,7 @@ const char kACMatchPropertyContentsStartIndex[] = "match contents start index";
 // A match attribute when a default match's score has been boosted with a higher
 // scoring non-default match.
 const char kACMatchPropertyScoreBoostedFrom[] = "score_boosted_from";
+inline constexpr char kXGeoHeader[] = "x-geo";
 
 // Util structs/enums ----------------------------------------------------------
 
@@ -169,6 +172,9 @@ enum class AutocompleteMatchDedupeType {
             // matches with `udm=50` in their suggest template to not be deduped
             // with matches without it. But this does not apply to `udm=50` in
             // the actual match URL; nor to udm values other than 50.
+  // Search matches created as a duplicate of an existing match which
+  // additionally send location data when selected.
+  kInlineLocationSignaling,
 };
 
 // AutocompleteMatch ----------------------------------------------------------
@@ -398,7 +404,7 @@ struct AutocompleteMatch {
   static std::string ClassificationsToString(
       const ACMatchClassifications& classifications);
   static ACMatchClassifications ClassificationsFromString(
-      const std::string& serialized_classifications);
+      std::string_view serialized_classifications);
 
   // Adds a classification to the end of |classifications| iff its style is
   // different from the last existing classification.  |offset| must be larger
@@ -558,6 +564,10 @@ struct AutocompleteMatch {
   // by lens in the side panel.
   bool IsContextualSearchSuggestion() const;
 
+  // Checks if this match is a static contextual search suggestion to be
+  // fulfilled by lens in the side panel.
+  bool IsStaticContextualSearchSuggestion() const;
+
   // Checks if this match is an  Aim threads history suggestion.
   bool IsThreadsHistorySuggestion() const;
 
@@ -594,31 +604,27 @@ struct AutocompleteMatch {
   // Gets data relevant to whether there should be any special keyword-related
   // UI shown for this match. If this match represents a selected keyword, i.e.
   // the UI should be "in keyword mode", `keyword_out` will be set to the
-  // keyword and `is_keyword_hint` will be set to false. If this match has a
-  // non-null `associated_keyword`, i.e. we should show a "Press [tab] to search
-  // ___" hint and allow the user to toggle into keyword mode, `keyword_out`
-  // will be set to the associated keyword and `is_keyword_hint` will be set to
-  // true. Note that only one of these states can be in effect at once. In all
-  // other cases, `keyword_out` will be cleared, even when our member variable
-  // `keyword` is non-empty -- such as with non-substituting keywords or matches
-  // that represent searches using the default search engine. See also
-  // `GetSubstitutingExplicitlyInvokedKeyword()`. `keyword_placeholder_out` will
-  // be set to any placeholder text the keyword wants to display. Set for both
-  // hint and non-hint keyword modes. `is_history_embeddings_enabled` will
-  // affect the placeholder text for the @history keyword.
-  void GetKeywordUIState(TemplateURLService* template_url_service,
+  // keyword and `keyword_state` will be set to `KeywordState::kKeyword`. If
+  // this match has a non-null `associated_keyword`, i.e. we should show a
+  // keyword chip and allow the user to toggle into keyword mode, `keyword_out`
+  // will be set to the associated keyword and `keyword_state` will be set to
+  // `KeywordState::kHint`. Note that only one of these states can be in effect
+  // at once. In all other cases, `keyword_out` will be cleared, and
+  // `keyword_state` will be set to `KeywordState::kNone`.
+  // `keyword_placeholder_out` will be set to any placeholder text the keyword
+  // wants to display. Set for both hint and non-hint keyword modes.
+  // `is_history_embeddings_enabled` will affect the placeholder text for the
+  // @history keyword.
+  void GetKeywordUiState(TemplateURLService* template_url_service,
                          bool is_history_embeddings_enabled,
+                         KeywordState* keyword_state,
                          std::u16string* keyword_out,
-                         std::u16string* keyword_placeholder_out,
-                         bool* is_keyword_hint) const;
+                         std::u16string* keyword_placeholder_out) const;
 
-  // Returns |keyword|, but only if it represents a substituting keyword that
-  // the user has explicitly invoked.  If for example this match represents a
-  // search with the default search engine (and the user didn't explicitly
-  // invoke its keyword), this returns the empty string.  The result is that
-  // this function returns a non-empty string in the same cases as when the UI
-  // should show up as being "in keyword mode".
-  std::u16string GetSubstitutingExplicitlyInvokedKeyword(
+  // Returns if this match is in keyword mode. If this match represents a search
+  // with the default search engine (and the user didn't explicitly invoke its
+  // keyword), this returns false even though `keyword` won't be empty.
+  bool IsExplicitlyInvokedKeyword(
       TemplateURLService* template_url_service) const;
 
   // Returns the placeholder text to display for the given starter pack keyword
@@ -689,12 +695,15 @@ struct AutocompleteMatch {
   // providers.
   bool IsOnDeviceSearchSuggestion() const;
 
-  // Returns the top-level sorting order of the suggestion.
-  // Suggestions should be sorted by this value first, and by Relevance score
-  // next.
+  // Returns the top-level sorting order of the suggestion. Suggestions should
+  // be sorted by this value first, and by Relevance score next.
   int GetSortingOrder() const;
 
-  // Whether this autocomplete match supports custom descriptions.
+  // Whether this autocomplete match supports custom descriptions. Matches with
+  // custom descriptions (such as calculator results, entities, or inline
+  // location signaling suggestions) will retain their custom description text
+  // and will not have it cleared or overwritten by the search engine's keyword
+  // description during `AutocompleteController::UpdateKeywordDescriptions()`.
   bool HasCustomDescription() const;
 
   // Returns true if the match is eligible for ML scoring signal logging.
@@ -703,8 +712,8 @@ struct AutocompleteMatch {
   // Returns true if the match is eligible to be re-scored by ML scoring.
   bool IsMlScoringEligible() const;
 
-  // Filter OmniboxActions based on the supplied qualifiers.
-  // The order of the supplied qualifiers determines the preference.
+  // Filter `OmniboxActions` based on the supplied qualifiers. The order of the
+  // supplied qualifiers determines the preference.
   void FilterOmniboxActions(
       const std::vector<OmniboxActionId>& allowed_action_ids);
 
@@ -909,6 +918,9 @@ struct AutocompleteMatch {
   // Used for document suggestions to show the mime-corresponding icons.
   DocumentType document_type = DocumentType::NONE;
 
+  // The id of the starter pack engine, if this is a starter pack match.
+  int starter_pack_id = 0;
+
   // Used for enterprise search aggregator suggestions for grouping.
   EnterpriseSearchAggregatorType enterprise_search_aggregator_type =
       EnterpriseSearchAggregatorType::NONE;
@@ -997,6 +1009,11 @@ struct AutocompleteMatch {
   // Unset if it has not been computed yet.
   std::optional<bool> has_tab_match;
 
+#if BUILDFLAG(IS_ANDROID)
+  // The Android tab ID of the matching tab, if `has_tab_match` is true.
+  int android_tab_id = 0;
+#endif
+
   // Set to a `TemplateURL`'s keyword; e.g. 'youtube.com' or '@bookmarks'. Set
   // by the `AutocompleteController`, not individual providers. This determines
   // which keyword to activate if the user focuses this instant-keyword (e.g.
@@ -1007,8 +1024,8 @@ struct AutocompleteMatch {
   // for both explicit "keyword mode" matches as well as matches for the default
   // search provider (so, any match for which we're doing substitution); it
   // doesn't imply (alone) that the UI is going to show a keyword hint or
-  // keyword mode.  For that, see GetKeywordUIState() or
-  // GetSubstitutingExplicitlyInvokedKeyword().
+  // keyword mode.  For that, see `GetKeywordUiState()` or
+  // `IsExplicitlyInvokedKeyword()`.
   //
   // CAUTION: The TemplateURL associated with this keyword may be deleted or
   // modified while the AutocompleteMatch is alive.  This means anyone who
@@ -1135,6 +1152,11 @@ struct AutocompleteMatch {
       const ACMatchClassifications& classifications,
       const std::string& provider_name = "");
 
+  // Acquires weak instance.
+  base::WeakPtr<AutocompleteMatch> GetWeakPtr() {
+    return weak_ptr_factory_.GetWeakPtr();
+  }
+
  private:
 #if BUILDFLAG(IS_ANDROID)
   // Corresponding Java object.
@@ -1148,9 +1170,8 @@ struct AutocompleteMatch {
   // See AutocompleteControllerAndroid for more details.
   mutable std::unique_ptr<base::android::ScopedJavaGlobalRef<jobject>>
       java_match_;
-
-  base::WeakPtrFactory<AutocompleteMatch> weak_ptr_factory_{this};
 #endif
+  base::WeakPtrFactory<AutocompleteMatch> weak_ptr_factory_{this};
 };
 
 typedef AutocompleteMatch::ACMatchClassification ACMatchClassification;

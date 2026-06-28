@@ -1,4 +1,3 @@
-
 if (is_android) {
   import("//build/config/clang/clang.gni")
   import("//vivaldi/gn/command_action.gni")
@@ -8,21 +7,21 @@ source_set("adverse_adblocking") {
   sources = [
     "adverse_adblocking/adverse_ad_filter_list.cc",
     "adverse_adblocking/adverse_ad_filter_list.h",
+    "adverse_adblocking/adverse_ad_filter_list_factory.h",
     "adverse_adblocking/vivaldi_subresource_filter_throttle.cc",
     "adverse_adblocking/vivaldi_subresource_filter_throttle.h",
     "adverse_adblocking/vivaldi_subresource_filter_throttle_manager.cc",
     "adverse_adblocking/vivaldi_subresource_filter_throttle_manager.h",
-    "adverse_adblocking/adverse_ad_filter_list_factory.h",
   ]
   deps = [
     "//build:branding_buildflags",
     "//chrome/common:buildflags",
-    "//components/prefs",
     "//components/keyed_service/content",
+    "//components/prefs",
     "//components/safe_browsing/core/browser/db:v4_protocol_manager_util",
+    "//components/subresource_filter/content/browser",
     "//components/subresource_filter/core/browser",
     "//components/subresource_filter/core/common",
-    "//components/subresource_filter/content/browser",
     "//content/public/browser",
     "//extensions/buildflags",
     "//vivaldi/prefs:prefs_files_generated",
@@ -39,37 +38,36 @@ if (!is_android && !is_ios) {
     ]
     deps = [
       "//build:branding_buildflags",
-      "//extensions/common",
       "//chrome/common/extensions/api",
+      "//extensions/common",
     ]
   }
 }
 
 source_set("panel_utils") {
-    sources = [
-      "extensions/vivaldi_panel_utils.cc",
-      "extensions/vivaldi_panel_utils.h",
-    ]
-    deps = [
-      "//content/public/browser",
-      "//extensions/common",
-    ]
+  sources = [
+    "extensions/vivaldi_panel_utils.cc",
+    "extensions/vivaldi_panel_utils.h",
+  ]
+  deps = [
+    "//content/public/browser",
+    "//extensions/common",
+  ]
 }
 
 source_set("panel") {
-    sources = [
-      "panel/panel_id.cc",
-      "panel/panel_id.h",
-    ]
-    deps = [
-      "//base:base",
-    ]
+  sources = [
+    "panel/panel_id.cc",
+    "panel/panel_id.h",
+  ]
+  deps = [ "//base" ]
 }
 
 if (is_android) {
   system_command("prep_search_engines_types") {
     source_file = "//components/search_engines/search_engine_type.h"
-    output_file = "$root_gen_dir/vivaldi/search_engines_types/search_engine_type.h"
+    output_file =
+        "$root_gen_dir/vivaldi/search_engines_types/search_engine_type.h"
 
     inputs = [
       source_file,
@@ -84,10 +82,10 @@ if (is_android) {
       "/P",
       "/C",
       "/EP",
-      "/Fi"+rebase_path(output_file),
+      "/Fi" + rebase_path(output_file),
       "/I../..",
       "/I../../chromium",
-      rebase_path(source_file)
+      rebase_path(source_file),
     ]
   }
 }
@@ -95,12 +93,14 @@ if (is_android) {
 action("search_engines_inc") {
   script = "//vivaldi/scripts/xxd.py"
   engines_json = "//vivaldi/components/search_engines/search_engines.json"
-  engines_inc = "$root_gen_dir/third_party/search_engines_data/search_engines_default.inc"
+  engines_inc =
+      "$root_gen_dir/third_party/search_engines_data/search_engines_default.inc"
 
   inputs = [ engines_json ]
   outputs = [ engines_inc ]
   args = [
-    "-n", "kDefaultSearchEnginesJson",
+    "-n",
+    "kDefaultSearchEnginesJson",
     rebase_path(engines_json, root_build_dir),
     rebase_path(engines_inc, root_build_dir),
   ]
@@ -114,7 +114,8 @@ action("search_engines_prompt_inc") {
   inputs = [ prompt_json ]
   outputs = [ prompt_inc ]
   args = [
-    "-n", "kDefaultSearchEnginesPromptJson",
+    "-n",
+    "kDefaultSearchEnginesPromptJson",
     rebase_path(prompt_json, root_build_dir),
     rebase_path(prompt_inc, root_build_dir),
   ]
@@ -137,38 +138,52 @@ source_set("tabs") {
 }
 
 source_set("user_agent") {
+  sources = [
+    "//vivaldi/components/user_agent/vivaldi_user_agent.cc",
+    "//vivaldi/components/user_agent/vivaldi_user_agent.h",
+    "//vivaldi/components/user_agent/vivaldi_user_agent_white_list.inc",
+  ]
+  deps = [
+    "//base",
+    "//components/google/core/common",
+    "//components/version_info",
+    "//components/version_info:version_string",
+  ]
+}
+
+if (is_ios) {
+  source_set("vivaldi_ios_user_agent_override") {
     sources = [
-      "//vivaldi/components/user_agent/vivaldi_user_agent.cc",
-      "//vivaldi/components/user_agent/vivaldi_user_agent.h",
-      "//vivaldi/components/user_agent/vivaldi_user_agent_white_list.inc",
+      "//vivaldi/components/user_agent/vivaldi_ios_user_agent_override.h",
+      "//vivaldi/components/user_agent/vivaldi_ios_user_agent_override.mm",
     ]
+
     deps = [
-      "//base:base",
-      "//components/google/core/common",
-      "//components/version_info",
+      "//base",
       "//components/version_info:version_string",
+      "//ios/web/common:user_agent",
+      "//url",
     ]
+  }
 }
 
 source_set("version_utils") {
-    sources = [
-      "//vivaldi/components/version_utils/vivaldi_version_utils.cc",
-      "//vivaldi/components/version_utils/vivaldi_version_utils.h",
-    ]
-    deps = [
-      "//base:base",
-      "//components/prefs",
-      "//vivaldi/prefs:prefs_files_generated",
-    ]
-    configs += [
-     "//vivaldi/gn/config:release_kind"
-    ]
+  sources = [
+    "//vivaldi/components/version_utils/vivaldi_version_utils.cc",
+    "//vivaldi/components/version_utils/vivaldi_version_utils.h",
+  ]
+  deps = [
+    "//base",
+    "//components/prefs",
+    "//vivaldi/prefs:prefs_files_generated",
+  ]
+  configs += [ "//vivaldi/gn/config:release_kind" ]
 }
 
 copy("prepopulated_copy") {
   sources = [
     "search_engines/prepopulated_include/prepopulated_engines.h",
-    "search_engines/prepopulated_include/regional_settings.h"
+    "search_engines/prepopulated_include/regional_settings.h",
   ]
   outputs = [ "$root_out_dir/gen/third_party/search_engines_data/resources/definitions/{{source_file_part}}" ]
 }

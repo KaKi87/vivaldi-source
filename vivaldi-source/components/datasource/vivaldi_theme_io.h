@@ -74,7 +74,7 @@ struct ImportError {
     kBadArchive,
     kBadSettings,
   };
-  ImportError(Kind kind, std ::string details = std::string())
+  ImportError(Kind kind, std::string details = std::string())
       : kind(kind), details(std::move(details)) {}
 
   Kind kind;

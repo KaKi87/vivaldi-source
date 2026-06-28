@@ -28,12 +28,13 @@
 #include <algorithm>
 #include <vector>
 
-#include "dawn/common/Constants.h"
-#include "dawn/common/Math.h"
-#include "dawn/tests/DawnTest.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/TestUtils.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/common/Constants.h"
+#include "src/dawn/common/Math.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/TestUtils.h"
+#include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/compiler.h"
 
 namespace dawn {
 namespace {
@@ -71,10 +72,10 @@ class ExpectNonZero : public detail::CustomTextureExpectation {
                    << "Expected data to be non-zero, was " << value << "\n";
         }
         for (size_t i = 0; i < size / DataSize(); ++i) {
-            if (actual[i] != value) {
+            if (DAWN_UNSAFE_TODO(actual[i]) != value) {
                 return testing::AssertionFailure()
                        << "Expected data[" << i << "] to match non-zero value " << value
-                       << ", actual " << actual[i] << "\n";
+                       << ", actual " << DAWN_UNSAFE_TODO(actual[i]) << "\n";
             }
         }
 
@@ -257,7 +258,7 @@ class NonzeroTextureCreationTests : public DawnTestWithParams<Params> {
                 for (uint32_t z = 0; z < depthOrArrayLayers; ++z) {
                     for (uint32_t row = 0; row < copySize.height / blockHeight; ++row) {
                         std::fill_n(d, copiedWidthInBytes, 1);
-                        d += bytesPerRow;
+                        DAWN_UNSAFE_TODO(d += bytesPerRow);
                     }
                 }
                 EXPECT_BUFFER_U8_RANGE_EQ(data.data(), bufferDst, 0, bufferSize);

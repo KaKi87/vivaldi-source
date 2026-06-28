@@ -28,12 +28,13 @@
 #include <cstring>
 #include <memory>
 
-#include "dawn/common/StringViewUtils.h"
-#include "dawn/tests/StringViewMatchers.h"
-#include "dawn/tests/unittests/wire/WireFutureTest.h"
-#include "dawn/tests/unittests/wire/WireTest.h"
 #include "dawn/wire/WireClient.h"
 #include "gmock/gmock.h"
+#include "src/dawn/common/StringViewUtils.h"
+#include "src/dawn/tests/StringViewMatchers.h"
+#include "src/dawn/tests/unittests/wire/WireFutureTest.h"
+#include "src/dawn/tests/unittests/wire/WireTest.h"
+#include "src/utils/compiler.h"
 
 namespace dawn::wire {
 namespace {
@@ -41,7 +42,6 @@ namespace {
 using testing::_;
 using testing::EmptySizedString;
 using testing::InvokeWithoutArgs;
-using testing::Ne;
 using testing::NonEmptySizedString;
 using testing::Return;
 using testing::Sequence;
@@ -68,14 +68,15 @@ TEST_F(WireWriteBufferTests, WriteBufferChunkedCommands) {
     FlushClient();
 
     auto expected = std::make_unique<uint8_t[]>(kLargeAllocationSize);
-    std::memset(expected.get(), 0b10101010, kLargeAllocationSize);
+    DAWN_UNSAFE_TODO(std::memset(expected.get(), 0b10101010, kLargeAllocationSize));
     queue.WriteBuffer(buffer, 0, expected.get(), kLargeAllocationSize);
 
-    EXPECT_CALL(
-        api, QueueWriteBuffer(apiQueue, apiBuffer, 0, MatchesLambda([&](void const* actual) {
-                                  return !std::memcmp(expected.get(), actual, kLargeAllocationSize);
-                              }),
-                              kLargeAllocationSize))
+    DAWN_UNSAFE_TODO(
+        EXPECT_CALL(api, QueueWriteBuffer(
+                             apiQueue, apiBuffer, 0, MatchesLambda([&](void const* actual) {
+                                 return !std::memcmp(expected.get(), actual, kLargeAllocationSize);
+                             }),
+                             kLargeAllocationSize)))
         .Times(1);
     FlushClient();
 }
@@ -215,7 +216,7 @@ TEST_P(WireQueueTests, OnSubmittedWorkDoneInsideCallbackBeforeDisconnect) {
 }
 
 // Test releasing the default queue, then its device. Both should be released when the device is
-// released since the device holds a reference to the queue. Regresssion test for crbug.com/1332926.
+// released since the device holds a reference to the queue. Regression test for crbug.com/1332926.
 TEST_F(WireQueueTests, DefaultQueueThenDeviceReleased) {
     // Note: The test fixture gets the default queue.
 
@@ -234,7 +235,7 @@ TEST_F(WireQueueTests, DefaultQueueThenDeviceReleased) {
 }
 
 // Test the device, then its default queue. The default queue should be released when its external
-// reference is dropped since releasing the device drops the internal reference. Regresssion test
+// reference is dropped since releasing the device drops the internal reference. Regression test
 // for crbug.com/1332926.
 TEST_F(WireQueueTests, DeviceThenDefaultQueueReleased) {
     // Note: The test fixture gets the default queue.

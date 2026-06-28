@@ -22,7 +22,7 @@ import static org.chromium.chrome.browser.tasks.ReturnToChromeUtil.FAIL_TO_SHOW_
 import static org.chromium.chrome.browser.tasks.ReturnToChromeUtil.HOME_SURFACE_SHOWN_AT_STARTUP_UMA;
 import static org.chromium.chrome.browser.tasks.ReturnToChromeUtil.HOME_SURFACE_SHOWN_UMA;
 import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeNtpUrl;
-import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNonNativeNtpGurl;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNtpGurl;
 
 import android.content.Context;
 import android.content.Intent;
@@ -76,6 +76,7 @@ import org.chromium.chrome.browser.tabmodel.TabModelUtils;
 import org.chromium.chrome.browser.tasks.ReturnToChromeUtil.FailToShowHomeSurfaceReason;
 import org.chromium.chrome.browser.ui.native_page.FrozenNativePage;
 import org.chromium.chrome.browser.util.ChromeAccessibilityUtil;
+import org.chromium.ui.R;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.url.JUnitTestGURLs;
 
@@ -112,7 +113,7 @@ public class ReturnToChromeUtilUnitTest {
         // HomepageManager:
         HomepageManager.setInstanceForTesting(mHomepageManager);
         doReturn(true).when(mHomepageManager).isHomepageEnabled();
-        doReturn(getOriginalNonNativeNtpGurl())
+        doReturn(getOriginalNtpGurl())
                 .when(mHomepageManager)
                 .getHomepageGurl(/* isIncognito= */ false);
 
@@ -131,7 +132,7 @@ public class ReturnToChromeUtilUnitTest {
         doReturn(mResources).when(mContext).getResources();
         doReturn(DeviceFormFactor.SCREEN_BUCKET_TABLET - 1)
                 .when(mResources)
-                .getInteger(org.chromium.ui.R.integer.min_screen_width_bucket);
+                .getInteger(R.integer.min_screen_width_bucket);
         Assert.assertFalse(DeviceFormFactor.isNonMultiDisplayContextOnTablet(mContext));
     }
 

@@ -6,38 +6,36 @@ static_library("extensions") {
     "api:apis",
     "schema",
     "tools",
-    "//extensions/browser:browser",
+    "//extensions/browser",
   ]
   deps = [
     "helper",
     "permissions",
-    "//base:base",
-    "//chrome/browser/extensions:extensions",
-    "//vivaldi/extensions/schema:generated_api_registration",
+    "//base",
+    "//chrome/browser/extensions",
     "//skia",
+    "//vivaldi/extensions/schema:generated_api_registration",
   ]
   sources = [
-    "vivaldi_extensions_init.cpp",
-    "vivaldi_extensions_init.h",
     "vivaldi_associated_tabs.cc",
     "vivaldi_associated_tabs.h",
+    "vivaldi_extensions_init.cpp",
+    "vivaldi_extensions_init.h",
+    "vivaldi_silent_extension_installer.h",
     "vivaldi_standard_management_policy_provider.cc",
     "vivaldi_standard_management_policy_provider.h",
-    "vivaldi_silent_extension_installer.h",
   ]
 }
 
 static_library("extensions_client") {
   public_deps = [
     "permissions",
-
     "schema",
+
     #"//chrome/common",
     "//chrome/common/apps/platform_apps",
   ]
-  deps = [
-    ":resources",
-  ]
+  deps = [ ":resources" ]
   sources = [
     "vivaldi_extensions_client.cpp",
     "vivaldi_extensions_client.h",
@@ -61,7 +59,5 @@ source_set("vivaldi_extension_component_wrapper") {
     "vivaldi_extension_handover.cc",
     "vivaldi_extension_handover.h",
   ]
-  deps = [
-    "//base:base",
-  ]
+  deps = [ "//base" ]
 }

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://new-tab-page/strings.m.js';
+import 'chrome://contextual-tasks/strings.m.js';
 import 'chrome://resources/cr_components/composebox/recent_tab_chip.js';
 
 import {TabUploadOrigin} from 'chrome://resources/cr_components/composebox/common.js';
@@ -13,6 +13,14 @@ import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_as
 import type {MetricsTracker} from 'chrome://webui-test/metrics_test_support.js';
 import {fakeMetricsPrivate} from 'chrome://webui-test/metrics_test_support.js';
 import {$$, eventToPromise, microtasksFinished} from 'chrome://webui-test/test_util.js';
+
+type AddTabContextEvent = CustomEvent<{
+  id: number,
+  title: string,
+  url: string,
+  delayUpload: boolean,
+  origin: TabUploadOrigin,
+}>;
 
 suite('RecentTabChipTest', function() {
   let recentTabChip: RecentTabChipElement;
@@ -59,7 +67,17 @@ suite('RecentTabChipTest', function() {
   });
 
   test('fires event on click with correct data', async () => {
-    const eventPromise = eventToPromise('add-tab-context', recentTabChip);
+    loadTimeData.overrideValues({
+      composeboxSource: 'NewTabPage',
+    });
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    recentTabChip = document.createElement('composebox-recent-tab-chip');
+    document.body.appendChild(recentTabChip);
+    recentTabChip.recentTab = MOCK_TAB_INFO;
+    await microtasksFinished();
+
+    const eventPromise =
+        eventToPromise<AddTabContextEvent>('add-tab-context', recentTabChip);
     const button = getButton();
     button.click();
 
@@ -78,6 +96,7 @@ suite('RecentTabChipTest', function() {
   test('delayUploads is true when flag is enabled', async () => {
     loadTimeData.overrideValues({
       addTabUploadDelayOnRecentTabChipClick: true,
+      composeboxSource: 'NewTabPage',
     });
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     recentTabChip = document.createElement('composebox-recent-tab-chip');
@@ -85,7 +104,8 @@ suite('RecentTabChipTest', function() {
     recentTabChip.recentTab = MOCK_TAB_INFO;
     await microtasksFinished();
 
-    const eventPromise = eventToPromise('add-tab-context', recentTabChip);
+    const eventPromise =
+        eventToPromise<AddTabContextEvent>('add-tab-context', recentTabChip);
     const button = getButton();
     button.click();
 

@@ -32,13 +32,11 @@
 #include "components/send_tab_to_self/features.h"
 #include "components/send_tab_to_self/send_tab_to_self_model.h"
 #include "components/send_tab_to_self/send_tab_to_self_sync_service.h"
-#include "components/sharing_message/buildflags.h"
-#include "components/sharing_message/ios_push/sharing_ios_push_sender.h"
+#include "components/sharing_message/sharing_channel_sender.h"
 #include "components/sharing_message/sharing_constants.h"
 #include "components/sharing_message/sharing_device_registration.h"
 #include "components/sharing_message/sharing_device_source_sync.h"
 #include "components/sharing_message/sharing_fcm_handler.h"
-#include "components/sharing_message/sharing_fcm_sender.h"
 #include "components/sharing_message/sharing_message_bridge.h"
 #include "components/sharing_message/sharing_message_sender.h"
 #include "components/sharing_message/sharing_service.h"
@@ -55,7 +53,7 @@ namespace {
 constexpr char kServiceName[] = "SharingService";
 
 // Removes old encryption info with empty authorized_entity to avoid DCHECK.
-// See http://crbug/987591
+// See http://crbug.com/40637555
 void CleanEncryptionInfoWithoutAuthorizedEntity(gcm::GCMDriver* gcm_driver) {
   gcm::GCMEncryptionProvider* encryption_provider =
       gcm_driver->GetEncryptionProviderInternal();
@@ -119,9 +117,7 @@ SharingServiceFactory::BuildServiceInstanceForBrowserContext(
     return nullptr;
   }
 
-#if BUILDFLAG(ENABLE_CLICK_TO_CALL)
   PrecompilePhoneNumberRegexesAsync();
-#endif  // BUILDFLAG(ENABLE_CLICK_TO_CALL)
 
   syncer::DeviceInfoSyncService* device_info_sync_service =
       DeviceInfoSyncServiceFactory::GetForProfile(profile);
@@ -144,23 +140,16 @@ SharingServiceFactory::BuildServiceInstanceForBrowserContext(
       device_info_sync_service->GetDeviceInfoTracker();
   syncer::LocalDeviceInfoProvider* local_device_info_provider =
       device_info_sync_service->GetLocalDeviceInfoProvider();
-  auto fcm_sender = std::make_unique<SharingFCMSender>(
+  auto channel_sender = std::make_unique<SharingChannelSender>(
       message_bridge, sync_prefs.get(), gcm_driver, device_info_tracker,
       local_device_info_provider, sync_service,
       sync_start_util::GetFlareForSyncableService(profile->GetPath()));
 
   scoped_refptr<base::SingleThreadTaskRunner> task_runner =
       content::GetUIThreadTaskRunner({base::TaskPriority::USER_VISIBLE});
+  SharingChannelSender* channel_sender_ptr = channel_sender.get();
   auto sharing_message_sender = std::make_unique<SharingMessageSender>(
-      local_device_info_provider, task_runner);
-  SharingFCMSender* fcm_sender_ptr = fcm_sender.get();
-  sharing_message_sender->RegisterSendDelegate(
-      SharingMessageSender::DelegateType::kFCM, std::move(fcm_sender));
-    sharing_message_sender->RegisterSendDelegate(
-        SharingMessageSender::DelegateType::kIOSPush,
-        std::make_unique<sharing_message::SharingIOSPushSender>(
-            message_bridge, device_info_tracker, local_device_info_provider,
-            sync_service));
+      std::move(channel_sender), local_device_info_provider, task_runner);
 
   auto device_source = std::make_unique<SharingDeviceSourceSync>(
       sync_service, local_device_info_provider, device_info_tracker);
@@ -173,7 +162,8 @@ SharingServiceFactory::BuildServiceInstanceForBrowserContext(
       device_source.get(), sms_fetcher, gmail_otp_backend);
 
   auto fcm_handler = std::make_unique<SharingFCMHandler>(
-      gcm_driver, device_info_tracker, fcm_sender_ptr, handler_registry.get());
+      gcm_driver, device_info_tracker, channel_sender_ptr,
+      handler_registry.get());
 
   send_tab_to_self::SendTabToSelfModel* send_tab_model =
       SendTabToSelfSyncServiceFactory::GetForProfile(profile)

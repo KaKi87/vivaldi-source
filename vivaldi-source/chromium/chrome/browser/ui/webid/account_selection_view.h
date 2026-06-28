@@ -49,6 +49,8 @@ class AccountSelectionView {
     virtual gfx::NativeView GetNativeView() = 0;
     // The WebContents for the page.
     virtual content::WebContents* GetWebContents() = 0;
+    virtual content::IdentityRequestDialogController::PassiveDialogVolume
+    GetPassiveDialogVolume() const = 0;
   };
 
   static std::unique_ptr<AccountSelectionView> Create(Delegate* delegate);
@@ -129,7 +131,8 @@ class AccountSelectionView {
                                    blink::mojom::RpMode rp_mode) = 0;
 
   // Shows or hides the account selection view.
-  virtual void SetCanShowWidget(bool can_show_widget) {}
+  // Applies to both active mode (modal) and passive mode (widget/bottom sheet).
+  virtual void SetCanShowUi(bool can_show_ui) {}
 
   virtual std::string GetTitle() const = 0;
   virtual std::optional<std::string> GetSubtitle() const = 0;

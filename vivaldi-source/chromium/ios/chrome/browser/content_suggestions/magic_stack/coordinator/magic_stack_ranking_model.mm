@@ -94,27 +94,6 @@
 #import "ios/chrome/browser/tips_manager/model/tips_manager_ios.h"
 #import "ui/base/device_form_factor.h"
 
-namespace {
-
-// Move ShopCard to front of Magic Stack. Not used in production, only
-// for testing impression limiits. ShopCards are only shown for a maximum
-// of 3 impressions and an impression only counts if the card is at the
-// front of the Magic Stack.
-BOOL PromoteShopCardToFrontOfStack() {
-  return commerce::kShopCardPosition.Get() == commerce::kShopCardFrontPosition;
-}
-
-BOOL PromoteTabResumptionShopCardToFrontOfStack() {
-  return (commerce::kShopCardVariation.Get().contains(
-              commerce::kShopCardArm3) ||
-          commerce::kShopCardVariation.Get() == commerce::kShopCardArm4 ||
-          commerce::kShopCardVariation.Get() == commerce::kShopCardArm5 ||
-          commerce::kShopCardVariation.Get() == commerce::kShopCardArm6) &&
-         commerce::kShopCardPosition.Get() == commerce::kShopCardFrontPosition;
-}
-
-}  // namespace
-
 using segmentation_platform::TipIdentifier;
 using segmentation_platform::TipIdentifierForOutputLabel;
 using segmentation_platform::home_modules::AddressBarPositionEphemeralModule;
@@ -167,7 +146,6 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
   AppBundlePromoMediator* _appBundlePromoMediator;
   DefaultBrowserMediator* _defaultBrowserMediator;
   raw_ptr<TipsManagerIOS, DanglingUntriaged> _tipsManager;
-  base::TimeTicks ranking_fetch_start_time_;
   ContentSuggestionsModuleType _ephemeralCardToShow;
   raw_ptr<TemplateURLService, DanglingUntriaged> _templateURLService;
   raw_ptr<bookmarks::BookmarkModel, DanglingUntriaged> _bookmarkModel;
@@ -632,15 +610,13 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
         segmentation_platform::processing::ProcessedValue::FromFloat(
             [self isLensEnabled]));
 
-    if (segmentation_platform::features::
-            IsAppBundlePromoEphemeralCardEnabled()) {
-      CHECK(_appStoreBundleService);
-      inputContext->metadata_args.emplace(
-          segmentation_platform::kAppBundleAppsInstalledCount,
-          segmentation_platform::processing::ProcessedValue::FromFloat(
-              static_cast<float>(
-                  _appStoreBundleService->GetInstalledAppCount())));
-    }
+    CHECK(_appStoreBundleService);
+    inputContext->metadata_args.emplace(
+        segmentation_platform::kAppBundleAppsInstalledCount,
+        segmentation_platform::processing::ProcessedValue::FromFloat(
+            static_cast<float>(
+                _appStoreBundleService->GetInstalledAppCount())));
+
     inputContext->metadata_args.emplace(
         segmentation_platform::kIsDefaultBrowserChromeIos,
         segmentation_platform::processing::ProcessedValue::FromFloat(
@@ -712,21 +688,17 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
         _ephemeralCardToShow = ContentSuggestionsModuleType::kSendTabPromo;
         card = _sendTabPromoMediator.sendTabPromoConfigToShow;
         break;
-    } else if (label == segmentation_platform::kAppBundlePromoEphemeralModule) {
-      if (segmentation_platform::features::
-              IsAppBundlePromoEphemeralCardEnabled() &&
-          areTipsCardsEnabled) {
-        _ephemeralCardToShow = ContentSuggestionsModuleType::kAppBundlePromo;
-        card = _appBundlePromoMediator.config;
-        break;
-      }
+    } else if (label == segmentation_platform::kAppBundlePromoEphemeralModule &&
+               areTipsCardsEnabled) {
+      _ephemeralCardToShow = ContentSuggestionsModuleType::kAppBundlePromo;
+      card = _appBundlePromoMediator.config;
+      break;
     } else if (label ==
-               segmentation_platform::kDefaultBrowserPromoEphemeralModule) {
-      if (areTipsCardsEnabled) {
-        _ephemeralCardToShow = ContentSuggestionsModuleType::kDefaultBrowser;
-        card = _defaultBrowserMediator.config;
-        break;
-      }
+                   segmentation_platform::kDefaultBrowserPromoEphemeralModule &&
+               areTipsCardsEnabled) {
+      _ephemeralCardToShow = ContentSuggestionsModuleType::kDefaultBrowser;
+      card = _defaultBrowserMediator.config;
+      break;
     }
   }
   if (_ephemeralCardToShow != ContentSuggestionsModuleType::kInvalid && card) {
@@ -869,7 +841,6 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
                    inputContext:
                        (scoped_refptr<segmentation_platform::InputContext>)
                            inputContext {
-  ranking_fetch_start_time_ = base::TimeTicks::Now();
   __weak MagicStackRankingModel* weakSelf = self;
   _segmentationService->GetClassificationResult(
       segmentation_platform::kIosModuleRankerKey, options, inputContext,
@@ -886,15 +857,6 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
     return;
   }
 
-  if ([self.homeStartDataSource isStartSurface]) {
-    base::UmaHistogramMediumTimes(
-        kMagicStackStartSegmentationRankingFetchTimeHistogram,
-        base::TimeTicks::Now() - ranking_fetch_start_time_);
-  } else {
-    base::UmaHistogramMediumTimes(
-        kMagicStackNTPSegmentationRankingFetchTimeHistogram,
-        base::TimeTicks::Now() - ranking_fetch_start_time_);
-  }
 
   NSMutableArray* magicStackOrder = [NSMutableArray array];
   for (const std::string& label : result.ordered_labels) {
@@ -927,10 +889,6 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
 
 - (NSArray<MagicStackModule*>*)latestMagicStackConfigRank {
   NSMutableArray<MagicStackModule*>* magicStackOrder = [NSMutableArray array];
-  if (PromoteShopCardToFrontOfStack() && _shopCardMediator &&
-      _shopCardMediator.shopCardItemToShow) {
-    [magicStackOrder addObject:_shopCardMediator.shopCardItemToShow];
-  }
 
   // Always add Set Up List at the front.
   if ([_setUpListMediator shouldShowSetUpList]) {
@@ -964,9 +922,7 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
         break;
       }
       case ContentSuggestionsModuleType::kAppBundlePromo:
-        if (segmentation_platform::features::
-                IsAppBundlePromoEphemeralCardEnabled() &&
-            _appBundlePromoMediator && _appBundlePromoMediator.config) {
+        if (_appBundlePromoMediator && _appBundlePromoMediator.config) {
           [magicStackOrder addObject:_appBundlePromoMediator.config];
         }
         break;
@@ -990,12 +946,7 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
         if (![self shouldShowTabResumption]) {
           break;
         }
-        if (PromoteTabResumptionShopCardToFrontOfStack()) {
-          [magicStackOrder insertObject:_tabResumptionMediator.itemConfig
-                                atIndex:0];
-        } else {
-          [magicStackOrder addObject:_tabResumptionMediator.itemConfig];
-        }
+        [magicStackOrder addObject:_tabResumptionMediator.itemConfig];
         break;
       case ContentSuggestionsModuleType::kSafetyCheck: {
         // Handles adding Safety Check to Magic Stack. Disables/hides if:
@@ -1035,8 +986,7 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
         [magicStackOrder addObject:_shortcutsMediator.shortcutsConfig];
         break;
       case ContentSuggestionsModuleType::kShopCard:
-        if (!PromoteShopCardToFrontOfStack() && _shopCardMediator &&
-            _shopCardMediator.shopCardItemToShow) {
+        if (_shopCardMediator && _shopCardMediator.shopCardItemToShow) {
           [magicStackOrder addObject:_shopCardMediator.shopCardItemToShow];
         }
         break;

@@ -203,9 +203,8 @@ constexpr const char* kDeleteAllSavedDataButtonClicked =
               profile, ServiceAccessType::EXPLICIT_ACCESS),
           passkeyModel);
 
-  _identity =
-      AuthenticationServiceFactory::GetForProfile(profile)->GetPrimaryIdentity(
-          signin::ConsentLevel::kSignin);
+  _identity = AuthenticationServiceFactory::GetForProfile(profile)
+                  ->GetPrimaryIdentity();
   _mediator = [[PasswordSettingsMediator alloc]
          initWithReauthenticationModule:_reauthModule
                 savedPasswordsPresenter:_savedPasswordsPresenter.get()
@@ -370,16 +369,14 @@ constexpr const char* kDeleteAllSavedDataButtonClicked =
 
 - (void)startExportFlow {
   if (@available(iOS 26, *)) {
-    if (CredentialExchangeEnabled()) {
-      _credentialExportCoordinator = [[CredentialExportCoordinator alloc]
-          initWithBaseNavigationController:_settingsNavigationController
-                                   browser:self.browser
-                          affiliatedGroups:_savedPasswordsPresenter
-                                               ->GetAffiliatedGroups()];
-      _credentialExportCoordinator.delegate = self;
-      [_credentialExportCoordinator start];
-      return;
-    }
+    _credentialExportCoordinator = [[CredentialExportCoordinator alloc]
+        initWithBaseNavigationController:_settingsNavigationController
+                                 browser:self.browser
+                        affiliatedGroups:_savedPasswordsPresenter
+                                             ->GetAffiliatedGroups()];
+    _credentialExportCoordinator.delegate = self;
+    [_credentialExportCoordinator start];
+    return;
   }
 
   UIAlertController* exportConfirmation = [UIAlertController

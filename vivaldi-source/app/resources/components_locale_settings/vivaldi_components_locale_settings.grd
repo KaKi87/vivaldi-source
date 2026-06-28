@@ -2,19 +2,21 @@
 <grit base_dir="." latest_public_release="0" current_release="1"
       source_lang_id="en" enc_check="möl">
   <outputs>
-    <output filename="components_locale_settings_ca-valencia.pak" type="data_package" lang="ca@valencia" />
-    <output filename="components_locale_settings_de-CH.pak" type="data_package" lang="de-CH" />
-    <output filename="components_locale_settings_eo.pak" type="data_package" lang="eo" />
-    <output filename="components_locale_settings_es-PE.pak" type="data_package" lang="es-PE" />
-    <output filename="components_locale_settings_fy.pak" type="data_package" lang="fy" />
-    <output filename="components_locale_settings_gd.pak" type="data_package" lang="gd" />
-    <output filename="components_locale_settings_io.pak" type="data_package" lang="io" />
-    <output filename="components_locale_settings_jbo.pak" type="data_package" lang="jbo" />
-    <output filename="components_locale_settings_ja-KS.pak" type="data_package" lang="ja-KS" />
-    <output filename="components_locale_settings_kab.pak" type="data_package" lang="kab" />
-    <output filename="components_locale_settings_kmr.pak" type="data_package" lang="kmr" />
-    <output filename="components_locale_settings_sc.pak" type="data_package" lang="sc" />
-    <output filename="components_locale_settings_nn.pak" type="data_package" lang="nn" />
+    <if expr="not is_ios">
+      <output filename="components_locale_settings_ca-valencia.pak" type="data_package" lang="ca@valencia" />
+      <output filename="components_locale_settings_de-CH.pak" type="data_package" lang="de-CH" />
+      <output filename="components_locale_settings_eo.pak" type="data_package" lang="eo" />
+      <output filename="components_locale_settings_es-PE.pak" type="data_package" lang="es-PE" />
+      <output filename="components_locale_settings_fy.pak" type="data_package" lang="fy" />
+      <output filename="components_locale_settings_gd.pak" type="data_package" lang="gd" />
+      <output filename="components_locale_settings_io.pak" type="data_package" lang="io" />
+      <output filename="components_locale_settings_jbo.pak" type="data_package" lang="jbo" />
+      <output filename="components_locale_settings_ja-KS.pak" type="data_package" lang="ja-KS" />
+      <output filename="components_locale_settings_kab.pak" type="data_package" lang="kab" />
+      <output filename="components_locale_settings_kmr.pak" type="data_package" lang="kmr" />
+      <output filename="components_locale_settings_sc.pak" type="data_package" lang="sc" />
+      <output filename="components_locale_settings_nn.pak" type="data_package" lang="nn" />
+    </if>
     <if expr="not is_android">
     </if>
   </outputs>

@@ -41,10 +41,9 @@ constexpr size_t kMessageNamePrefixLength =
 /*constexpr char kJSScriptArgRequestPart1[] = "window.webkit.messageHandlers['";
 constexpr char kJSScriptArgRequestPart2[] =
     R"JsSource('].postMessage({}).then((scriptlet_arguments) => {
-      if(Array.isArray(scriptlet_arguments) && scriptlet_arguments.length != 0) {
-        const source=)JsSource";
-constexpr char kJSScriptArgRequestPart3[] = R"JsSource(;
-        new Function(source)();
+      if(Array.isArray(scriptlet_arguments) && scriptlet_arguments.length != 0)
+{ const source=)JsSource"; constexpr char kJSScriptArgRequestPart3[] =
+R"JsSource(; new Function(source)();
   }
 });)JsSource";
 
@@ -255,45 +254,46 @@ void ContentInjectionHandlerImpl::InjectUserScripts() {
 
 void ContentInjectionHandlerImpl::InjectUserScriptsForController(
     __weak WKUserContentController* user_content_controller) {
-/*  std::map<std::string, Resources::InjectableResource> injections =
-      resources_->GetInjections();
+  /*  std::map<std::string, Resources::InjectableResource> injections =
+        resources_->GetInjections();
 
-  WKContentWorld* content_world =
-      [WKContentWorld worldWithName:@"vivaldi_adblock_user_scripts"];
+    WKContentWorld* content_world =
+        [WKContentWorld worldWithName:@"vivaldi_adblock_user_scripts"];
 
-  for (const auto& [name, injectable_resource] : injections) {
-    // We don't support other scriptlets yet.
-    if (name != kAbpSnippetsMainScriptletName &&
-        name != kAbpSnippetsIsolatedScriptletName) {
-      continue;
-    }
-    std::string message_name(kMessageNamePrefix);
-    message_name.append(name);
+    for (const auto& [name, injectable_resource] : injections) {
+      // We don't support other scriptlets yet.
+      if (name != kAbpSnippetsMainScriptletName &&
+          name != kAbpSnippetsIsolatedScriptletName) {
+        continue;
+      }
+      std::string message_name(kMessageNamePrefix);
+      message_name.append(name);
 
-    std::string patched_source(kJSScriptArgRequestPart1);
-    patched_source.append(message_name);
-    patched_source.append(kJSScriptArgRequestPart2);
-    patched_source.append(SourceToTemplatedHexString(injectable_resource.code));
-    patched_source.append(kJSScriptArgRequestPart3);
+      std::string patched_source(kJSScriptArgRequestPart1);
+      patched_source.append(message_name);
+      patched_source.append(kJSScriptArgRequestPart2);
+      patched_source.append(SourceToTemplatedHexString(injectable_resource.code));
+      patched_source.append(kJSScriptArgRequestPart3);
 
-    script_message_handlers_.emplace_back(
-        std::make_unique<ScopedWKScriptMessageHandler>(
-            user_content_controller,
-            [NSString stringWithUTF8String:message_name.c_str()],
-            injectable_resource.use_main_world ? WKContentWorld.pageWorld
-                                               : content_world,
-            base::BindRepeating(
-                &ContentInjectionHandlerImpl::HandlePlaceholderRequest,
-                weak_ptr_factory_.GetWeakPtr())));
-    WKUserScript* user_script = [[WKUserScript alloc]
-          initWithSource:[NSString stringWithUTF8String:patched_source.c_str()]
-           injectionTime:WKUserScriptInjectionTimeAtDocumentStart
-        forMainFrameOnly:false
-          inContentWorld:injectable_resource.use_main_world
-                             ? WKContentWorld.pageWorld
-                             : content_world];
-    [user_content_controller addUserScript:user_script];
-  }*/
+      script_message_handlers_.emplace_back(
+          std::make_unique<ScopedWKScriptMessageHandler>(
+              user_content_controller,
+              [NSString stringWithUTF8String:message_name.c_str()],
+              injectable_resource.use_main_world ? WKContentWorld.pageWorld
+                                                 : content_world,
+              base::BindRepeating(
+                  &ContentInjectionHandlerImpl::HandlePlaceholderRequest,
+                  weak_ptr_factory_.GetWeakPtr())));
+      WKUserScript* user_script = [[WKUserScript alloc]
+            initWithSource:[NSString
+    stringWithUTF8String:patched_source.c_str()]
+             injectionTime:WKUserScriptInjectionTimeAtDocumentStart
+          forMainFrameOnly:false
+            inContentWorld:injectable_resource.use_main_world
+                               ? WKContentWorld.pageWorld
+                               : content_world];
+      [user_content_controller addUserScript:user_script];
+    }*/
 }
 
 void ContentInjectionHandlerImpl::HandlePlaceholderRequest(

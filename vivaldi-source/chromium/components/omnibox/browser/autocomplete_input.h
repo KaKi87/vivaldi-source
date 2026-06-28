@@ -18,6 +18,7 @@
 #include "third_party/metrics_proto/omnibox_event.pb.h"
 #include "third_party/metrics_proto/omnibox_focus_type.pb.h"
 #include "third_party/metrics_proto/omnibox_input_type.pb.h"
+#include "third_party/omnibox_proto/suggest_inventory.pb.h"
 #include "third_party/omnibox_proto/tool_mode.pb.h"
 #include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
 #include "url/gurl.h"
@@ -89,7 +90,7 @@ class AutocompleteInput {
   // canonicalized URL is stored in |canonicalized_url|; however, this URL is
   // not guaranteed to be valid, especially if the parsed type is, e.g., QUERY.
   static metrics::OmniboxInputType Parse(
-      const std::u16string& text,
+      std::u16string_view text,
       const std::string& desired_tld,
       const AutocompleteSchemeClassifier& scheme_classifier,
       url::Parsed* parts,
@@ -101,7 +102,7 @@ class AutocompleteInput {
   // is view-source, this function returns the positions of scheme and host
   // in the URL qualified by "view-source:" prefix.
   static void ParseForEmphasizeComponents(
-      const std::u16string& text,
+      std::u16string_view text,
       const AutocompleteSchemeClassifier& scheme_classifier,
       url::Component* scheme,
       url::Component* host);
@@ -178,7 +179,7 @@ class AutocompleteInput {
   // If |trim_leading_whitespace| is true then leading whitespace in
   // replacement string will be trimmed.
   static std::u16string SplitReplacementStringFromInput(
-      const std::u16string& input,
+      std::u16string_view input,
       bool trim_leading_whitespace);
 
   // Removes any unnecessary characters from a user input keyword, returning
@@ -198,7 +199,7 @@ class AutocompleteInput {
   // the first intervening whitespace).
   // If |trim_leading_whitespace| is true then leading whitespace in
   // |*remaining_input| will be trimmed.
-  static std::u16string SplitKeywordFromInput(const std::u16string& input,
+  static std::u16string SplitKeywordFromInput(std::u16string_view input,
                                               bool trim_leading_whitespace,
                                               std::u16string* remaining_input);
 
@@ -207,7 +208,7 @@ class AutocompleteInput {
   static const char16_t kInvalidChars[];
 
   // Removes invalid characters from `text`.
-  static std::u16string SanitizeString(const std::u16string& text,
+  static std::u16string SanitizeString(std::u16string_view text,
                                        bool trim_whitespace = true);
 
   // User-provided text to be completed.
@@ -315,18 +316,13 @@ class AutocompleteInput {
     allow_exact_keyword_match_ = allow_exact_keyword_match;
   }
 
-  // Provides public read-only access to the method that the user used to
-  // get into keyword mode (which includes INVALID if they didn't enter it.)
-  metrics::OmniboxEventProto::KeywordModeEntryMethod keyword_mode_entry_method()
-      const {
-    return keyword_mode_entry_method_;
-  }
+  // Provides public read-only access to whether the user entered keyword mode.
+  bool in_keyword_mode() const { return in_keyword_mode_; }
 
-  // Used by code handling keyword entry to set the method by which the user
-  // used to enter it.
-  void set_keyword_mode_entry_method(
-      metrics::OmniboxEventProto::KeywordModeEntryMethod entry_method) {
-    keyword_mode_entry_method_ = entry_method;
+  // Set by the edit model or driver of autocompletion to inform autocomplete
+  // providers & controller.
+  void set_in_keyword_mode(bool in_keyword_mode) {
+    in_keyword_mode_ = in_keyword_mode;
   }
 
   // Returns whether providers should avoid obtaining matches asynchronously
@@ -384,6 +380,14 @@ class AutocompleteInput {
   void set_input_state(const omnibox::InputState& input_state) {
     input_state_ = input_state;
   }
+
+  omnibox::SuggestInventory suggest_inventory() const {
+    return suggest_inventory_;
+  }
+
+  void set_suggest_inventory(omnibox::SuggestInventory suggest_inventory) {
+    suggest_inventory_ = suggest_inventory;
+  }
   std::u16string context_tab_title() const { return context_tab_title_; }
 
   void set_context_tab_title(std::u16string title) {
@@ -393,6 +397,12 @@ class AutocompleteInput {
   GURL context_tab_url() const { return context_tab_url_; }
 
   void set_context_tab_url(GURL url) { context_tab_url_ = url; }
+
+  const std::string& previous_query() const { return previous_query_; }
+
+  void set_previous_query(const std::string& previous_query) {
+    previous_query_ = previous_query;
+  }
 
   // Resets all internal variables to the null-constructed state.
   void Clear();
@@ -419,10 +429,6 @@ class AutocompleteInput {
   // autocomplete providers, tab matching, and action attachment. Note that the
   // Zero-Suggest state does NOT mean that `text_` is empty.
   bool IsZeroSuggest() const;
-
-  // Uses the keyword entry mode to decide if the user is currently in keyword
-  // mode.
-  bool InKeywordMode() const;
 
   // Whether the input might be matching featured keyword suggestions.
   FeaturedKeywordMode GetFeaturedKeywordMode() const;
@@ -455,7 +461,7 @@ class AutocompleteInput {
   bool prevent_inline_autocomplete_;
   bool prefer_keyword_;
   bool allow_exact_keyword_match_;
-  metrics::OmniboxEventProto::KeywordModeEntryMethod keyword_mode_entry_method_;
+  bool in_keyword_mode_;
   bool omit_asynchronous_matches_;
   metrics::OmniboxFocusType focus_type_ =
       metrics::OmniboxFocusType::INTERACTION_DEFAULT;
@@ -467,6 +473,11 @@ class AutocompleteInput {
   // Input state. This is specifically the primitive state, with regards to
   // the tools and models that may be selected.
   omnibox::InputState input_state_;
+
+  // The suggest inventory to be sent as query parameters in the suggest
+  // requests.
+  omnibox::SuggestInventory suggest_inventory_ =
+      omnibox::SuggestInventory::SUGGEST_INVENTORY_DEFAULT;
 
   // Flags for OmniboxDefaultNavigationsToHttps feature.
   bool should_use_https_as_default_scheme_;
@@ -484,6 +495,9 @@ class AutocompleteInput {
   bool use_fake_https_for_https_upgrade_testing_;
   std::u16string context_tab_title_;
   GURL context_tab_url_;
+  // This is only relevant for contextual tasks where a previous query might
+  // be submitted and follow-up queries can be asked in the same thread.
+  std::string previous_query_;
 };
 
 #endif  // COMPONENTS_OMNIBOX_BROWSER_AUTOCOMPLETE_INPUT_H_

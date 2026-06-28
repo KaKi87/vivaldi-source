@@ -3,6 +3,7 @@
 LASTCHANGE
 LASTCHANGE.committime
 build/
+build/mac_files/
 gclient_args.gni
 
 # Tools & Dependencies
@@ -41,3 +42,5 @@ generated_root_cast_receiver*
 .gemini/
 GEMINI.md
 claude.json
+tools/licenses/
+tools/protoc_wrapper/

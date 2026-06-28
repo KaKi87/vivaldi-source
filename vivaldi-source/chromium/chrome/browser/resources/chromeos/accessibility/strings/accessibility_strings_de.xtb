@@ -242,6 +242,7 @@
 <translation id="2497706219848005458">Grüngelb</translation>
 <translation id="2512979179176933762">Fenster anzeigen</translation>
 <translation id="2523609930580546572">ChromeVox-Anleitung</translation>
+<translation id="2523760288355306549">Die Brailleeingabe ist noch nicht verfügbar.</translation>
 <translation id="2525706221823668172">Tastenkombinationen auf Chromebooks</translation>
 <translation id="2553108862507765288">Grammatikfehler</translation>
 <translation id="2556326187583116255">Tippe mit zwei Fingern, um die Sprachausgabe anzuhalten</translation>
@@ -1024,7 +1025,7 @@
 <translation id="7685589220304187312">tlbar</translation>
 <translation id="7693840228159394336">Vorheriges Optionsfeld</translation>
 <translation id="7696631298608145306">zum nächsten Wort wechseln</translation>
-<translation id="7701040980221191251">Keine</translation>
+<translation id="7701040980221191251">Keine Einträge</translation>
 <translation id="7701196182766842984">autolst</translation>
 <translation id="7708242671340939466">.input {$$COUNT :number} .match $$COUNT 1{{Bindestrich}} *{{{$$COUNT} Bindestriche}}</translation>
 <translation id="7714340021005120797">Kein nächstes Kombinationsfeld</translation>

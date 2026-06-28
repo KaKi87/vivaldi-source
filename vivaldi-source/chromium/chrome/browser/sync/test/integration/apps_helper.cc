@@ -105,13 +105,14 @@ bool AllProfilesHaveSameApps() {
 
 std::string InstallHostedApp(Profile* profile, int index) {
   return SyncExtensionHelper::GetInstance()->InstallExtension(
-      profile, CreateFakeAppName(index), extensions::Manifest::TYPE_HOSTED_APP);
+      profile, CreateFakeAppName(index),
+      extensions::Manifest::Type::kHostedApp);
 }
 
 std::string InstallPlatformApp(Profile* profile, int index) {
   return SyncExtensionHelper::GetInstance()->InstallExtension(
       profile, CreateFakeAppName(index),
-      extensions::Manifest::TYPE_PLATFORM_APP);
+      extensions::Manifest::Type::kPlatformApp);
 }
 
 std::string InstallHostedAppForAllProfiles(int index) {
@@ -202,7 +203,7 @@ bool AwaitWebAppQuiescence(
   FlushPendingOperations(profiles);
 
   // If sync is off, then `AwaitQuiescence()` will crash. This code can be
-  // removed once https://crbug.com/1330792 is fixed.
+  // removed once https://crbug.com/40843470 is fixed.
   if (sync_datatype_helper::test()) {
     SyncTest* test = sync_datatype_helper::test();
     bool is_sync_on = true;

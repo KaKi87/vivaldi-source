@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <map>
+#include <string_view>
 #include <utility>
 
 #include "base/check_deref.h"
@@ -76,7 +77,7 @@ void FinishCustomUninstallOnUIThread(const std::string& name) {
       name, base::BindOnce(&LogCustomUninstall));
 }
 
-std::string GenerateId(const std::string& sha2hashstr) {
+std::string GenerateId(std::string_view sha2hashstr) {
   // kIdSize is the count of a pair of hex in the sha2hash array.
   // In string representation of sha2hash, size is doubled since each hex is
   // represented by a single char.
@@ -425,6 +426,7 @@ bool CrOSComponentInstaller::IsRegisteredMayBlock(const std::string& name) {
 
 void CrOSComponentInstaller::Register(const ComponentConfig& config,
                                       base::OnceClosure register_callback) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   std::unique_ptr<CrOSComponentInstallerPolicy> policy;
   switch (config.policy_type) {
     case ComponentConfig::PolicyType::kEnvVersion:
@@ -445,6 +447,7 @@ void CrOSComponentInstaller::Install(const std::string& name,
                                      UpdatePolicy update_policy,
                                      MountPolicy mount_policy,
                                      LoadCallback load_callback) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   const ComponentConfig* config = FindConfig(name);
   if (!config) {
     static constexpr Error error = Error::UNKNOWN_COMPONENT;
@@ -468,6 +471,7 @@ void CrOSComponentInstaller::StartInstall(
     const std::string& id,
     UpdatePolicy update_policy,
     update_client::Callback install_callback) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   // Check whether an installed component was found during registration, and
   // determine whether OnDemandUpdater should be started accordingly.
   const bool is_compatible = IsCompatible(name);
@@ -513,6 +517,7 @@ void CrOSComponentInstaller::FinishInstall(const std::string& name,
 
 void CrOSComponentInstaller::LoadInternal(const std::string& name,
                                           LoadCallback load_callback) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   // Use the cached value if it exists.
   auto it = load_cache_.find(name);
   if (it != load_cache_.end()) {
@@ -542,6 +547,7 @@ void CrOSComponentInstaller::LoadInternal(const std::string& name,
 void CrOSComponentInstaller::FinishLoad(LoadCallback load_callback,
                                         const std::string& name,
                                         std::optional<base::FilePath> result) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   // ImageLoader returns an empty path if mount failed.
   bool success = result.has_value() && !result.value().empty();
   base::FilePath path;
@@ -579,6 +585,7 @@ void CrOSComponentInstaller::RegisterN(
 }
 
 bool CrOSComponentInstaller::IsCompatible(const std::string& name) const {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   return compatible_components_.count(name) > 0;
 }
 

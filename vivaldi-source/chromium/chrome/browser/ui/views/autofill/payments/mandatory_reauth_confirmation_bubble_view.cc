@@ -5,14 +5,14 @@
 #include "chrome/browser/ui/views/autofill/payments/mandatory_reauth_confirmation_bubble_view.h"
 
 #include "chrome/browser/ui/autofill/payments/mandatory_reauth_bubble_controller.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/views/accessibility/theme_tracking_non_accessible_image_view.h"
 #include "chrome/browser/ui/views/autofill/payments/dialog_view_ids.h"
 #include "chrome/browser/ui/views/autofill/payments/payments_view_util.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/common/webui_url_constants.h"
-#include "chrome/grit/generated_resources.h"
 #include "chrome/grit/theme_resources.h"
 #include "components/autofill/core/browser/metrics/payments/mandatory_reauth_metrics.h"
 #include "components/strings/grit/components_strings.h"
@@ -81,7 +81,9 @@ void MandatoryReauthConfirmationBubbleView::OnSettingsLinkClicked() {
   autofill_metrics::LogMandatoryReauthOptInConfirmationBubbleMetric(
       autofill_metrics::MandatoryReauthOptInConfirmationBubbleMetric::
           kSettingsLinkClicked);
-  Browser* browser = chrome::FindBrowserWithTab(web_contents());
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          web_contents());
   chrome::ShowSettingsSubPage(browser, chrome::kPaymentsSubPage);
 }
 

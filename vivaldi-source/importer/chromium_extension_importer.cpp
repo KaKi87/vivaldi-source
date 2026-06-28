@@ -84,7 +84,7 @@ std::vector<std::string> FilterImportableExtensions(
     // Install only type extension
     if (auto* manifest_dict = dict.FindDict("manifest")) {
       if (Manifest::GetTypeFromManifestValue(*manifest_dict) ==
-          Manifest::TYPE_EXTENSION) {
+          Manifest::Type::kExtension) {
         extensions.push_back(key);
       }
     }

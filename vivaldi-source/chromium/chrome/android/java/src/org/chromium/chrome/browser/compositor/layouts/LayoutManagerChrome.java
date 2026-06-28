@@ -24,7 +24,6 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.device.DeviceClassManager;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.hub.HubLayout;
 import org.chromium.chrome.browser.hub.HubLayoutDependencyHolder;
@@ -38,15 +37,15 @@ import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelUtils;
 import org.chromium.chrome.browser.theme.ThemeColorProvider;
-import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
+import org.chromium.chrome.browser.theme.ToolbarThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.ControlContainer;
 import org.chromium.chrome.browser.toolbar.ToolbarPositionController;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
 import org.chromium.components.browser_ui.widget.gesture.SwipeGestureListener.ScrollDirection;
 import org.chromium.components.browser_ui.widget.gesture.SwipeGestureListener.SwipeHandler;
-import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
 import org.chromium.ui.util.AccessibilityUtil;
+import org.chromium.ui.util.MotionEventUtils;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -57,6 +56,7 @@ import androidx.annotation.NonNull;
 import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
 import org.chromium.chrome.browser.theme.ThemeColorProvider.ThemeColorObserver;
+import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 
 import org.vivaldi.browser.common.VivaldiUtils;
 
@@ -110,7 +110,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
      *     to create TabSwitcherLayout if it has value.
      * @param tabModelSelectorSupplier Supplier for an interface to talk to the Tab Model Selector.
      * @param tabContentManagerSupplier Supplier of the {@link TabContentManager} instance.
-     * @param topUiThemeColorProvider {@link ThemeColorProvider} for top UI.
+     * @param toolbarThemeColorProvider {@link ThemeColorProvider} for the toolbar.
      * @param hubLayoutDependencyHolder The dependency holder for creating {@link HubLayout}.
      */
     public LayoutManagerChrome(
@@ -119,9 +119,9 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
             Supplier<TabSwitcher> tabSwitcherSupplier,
             Supplier<TabModelSelector> tabModelSelectorSupplier,
             MonotonicObservableSupplier<TabContentManager> tabContentManagerSupplier,
-            Supplier<TopUiThemeColorProvider> topUiThemeColorProvider,
+            Supplier<ToolbarThemeColorProvider> toolbarThemeColorProvider,
             HubLayoutDependencyHolder hubLayoutDependencyHolder) {
-        super(host, contentContainer, tabContentManagerSupplier, topUiThemeColorProvider);
+        super(host, contentContainer, tabContentManagerSupplier, toolbarThemeColorProvider);
         // Build Event Filter Handlers
         mToolbarSwipeHandler =
                 createToolbarSwipeHandler(/* supportsSwipeToShowTabSwitcher= */ true);
@@ -188,7 +188,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
             TabCreatorManager creator,
             @Nullable ControlContainer controlContainer,
             DynamicResourceLoader dynamicResourceLoader,
-            TopUiThemeColorProvider topUiColorProvider,
+            ToolbarThemeColorProvider toolbarThemeColorProvider,
             NonNullObservableSupplier<Integer> bottomControlsOffsetSupplier) {
         Context context = mHost.getContext();
         LayoutRenderHost renderHost = mHost.getLayoutRenderHost();
@@ -203,12 +203,13 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
                         renderHost,
                         browserControlsStateProvider,
                         this,
-                        topUiColorProvider,
+                        toolbarThemeColorProvider,
                         bottomControlsOffsetSupplier,
                         getContentContainer(),
                         () -> {
                             if (controlContainer != null) {
-                                controlContainer.doSynchronousLayoutAndCapture();
+                                controlContainer.doSynchronousLayout(
+                                        /* forceCaptureAfterLayout= */ true);
                             }
                         });
 
@@ -217,7 +218,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
                 creator,
                 controlContainer,
                 dynamicResourceLoader,
-                topUiColorProvider,
+                toolbarThemeColorProvider,
                 bottomControlsOffsetSupplier);
 
         // Initialize Layouts.
@@ -434,7 +435,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
         }
 
         @Override
-        public void onSwipeStarted(@ScrollDirection int direction, MotionEvent ev) {
+        public void onSwipeStarted(@ScrollDirection int direction, MotionEvent triggerEvent) {
             mScrollDirection = ScrollDirection.UNKNOWN;
         }
 
@@ -528,11 +529,16 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
         }
 
         @Override
-        public boolean isSwipeEnabled(@ScrollDirection int direction) {
+        public boolean isSwipeEnabled(@ScrollDirection int direction, MotionEvent triggerEvent) {
             FullscreenManager manager = mHost.getFullscreenManager();
             if (!DeviceClassManager.enableToolbarSwipe()
                     || getActiveLayout() != mStaticLayout
                     || (manager != null && manager.getPersistentFullscreenMode())) {
+                return false;
+            }
+
+            if (MotionEventUtils.isPointerEvent(triggerEvent)) {
+                // Dragging on the toolbar with the pointer should not cause swipes.
                 return false;
             }
 
@@ -542,22 +548,8 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
             int showTabSwitcherScrollDirection =
                     toolbarShownOnTop ? ScrollDirection.DOWN : ScrollDirection.UP;
 
-            if (direction == showTabSwitcherScrollDirection) {
-                // TODO(crbug.com/493270994): Revisit whether we should enable swipe to show tab
-                // switcher on LFF.
-                return true;
-            }
-
-            // TODO(crbug.com/493270994): Remove {@code isDesktop()} check and replace it with a
-            // proper solution that handles all formfactors.
-            if (ChromeFeatureList.isEnabled(
-                            ChromeFeatureList.ENABLE_TOOLBAR_SWIPE_ON_NON_DESKTOP_LFF)
-                    ? DeviceInfo.isDesktop()
-                    : DeviceFormFactor.isNonMultiDisplayContextOnTablet(mHost.getContext())) {
-                return false;
-            }
-
-            return (!VivaldiUtils.isTopToolbarOn() && direction == ScrollDirection.UP)
+            return direction == showTabSwitcherScrollDirection
+                    || (!VivaldiUtils.isTopToolbarOn() && direction == ScrollDirection.UP)
                     || direction == ScrollDirection.LEFT
                     || direction == ScrollDirection.RIGHT;
         }

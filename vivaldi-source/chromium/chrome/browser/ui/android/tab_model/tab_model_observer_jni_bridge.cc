@@ -105,9 +105,13 @@ void TabModelObserverJniBridge::DidAddTab(JNIEnv* env,
     observer.DidAddTab(tab, static_cast<TabModel::TabLaunchType>(type));
   }
 
-  int index = tab_model_->GetIndexOfTab(tab->GetHandle());
-  for (auto& observer : interface_observers_) {
-    observer.OnTabAdded(*tab_model_, tab, index);
+  // Vivaldi VAB-13065: GetIndexOfTab() scans the model, so skip it when no
+  // interface observer needs it.
+  if (!interface_observers_.empty()) {
+    int index = tab_model_->GetIndexOfTab(tab->GetHandle());
+    for (auto& observer : interface_observers_) {
+      observer.OnTabAdded(*tab_model_, tab, index);
+    }
   }
 }
 
@@ -172,6 +176,9 @@ void TabModelObserverJniBridge::OnTabsSelectionChanged(JNIEnv* env) {
 
   for (auto& observer : interface_observers_) {
     observer.OnHighlightedTabsChanged(*tab_model_, highlighted_tabs);
+  }
+  for (auto& observer : model_observers_) {
+    observer.OnTabsSelectionsChanged();
   }
 }
 

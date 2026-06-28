@@ -10,17 +10,38 @@
           =1 {Luotu <ph name="NUM_YEARS_ONE" /> vuosi sitten}
           other {Luotu <ph name="NUM_YEARS_MANY" /> vuotta sitten}
         }</translation>
+<translation id="1101895854844881935">{DAY_COUNT, plural,
+          =1 {Passiiviset välilehdet ja niput suljetaan kuukauden kuluttua}
+          other {Passiiviset välilehdet ja niput suljetaan <ph name="MONTH_COUNT_MANY" /> kuukauden kuluttua}
+        }</translation>
+<translation id="1133985792690629147">Välilehtinipun värikuvake <ph name="COLOR_NAME" /></translation>
+<translation id="1166688074841572519">{NUMBER_OF_TABS, plural,
+          =1 {Sulje nippu <ph name="TITLE_OF_GROUP" />, jossa <ph name="TABS_COUNT_ONE" /> välilehti, väri <ph name="COLOR_NAME" />.}
+          other {Sulje nippu <ph name="TITLE_OF_GROUP" />, jossa <ph name="TABS_COUNT_MANY" /> välilehteä, väri <ph name="COLOR_NAME" />.}
+        }</translation>
+<translation id="1284091376947323642">Siirrä välilehtinippua oikealle</translation>
 <translation id="1329584516321524826">Päivitetty juuri nyt</translation>
+<translation id="1455797424496857273">{TABS_COUNT, plural,
+          =1 {Lisää välilehti uuteen nippuun}
+          other {Lisää välilehdet uuteen nippuun}
+        }</translation>
+<translation id="1458791605942787797">Uusi nippu toiselta laitteelta</translation>
+<translation id="1487138071670610189">Niputa välilehtiä vetämällä</translation>
 <translation id="149054111719651807">{NUM_MINS, plural,
           =1 {Luotu <ph name="NUM_MINS_ONE" /> minuutti sitten}
           other {Luotu <ph name="NUM_MINS_MANY" /> minuuttia sitten}
         }</translation>
 <translation id="1625440863545383011">Poista välilehti, mutta jätä nippu</translation>
+<translation id="19713940601468134">Järjestä välilehdet luomalla nippuja.</translation>
+<translation id="2001678985916350707">Sulkemasi välilehdet ja niput voi avata uudelleen Viimeaikaiset välilehdet- ja Välilehtiniput-osioista.</translation>
+<translation id="216776815027855047">Tehdyt muutokset näkyvät nipussa kaikille</translation>
+<translation id="2221077170275765262">Välilehtinippu "<ph name="TAB_GROUP_NAME" />" ei enää käytettävissä</translation>
+<translation id="2299756585602735249">Puolikorkeuteen avattu välilehtinippuluettelo</translation>
 <translation id="2330212241471632770">{TABS_COUNT, plural,
 =1 {Lisää välilehti kirjanmerkkeihin}
 other {Lisää välilehdet kirjanmerkkeihin}
 }</translation>
-<translation id="2498435670446402865">Muuta välilehtiryhmän nimeä</translation>
+<translation id="2416147124259461944">Niputa</translation>
 <translation id="2734252994837336591">{NUM_WEEKS, plural,
           =1 {Päivitetty <ph name="NUM_WEEKS_ONE" /> viikko sitten}
           other {Päivitetty <ph name="NUM_WEEKS_MANY" /> viikkoa sitten}
@@ -33,44 +54,143 @@ other {Lisää välilehdet kirjanmerkkeihin}
           =1 {Luotu <ph name="NUM_HOURS_ONE" /> tunti sitten}
           other {Luotu <ph name="NUM_HOURS_MANY" /> tuntia sitten}
         }</translation>
+<translation id="2823409674319971145">Lisää nippuun uusi välilehti</translation>
 <translation id="2947471979790858922">Toimintasi näissä yksityisvälilehdissä poistetaan tältä laitteelta</translation>
+<translation id="3285228391229471836">{TABS_COUNT, plural,
+          =1 {Lisää välilehti nippuun}
+          other {Lisää välilehdet nippuun}
+        }</translation>
 <translation id="3298614730029636660">Jätä nippu</translation>
+<translation id="3300124386085148622">{TAB_COUNT, plural,
+          =1 {Lisää nippuun nimeltä <ph name="TITLE_OF_GROUP" />, jossa <ph name="TAB_COUNT1" /> välilehti}
+          other {Lisää nippuun nimeltä <ph name="TITLE_OF_GROUP" />, jossa <ph name="TAB_COUNT1" /> välilehteä}
+        }</translation>
+<translation id="3316876767347568113">Poista välilehti nipusta</translation>
 <translation id="354698175756845966">Vaihda nipun väriä</translation>
+<translation id="3832906837818406941">Välilehtinipun <ph name="TITLE_OF_GROUP" /> valinnat</translation>
+<translation id="3917319257151883508">Täyteen korkeuteen avattu välilehtinippuluettelo</translation>
+<translation id="3972555006334883530">Välilehtinippusi tallennetaan tänne ja ne päivittyvät kaikille kirjautuneille laitteillesi</translation>
+<translation id="3984192732035267948">Avaa välilehtinipun toimintovalikko välilehtinipulle <ph name="TITLE_OF_GROUP" />, väri <ph name="COLOR_NAME" />.</translation>
 <translation id="4009732926939031387">{NUM_DAYS, plural,
           =1 {Luotu <ph name="NUM_DAYS_ONE" /> päivä sitten}
           other {Luotu <ph name="NUM_DAYS_MANY" /> päivää sitten}
         }</translation>
+<translation id="406102127632982874">{NUMBER_OF_TABS, plural,
+          =1 {Laajenna välilehtinippu, jossa <ph name="TABS_COUNT_ONE" /> välilehti, väri <ph name="COLOR_NAME" />.}
+          other {Laajenna välilehtinippu, jossa <ph name="TABS_COUNT_MANY" /> välilehteä, väri <ph name="COLOR_NAME" />.}
+        }</translation>
+<translation id="4166594760689356813">Sulje kaikki välilehdet ja nippu</translation>
+<translation id="423046824994248930">Valitse välilehtinippu tai luo uusi</translation>
+<translation id="4439281775431634915">Välilehtinippusi tallennetaan tänne</translation>
 <translation id="4453940245650019914">{NUM_DAYS, plural,
           =1 {Päivitetty <ph name="NUM_DAYS_ONE" /> päivä sitten}
           other {Päivitetty <ph name="NUM_DAYS_MANY" /> päivää sitten}
         }</translation>
+<translation id="451604412571753027">{TABS_COUNT, plural,
+          =1 {Lisää nippuun <ph name="TABS_COUNT_ONE" /> välilehti}
+          other {Lisää nippuun <ph name="TABS_COUNT_MANY" /> välilehteä}
+        }</translation>
+<translation id="4521279527488891004"><ph name="USER_EMAIL" />: niput tallennettu (sulkee välilehdet ja poistaa niput)</translation>
+<translation id="4583669313366060453">{TABS_COUNT, plural,
+          =1 {Pura välilehden niputus}
+          other {Pura välilehtien niputus}
+        }</translation>
 <translation id="4686942373615810936">Luotu juuri nyt</translation>
+<translation id="4687160919883774711">Avaa toisten laitteiden välilehtiniput automaattisesti</translation>
+<translation id="4707553699210476405">{NUMBER_OF_TABS, plural,
+          =1 {Laajenna välilehtinippu <ph name="TITLE_OF_GROUP" />, jossa <ph name="TABS_COUNT_ONE" /> välilehti, väri <ph name="COLOR_NAME" />.}
+          other {Laajenna välilehtinippu <ph name="TITLE_OF_GROUP" />, jossa <ph name="TABS_COUNT_MANY" /> välilehteä, väri <ph name="COLOR_NAME" />.}
+        }</translation>
+<translation id="4779979121749047116">Valitse, koska välilehdet ja niput siirretään automaattisesti passiivisten osioon.</translation>
+<translation id="4804611303502643481">Kaikki välilehtinippusi löytyvät täältä</translation>
+<translation id="4811314918290341974">{NUMBER_OF_TABS, plural,
+          =1 {Laajenna jaettu välilehtinippu, jossa <ph name="TABS_COUNT_ONE" /> välilehti, väri <ph name="COLOR_NAME" /> ja selite <ph name="CARD_LABEL" />.}
+          other {Laajenna jaettu välilehtinippu, jossa <ph name="TABS_COUNT_MANY" /> välilehteä, väri <ph name="COLOR_NAME" /> ja selite <ph name="CARD_LABEL" />.}
+        }</translation>
+<translation id="4811534123347558992">{NUMBER_OF_TABS, plural,
+          =1 {Laajenna jaettu välilehtinippu, jossa <ph name="TABS_COUNT_ONE" /> välilehti, väri <ph name="COLOR_NAME" />.}
+          other {Laajenna jaettu välilehtinippu, jossa <ph name="TABS_COUNT_MANY" /> välilehteä, väri <ph name="COLOR_NAME" />.}
+        }</translation>
 <translation id="4870911314065352661">Suljetaanko kaikki välilehdet?</translation>
 <translation id="4871187110787939393">Suljetaanko kaikki yksityisvälilehdet?</translation>
+<translation id="5011517165747668569">Valitse välilehtinippu</translation>
+<translation id="5344746330577571162">{AUTO_DELETE_DELAY, plural,
+            =1 {Chrome sulkee passiiviset välilehdet ja välilehtiniput automaattisesti <ph name="AUTO_DELETE_DELAY_ONE" /> kuukauden kuluttua. Tätä voi muuttaa asetuksista.}
+            other {Chrome sulkee passiiviset välilehdet ja välilehtiniput automaattisesti <ph name="AUTO_DELETE_DELAY_MANY" /> kuukauden kuluttua. Tätä voi muuttaa asetuksista.}
+          }</translation>
 <translation id="5494920125229734069">Valitse kaikki</translation>
+<translation id="5686531930895087743">{INCOGNITO_TABS_COUNT, plural,
+        =1 {Sulkemasi välilehdet ja niput voi avata uudelleen Viimeaikaiset välilehdet- ja Välilehtiniput-osioista. Yksityisvälilehtesi ei ole saatavilla.}
+        other {Sulkemasi välilehdet ja niput voi avata uudelleen Viimeaikaiset välilehdet- ja Välilehtiniput-osioista. # yksityisvälilehteäsi eivät ole saatavilla.}}</translation>
+<translation id="570198925265232174">Muuta välilehtinipun nimeä</translation>
+<translation id="5782736613560873551">{TAB_GROUPS_COUNT, plural,
+            =1 {<ph name="TAB_GROUPS_COUNT_ONE" /> välilehtinippu ei ole enää käytettävissä}
+            other {<ph name="TAB_GROUPS_COUNT_MANY" /> välilehtinippua ei ole enää käytettävissä}
+          }</translation>
+<translation id="5932736435198834671">{TABS_COUNT, plural,
+          =1 {Pura <ph name="TABS_COUNT_ONE" /> valitun välilehden niputus}
+          other {Pura <ph name="TABS_COUNT_MANY" /> valitun välilehden niputus}
+        }</translation>
+<translation id="6103180007424260422">{NUMBER_OF_TABS, plural,
+          =1 {Palauta ja avaa välilehtinippu, jossa <ph name="TABS_COUNT_ONE" /> välilehti, väri <ph name="COLOR_NAME" />.}
+          other {Palauta ja avaa välilehtinippu, jossa <ph name="TABS_COUNT_MANY" /> välilehteä, väri <ph name="COLOR_NAME" />.}
+        }</translation>
+<translation id="618983369399969832">{NUMBER_OF_TABS, plural,
+          =1 {Palauta ja avaa välilehtinippu <ph name="TITLE_OF_GROUP" />, jossa <ph name="TABS_COUNT_ONE" /> välilehti, väri <ph name="COLOR_NAME" />.}
+          other {Palauta ja avaa välilehtinippu <ph name="TITLE_OF_GROUP" />, jossa <ph name="TABS_COUNT_MANY" /> välilehteä, väri <ph name="COLOR_NAME" />.}
+        }</translation>
+<translation id="6484029326952865825">{NUMBER_OF_TABS, plural,
+          =1 {Laajenna välilehtinippu <ph name="TITLE_OF_GROUP" />, jossa <ph name="TABS_COUNT_ONE" /> välilehti, väri <ph name="COLOR_NAME" /> ja selite <ph name="CARD_LABEL" />.}
+          other {Laajenna jaettu välilehtinippu <ph name="TITLE_OF_GROUP" />, jossa <ph name="TABS_COUNT_MANY" /> välilehteä, väri <ph name="COLOR_NAME" /> ja selite <ph name="CARD_LABEL" />.}
+        }</translation>
+<translation id="6577665056633327473">{NUMBER_OF_TABS, plural,
+          =1 {Sulje välilehtinippu, jossa <ph name="TABS_COUNT_ONE" /> välilehti, väri <ph name="COLOR_NAME" />.}
+          other {Sulje välilehtinippu, jossa <ph name="TABS_COUNT_MANY" /> välilehteä, väri <ph name="COLOR_NAME" />.}
+        }</translation>
 <translation id="6807841890213931603">Poista välilehti ja poista nippu</translation>
+<translation id="692024099672685501">Välilehdet ja välilehtiniput</translation>
+<translation id="7198439757237441132">Näytä niputetut välilehdet koko näytön ruudukkona</translation>
+<translation id="7251417927463455051">Välilehtiniput tallentuvat ja päivittyvät automaattisesti laitteelta toiselle</translation>
 <translation id="750227952939161636">Välilehtiniput tallennetaan automaattisesti ja synkronoidaan kaikille tilillesi kirjautuneille laitteille.</translation>
 <translation id="7640137753339219124">Poista nippu</translation>
 <translation id="7653857400289671414">Välilehtiniput tallennetaan automaattisesti</translation>
+<translation id="7720577161467416873">Siirrä välilehtinippua vasemmalle</translation>
 <translation id="775668479044571025">{NUM_MONTHS, plural,
           =1 {Päivitetty <ph name="NUM_YEARS_ONE" /> vuosi sitten}
           other {Päivitetty <ph name="NUM_YEARS_MANY" /> vuotta sitten}
         }</translation>
-<translation id="7825973332242257878">Välilehtiryhmät</translation>
+<translation id="7797448773120597519">{TAB_COUNT, plural,
+          =1 {Poista välilehti nipusta}
+          other {Poista välilehdet nipusta}}</translation>
+<translation id="7861101756732813803">Niputetaanko <ph name="NUMBER_OF_TABS" /> välilehteä nopeammin käytettäväksi?</translation>
+<translation id="8176081848609891478">Välilehtiniput ”<ph name="TAB_GROUP_NAME_1" />” ja ”<ph name="TAB_GROUP_NAME_2" />” eivät enää käytettävissä</translation>
 <translation id="8207688828622594111">{NUM_MINS, plural,
           =1 {Päivitetty <ph name="NUM_MINS_ONE" /> minuutti sitten}
           other {Päivitetty <ph name="NUM_MINS_MANY" /> minuuttia sitten}
         }</translation>
+<translation id="825209846084758814"><ph name="TABS_COUNT_ONE" /> välilehti niputettu</translation>
 <translation id="8374451057714760401">{NUM_MONTHS, plural,
                 =1 {Päivitetty <ph name="NUM_MONTHS_ONE" /> kuukausi sitten}
                 other {Päivitetty <ph name="NUM_MONTHS_MANY" /> kuukautta sitten}
               }</translation>
 <translation id="8440938071054361204">Muuta nipun nimeä</translation>
 <translation id="8602902357364871325">Sulje nippu</translation>
+<translation id="8660513434781407996"><ph name="TABS_COUNT_MANY" /> välilehteä niputettu</translation>
+<translation id="8685478989144570078">Välilehtiniput</translation>
+<translation id="8686544461740117253">{NUMBER_OF_TABS, plural,
+          =1 {Laajenna jaettu välilehtinippu <ph name="TITLE_OF_GROUP" />, jossa <ph name="TABS_COUNT_ONE" /> välilehti, väri <ph name="COLOR_NAME" />.}
+          other {Laajenna jaettu välilehtinippu <ph name="TITLE_OF_GROUP" />, jossa <ph name="TABS_COUNT_MANY" /> välilehteä, väri <ph name="COLOR_NAME" />.}
+        }</translation>
 <translation id="875848103419578654">{NUM_MONTHS, plural,
                 =1 {Luotu <ph name="NUM_MONTHS_ONE" /> kuukausi sitten}
                 other {Luotu <ph name="NUM_MONTHS_MANY" /> kuukautta sitten}
               }</translation>
 <translation id="8851621822786801079">Poista nipusta</translation>
-<translation id="8887921976452567404">Suljetut välilehdet ja ryhmät voi avata uudelleen Viimeaikaiset välilehdet- ja välilehtiryhmäosioista.</translation>
+<translation id="8882027961563202956">Avaa välilehtinipun toimintovalikko jaetulle välilehtinipulle <ph name="TITLE_OF_GROUP" />, väri <ph name="COLOR_NAME" />.</translation>
+<translation id="8929097293917882827">Välilehtinippusi löytyvät täältä</translation>
+<translation id="9080816060085763385">{TABS_COUNT, plural,
+          =1 {Lisää nippuun <ph name="TABS_COUNT_ONE" /> valittu välilehti}
+          other {Lisää nippuun <ph name="TABS_COUNT_MANY" /> valittua välilehteä}
+        }</translation>
+<translation id="9107807397058417097">Välilehtinippuluettelo suljettu</translation>
 </translationbundle>

@@ -70,10 +70,6 @@ class TestRenderViewContextMenu : public RenderViewContextMenu {
       const GURL& link_url = GURL(),
       bool is_subframe = false);
 
-  static constexpr auto GetFencedFrameUntrustedNetworkStatusGatedCommands() {
-    return kFencedFrameUntrustedNetworkStatusGatedCommands;
-  }
-
   // Returns true if the command specified by |command_id| is present
   // in the menu.
   // A list of command ids can be found in chrome/app/chrome_command_ids.h.
@@ -139,18 +135,18 @@ class TestRenderViewContextMenu : public RenderViewContextMenu {
   // overriding the base class behavior. If the Browser object is destroyed
   // before this class is, then SetBrowser(nullptr) should be called. If
   // `browser` is null, restores the base class behavior of GetBrowser().
-  void SetBrowser(Browser* browser);
+  void SetBrowser(BrowserWindowInterface* browser);
 
  protected:
   // RenderViewContextMenu:
-  Browser* GetBrowser() const override;
+  BrowserWindowInterface* GetBrowser() const override;
 
 #if BUILDFLAG(ENABLE_COMPOSE)
   ChromeComposeClient* GetChromeComposeClient() const override;
 #endif
 
  private:
-  raw_ptr<Browser> browser_ = nullptr;
+  raw_ptr<BrowserWindowInterface> browser_ = nullptr;
 
 #if BUILDFLAG(IS_CHROMEOS)
   raw_ptr<policy::DlpRulesManager> dlp_rules_manager_ = nullptr;

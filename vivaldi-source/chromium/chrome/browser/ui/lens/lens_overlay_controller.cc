@@ -41,6 +41,7 @@
 #include "chrome/browser/ui/desktop_to_mobile_promos/ios_promo_trigger_service.h"
 #include "chrome/browser/ui/desktop_to_mobile_promos/ios_promo_trigger_service_factory.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
+#include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/hats/hats_service.h"
 #include "chrome/browser/ui/hats/hats_service_factory.h"
 #include "chrome/browser/ui/lens/lens_help_menu_utils.h"
@@ -112,6 +113,7 @@
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
 #include "ui/base/interaction/element_tracker.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/base/webui/web_ui_util.h"
 #include "ui/base/window_open_disposition_utils.h"
 #include "ui/compositor/compositor.h"
@@ -240,7 +242,7 @@ void LensOverlayController::CloseUI() {
   page_.reset();
   languages_controller_.reset();
   pending_region_.reset();
-  fullscreen_observation_.Reset();
+  fullscreen_subscription_ = {};
   use_aim_for_visual_search_ = false;
   lens_selection_type_ = lens::UNKNOWN_SELECTION_TYPE;
 
@@ -284,8 +286,7 @@ const std::u16string LensOverlayController::GetFilenameForURL(const GURL& url) {
     return u"screenshot.png";
   }
 
-  return base::ASCIIToUTF16(
-      base::StrCat({"screenshot_", url.GetHost(), ".png"}));
+  return base::ASCIIToUTF16(base::StrCat({"screenshot_", url.host(), ".png"}));
 }
 
 void LensOverlayController::BindOverlay(
@@ -339,25 +340,6 @@ void LensOverlayController::SendRegionText(lens::mojom::TextPtr text,
   page_->RegionTextReceived(std::move(text), is_injected_image);
 }
 
-lens::mojom::OverlayThemePtr LensOverlayController::CreateTheme(
-    lens::PaletteId palette_id) {
-  CHECK(lens::kPaletteColors.contains(palette_id));
-  const auto& palette = lens::kPaletteColors.at(palette_id);
-  auto theme = lens::mojom::OverlayTheme::New();
-  theme->primary = palette.at(lens::ColorId::kPrimary);
-  theme->shader_layer_1 = palette.at(lens::ColorId::kShaderLayer1);
-  theme->shader_layer_2 = palette.at(lens::ColorId::kShaderLayer2);
-  theme->shader_layer_3 = palette.at(lens::ColorId::kShaderLayer3);
-  theme->shader_layer_4 = palette.at(lens::ColorId::kShaderLayer4);
-  theme->shader_layer_5 = palette.at(lens::ColorId::kShaderLayer5);
-  theme->scrim = palette.at(lens::ColorId::kScrim);
-  theme->surface_container_highest_light =
-      palette.at(lens::ColorId::kSurfaceContainerHighestLight);
-  theme->surface_container_highest_dark =
-      palette.at(lens::ColorId::kSurfaceContainerHighestDark);
-  theme->selection_element = palette.at(lens::ColorId::kSelectionElement);
-  return theme;
-}
 
 void LensOverlayController::SendObjects(
     std::vector<lens::mojom::OverlayObjectPtr> objects) {
@@ -746,9 +728,12 @@ void LensOverlayController::ShowUI(
     }
   }
   ShowModalUI();
-  fullscreen_observation_.Observe(tab_->GetBrowserWindowInterface()
-                                      ->GetExclusiveAccessManager()
-                                      ->fullscreen_controller());
+  fullscreen_subscription_ =
+      ExclusiveAccessManager::From(tab_->GetBrowserWindowInterface())
+          ->fullscreen_controller()
+          ->RegisterOnFullscreenStateChanged(base::BindRepeating(
+              &LensOverlayController::OnFullscreenStateChanged,
+              base::Unretained(this)));
 
   NotifyUserEducationAboutOverlayUsed();
 
@@ -848,6 +833,16 @@ void LensOverlayController::ShowUIWithPendingRegion(
     lens::LensOverlayInvocationSource invocation_source,
     lens::mojom::CenterRotatedBoxPtr region,
     const SkBitmap& region_bitmap) {
+  // In the non-blocking image context menu search flow, the initial query
+  // requires session permissions to be granted, but the query controller will
+  // ensure that the contents of the initial query are restricted.
+  if (lens::features::
+          IsLensOverlayNonBlockingPrivacyNoticeForImageSearchEnabled() &&
+      invocation_source ==
+          lens::LensOverlayInvocationSource::kContentAreaContextMenuImage) {
+    MaybeGrantLensOverlayPermissionsForSession(invocation_source);
+  }
+
   pending_region_ = std::move(region);
   pending_region_bitmap_ = region_bitmap;
   ShowUI(invocation_source);
@@ -959,8 +954,27 @@ void LensOverlayController::IssueLensRequest(
     initialization_data_->selected_region_bitmap_.reset();
   }
 
+  // On the initial query of the non-blocking image context menu search flow,
+  // the injected image will be sent in place of the screenshot, so set the
+  // region to the entire area. The initial query is identified by selection
+  // type INJECTED_IMAGE; subsequent queries will have a different selection
+  // type.
+  lens::mojom::CenterRotatedBoxPtr server_region = region.Clone();
+  Profile* profile =
+      Profile::FromBrowserContext(tab_->GetContents()->GetBrowserContext());
+  if (lens::features::
+          IsLensOverlayNonBlockingPrivacyNoticeForImageSearchEnabled() &&
+      invocation_source_ ==
+          lens::LensOverlayInvocationSource::kContentAreaContextMenuImage &&
+      selection_type == lens::INJECTED_IMAGE &&
+      !lens::DidUserGrantLensOverlayNeededPermissions(profile)) {
+    server_region->box = gfx::RectF(0.5f, 0.5f, 1.0f, 1.0f);
+    server_region->coordinate_type =
+        lens::mojom::CenterRotatedBox_CoordinateType::kNormalized;
+  }
+
   GetLensQueryFlowRouter()->SendRegionSearch(
-      query_start_time, region.Clone(), selection_type,
+      query_start_time, std::move(server_region), selection_type,
       initialization_data_->additional_search_query_params_, region_bytes,
       invocation_source_);
   MaybeOpenSidePanel();
@@ -1074,13 +1088,11 @@ void LensOverlayController::AddOverlayStateToSearchQuery(
 LensOverlayController::OverlayInitializationData::OverlayInitializationData(
     const SkBitmap& screenshot,
     SkBitmap rgb_screenshot,
-    lens::PaletteId color_palette,
     GURL page_url,
     std::optional<std::string> page_title)
     : initial_screenshot_(screenshot),
       initial_rgb_screenshot_(std::move(rgb_screenshot)),
       updated_screenshot_(screenshot),
-      color_palette_(color_palette),
       page_url_(page_url),
       page_title_(page_title) {}
 LensOverlayController::OverlayInitializationData::~OverlayInitializationData() =
@@ -1112,24 +1124,8 @@ void LensOverlayController::ContinueCreateInitializationData(
     return;
   }
 
-  // Resolve the color palette based on the vibrant screenshot color.
-  lens::PaletteId color_palette = lens::PaletteId::kFallback;
-  if (lens::features::IsDynamicThemeDetectionEnabled()) {
-    std::vector<SkColor> colors;
-    for (const auto& pair : lens::kPalettes) {
-      colors.emplace_back(pair.first);
-    }
-    SkColor screenshot_color = lens::ExtractVibrantOrDominantColorFromImage(
-        screenshot, lens::features::DynamicThemeMinPopulationPct());
-    SkColor theme_color = lens::FindBestMatchedColorOrTransparent(
-        colors, screenshot_color, lens::features::DynamicThemeMinChroma());
-    if (theme_color != SK_ColorTRANSPARENT) {
-      color_palette = lens::kPalettes.at(theme_color);
-    }
-  }
-
   auto initialization_data = std::make_unique<OverlayInitializationData>(
-      screenshot, std::move(rgb_screenshot), color_palette,
+      screenshot, std::move(rgb_screenshot),
       lens_search_controller_->GetPageURL(),
       lens_search_controller_->GetPageTitle());
   initialization_data->significant_region_boxes_ =
@@ -1304,7 +1300,6 @@ void LensOverlayController::InitializeOverlayUI(
   CHECK(page_);
   // TODO(b/371593619), it would be more efficent to send all initialization
   // data to the overlay web UI in a single message.
-  page_->ThemeReceived(CreateTheme(init_data.color_palette_));
 
   auto* lens_session_metrics_logger = GetLensSessionMetricsLogger();
 
@@ -1357,11 +1352,11 @@ int LensOverlayController::GetToolResourceId() {
   return IDS_LENS_OVERLAY_RENDERER_LABEL;
 }
 
-ui::ElementIdentifier LensOverlayController::GetViewContainerId() {
+ui::ElementIdentifier LensOverlayController::GetViewContainerId() const {
   return kLensOverlayViewElementId;
 }
 
-SidePanelEntry::PanelType LensOverlayController::GetSidePanelType() {
+SidePanelType LensOverlayController::GetSidePanelType() {
   return GetLensOverlaySidePanelCoordinator()->GetPanelType();
 }
 
@@ -1519,14 +1514,17 @@ LensOverlayController::GetPreselectionBubbleConfig() {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
       .icon = &vector_icons::kGoogleLensMonochromeLogoIcon
 #else
-      .icon = &vector_icons::kSearchChromeRefreshIcon
+      .icon = &(features::IsRoundedIconsEnabled()
+                    ? vector_icons::kSearchIcon
+                    : vector_icons::kSearchChromeRefreshOldIcon)
 #endif
   };
 }
 
 bool LensOverlayController::IsOverlayViewShared() const {
-  // The view that host's Lens's WebUI is a direct child of the BrowserView,
-  // which means it can be shared across different tabs.
+  // The view that hosts Lens's WebUI is a direct child of the BrowserView,
+  // which means it can be shared across different tabs. It also means Lens
+  // WebUI does not support split view at the moment.
   return true;
 }
 
@@ -1978,9 +1976,8 @@ void LensOverlayController::InitializeTutorialIPHUrlMatcher() {
 }
 
 void LensOverlayController::MaybeShowDelayedTutorialIPH(const GURL& url) {
-  auto* entry_point_controller = tab_->GetBrowserWindowInterface()
-                                     ->GetFeatures()
-                                     .lens_overlay_entry_point_controller();
+  auto* entry_point_controller = lens::LensOverlayEntryPointController::From(
+      tab_->GetBrowserWindowInterface());
   if (!entry_point_controller || !entry_point_controller->IsEnabled()) {
     return;
   }
@@ -2053,7 +2050,7 @@ bool LensOverlayController::IsUrlEligibleForTutorialIPH(const GURL& url) {
   // the block matcher. If it does contain blocked words in its path, return
   // false to prevent the IPH from being shown.
   if (page_path_block_matcher_ && !page_path_block_matcher_->IsEmpty() &&
-      page_path_block_matcher_->Match(url.GetPath(), &matches)) {
+      page_path_block_matcher_->Match(url.path(), &matches)) {
     return false;
   }
 
@@ -2068,7 +2065,7 @@ bool LensOverlayController::IsUrlEligibleForTutorialIPH(const GURL& url) {
   // Finally, check if the URL matches any of the allowed patterns. If it
   // doesn't, return false to prevent the IPH from being shown.
   if (page_path_allow_matcher_ && !page_path_allow_matcher_->IsEmpty() &&
-      !page_path_allow_matcher_->Match(url.GetPath(), &matches)) {
+      !page_path_allow_matcher_->Match(url.path(), &matches)) {
     return false;
   }
 
@@ -2106,9 +2103,7 @@ void LensOverlayController::NotifyPageContentUpdated() {
 }
 
 void LensOverlayController::UpdateEntryPointsState() {
-  tab_->GetBrowserWindowInterface()
-      ->GetFeatures()
-      .lens_overlay_entry_point_controller()
+  lens::LensOverlayEntryPointController::From(tab_->GetBrowserWindowInterface())
       ->UpdateEntryPointsState(
           /*hide_toolbar_entrypoint=*/false);
 }
@@ -2182,8 +2177,7 @@ void LensOverlayController::OnPageContextUpdatedForSuggestion(
   // what type of query to send (contextual or text only).
   if (state_ == State::kOff) {
     initialization_data_ = std::make_unique<OverlayInitializationData>(
-        SkBitmap(), SkBitmap(), lens::PaletteId::kFallback,
-        lens_search_controller_->GetPageURL(),
+        SkBitmap(), SkBitmap(), lens_search_controller_->GetPageURL(),
         lens_search_controller_->GetPageTitle());
   }
 
@@ -2340,8 +2334,25 @@ void LensOverlayController::StartQueryFlow() {
     initialization_data_->page_title_ = "";
   }
 
+  Profile* profile =
+      Profile::FromBrowserContext(tab_->GetContents()->GetBrowserContext());
+  // On the initial query of the non-blocking image context menu search flow,
+  // set `initial_image` to `pending_region_bitmap_`. In other flows,
+  // `pending_region_bitmap_` will not be used and `initial_image` will be set
+  // to the initial screenshot.
+  const bool send_pending_region_as_initial_image =
+      lens::features::
+          IsLensOverlayNonBlockingPrivacyNoticeForImageSearchEnabled() &&
+      invocation_source_ ==
+          lens::LensOverlayInvocationSource::kContentAreaContextMenuImage &&
+      !pending_region_bitmap_.empty() &&
+      !lens::DidUserGrantLensOverlayNeededPermissions(profile);
+  SkBitmap initial_image = send_pending_region_as_initial_image
+                               ? pending_region_bitmap_
+                               : initialization_data_->initial_screenshot_;
+
   GetLensQueryFlowRouter()->StartQueryFlow(
-      initialization_data_->initial_screenshot_,
+      initialization_data_->initial_screenshot_, initial_image,
       initialization_data_->page_url_, initialization_data_->page_title_,
       std::move(initialization_data_->significant_region_boxes_),
       initialization_data_->page_contents_,

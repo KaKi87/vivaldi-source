@@ -10,7 +10,6 @@
 
 #include "ash/constants/webui_url_constants.h"
 #include "ash/webui/settings/public/constants/routes.mojom.h"
-#include "ash/webui/system_apps/public/system_web_app_type.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
@@ -21,14 +20,15 @@
 #include "chrome/browser/chromeos/arc/arc_web_contents_data.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/web_applications/test/web_app_navigation_browsertest.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "chromeos/ash/components/system_web_apps/system_web_app_type.h"
 #include "chromeos/ash/experiences/arc/intent_helper/intent_constants.h"
 #include "components/services/app_service/public/cpp/share_target.h"
 #include "content/public/browser/web_contents.h"
@@ -53,8 +53,8 @@ size_t GetNumberOfSettingsWindows() {
 }
 
 // Give the underlying function a clearer name.
-Browser* GetLastActiveBrowser() {
-  return chrome::FindLastActive();
+BrowserWindowInterface* GetLastActiveBrowser() {
+  return GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
 }
 
 using ArcOpenUrlDelegateImplBrowserTest = InProcessBrowserTest;
@@ -90,10 +90,11 @@ IN_PROC_BROWSER_TEST_P(ArcOpenUrlDelegateImplWebAppBrowserTest, OpenWebApp) {
     ArcOpenUrlDelegateImpl::GetForTesting()->OpenWebAppFromArc(url);
     observer->WaitForNavigationFinished();
 
-    EXPECT_EQ(1u, chrome::GetTotalBrowserCount());
-    EXPECT_FALSE(GetLastActiveBrowser()->is_type_app());
+    EXPECT_EQ(1u, GlobalBrowserCollection::GetInstance()->GetSize());
+    EXPECT_NE(GetLastActiveBrowser()->GetType(),
+              BrowserWindowInterface::TYPE_APP);
     content::WebContents* contents =
-        GetLastActiveBrowser()->tab_strip_model()->GetActiveWebContents();
+        GetLastActiveBrowser()->GetTabStripModel()->GetActiveWebContents();
     EXPECT_EQ(url, contents->GetLastCommittedURL());
     EXPECT_NE(nullptr, contents->GetUserData(key));
   }
@@ -105,10 +106,11 @@ IN_PROC_BROWSER_TEST_P(ArcOpenUrlDelegateImplWebAppBrowserTest, OpenWebApp) {
     ArcOpenUrlDelegateImpl::GetForTesting()->OpenWebAppFromArc(app_url);
     observer->WaitForNavigationFinished();
 
-    EXPECT_EQ(2u, chrome::GetTotalBrowserCount());
-    EXPECT_TRUE(GetLastActiveBrowser()->is_type_app());
+    EXPECT_EQ(2u, GlobalBrowserCollection::GetInstance()->GetSize());
+    EXPECT_EQ(GetLastActiveBrowser()->GetType(),
+              BrowserWindowInterface::TYPE_APP);
     content::WebContents* contents =
-        GetLastActiveBrowser()->tab_strip_model()->GetActiveWebContents();
+        GetLastActiveBrowser()->GetTabStripModel()->GetActiveWebContents();
     EXPECT_EQ(app_url, contents->GetLastCommittedURL());
     EXPECT_NE(nullptr, contents->GetUserData(key));
   }
@@ -152,10 +154,11 @@ IN_PROC_BROWSER_TEST_P(ArcOpenUrlDelegateImplWebAppBrowserTest,
         url, std::move(intent));
     observer->WaitForNavigationFinished();
 
-    EXPECT_EQ(1u, chrome::GetTotalBrowserCount());
-    EXPECT_FALSE(GetLastActiveBrowser()->is_type_app());
+    EXPECT_EQ(1u, GlobalBrowserCollection::GetInstance()->GetSize());
+    EXPECT_NE(GetLastActiveBrowser()->GetType(),
+              BrowserWindowInterface::TYPE_APP);
     content::WebContents* contents =
-        GetLastActiveBrowser()->tab_strip_model()->GetActiveWebContents();
+        GetLastActiveBrowser()->GetTabStripModel()->GetActiveWebContents();
     EXPECT_EQ(url, contents->GetLastCommittedURL());
     EXPECT_NE(nullptr, contents->GetUserData(arc_transition_key));
   }
@@ -174,10 +177,11 @@ IN_PROC_BROWSER_TEST_P(ArcOpenUrlDelegateImplWebAppBrowserTest,
         app_url, std::move(intent));
     observer->WaitForNavigationFinished();
 
-    EXPECT_EQ(2u, chrome::GetTotalBrowserCount());
-    EXPECT_TRUE(GetLastActiveBrowser()->is_type_app());
+    EXPECT_EQ(2u, GlobalBrowserCollection::GetInstance()->GetSize());
+    EXPECT_EQ(GetLastActiveBrowser()->GetType(),
+              BrowserWindowInterface::TYPE_APP);
     content::WebContents* contents =
-        GetLastActiveBrowser()->tab_strip_model()->GetActiveWebContents();
+        GetLastActiveBrowser()->GetTabStripModel()->GetActiveWebContents();
     EXPECT_EQ(launch_url, contents->GetLastCommittedURL());
     EXPECT_NE(nullptr, contents->GetUserData(arc_transition_key));
   }
@@ -197,10 +201,11 @@ IN_PROC_BROWSER_TEST_P(ArcOpenUrlDelegateImplWebAppBrowserTest,
         app_url, std::move(intent));
     observer->WaitForNavigationFinished();
 
-    EXPECT_EQ(3u, chrome::GetTotalBrowserCount());
-    EXPECT_TRUE(GetLastActiveBrowser()->is_type_app());
+    EXPECT_EQ(3u, GlobalBrowserCollection::GetInstance()->GetSize());
+    EXPECT_EQ(GetLastActiveBrowser()->GetType(),
+              BrowserWindowInterface::TYPE_APP);
     content::WebContents* contents =
-        GetLastActiveBrowser()->tab_strip_model()->GetActiveWebContents();
+        GetLastActiveBrowser()->GetTabStripModel()->GetActiveWebContents();
     EXPECT_EQ(launch_url, contents->GetLastCommittedURL());
   }
 }
@@ -208,8 +213,7 @@ IN_PROC_BROWSER_TEST_P(ArcOpenUrlDelegateImplWebAppBrowserTest,
 INSTANTIATE_TEST_SUITE_P(
     ,
     ArcOpenUrlDelegateImplWebAppBrowserTest,
-    testing::Values(apps::test::LinkCapturingFeatureVersion::kV1DefaultOff,
-                    apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
+    testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
                     apps::test::LinkCapturingFeatureVersion::
                         kV2DefaultOffCaptureExistingFrames),
     apps::test::LinkCapturingVersionToString);
@@ -232,7 +236,7 @@ void TestOpenSettingFromArc(Browser* browser,
 
   // The right settings are loaded (not just the settings main page).
   content::WebContents* contents =
-      GetLastActiveBrowser()->tab_strip_model()->GetActiveWebContents();
+      GetLastActiveBrowser()->GetTabStripModel()->GetActiveWebContents();
   EXPECT_EQ(expected_url, contents->GetVisibleURL());
 }
 
@@ -259,7 +263,7 @@ IN_PROC_BROWSER_TEST_F(ArcOpenUrlDelegateImplBrowserTest, OpenAboutChromePage) {
   EXPECT_EQ(0u, GetNumberOfSettingsWindows());
 
   content::WebContents* contents =
-      GetLastActiveBrowser()->tab_strip_model()->GetActiveWebContents();
+      GetLastActiveBrowser()->GetTabStripModel()->GetActiveWebContents();
   EXPECT_EQ(GURL(chrome::kChromeUIHistoryURL), contents->GetVisibleURL());
 }
 
@@ -268,7 +272,7 @@ void TestOpenChromePage(ChromePage page, const GURL& expected_url) {
   // it doesn't guarantee a new browser, web contents, or even navigation.
   ArcOpenUrlDelegateImpl::GetForTesting()->OpenChromePageFromArc(page);
   content::WebContents* contents =
-      GetLastActiveBrowser()->tab_strip_model()->GetActiveWebContents();
+      GetLastActiveBrowser()->GetTabStripModel()->GetActiveWebContents();
   EXPECT_EQ(expected_url, contents->GetVisibleURL());
 }
 

@@ -15,6 +15,7 @@
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/mojom/dialog_button.mojom.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/color/color_id.h"
 #include "ui/gfx/image/image.h"
@@ -33,26 +34,23 @@
 namespace record_replay {
 
 // static
-void SaveRecordingBubbleView::Show(
-    views::View* anchor_view,
+views::Widget* SaveRecordingBubbleView::Show(
+    views::BubbleAnchor anchor,
     content::WebContents* web_contents,
     std::unique_ptr<SaveRecordingBubbleController> controller) {
   CHECK(controller);
-  auto* bubble = new SaveRecordingBubbleView(anchor_view, web_contents,
-                                             std::move(controller));
-  bubble->SetMainImage(
-      ui::ImageModel::FromImage(gfx::Image(gfx::CreateVectorIcon(
-          vector_icons::kPhotoIcon, 100,
-          anchor_view->GetColorProvider()->GetColor(ui::kColorIcon)))));
-  views::BubbleDialogDelegateView::CreateBubble(bubble);
+  auto* bubble =
+      new SaveRecordingBubbleView(anchor, web_contents, std::move(controller));
+  views::Widget* widget = views::BubbleDialogDelegateView::CreateBubble(bubble);
   bubble->ShowForReason(LocationBarBubbleDelegateView::USER_GESTURE);
+  return widget;
 }
 
 SaveRecordingBubbleView::SaveRecordingBubbleView(
-    views::View* anchor_view,
+    views::BubbleAnchor anchor,
     content::WebContents* web_contents,
     std::unique_ptr<SaveRecordingBubbleController> controller)
-    : LocationBarBubbleDelegateView(anchor_view, web_contents),
+    : LocationBarBubbleDelegateView(anchor, web_contents),
       controller_(std::move(controller)) {
   SetShowTitle(true);
   SetShowCloseButton(true);
@@ -70,6 +68,9 @@ SaveRecordingBubbleView::SaveRecordingBubbleView(
 SaveRecordingBubbleView::~SaveRecordingBubbleView() = default;
 
 void SaveRecordingBubbleView::Init() {
+  SetMainImage(ui::ImageModel::FromVectorIcon(vector_icons::kPhotoOldIcon,
+                                              ui::kColorIcon, 100));
+
   const auto* layout_provider = views::LayoutProvider::Get();
 
   // Vertical Layout for content
@@ -123,8 +124,10 @@ void SaveRecordingBubbleView::Init() {
         base::UTF8ToUTF16(domain) + u"_" + base::UTF8ToUTF16(date_str);
   }
 
-  name_textfield_->SetPlaceholderText(placeholder_text);
+  name_textfield_->SetText(placeholder_text);
   name_textfield_->SetAccessibleName(placeholder_text);
+  SetButtonEnabled(ui::mojom::DialogButton::kOk, !placeholder_text.empty());
+  DialogModelChanged();
   row_layout->SetFlexForView(name_textfield_, 1);
 
   // Focus the textfield initially.

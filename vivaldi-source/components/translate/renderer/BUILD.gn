@@ -7,8 +7,8 @@ static_library("renderer") {
   ]
   deps = [
     "//base",
+    "//components/translate/content/renderer",
     "//content/public/common",
     "//content/public/renderer",
-    "//components/translate/content/renderer",
   ]
 }

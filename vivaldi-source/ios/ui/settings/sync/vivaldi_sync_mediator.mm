@@ -2,17 +2,23 @@
 
 #import "ios/ui/settings/sync/vivaldi_sync_mediator.h"
 
+#include <optional>
+
 #import "base/apple/foundation_util.h"
 #import "base/base64.h"
 #import "base/containers/flat_map.h"
 #import "base/files/file_util.h"
+#import "base/functional/bind.h"
+#import "base/functional/callback.h"
 #import "base/strings/sys_string_conversions.h"
+#import "base/strings/utf_string_conversions.h"
 #import "base/task/thread_pool.h"
 #import "base/threading/scoped_blocking_call.h"
 #import "base/values.h"
 #import "components/application_locale_storage/application_locale_storage.h"
 #import "components/language/core/browser/pref_names.h"
-#import "components/os_crypt/sync/os_crypt.h"
+#import "components/os_crypt/async/browser/os_crypt_async.h"
+#import "components/os_crypt/async/common/encryptor.h"
 #import "components/prefs/pref_service.h"
 #import "components/sync/base/command_line_switches.h"
 #import "components/sync/base/user_selectable_type.h"
@@ -63,6 +69,47 @@ using vivaldi::sync_ui_helpers::CycleData;
 using vivaldi::sync_ui_helpers::CycleStatus;
 using vivaldi::sync_ui_helpers::EngineData;
 using vivaldi::sync_ui_helpers::EngineState;
+
+namespace {
+
+using CryptStringCallback =
+    base::OnceCallback<void(std::optional<std::string>)>;
+
+void EncryptString(std::string string, CryptStringCallback callback) {
+  CHECK(GetApplicationContext());
+  CHECK(GetApplicationContext()->GetOSCryptAsync());
+
+  GetApplicationContext()->GetOSCryptAsync()->GetInstance(base::BindOnce(
+      [](std::string string, CryptStringCallback callback,
+         scoped_refptr<os_crypt_async::Encryptor> encryptor) {
+        std::optional<std::string> result;
+        std::string encrypted_string;
+        if (encryptor && encryptor->EncryptString(string, &encrypted_string)) {
+          result = std::move(encrypted_string);
+        }
+        std::move(callback).Run(std::move(result));
+      },
+      std::move(string), std::move(callback)));
+}
+
+void DecryptString(std::string encrypted_string, CryptStringCallback callback) {
+  CHECK(GetApplicationContext());
+  CHECK(GetApplicationContext()->GetOSCryptAsync());
+
+  GetApplicationContext()->GetOSCryptAsync()->GetInstance(base::BindOnce(
+      [](std::string encrypted_string, CryptStringCallback callback,
+         scoped_refptr<os_crypt_async::Encryptor> encryptor) {
+        std::optional<std::string> result;
+        std::string string;
+        if (encryptor && encryptor->DecryptString(encrypted_string, &string)) {
+          result = std::move(string);
+        }
+        std::move(callback).Run(std::move(result));
+      },
+      std::move(encrypted_string), std::move(callback)));
+}
+
+}  // namespace
 
 struct PendingRegistration {
   std::string username;
@@ -317,8 +364,8 @@ struct PendingRegistration {
   NSString* key = [[NSString alloc] initWithBytes:data.bytes
                                            length:data.length
                                          encoding:NSUTF8StringEncoding];
-  BOOL success = vivaldi::sync_ui_helpers::RestoreEncryptionToken(
-      _syncService, base::SysNSStringToUTF8(key));
+  BOOL success = _syncService->ResetEncryptionBootstrapTokenFromBackup(
+      base::SysNSStringToUTF8(key));
   if (success && [key length]) {
     completionHandler(@"");
     return;
@@ -488,8 +535,13 @@ struct PendingRegistration {
   NSString* filePath = [NSTemporaryDirectory()
       stringByAppendingPathComponent:@"BackupEncryptionKey.txt"];
 
-  NSString* key = SysUTF8ToNSString(
-      vivaldi::sync_ui_helpers::GetBackupEncryptionToken(_syncService));
+  const std::optional<std::string> backup_token =
+      _syncService->GetEncryptionBootstrapTokenForBackup();
+  if (!backup_token) {
+    return nil;
+  }
+
+  NSString* key = SysUTF8ToNSString(*backup_token);
   [key writeToFile:filePath
         atomically:YES
           encoding:NSUTF8StringEncoding
@@ -1291,39 +1343,39 @@ struct PendingRegistration {
 }
 
 - (void)handleNotActivated {
-  auto pr = [self getPendingRegistration];
-  if (pr) {
-    pendingRegistration.username = *pr->FindString(kUsernameKey);
-    pendingRegistration.password = *pr->FindString(kPasswordKey);
-    pendingRegistration.recoveryEmailAddress =
-        *pr->FindString(kRecoveryEmailKey);
-  }
-  [self.commandHandler showActivateAccountView];
+  __weak __typeof(self) weakSelf = self;
+  [self loadPendingRegistrationWithCompletion:^{
+    [weakSelf.commandHandler showActivateAccountView];
+  }];
 }
 
 - (void)setPendingRegistration {
-  std::string encrypted_password;
-  // iOS uses the posix implementation, which is non-blocking.
-  if (!OSCrypt::EncryptString(pendingRegistration.password,
-                              &encrypted_password)) {
-    return;
-  }
+  std::string username = pendingRegistration.username;
+  std::string recovery_email = pendingRegistration.recoveryEmailAddress;
+  __weak __typeof(self) weakSelf = self;
 
-  std::string encoded_password;
-  base::Base64Encode(encrypted_password);
-  base::Value pending_registration(base::Value::Type::DICT);
+  EncryptString(
+      pendingRegistration.password,
+      base::BindOnce(^(std::optional<std::string> encrypted_password) {
+        __strong __typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf || !encrypted_password) {
+          return;
+        }
 
-  pending_registration.GetDict().Set(kRecoveryEmailKey,
-                                     pendingRegistration.recoveryEmailAddress);
-  pending_registration.GetDict().Set(kUsernameKey,
-                                     pendingRegistration.username);
-  pending_registration.GetDict().Set(kPasswordKey, encoded_password);
+        base::Value pending_registration(base::Value::Type::DICT);
+        pending_registration.GetDict().Set(kRecoveryEmailKey, recovery_email);
+        pending_registration.GetDict().Set(kUsernameKey, username);
+        pending_registration.GetDict().Set(
+            kPasswordKey, base::Base64Encode(*encrypted_password));
 
-  _prefService->Set(vivaldiprefs::kVivaldiAccountPendingRegistration,
-                    pending_registration);
+        strongSelf->_prefService->Set(
+            vivaldiprefs::kVivaldiAccountPendingRegistration,
+            pending_registration);
+      }));
 }
 
-- (std::unique_ptr<base::DictValue>)getPendingRegistration {
+- (void)loadPendingRegistrationWithCompletion:(void (^)(void))completion {
+  void (^completionCopy)(void) = [completion copy];
   const base::Value& pref_value =
       _prefService->GetValue(vivaldiprefs::kVivaldiAccountPendingRegistration);
 
@@ -1333,24 +1385,40 @@ struct PendingRegistration {
   const std::string* recovery_email =
       pref_value.GetDict().FindString(kRecoveryEmailKey);
 
-  if (!username || !encoded_password || !recovery_email)
-    return nullptr;
+  if (!username || !encoded_password || !recovery_email) {
+    if (completionCopy) {
+      completionCopy();
+    }
+    return;
+  }
 
   std::string encrypted_password;
   if (!base::Base64Decode(*encoded_password, &encrypted_password) ||
       encrypted_password.empty()) {
-    return nullptr;
+    if (completionCopy) {
+      completionCopy();
+    }
+    return;
   }
-  std::string password;
-  // iOS uses the posix implementation, which is non-blocking.
-  if (!OSCrypt::DecryptString(encrypted_password, &password)) {
-    return nullptr;
-  }
-  auto pending_registration = std::make_unique<base::DictValue>();
-  pending_registration->Set(kUsernameKey, *username);
-  pending_registration->Set(kPasswordKey, password);
-  pending_registration->Set(kRecoveryEmailKey, *recovery_email);
-  return pending_registration;
+
+  std::string username_value = *username;
+  std::string recovery_email_value = *recovery_email;
+  __weak __typeof(self) weakSelf = self;
+
+  DecryptString(std::move(encrypted_password),
+                base::BindOnce(^(std::optional<std::string> password) {
+                  __strong __typeof(weakSelf) strongSelf = weakSelf;
+                  if (strongSelf && password) {
+                    strongSelf->pendingRegistration.username = username_value;
+                    strongSelf->pendingRegistration.password = *password;
+                    strongSelf->pendingRegistration.recoveryEmailAddress =
+                        recovery_email_value;
+                  }
+
+                  if (completionCopy) {
+                    completionCopy();
+                  }
+                }));
 }
 
 - (bool)hasPendingRegistration {

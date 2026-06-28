@@ -5,22 +5,43 @@
           =1 {Créé il y a <ph name="NUM_WEEKS_ONE" /> semaine}
           other {Créé il y a <ph name="NUM_WEEKS_MANY" /> semaines}
         }</translation>
-<translation id="1062777154504442433">Nouveau groupe d’onglets</translation>
+<translation id="1062777154504442433">Nouvelle pile d’onglets</translation>
 <translation id="1092908249939127748">{NUM_MONTHS, plural,
           =1 {Créé il y a <ph name="NUM_YEARS_ONE" /> an}
           other {Créé il y a <ph name="NUM_YEARS_MANY" /> ans}
         }</translation>
+<translation id="1101895854844881935">{DAY_COUNT, plural,
+          =1 {Les onglets et piles d’onglets inactifs seront supprimés après 1 mois}
+          other {Les onglets et piles d’onglets inactifs seront supprimés après <ph name="MONTH_COUNT_MANY" /> mois}
+        }</translation>
+<translation id="1133985792690629147"><ph name="COLOR_NAME" /> Couleur de l’icône de la pile d’onglets</translation>
+<translation id="1166688074841572519">{NUMBER_OF_TABS, plural,
+          =1 {Fermer la pile d’onglets <ph name="TITLE_OF_GROUP" /> avec <ph name="TABS_COUNT_ONE" /> onglet, couleur <ph name="COLOR_NAME" />.}
+          other {Fermer la pile d’onglets <ph name="TITLE_OF_GROUP" /> avec <ph name="TABS_COUNT_MANY" /> onglets, couleur <ph name="COLOR_NAME" />.}
+        }</translation>
+<translation id="1284091376947323642">Déplacer la pile d’onglets vers la droite</translation>
 <translation id="1329584516321524826">Mis à jour à l’instant</translation>
+<translation id="1455797424496857273">{TABS_COUNT, plural,
+          =1 {Ajouter un onglet dans une nouvelle pile}
+          other {Ajouter des onglets dans une nouvelle pile}
+        }</translation>
+<translation id="1458791605942787797">Nouvelle pile depuis un autre appareil</translation>
+<translation id="1487138071670610189">Glissez les onglets pour les empiler</translation>
 <translation id="149054111719651807">{NUM_MINS, plural,
           =1 {Créé il y a <ph name="NUM_MINS_ONE" /> minute}
           other {Créé il y a <ph name="NUM_MINS_MANY" /> minutes}
         }</translation>
 <translation id="1625440863545383011">Retirer l’onglet et conserver le groupe</translation>
+<translation id="19713940601468134">Créez des piles pour organiser vos onglets.</translation>
+<translation id="2001678985916350707">Vos onglets et piles fermées peuvent être rouvert(e)s via la rubrique Onglets récents et la rubrique Piles d’onglets.</translation>
+<translation id="216776815027855047">Les modifications faites sont vues par tous ceux avec qui la pile est partagée</translation>
+<translation id="2221077170275765262">La pile d’onglets « <ph name="TAB_GROUP_NAME" /> » n’est plus disponible</translation>
+<translation id="2299756585602735249">Liste de pile d’onglets, ouverte à moitié</translation>
 <translation id="2330212241471632770">{TABS_COUNT,plural,
           =1 {Mémoriser l’onglet en signets}
           other {Mémoriser les onglets en signets}
 }</translation>
-<translation id="2498435670446402865">Renommer le groupe d’onglets</translation>
+<translation id="2416147124259461944">Pile d’onglets</translation>
 <translation id="2734252994837336591">{NUM_WEEKS, plural,
           =1 {Mis à jour il y a <ph name="NUM_WEEKS_ONE" /> semaine}
           other {Mis à jour il y a <ph name="NUM_WEEKS_MANY" /> semaines}
@@ -33,44 +54,143 @@
           =1 {Créé il y a <ph name="NUM_HOURS_ONE" /> heure}
           other {Créé il y a <ph name="NUM_HOURS_MANY" /> heures}
         }</translation>
+<translation id="2823409674319971145">Ajouter un nouvel onglet dans la pile</translation>
 <translation id="2947471979790858922">Toutes les activités réalisées dans ces onglets privés seront supprimées sur cet appareil</translation>
+<translation id="3285228391229471836">{TABS_COUNT, plural,
+          =1 {Ajouter l’onglet à une pile}
+          other {Ajouter les onglets à une pile}
+        }</translation>
 <translation id="3298614730029636660">Quitter le groupe</translation>
+<translation id="3300124386085148622">{TAB_COUNT, plural,
+          =1 {Ajouter <ph name="TAB_COUNT1" /> onglet à la pile nommée <ph name="TITLE_OF_GROUP" />}
+          other {Ajouter <ph name="TAB_COUNT1" /> onglets à la pile nommée <ph name="TITLE_OF_GROUP" />}
+        }</translation>
+<translation id="3316876767347568113">Supprimer un onglet de la pile</translation>
 <translation id="354698175756845966">Modifier la couleur du groupe</translation>
+<translation id="3832906837818406941">Options de la pile d’onglets <ph name="TITLE_OF_GROUP" /></translation>
+<translation id="3917319257151883508">Liste de pile d’onglets, ouverte complètement</translation>
+<translation id="3972555006334883530">Vos piles d’onglets sont sauvegardées ici et mises à jour sur tous vos appareils synchronisés</translation>
+<translation id="3984192732035267948">Ouvrir le menu d’actions pour piles d’onglets pour la pile <ph name="TITLE_OF_GROUP" />, couleur <ph name="COLOR_NAME" />.</translation>
 <translation id="4009732926939031387">{NUM_DAYS, plural,
           =1 {Créé il y a <ph name="NUM_DAYS_ONE" /> jour}
           other {Créé il y a <ph name="NUM_DAYS_MANY" /> jours}
         }</translation>
+<translation id="406102127632982874">{NUMBER_OF_TABS, plural,
+          =1 {Développer la pile d’onglets avec <ph name="TABS_COUNT_ONE" /> onglet, de couleur <ph name="COLOR_NAME" />.}
+          other {Développer la pile d’onglets avec <ph name="TABS_COUNT_MANY" /> onglets, de couleur <ph name="COLOR_NAME" />.}
+        }</translation>
+<translation id="4166594760689356813">Fermer tous les onglets et piles d’onglets</translation>
+<translation id="423046824994248930">Sélectionner une pile d’onglets ou créez-en une nouvelle</translation>
+<translation id="4439281775431634915">Vos piles d’onglets sont sauvegardées ici</translation>
 <translation id="4453940245650019914">{NUM_DAYS, plural,
           =1 {Mis à jour il y a <ph name="NUM_DAYS_ONE" /> jour}
           other {Mis à jour il y a <ph name="NUM_DAYS_MANY" /> jours}
         }</translation>
+<translation id="451604412571753027">{TABS_COUNT, plural,
+          =1 {Ajouter <ph name="TABS_COUNT_ONE" /> onglet à la pile}
+          other {Ajouter <ph name="TABS_COUNT_MANY" /> onglets à la pile}
+        }</translation>
+<translation id="4521279527488891004"><ph name="USER_EMAIL" /> piles sauvegardées (fermeront les onglets et supprimeront les piles)</translation>
+<translation id="4583669313366060453">{TABS_COUNT, plural,
+          =1 {Retirer un onglet de la pile}
+          other {Retirer des onglets de la pile}
+        }</translation>
 <translation id="4686942373615810936">Créé à l’instant</translation>
+<translation id="4687160919883774711">Ouvrir automatiquement les piles d’onglets depuis d’autres appareils</translation>
+<translation id="4707553699210476405">{NUMBER_OF_TABS, plural,
+          =1 {Développer la pile d’onglets  <ph name="TITLE_OF_GROUP" /> avec <ph name="TABS_COUNT_ONE" /> onglet, couleur <ph name="COLOR_NAME" />.}
+          other {Développer la pile d’onglets <ph name="TITLE_OF_GROUP" /> avec <ph name="TABS_COUNT_MANY" /> onglets, couleur <ph name="COLOR_NAME" />.}
+        }</translation>
+<translation id="4779979121749047116">Choisir quand les onglets des piles d’onglets sont déplacés automatiquement dans la section des onglets inactifs.</translation>
+<translation id="4804611303502643481">Vous pouvez trouver toutes vos piles d’onglets ici</translation>
+<translation id="4811314918290341974">{NUMBER_OF_TABS, plural,
+          =1 {Développer la pile d’onglets partagée contenant <ph name="TABS_COUNT_ONE" /> onglet, de couleur <ph name="COLOR_NAME" />, avec le libellé <ph name="CARD_LABEL" />.}
+          other {Déevelopper la pile d’onglets partagée contenant <ph name="TABS_COUNT_MANY" /> onglets, de couleur <ph name="COLOR_NAME" />, avec le libellé <ph name="CARD_LABEL" />.}
+        }</translation>
+<translation id="4811534123347558992">{NUMBER_OF_TABS, plural,
+          =1 {Développer la pile d’onglets partagée avec <ph name="TABS_COUNT_ONE" /> onglet, de couleur <ph name="COLOR_NAME" />.}
+          other {Développer la pile d’onglets partagée avec <ph name="TABS_COUNT_MANY" /> onglets, de couleur <ph name="COLOR_NAME" />.}
+        }</translation>
 <translation id="4870911314065352661">Fermer tous les onglets ?</translation>
 <translation id="4871187110787939393">Fermer tous les onglets privés ?</translation>
+<translation id="5011517165747668569">Sélectionner la pile d’onglets</translation>
+<translation id="5344746330577571162">{AUTO_DELETE_DELAY, plural,
+            =1 {Chrome supprime automatiquement les onglets inactifs et les piles d’onglets après <ph name="AUTO_DELETE_DELAY_ONE" /> mois. Vous pouvez changer cela dans les paramètres.}
+            other {Chrome supprime automatiquement les onglets inactifs et les piles d’onglets après <ph name="AUTO_DELETE_DELAY_MANY" /> mois. Vous pouvez changer cela dans les paramètres.}
+          }</translation>
 <translation id="5494920125229734069">Tout sélectionner</translation>
+<translation id="5686531930895087743">{INCOGNITO_TABS_COUNT, plural,
+        =1 {Vos onglets et piles d’onglets fermés peuvent être ré-ouverts depuis les sections Onglets récents et Piles d’onglets. Votre onglet privés ne sera pas disponible.}
+        other {Vos onglets et piles d’onglets fermés peuvent être ré-ouverts depuis les sections Onglets récents et Piles d’onglets. Vos # onglets privés ne seront pas disponibles}}</translation>
+<translation id="570198925265232174">Renommer la pile d’onglets</translation>
+<translation id="5782736613560873551">{TAB_GROUPS_COUNT, plural,
+            =1 {<ph name="TAB_GROUPS_COUNT_ONE" /> pile d’onglets plus disponible}
+            other {<ph name="TAB_GROUPS_COUNT_MANY" /> piles d’onglets plus disponibles}
+          }</translation>
+<translation id="5932736435198834671">{TABS_COUNT, plural,
+          =1 {Retirer <ph name="TABS_COUNT_ONE" /> onglet sélectionné de la pile}
+          other {Retirer <ph name="TABS_COUNT_MANY" /> onglets sélectionnés de la pile}
+        }</translation>
+<translation id="6103180007424260422">{NUMBER_OF_TABS, plural,
+          =1 {Restaurer et ouvrir la pile d’onglets avec <ph name="TABS_COUNT_ONE" /> onglet, de couleur <ph name="COLOR_NAME" />.}
+          other {Restaurer et ouvrir la pile d’onglets avec <ph name="TABS_COUNT_MANY" /> onglets, de couleur <ph name="COLOR_NAME" />.}
+        }</translation>
+<translation id="618983369399969832">{NUMBER_OF_TABS, plural,
+          =1 {Restaurer et ouvrir la pile d’onglets <ph name="TITLE_OF_GROUP" /> avec <ph name="TABS_COUNT_ONE" /> onglet, de couleur <ph name="COLOR_NAME" />.}
+          other {Restaurer et ouvrir la pile d’onglets <ph name="TITLE_OF_GROUP" /> avec <ph name="TABS_COUNT_MANY" /> onglets, de couleur <ph name="COLOR_NAME" />.}
+        }</translation>
+<translation id="6484029326952865825">{NUMBER_OF_TABS, plural,
+          =1 {Développer la pile d’onglets partagée <ph name="TITLE_OF_GROUP" /> avec <ph name="TABS_COUNT_ONE" /> onglet, couleur <ph name="COLOR_NAME" />, avec étiquette <ph name="CARD_LABEL" />.}
+          other {Développer la pile d’onglets partagée <ph name="TITLE_OF_GROUP" /> avec <ph name="TABS_COUNT_MANY" /> onglets, couleur <ph name="COLOR_NAME" />, avec étiquette <ph name="CARD_LABEL" />.}
+        }</translation>
+<translation id="6577665056633327473">{NUMBER_OF_TABS, plural,
+          =1 {Fermer la pile d’onglets avec <ph name="TABS_COUNT_ONE" /> onglet, couleur <ph name="COLOR_NAME" />.}
+          other {Fermer la pile d’onglets avec <ph name="TABS_COUNT_MANY" /> onglets, couleur <ph name="COLOR_NAME" />.}
+        }</translation>
 <translation id="6807841890213931603">Retirer l’onglet et supprimer le groupe</translation>
+<translation id="692024099672685501">Onglets et piles d’onglets</translation>
+<translation id="7198439757237441132">Afficher les onglets empilés dans une grille en plein écran</translation>
+<translation id="7251417927463455051">Les piles d’onglets sont automatiquement sauvegardées sur tous vos appareils</translation>
 <translation id="750227952939161636">Vos groupes d’onglets sont automatiquement conservés et se mettent à jour sur tous vos appareils synchronisés</translation>
 <translation id="7640137753339219124">Supprimer le groupe</translation>
 <translation id="7653857400289671414">Vos groupes d’onglets sont automatiquement conservés</translation>
+<translation id="7720577161467416873">Déplacer la pile d’onglets vers la gauche</translation>
 <translation id="775668479044571025">{NUM_MONTHS, plural,
           =1 {Mis à jour il y a <ph name="NUM_YEARS_ONE" /> an}
           other {Mis à jour il y a <ph name="NUM_YEARS_MANY" /> ans}
         }</translation>
-<translation id="7825973332242257878">Groupes d’onglets</translation>
+<translation id="7797448773120597519">{TAB_COUNT, plural,
+          =1 {Supprimer l’onglet de la pile}
+          other {Supprimer les onglets de la pile}}</translation>
+<translation id="7861101756732813803">Empiler <ph name="NUMBER_OF_TABS" /> onglets pour travailler plus vite ?</translation>
+<translation id="8176081848609891478">Les piles d’onglets « <ph name="TAB_GROUP_NAME_1" /> » et « <ph name="TAB_GROUP_NAME_2" /> » ne sont plus disponibles</translation>
 <translation id="8207688828622594111">{NUM_MINS, plural,
           =1 {Mis à jour il y a <ph name="NUM_MINS_ONE" /> minute}
           other {Mis à jour il y a <ph name="NUM_MINS_MANY" /> minutes}
         }</translation>
+<translation id="825209846084758814"><ph name="TABS_COUNT_ONE" /> onglet empilé</translation>
 <translation id="8374451057714760401">{NUM_MONTHS, plural,
                 =1 {Mis à jour il y a <ph name="NUM_MONTHS_ONE" /> mois}
                 other {Mis à jour il y a <ph name="NUM_MONTHS_MANY" /> mois}
               }</translation>
 <translation id="8440938071054361204">Modifier le nom du groupe</translation>
 <translation id="8602902357364871325">Fermer le groupe</translation>
+<translation id="8660513434781407996"><ph name="TABS_COUNT_MANY" /> onglets empilés</translation>
+<translation id="8685478989144570078">Piles d’onglets</translation>
+<translation id="8686544461740117253">{NUMBER_OF_TABS, plural,
+          =1 {Développer la pile d’onglets partagée <ph name="TITLE_OF_GROUP" /> avec <ph name="TABS_COUNT_ONE" /> onglet, couleur <ph name="COLOR_NAME" />.}
+          other {Développer la pile d’onglets partagée <ph name="TITLE_OF_GROUP" /> avec <ph name="TABS_COUNT_MANY" /> onglets, couleur <ph name="COLOR_NAME" />.}
+        }</translation>
 <translation id="875848103419578654">{NUM_MONTHS, plural,
                 =1 {Créé il y a  <ph name="NUM_MONTHS_ONE" /> mois}
                 other {Créé il y a <ph name="NUM_MONTHS_MANY" /> mois}
               }</translation>
 <translation id="8851621822786801079">Retirer du groupe</translation>
-<translation id="8887921976452567404">Vos onglets et groupes d’onglets fermés peuvent être rouverts respectivement depuis les rubriques Récents et Groupes.</translation>
+<translation id="8882027961563202956">Ouvrir le menu d’actions pour piles d’onglets pour la pile partagée <ph name="TITLE_OF_GROUP" />, couleur <ph name="COLOR_NAME" />.</translation>
+<translation id="8929097293917882827">Vous trouverez vos piles d’onglets ici</translation>
+<translation id="9080816060085763385">{TABS_COUNT, plural,
+          =1 {Ajouter <ph name="TABS_COUNT_ONE" /> onglet sélectionné à la pile}
+          other {Ajouter <ph name="TABS_COUNT_MANY" /> onglets sélectionnés à la pile}
+        }</translation>
+<translation id="9107807397058417097">Liste des piles d’onglets fermées</translation>
 </translationbundle>

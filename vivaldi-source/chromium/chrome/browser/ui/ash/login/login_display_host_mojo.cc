@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "ash/constants/ash_features.h"
+#include "ash/constants/ash_login_pref_names.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/constants/ash_switches.h"
 #include "ash/login/login_screen_controller.h"
@@ -80,6 +81,7 @@
 #include "chromeos/ash/components/osauth/public/common_types.h"
 #include "chromeos/ash/components/settings/cros_settings.h"
 #include "chromeos/ash/components/settings/cros_settings_names.h"
+#include "chromeos/ash/experiences/arc/arc_prefs.h"
 #include "components/account_id/account_id.h"
 #include "components/startup_metric_utils/common/startup_metric_utils.h"
 #include "components/user_manager/known_user.h"
@@ -322,10 +324,11 @@ void LoginDisplayHostMojo::SetUsers(const user_manager::UserList& users) {
   // is in turn blocked on the 'login-prompt-visible' signal.
   if (local_state_->GetBoolean(ash::prefs::kFactoryResetRequested)) {
     StartWizard(ResetView::kScreenId);
-  } else if (local_state_->GetBoolean(::prefs::kDebuggingFeaturesRequested)) {
+  } else if (local_state_->GetBoolean(
+                 ash::prefs::kDebuggingFeaturesRequested)) {
     StartWizard(EnableDebuggingScreenView::kScreenId);
   } else if (local_state_->GetBoolean(
-                 ::prefs::kEnableAdbSideloadingRequested)) {
+                 arc::prefs::kEnableAdbSideloadingRequested)) {
     StartWizard(EnableAdbSideloadingScreenView::kScreenId);
   }
 }
@@ -851,7 +854,7 @@ void LoginDisplayHostMojo::OnAuthSuccess(const UserContext& user_context) {
   }
 
   if (gaia_reauth_account_id_.has_value()) {
-    SendReauthReason(gaia_reauth_account_id_.value(),
+    SendReauthReason(local_state_.get(), gaia_reauth_account_id_.value(),
                      false /* password changed */);
     gaia_reauth_account_id_.reset();
   }
@@ -860,7 +863,7 @@ void LoginDisplayHostMojo::OnAuthSuccess(const UserContext& user_context) {
 void LoginDisplayHostMojo::OnPasswordChangeDetectedFor(
     const AccountId& account) {
   if (account.is_valid()) {
-    SendReauthReason(account, true /* password changed */);
+    SendReauthReason(local_state_.get(), account, true /* password changed */);
   }
   gaia_reauth_account_id_.reset();
 }
@@ -916,8 +919,9 @@ void LoginDisplayHostMojo::EnsureOobeDialogLoaded() {
   // Should be created after dialog was created and OobeUI was loaded.
   // TODO(crbug.com/404133029): Avoid using g_browser_process.
   wizard_controller_ = std::make_unique<WizardController>(
-      &local_state_.get(), &application_locale_storage_.get(),
-      g_browser_process->shared_url_loader_factory(),
+      &local_state_.get(), g_browser_process->metrics_service(),
+      &application_locale_storage_.get(), shared_url_loader_factory_.get(),
+      &browser_policy_connector_ash_.get(),
       g_browser_process->platform_part()->component_manager_ash(),
       GetWizardContext());
 
@@ -1013,7 +1017,7 @@ void LoginDisplayHostMojo::StopObservingOobeUI() {
 void LoginDisplayHostMojo::CreateExistingUserController() {
   existing_user_controller_ = std::make_unique<ExistingUserController>(
       &local_state_.get(), &application_locale_storage_.get(),
-      shared_url_loader_factory_);
+      shared_url_loader_factory_, &browser_policy_connector_ash_.get());
 
   // We need auth attempt results to notify views-based login screen.
   existing_user_controller_->AddLoginStatusConsumer(this);

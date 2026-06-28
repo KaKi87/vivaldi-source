@@ -43,7 +43,10 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.BaseSwitches;
+import org.chromium.base.Callback;
 import org.chromium.base.ThreadUtils;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
@@ -59,8 +62,8 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.LifecycleObserver;
+import org.chromium.chrome.browser.ui.actions.ActionProperties;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuHandler.AppMenuItemType;
-import org.chromium.chrome.browser.ui.appmenu.test.R;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.browser_ui.widget.chips.ChipView;
 import org.chromium.components.browser_ui.widget.highlight.ViewHighlighterTestUtils;
@@ -231,6 +234,7 @@ public class AppMenuTest {
 
     @Test
     @MediumTest
+    @DisabledTest(message = "crbug.com/517914573")
     @DisableIf.Build(
             sdk_is_greater_than = VERSION_CODES.VANILLA_ICE_CREAM,
             message = "crbug.com/435724248")
@@ -400,8 +404,9 @@ public class AppMenuTest {
                                                     AppMenuItemProperties.TITLE,
                                                     "Menu Item With Submenu")
                                             .with(
-                                                    AppMenuItemWithSubmenuProperties.SUBMENU_ITEMS,
-                                                    submenuItems)
+                                                    AppMenuItemWithSubmenuProperties
+                                                            .SUBMENU_PROVIDER,
+                                                    () -> submenuItems)
                                             .build());
 
                     mAppMenuHandler.getModelListForTesting().add(menuItemWithSubmenu);
@@ -409,6 +414,10 @@ public class AppMenuTest {
                     PropertyModel submenuItemOneModel =
                             AppMenuTestSupport.getMenuItemPropertyModel(
                                     mAppMenuCoordinator, menuItemSubmenuOneId);
+
+                    Assert.assertNull(submenuItemOneModel.get(AppMenuItemProperties.CLICK_HANDLER));
+                    mAppMenuHandler.onSubmenuLoaded(submenuItems);
+
                     Assert.assertNotNull(
                             submenuItemOneModel.get(AppMenuItemProperties.CLICK_HANDLER));
                     Assert.assertEquals(0, submenuItemOneModel.get(AppMenuItemProperties.POSITION));
@@ -507,6 +516,34 @@ public class AppMenuTest {
                 "App menu should be allowed to show, only blocker2 registered",
                 AppMenuTestSupport.shouldShowAppMenu(mAppMenuCoordinator));
         showMenuAndAssert(mAppMenuHandler);
+    }
+
+    @Test
+    @MediumTest
+    public void testSetActionModelSupplier() throws TimeoutException {
+        AppMenuCoordinatorImpl.setHasPermanentMenuKeyForTesting(false);
+
+        PropertyModel model =
+                ThreadUtils.runOnUiThreadBlocking(
+                        () -> {
+                            SettableNullableObservableSupplier<PropertyModel> supplier =
+                                    ObservableSuppliers.createNullable();
+                            PropertyModel m =
+                                    new PropertyModel.Builder(ActionProperties.ALL_KEYS).build();
+                            mAppMenuCoordinator.setActionModelSupplier(supplier);
+                            supplier.set(m);
+                            return m;
+                        });
+
+        Callback<View> onPressCallback = model.get(ActionProperties.ON_PRESS_CALLBACK);
+        Assert.assertNotNull("Callback should be set on the model", onPressCallback);
+
+        int currentCallCount = mMenuObserver.menuShownCallback.getCallCount();
+        View testView = mTestMenuButtonDelegate.getMenuButtonView();
+
+        ThreadUtils.runOnUiThreadBlocking(() -> onPressCallback.onResult(testView));
+
+        waitForMenuToShow(currentCallCount, mAppMenuHandler);
     }
 
     @Test
@@ -964,7 +1001,7 @@ public class AppMenuTest {
     @Test
     @MediumTest
     @DisableIf.Device(DeviceFormFactor.ONLY_TABLET)
-    @DisabledTest(message = "crbug.com/1186468")
+    @DisabledTest(message = "crbug.com/40753753")
     public void testDragHelper_ClickItem() throws Exception {
         AppMenuButtonHelperImpl buttonHelper =
                 (AppMenuButtonHelperImpl) mAppMenuHandler.createAppMenuButtonHelper();

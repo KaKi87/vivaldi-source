@@ -8,6 +8,7 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 
 import androidx.activity.result.ActivityResult;
 import androidx.fragment.app.FragmentActivity;
@@ -18,7 +19,6 @@ import org.chromium.base.ServiceLoaderUtil;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.media.MediaCapturePickerHeadlessFragment.CaptureAction;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tab.TabLoadIfNeededCaller;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.media.capture.ScreenCapture;
 
@@ -41,8 +41,7 @@ public class MediaCapturePickerInvoker {
         MediaCapturePickerDelegate impl =
                 ServiceLoaderUtil.maybeCreate(MediaCapturePickerDelegate.class);
         if (impl != null) {
-            android.content.Intent intent =
-                    impl.createScreenCaptureIntent(context, params, delegate);
+            Intent intent = impl.createScreenCaptureIntent(context, params, delegate);
             if (intent != null) {
                 Activity activity = ContextUtils.activityFromContext(context);
                 // We should always get a non-null ChromeActivity which is a FragmentActivity.
@@ -57,7 +56,12 @@ public class MediaCapturePickerInvoker {
                 fragment.startAndroidCapturePrompt(
                         (action, result) ->
                                 onPickAndroidCapturePrompt(
-                                        action, result, params.webContents, delegate, impl),
+                                        context,
+                                        action,
+                                        result,
+                                        params.webContents,
+                                        delegate,
+                                        impl),
                         intent);
                 return;
             }
@@ -74,6 +78,7 @@ public class MediaCapturePickerInvoker {
     }
 
     private static void onPickAndroidCapturePrompt(
+            Context context,
             @CaptureAction int action,
             ActivityResult result,
             WebContents webContents,
@@ -92,7 +97,7 @@ public class MediaCapturePickerInvoker {
                         "PickerInvoker: Tab %d with title '%s' was picked",
                         tab.getId(),
                         tab.getTitle());
-                tab.loadIfNeeded(TabLoadIfNeededCaller.MEDIA_CAPTURE_PICKER);
+                tab.loadIfNeeded(/* forceBackingSize= */ true);
                 WebContents pickedTabwebContents = tab.getWebContents();
                 assert pickedTabwebContents != null;
 
@@ -100,7 +105,7 @@ public class MediaCapturePickerInvoker {
                 // minimized window, or sharing will not be able to start.
                 // TODO(crbug.com/454192534): reconsider this behavior when the android system bug
                 // is fixed to keep it consistent with desktop Chrome.
-                MediaCapturePickerManager.bringTabToFront(tab);
+                MediaCapturePickerManager.bringTabToFront(context, tab);
 
                 impl.startAppContentMediaProjection(webContents, result);
 

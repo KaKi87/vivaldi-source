@@ -28,12 +28,14 @@
 #include <array>
 #include <vector>
 
-#include "dawn/common/Compiler.h"
-#include "dawn/common/Enumerator.h"
-#include "dawn/common/ityp_array.h"
-#include "dawn/common/ityp_span.h"
-#include "dawn/common/ityp_vector.h"
 #include "gtest/gtest.h"
+#include "src/dawn/common/Compiler.h"
+#include "src/dawn/common/Enumerator.h"
+#include "src/dawn/common/TypedInteger.h"
+#include "src/dawn/common/ityp_array.h"
+#include "src/dawn/common/ityp_span.h"
+#include "src/dawn/common/ityp_vector.h"
+#include "src/utils/compiler.h"
 
 namespace dawn {
 namespace {
@@ -45,7 +47,7 @@ class EnumeratorTest : public testing::Test {
         size_t i = 0;
         for (auto [index, value] : Enumerate(thingToEnumerate)) {
             ASSERT_EQ(index, Index(i));
-            ASSERT_EQ(value, values[i]);
+            DAWN_UNSAFE_TODO(ASSERT_EQ(value, values[i]));
             i++;
         }
     }
@@ -127,6 +129,14 @@ TEST_F(EnumeratorTest, ConstContainer) {
     const ityp::array<Int, uint32_t, 3> values = {37u, 45u, 67u};
     for (auto [i, value] : Enumerate(values)) {
         static_assert(std::is_same_v<decltype(value), const uint32_t&>);
+    }
+}
+
+// Test that Enumerate(rvalue reference) works.
+TEST_F(EnumeratorTest, RValueReference) {
+    auto F = []() { return ityp::array<Int, uint32_t, 3>{37u, 45u, 67u}; };
+    for ([[maybe_unused]] auto [i, value] : Enumerate(F())) {
+        // nothing, this is just a compile check
     }
 }
 

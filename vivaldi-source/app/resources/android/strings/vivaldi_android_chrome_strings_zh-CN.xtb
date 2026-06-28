@@ -1,22 +1,35 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="zh-CN">
+<translation id="1062777154504442433">新标签栈</translation>
 <translation id="1204037785786432551">下载链接</translation>
 <translation id="1206892813135768548">复制链接文本</translation>
+<translation id="1223158186497001208">已共享带有新活动的名为<ph name="GROUP_TITLE" />的标签栈</translation>
+<translation id="1328749518742029305">标签栈<ph name="TAB_GROUP_TITLE" />已关闭并保存</translation>
 <translation id="1397811292916898096">用 <ph name="PRODUCT_NAME" /> 搜索</translation>
 <translation id="1435593198351412143">自动打开 PDF 文件</translation>
 <translation id="1456207338570705181">即触即搜功能仅当您将谷歌搜索设置为默认搜索引擎时才能使用的。它将所选单词和当前页面作为上下文发送到谷歌搜索。您可以在 <ph name="BEGIN_LINK" />设置<ph name="END_LINK" />中关闭这个功能。</translation>
 <translation id="1598449788754183301">切换普通/隐身标签</translation>
+<translation id="1626105448931436644">了解共享标签栈</translation>
 <translation id="1644574205037202324">历史</translation>
 <translation id="1829244130665387512">在网页中查找</translation>
-<translation id="1910514478706885609">在新标签栈中打开</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+          =1 {查看已共享标签栈中有新活动的<ph name="TABS_COUNT_ONE" />个标签页}
+          other {查看已共享标签栈中有新活动的<ph name="TABS_COUNT_MANY" />个标签页}
+        }</translation>
 <translation id="1925021887439448749">输入自定义网址</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+          =1 {加入来自<ph name="OWNER_FIRST_NAME" />且仅有这<ph name="NUMBER_OF_OTHER_MEMBERS" />个成员的标签栈}
+          other {加入来自<ph name="OWNER_FIRST_NAME" />且有<ph name="NUMBER_OF_OTHER_MEMBERS" />个其他成员的标签栈}
+        }</translation>
 <translation id="2038563949887743358">开启“请求切换到桌面版网站”</translation>
+<translation id="2067565353468675023">以<ph name="OWNER_FIRST_NAME" />名义加入标签栈</translation>
 <translation id="208033313373016095">阅读器视图</translation>
 <translation id="2149973817440762519">编辑书签</translation>
 <translation id="2306442503286132111">书签已保存至 <ph name="FOLDER_NAME" /> 文件夹</translation>
 <translation id="2433507940547922241">外观</translation>
-<translation id="2501278716633472235">返回上一页</translation>
+<translation id="2495373685671077949">搜索您的标签页和标签栈</translation>
+<translation id="2500281581698062897">您将立即失去对名为“<ph name="GROUP_NAME" />”的标签栈的访问，并且<ph name="BLOCKED_MEMBER_FULL_NAME" />（<ph name="BLOCKED_MEMBER_EMAIL" />）将不再能够通过谷歌服务与您交互。</translation>
 <translation id="2546283357679194313">Cookie 和网站数据</translation>
 <translation id="2633278372998075009">隐身标签</translation>
 <translation id="2650751991977523696">是否重新下载文件？</translation>
@@ -26,6 +39,7 @@
 <translation id="2871733351037274014">预加载网页</translation>
 <translation id="2904300462646366554">下载的 PDF 文件会自动使用设备上的一个 PDF 查看器打开</translation>
 <translation id="2951071800649516099">将网页添加到阅读清单以供日后阅读</translation>
+<translation id="3020023775880428664">将标签页移动到标签栈</translation>
 <translation id="3029276696788198026">无预加载</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> 个书签}
@@ -33,9 +47,15 @@
 <translation id="3076631378407175873">版权所有 <ph name="YEAR" /> Vivaldi Technologies AS. 保留所有权利。</translation>
 <translation id="3110967157686007724">隐身标签页</translation>
 <translation id="3232293466644486101">删除浏览数据…</translation>
-<translation id="3234355010754616171">新建隐身标签</translation>
+<translation id="3234355010754616171">新建隐身标签页</translation>
 <translation id="3237087289225714896">标准预加载：</translation>
+<translation id="3298614730029636660">离开标签栈</translation>
+<translation id="3359462099791810823">保留此标签栈以便稍后添加标签页，或者如果您不再需要它，请将其删除。</translation>
 <translation id="3478414204555961127">阅读器视图</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+          =1 {恢复为新的后台标签栈，包含<ph name="TAB_COUNT_ONE" />个标签页，颜色为<ph name="COLOR_NAME" />。}
+          other {恢复为新的后台标签栈，包含<ph name="TAB_COUNT_MANY" />个标签页，颜色为<ph name="COLOR_NAME" />。}
+        }</translation>
 <translation id="3504699618187058974">标签栈</translation>
 <translation id="3518985090088779359">接受并继续</translation>
 <translation id="3571177741182643350">未读文章-离线可用：</translation>
@@ -43,36 +63,54 @@
 <translation id="3700829948786686853">欢迎使用 Vivaldi</translation>
 <translation id="3719826155360621982">主页</translation>
 <translation id="3738139272394829648">即触即搜</translation>
-<translation id="385051799172605136">后退</translation>
+<translation id="3900825170941000696">恢复名为<ph name="TITLE_OF_GROUP" />、颜色为<ph name="COLOR_NAME" />的标签栈，作为新的后台标签栈。</translation>
+<translation id="395421286877117532">自定义标签栈并点击完成</translation>
 <translation id="3987993985790029246">复制链接</translation>
 <translation id="399014816462153200">阅读文章：</translation>
+<translation id="4048089913902125176">打开名为<ph name="TITLE_OF_GROUP" />的标签栈，颜色为<ph name="COLOR_NAME" />并且包含网站<ph name="URL_LIST" />。</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> 个标签页}
           other {<ph name="TAB_COUNT_MANY" /> 个标签页，<ph name="TAB_COUNT_INCOGNITO" /> 个隐身}}</translation>
 <translation id="408336132633586393">隐身窗口</translation>
 <translation id="4121750346708795461">使用此应用即表示您同意遵守 Vivaldi 的<ph name="BEGIN_LINK1" />最终用户许可协议<ph name="END_LINK1" />和<ph name="BEGIN_LINK2" />隐私政策<ph name="END_LINK2" />。</translation>
 <translation id="4137746084635924146">当前设备所用语言</translation>
-<translation id="4167670741834902166">新建隐身标签</translation>
+<translation id="4167670741834902166">新建隐身标签页</translation>
 <translation id="4195643157523330669">在新标签页中打开</translation>
+<translation id="4219031106525503429">共享名为“<ph name="GROUP_NAME" />”的标签栈</translation>
 <translation id="4225895483398857530">工具栏快捷方式</translation>
 <translation id="4243710787042215766">在隐身标签中打开</translation>
 <translation id="4269820728363426813">复制链接地址</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />在安卓设置中开启“屏幕锁定”功能<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">密码管理器</translation>
-<translation id="441100617989818073">未使用或重复的标签页和组</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {在共享的标签栈中有新活动的<ph name="TABS_COUNT_ONE" />个标准标签页}
+          other {在共享的标签栈中有新活动的<ph name="TABS_COUNT_MANY" />个标准标签页}
+        }</translation>
+<translation id="4445802392779002787">将标签页添加到标签栈</translation>
 <translation id="451872707440238414">搜索书签</translation>
 <translation id="4526803704855831732">隐身标签页</translation>
 <translation id="4532845899244822526">选择文件夹</translation>
+<translation id="454284936014822050">标签栈<ph name="GROUP_TITLE" /></translation>
+<translation id="4614713783237504866">未使用或重复的标签页和标签栈</translation>
+<translation id="463284870544181537">保留此标签栈以便稍后添加标签页，或者如果您不再想要访问它，请离开</translation>
+<translation id="4638726726741656531">您现在可以轻松地在此处将标签页添加到标签栈中</translation>
 <translation id="4699172675775169585">缓存的图片和文件</translation>
 <translation id="4719086422742491124">解读网站上某些关键字无需离开页面，您可以直接划词搜索。
 
 只有将谷歌搜索设置为默认搜索引擎时才能使用即触即搜功能。</translation>
 <translation id="4759238208242260848">下载</translation>
-<translation id="4777866634702576038">删除标签组？</translation>
+<translation id="4771820744342013314">删除标签栈？</translation>
 <translation id="4850886885716139402">查看</translation>
 <translation id="4883379392681899581">离开隐身模式</translation>
+<translation id="4883812026489706387">名为“<ph name="TAB_GROUP_TITLE" />”的标签栈有新活动</translation>
+<translation id="4887248255051238988">离开标签栈？</translation>
 <translation id="4943872375798546930">无结果</translation>
 <translation id="49576331685473090">内容拦截器</translation>
+<translation id="4964059453543967592">重新打开已关闭的标签栈</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" />个标签栈}
+          other {<ph name="TAB_GROUPS_MANY" />个标签栈}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> 个隐身标签页}
           other {<ph name="TAB_COUNT_NORMAL" /> 个隐身标签页}}</translation>
@@ -83,19 +121,26 @@
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {1个文件正在下载…}
             other {# 个文件正在下载 …}}</translation>
+<translation id="5210689723585747462">标签栈<ph name="TAB_GROUP_TITLE" />已关闭</translation>
 <translation id="5233638681132016545">新建标签页</translation>
 <translation id="5375131951310889874">解读网站上某些关键字无需离开页面，您可以直接即触即搜。只有将谷歌搜索设置为默认搜索引擎时才能使用即触即搜功能。它将单词及其附近的上下文发送到谷歌搜索，返回定义、图片、搜索结果和其他详细信息。
 
 要调整您的搜索词，请长按选择。 要优化搜索，请将面板一直向上滑动并点击搜索框。</translation>
+<translation id="5570837353202786816">每个成员都会立即失去对标签栈“<ph name="GROUP_NAME" />”的访问权，并且所有邀请链接都将被关闭</translation>
+<translation id="5614794348925178470">名为“<ph name="GROUP_TITLE" />”的已共享标签栈</translation>
 <translation id="572328651809341494">最近打开的标签</translation>
 <translation id="5833984609253377421">分享链接</translation>
+<translation id="6129507335719227488">栈内标签页</translation>
 <translation id="6150320133806434356">书签已保存</translation>
 <translation id="6193448654517602979">选择标签页</translation>
-<translation id="6336451774241870485">新隐身标签</translation>
+<translation id="6221225660285238685">将标签栈移动到另一个窗口</translation>
+<translation id="6277377952699614191">标签栈</translation>
+<translation id="6336451774241870485">新隐身标签页</translation>
 <translation id="6337323516034698937">要将此标签页发送到另一台设备，请在两台设备上登录 Vivaldi 同步。如有必要，请确保输入加密密钥。</translation>
 <translation id="6341580099087024258">询问文件保存位置</translation>
 <translation id="6364438453358674297">从历史中删除建议？</translation>
 <translation id="6404511346730675251">编辑书签</translation>
+<translation id="6453011654157908292">标签栈详情</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
           =1 {# 个文件已下载完毕}
           other {# 个文件已下载完毕}}</translation>
@@ -104,11 +149,13 @@
 <translation id="6593061639179217415">桌面版网站</translation>
 <translation id="6610147964972079463">关闭隐身标签</translation>
 <translation id="6627583120233659107">编辑文件夹</translation>
+<translation id="6785740335511995065">保留标签栈？</translation>
 <translation id="6865313869410766144">自动填充表单数据</translation>
 <translation id="6909589135458168665">预加载网页</translation>
 <translation id="7029995644714925509">当某个网站在其页面上要求加密预下载链接内容时，Vivaldi 将通过谷歌服务器加密和预加载页面而不使用 Cookie。这将对预加载页面隐藏您的身份。</translation>
 <translation id="706339621163631076">浏览器隐私政策</translation>
 <translation id="7100573672995171864">定制和控制 Vivaldi</translation>
+<translation id="7133879160432070247">阻止并离开标签栈？</translation>
 <translation id="732145680195464316">书签已保存至 <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">发送“不许跟踪”请求</translation>
 <translation id="7359002509206457351">访问付款方式</translation>
@@ -117,24 +164,33 @@
 <translation id="7456774706094330779">增强型预加载</translation>
 <translation id="7465104139234185284">关闭全部隐身标签</translation>
 <translation id="7481312909269577407">前进</translation>
+<translation id="759273611317559136">标签栈<ph name="TAB_GROUP_TITLE" />已删除</translation>
+<translation id="7630413501995820846">保留标签栈</translation>
+<translation id="7640137753339219124">删除标签栈</translation>
 <translation id="7764225426217299476">新增地址</translation>
+<translation id="7910753230807645596">重复的或已经<ph name="DAYS_INACTIVE" />天不活动的标签页和标签栈将移动到<ph name="AUTODELETE_SECTION" />。您可以随时在<ph name="DECLUTTER_SETTINGS_TITLE" />中更改此内容。</translation>
 <translation id="7968014550143838305">已添加到阅读清单</translation>
 <translation id="804786196054284061">最终用户许可协议</translation>
 <translation id="8062594758852531064">增强型预加载：</translation>
 <translation id="8073388330009372546">在新标签页中打开图片</translation>
 <translation id="8127542551745560481">编辑主页</translation>
+<translation id="8149776854955817519">在此查看您的不活动标签页和标签栈</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
           =1 {(1) 个不活动项}
           other {(#) 个不活动项}}</translation>
 <translation id="8266862848225348053">下载位置</translation>
 <translation id="8348430946834215779">尽可能使用 HTTPS，并在加载不支持 HTTPS 的网站前收到警告</translation>
+<translation id="8480628728881718381">在标签栈中的新标签页中打开</translation>
+<translation id="8543049482641423692">将标签页添加到新标签栈</translation>
 <translation id="8560602726703398413">您可在书签中找到自己的阅读清单</translation>
 <translation id="85991616550051997">前往首页</translation>
+<translation id="8680308397617585416">您将立即失去对名为“<ph name="GROUP_NAME" />”的标签栈的访问权限，并且它将从您的所有设备中删除</translation>
 <translation id="8738163682604285902">查看阅读模式？</translation>
 <translation id="8820817407110198400">书签</translation>
 <translation id="9042893549633094279">隐私与安全</translation>
 <translation id="9063523880881406963">关闭“请求切换到桌面版网站”</translation>
 <translation id="9080642952018487277">进入隐身模式</translation>
+<translation id="9099398755190923267">每个成员都会立即失去对标签栈“<ph name="GROUP_NAME" />”的访问权，并且它将从所有设备中删除</translation>
 <translation id="930124987204876019">删除历史记录、Cookie、网站数据、缓存内容…</translation>
 <translation id="961856697154696964">删除浏览数据</translation>
 </translationbundle>

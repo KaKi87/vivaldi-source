@@ -1,96 +1,34 @@
 import("//build/config/features.gni")
+import("//build/config/locales.gni")
+import("locale_list.gni")
 
-# Locales about to be added, but not ready
-vivaldi_pending_locales = [
-  "ca@valencia",
-  "de-CH",
-  "eo",
-  "es-PE",
-  "fy",
-  "gd",
-  "io",
-  "ja-KS",
-  "jbo",
-  "kab",
-  "kmr",
-  "nn",
-  "sc",
-]
+_vivaldi_all_locales = vivaldi_platform_all_locales
+vivaldi_supported_locales = vivaldi_platform_supported_locales
 
-vivaldi_pending_mobile_locales = []
-vivaldi_pending_ios_locales = []
-# Locales that Vivaldi other platform may support but not iOS.
-vivaldi_pending_ios_unsupported_locales = []
-if (!is_android) {
-  vivaldi_pending_mobile_locales += [
-    "az",
-    "be",
-    "eu",
-    "gl",
-    "hy",
-    "is",
-    "ka",
-    "mk",
-    "pa",
-    "sq",
-    "sr-Latn",
-  ]
-  if (is_ios) {
+if (enable_pseudolocales) {
+  vivaldi_supported_locales += pseudolocales
+  _vivaldi_all_locales += pseudolocales
+}
 
-    # Chromium supports these languages but has in extended_locales, we adjusted
-    # extended_locales to include these languages hence subtracted from here.
-    vivaldi_pending_mobile_locales -= [
-      "az",
-      "be",
-      "eu",
-      "gl",
-      "hy",
-      "is",
-      "ka",
-      "mk",
-      "pa",
-      "sq",
-      "sr-Latn",
-    ]
-
-    vivaldi_pending_ios_locales += [
-      "am",
-      "bn",
-      "fil",
-      "gu",
-      "kn",
-      "lv",
-      "ml",
-      "mr",
-      "sw",
-      "ta",
-      "te",
-      "ur",
-    ]
-
-    vivaldi_native_ios_extra_locales = [
-      "az",
-      "eu",
-      "hy",
-      "mk",
-      "pa",
-      "sq",
-      "gl",
-    ]
-
-    vivaldi_pending_ios_unsupported_locales = [
-      "ca@valencia",
-      "de-CH",
-      "eo",
-      "es-PE",
-      "fy",
-      "gd",
-      "io",
-      "ja-KS",
-      "jbo",
-      "kmr",
-      "nn",
-      "sc",
-    ]
+vivaldi_normalize_locale_remove = []
+vivaldi_normalize_locale_add = []
+foreach(_locale, vivaldi_supported_locales) {
+  if (_locale == "ca@valencia") {
+    vivaldi_normalize_locale_remove += [ _locale ]
+    vivaldi_normalize_locale_add += [ "ca-valencia" ]
   }
 }
+
+platform_unsupported_locales = _vivaldi_all_locales - vivaldi_supported_locales
+
+if (is_android) {
+  platform_unsupported_locales = []
+}
+
+# Minimum set of supported locales is platform_pak_locales
+_foo =
+    platform_pak_locales + vivaldi_supported_locales - vivaldi_supported_locales
+assert(_foo == [], "Missing locales ${_foo}")
+# print("all locales: $all_chrome_locales")
+# print("PLAT: $platform_pak_locales")
+# print("VIVL: $vivaldi_supported_locales")

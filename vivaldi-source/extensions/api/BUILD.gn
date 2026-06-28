@@ -2,80 +2,67 @@ import("//vivaldi/gn/config/features.gni")
 
 import("//chromium/build/config/features.gni")
 
-import("//build/config/ui.gni")
 import("//build/config/compiler/compiler.gni")
+import("//build/config/ui.gni")
 
 config("delay_load_mf") {
-  ldflags = [
-    "/DELAYLOAD:mfplat.dll",
-  ]
+  ldflags = [ "/DELAYLOAD:mfplat.dll" ]
 }
 
 config("api_keys") {
   defines = []
   if (vivaldi_task_api_key != "") {
-    defines += [
-      "VIVALDI_GOOGLE_TASKS_API_KEY=\"$vivaldi_task_api_key\""
-    ]
+    defines += [ "VIVALDI_GOOGLE_TASKS_API_KEY=\"$vivaldi_task_api_key\"" ]
   }
 
   if (vivaldi_oauth_client_id != "") {
-    defines += [
-      "VIVALDI_GOOGLE_OAUTH_API_CLIENT_ID=\"$vivaldi_oauth_client_id\""
-    ]
+    defines +=
+        [ "VIVALDI_GOOGLE_OAUTH_API_CLIENT_ID=\"$vivaldi_oauth_client_id\"" ]
   }
 
   if (vivaldi_oauth_client_secret != "") {
     defines += [
-      "VIVALDI_GOOGLE_OAUTH_API_CLIENT_SECRET=\"$vivaldi_oauth_client_secret\""
+      "VIVALDI_GOOGLE_OAUTH_API_CLIENT_SECRET=\"$vivaldi_oauth_client_secret\"",
     ]
   }
 
   if (vivaldi_microsoft_oauth_client_id != "") {
-    defines += [
-      "VIVALDI_MICROSOFT_OAUTH_API_CLIENT_ID=\"$vivaldi_microsoft_oauth_client_id\""
-    ]
+    defines += [ "VIVALDI_MICROSOFT_OAUTH_API_CLIENT_ID=\"$vivaldi_microsoft_oauth_client_id\"" ]
   }
 
   if (vivaldi_yahoo_oauth_client_id != "") {
     defines += [
-      "VIVALDI_YAHOO_OAUTH_API_CLIENT_ID=\"$vivaldi_yahoo_oauth_client_id\""
+      "VIVALDI_YAHOO_OAUTH_API_CLIENT_ID=\"$vivaldi_yahoo_oauth_client_id\"",
     ]
   }
 
   if (vivaldi_yahoo_oauth_client_secret != "") {
-    defines += [
-      "VIVALDI_YAHOO_OAUTH_API_CLIENT_SECRET=\"$vivaldi_yahoo_oauth_client_secret\""
-    ]
+    defines += [ "VIVALDI_YAHOO_OAUTH_API_CLIENT_SECRET=\"$vivaldi_yahoo_oauth_client_secret\"" ]
   }
 
   if (vivaldi_aol_oauth_client_id != "") {
-    defines += [
-      "VIVALDI_AOL_OAUTH_API_CLIENT_ID=\"$vivaldi_aol_oauth_client_id\""
-    ]
+    defines +=
+        [ "VIVALDI_AOL_OAUTH_API_CLIENT_ID=\"$vivaldi_aol_oauth_client_id\"" ]
   }
 
   if (vivaldi_aol_oauth_client_secret != "") {
-    defines += [
-      "VIVALDI_AOL_OAUTH_API_CLIENT_SECRET=\"$vivaldi_aol_oauth_client_secret\""
-    ]
+    defines += [ "VIVALDI_AOL_OAUTH_API_CLIENT_SECRET=\"$vivaldi_aol_oauth_client_secret\"" ]
   }
 
   if (vivaldi_net_oauth_client_secret != "") {
     defines += [
-      "VIVALDI_NET_OAUTH_CLIENT_SECRET=\"$vivaldi_net_oauth_client_secret\""
+      "VIVALDI_NET_OAUTH_CLIENT_SECRET=\"$vivaldi_net_oauth_client_secret\"",
     ]
   }
 
   if (vivaldi_net_oauth_client_id != "") {
-    defines += [
-      "VIVALDI_NET_OAUTH_CLIENT_ID=\"$vivaldi_net_oauth_client_id\""
-    ]
+    defines +=
+        [ "VIVALDI_NET_OAUTH_CLIENT_ID=\"$vivaldi_net_oauth_client_id\"" ]
   }
 
   if (vivaldi_fastmail_oauth_client_id != "") {
     defines += [
-      "VIVALDI_FASTMAIL_OAUTH_CLIENT_ID=\"$vivaldi_fastmail_oauth_client_id\""
+      "VIVALDI_FASTMAIL_OAUTH_CLIENT_ID=\"$vivaldi_fastmail_oauth_client_id\"",
     ]
   }
 }
@@ -87,9 +74,10 @@ static_library("apis") {
   ]
   deps = [
     # "//apps:apps",
-    "//base:base",
+    "//base",
     "//chrome/app:command_ids",
     "//chrome/app/theme:theme_resources",
+
     # "//chrome/browser/devtools",
     # "//chrome/browser/extensions",
     # "//chrome/browser/media/router",
@@ -114,26 +102,28 @@ static_library("apis") {
     "//components/permissions",
     "//components/pref_registry",
     "//components/qr_code_generator:bitmap_generator",
-    "//components/sessions",
     "//components/search_engines",
-    "//components/server_certificate_database:server_certificate_database",
+    "//components/server_certificate_database",
+    "//components/sessions",
     "//components/sync",
     "//components/sync_device_info",
     "//components/version_info",
     "//components/web_modal",
     "//components/webapps/common:mojo_bindings",
     "//components/zoom",
+
+    #"//content/browser",
+    "//content/public/browser",
     "//services/data_decoder/public/cpp",
     "//services/network/public/cpp",
     "//vivaldi/components/capture:capture_page",
-    #"//content/browser",
-    "//content/public/browser",
 
     #"//content/public/common",
     #"//extensions/browser",
     "//printing/buildflags",
-    "//skia:skia",
+    "//skia",
     "//third_party/blink/public:blink_headers",
+
     #"//third_party/blink/renderer/platform",
     "//ui/shell_dialogs",
     "//ui/views",
@@ -141,21 +131,23 @@ static_library("apis") {
     "//vivaldi/browser:features",
     "//vivaldi/browser:internal_handlers",
     "//vivaldi/calendar",
+    "//vivaldi/components:tabs",
+    "//vivaldi/components/ad_blocker/public/content",
     "//vivaldi/components/datasource:resource_reader",
     "//vivaldi/components/direct_match:browser",
-    "//vivaldi/components/ad_blocker/public/content",
-    "//vivaldi/components/ext_data:ext_data",
-    "//vivaldi/components:tabs",
-    "//vivaldi/contact",
-    "//vivaldi/extensions/helper",
-    "//vivaldi/extensions/helper:app_helper",
-    "//vivaldi/extensions/schema",
-    "//vivaldi/extensions/tools",
-    "//vivaldi/extensions:vivaldi_extension_component_wrapper",
+    "//vivaldi/components/ext_data",
+
     #"//vivaldi/menus",
     "//vivaldi/components/notes",
     "//vivaldi/components/notes:browser",
     "//vivaldi/components/page_actions",
+    "//vivaldi/contact",
+    "//vivaldi/extensions:vivaldi_extension_component_wrapper",
+    "//vivaldi/extensions/helper",
+    "//vivaldi/extensions/helper:app_helper",
+    "//vivaldi/extensions/schema",
+    "//vivaldi/extensions/tools",
+
     #"//vivaldi/prefs",
     "//vivaldi/prefs:browser_prefs",
     "//vivaldi/prefs:prefs_files_generator",
@@ -163,28 +155,34 @@ static_library("apis") {
     "//vivaldi/renderer/mojo:frame_service",
     "//vivaldi/sync:factory",
     "//vivaldi/translate_history",
+
     # "//vivaldi/ui",
     "//vivaldi/ui:skia_utils",
     "//vivaldi/vivaldi_account",
     "//vivaldi/vivaldi_status:browser",
   ]
+
+  # url_cleaning depends on keyed_service/content which requires use_blink
+  # (false on iOS), so exclude it from iOS builds.
+  if (!is_ios) {
+    deps += [ "//vivaldi/thirdparty/brave/common:url_cleaning" ]
+  }
+
   allow_circular_includes_from = [
     # "//chrome/browser/extensions",
     "//vivaldi/extensions/helper:app_helper",
     "//vivaldi/extensions/tools",
   ]
+
   # Needed for media support detection in vivaldi.utilities
   if (is_win) {
-    libs = [
-      "mfplat.lib",
-    ]
+    libs = [ "mfplat.lib" ]
+
     # MediaFoundation is not available on Windows N, so must be delay loaded.
     all_dependent_configs = [ ":delay_load_mf" ]
 
     # Needed for update version info
-    deps += [
-      "//chrome/updater:version_header",
-    ]
+    deps += [ "//chrome/updater:version_header" ]
   }
 
   sources = [
@@ -218,8 +216,6 @@ static_library("apis") {
     "guest_view/web_view_private_api.h",
     "history/history_private_api.cc",
     "history/history_private_api.h",
-    "omnibox/omnibox_private_api.cc",
-    "omnibox/omnibox_private_api.h",
     "import_data/import_data_api.cc",
     "import_data/import_data_api.h",
     "infobars/infobars_api.cc",
@@ -234,6 +230,8 @@ static_library("apis") {
     "menubar_menu/menubar_menu_api.h",
     "notes/notes_api.cc",
     "notes/notes_api.h",
+    "omnibox/omnibox_private_api.cc",
+    "omnibox/omnibox_private_api.h",
     "page_actions/page_actions_api.cc",
     "page_actions/page_actions_api.h",
     "pip_private/pip_private_api.cc",
@@ -260,10 +258,10 @@ static_library("apis") {
     "site_permissions/site_permissions_api.h",
     "sync/sync_api.cc",
     "sync/sync_api.h",
-    "tabs/tabs_private_api.cc",
-    "tabs/tabs_private_api.h",
     "tabs/tabs_motion_helper.cc",
     "tabs/tabs_motion_helper.h",
+    "tabs/tabs_private_api.cc",
+    "tabs/tabs_private_api.h",
     "theme/theme_private_api.cc",
     "theme/theme_private_api.h",
     "thumbnails/thumbnails_api.cc",
@@ -279,7 +277,7 @@ static_library("apis") {
     "window/window_private_api.h",
     "zoom/zoom_api.cc",
     "zoom/zoom_api.h",
-    ]
+  ]
 
   if (!vivaldi_disable_sparkle) {
     sources += [
@@ -288,14 +286,10 @@ static_library("apis") {
       "auto_update/auto_update_status.h",
     ]
     if (is_mac) {
-      sources += [
-        "auto_update/auto_update_api_mac.mm",
-      ]
+      sources += [ "auto_update/auto_update_api_mac.mm" ]
     }
     if (is_win) {
-      sources += [
-        "auto_update/auto_update_api_win.cc",
-      ]
+      sources += [ "auto_update/auto_update_api_win.cc" ]
     }
     if (is_linux) {
       sources += [
@@ -308,10 +302,10 @@ static_library("apis") {
 
   if (is_linux) {
     sources += [
-      "vivaldi_utilities/vivaldi_utilities_api_linux.cc",
-      "window/window_private_api_linux.cc",
       "vivaldi_utilities/launch_bar_gnome_support.cc",
       "vivaldi_utilities/launch_bar_gnome_support.h",
+      "vivaldi_utilities/vivaldi_utilities_api_linux.cc",
+      "window/window_private_api_linux.cc",
     ]
 
     if (use_gio) {
@@ -339,12 +333,10 @@ static_library("apis") {
     ]
   }
   if (use_aura) {
-    sources += [
-      "vivaldi_utilities/drag_download_items_aura.cc",
-    ]
+    sources += [ "vivaldi_utilities/drag_download_items_aura.cc" ]
   }
   configs += [
     ":api_keys",
-    "//vivaldi/gn/config:release_kind"
+    "//vivaldi/gn/config:release_kind",
   ]
 }

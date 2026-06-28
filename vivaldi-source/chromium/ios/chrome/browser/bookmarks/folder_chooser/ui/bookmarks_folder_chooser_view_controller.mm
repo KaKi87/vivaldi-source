@@ -101,10 +101,10 @@ using bookmarks::BookmarkNode;
   BOOL _allowsNewFolders;
   // A linear list of folders. This will be populated in `reloadView` when the
   // UI is updated.
-  std::vector<const BookmarkNode*> _accountFolderNodes;
+  std::vector<raw_ptr<const BookmarkNode>> _accountFolderNodes;
   // A linear list of folders. This will be populated in `reloadView` when the
   // UI is updated.
-  std::vector<const BookmarkNode*> _localOrSyncableFolderNodes;
+  std::vector<raw_ptr<const BookmarkNode>> _localOrSyncableFolderNodes;
   // This ViewController's searchController;
   UISearchController* _searchController;
   // What the user is currently searching.
@@ -295,7 +295,7 @@ using bookmarks::BookmarkNode;
     folderIndex--;
   }
 
-  const BookmarkNode* folder;
+  raw_ptr<const BookmarkNode> folder;
 
   if (IsVivaldiRunning()) {
     TableViewBookmarksFolderItem* folderItem =
@@ -474,7 +474,7 @@ using bookmarks::BookmarkNode;
   }
 
   // Add Folders entries.
-  const std::vector<const BookmarkNode*>& folders =
+  const std::vector<raw_ptr<const bookmarks::BookmarkNode>>& folders =
       (sectionID == SectionIdentifierAccountBookmarks)
           ? _accountFolderNodes
           : _localOrSyncableFolderNodes;
@@ -565,14 +565,13 @@ using bookmarks::BookmarkNode;
   dispatch_after(
       dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)),
       dispatch_get_main_queue(), ^{
-        BookmarksFolderChooserViewController* strongSelf = weakSelf;
-        // Early return if the controller has been deallocated.
-        if (!strongSelf) {
-          return;
-        }
-        strongSelf.view.userInteractionEnabled = YES;
-        [strongSelf done:nil];
+        [weakSelf delayedNotifyDelegateOfSelectionCallback];
       });
+}
+
+- (void)delayedNotifyDelegateOfSelectionCallback {
+  self.view.userInteractionEnabled = YES;
+  [self done:nil];
 }
 
 // Shows the scrim overlay.
@@ -617,10 +616,14 @@ using bookmarks::BookmarkNode;
         scrim.alpha = 0.0f;
       }
       completion:^(BOOL finished) {
-        [scrim removeFromSuperview];
-        weakSelf.tableView.accessibilityElementsHidden = NO;
-        weakSelf.tableView.scrollEnabled = YES;
+        [weakSelf hideScrimCallbackWithScrim:scrim];
       }];
+}
+
+- (void)hideScrimCallbackWithScrim:(UIView*)scrim {
+  [scrim removeFromSuperview];
+  self.tableView.accessibilityElementsHidden = NO;
+  self.tableView.scrollEnabled = YES;
 }
 
 // Dismiss the search controller when there's a touch event on the scrim.

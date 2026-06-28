@@ -12,6 +12,11 @@ deps_test_update_templ_list = [
   "//chrome/test:unit_tests",
   "//chrome/test/data/webui:browser_tests",
   "//chrome/test/data/webui:interactive_ui_tests",
+  "//chrome/browser/actor/ui/task_list_bubble:interactive_ui_tests",
+  "//chrome/browser/actor/ui/task_list_bubble:unit_tests",
+  "//chrome/browser/ui/autofill:unit_tests",
+  "//chrome/browser/indigo:unit_tests",
+  "//chrome/browser/record_replay:unit_tests",
   "//chrome/browser/ui/tabs:browser_tests",
   "//chrome/browser/ui/tabs:test_support",
   "//chrome/browser/ui/tabs:unit_tests",
@@ -36,7 +41,8 @@ update_target("//chrome/browser/skills:unit_tests") {
   deps = []
 }
 
-update_target("//chrome/browser/extensions/api/pdf_viewer_private:browser_tests") {
+update_target(
+    "//chrome/browser/extensions/api/pdf_viewer_private:browser_tests") {
   deps = []
 }
 

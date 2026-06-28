@@ -25,6 +25,8 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ActivityTabProvider;
+import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
+import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;
 import org.chromium.chrome.browser.layouts.LayoutManager;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider.LayoutStateObserver;
@@ -34,6 +36,7 @@ import org.chromium.chrome.browser.lifecycle.DestroyObserver;
 import org.chromium.chrome.browser.lifecycle.TopResumedActivityChangedObserver;
 import org.chromium.chrome.browser.ntp.NewTabPage;
 import org.chromium.chrome.browser.ntp_customization.NtpCustomizationConfigManager;
+import org.chromium.chrome.browser.ntp_customization.NtpCustomizationConfigManager.HomepageStateListener;
 import org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType;
 import org.chromium.chrome.browser.ntp_customization.theme.chrome_colors.NtpThemeColorInfo;
 import org.chromium.chrome.browser.ntp_customization.theme.upload_image.BackgroundImageInfo;
@@ -47,8 +50,10 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiThemeUtil;
 import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.top.TopToolbarCoordinator;
+import org.chromium.chrome.browser.ui.bottombar.BottomBarConfigUtils;
 import org.chromium.chrome.browser.ui.desktop_windowing.AppHeaderUtils;
 import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeUtils;
+import org.chromium.chrome.browser.ui.theme.ChromeSemanticColorUtils;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
 import org.chromium.components.browser_ui.styles.ChromeColors;
 import org.chromium.components.browser_ui.widget.scrim.ScrimProperties;
@@ -56,6 +61,9 @@ import org.chromium.ui.UiUtils;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.edge_to_edge.EdgeToEdgeSystemBarColorHelper;
 import org.chromium.ui.util.ColorUtils;
+
+import java.util.Map;
+import java.util.WeakHashMap;
 
 // Vivaldi
 import org.vivaldi.browser.common.VivaldiUtils;
@@ -83,6 +91,8 @@ public class StatusBarColorController
     public static final @ColorInt int UNDEFINED_STATUS_BAR_COLOR = Color.TRANSPARENT;
     public static final @ColorInt int DEFAULT_STATUS_BAR_COLOR = Color.argb(0x01, 0, 0, 0);
 
+    private static final Map<Activity, Integer> sTaskDescriptionColors = new WeakHashMap<>();
+
     /** Provides the base status bar color. */
     public interface StatusBarColorProvider {
         /**
@@ -107,6 +117,7 @@ public class StatusBarColorController
     private final Callback<TabModel> mCurrentTabModelObserver;
     private final TopUiThemeColorProvider mTopUiThemeColor;
     private final EdgeToEdgeSystemBarColorHelper mEdgeToEdgeSystemBarColorHelper;
+    private final BrowserControlsStateProvider mBrowserControlsStateProvider;
     private final @ColorInt int mStandardDefaultThemeColor;
     private final @ColorInt int mIncognitoDefaultThemeColor;
     private final @ColorInt int mActiveOmniboxDefaultColor;
@@ -120,6 +131,7 @@ public class StatusBarColorController
     private boolean mToolbarColorChanged;
     private @ColorInt int mToolbarColor;
     private @ColorInt int mBackgroundColorForNtp;
+    private @ColorInt int mTaskDescriptionBackgroundColor = Color.TRANSPARENT;
 
     // A flag to force using a light status bar icon color for NTP. When a customized background
     // image is set for NTP, a light status bar icon color is used. However, when NTP is scrolling
@@ -149,7 +161,7 @@ public class StatusBarColorController
     // Desktop window states.
     private boolean mIsTopResumedActivity;
 
-    private NtpCustomizationConfigManager.@Nullable HomepageStateListener mHomepageStateListener;
+    private @Nullable HomepageStateListener mHomepageStateListener;
 
     private final LayoutStateObserver mLayoutStateObserver =
             new LayoutStateObserver() {
@@ -178,6 +190,7 @@ public class StatusBarColorController
      * @param edgeToEdgeSystemBarColorHelper Draws status bar color for Edge to Edge.
      * @param desktopWindowStateManager Instance to retrieve desktop window information.
      * @param overviewColorSupplier Notifies when the overview color changes.
+     * @param browserControlsStateProvider Provides the state of the browser controls.
      */
     public StatusBarColorController(
             Activity activity,
@@ -189,13 +202,15 @@ public class StatusBarColorController
             TopUiThemeColorProvider topUiThemeColorProvider,
             EdgeToEdgeSystemBarColorHelper edgeToEdgeSystemBarColorHelper,
             @Nullable DesktopWindowStateManager desktopWindowStateManager,
-            NonNullObservableSupplier<Integer> overviewColorSupplier) {
+            NonNullObservableSupplier<Integer> overviewColorSupplier,
+            BrowserControlsStateProvider browserControlsStateProvider) {
         mActivity = activity;
         mWindow = activity.getWindow();
         mIsTablet = false; // Vivaldi. We change color on tablet as well.
         mStatusBarColorProvider = statusBarColorProvider;
         mAllowToolbarColorOnTablets = false;
         mOverviewColorSupplier = overviewColorSupplier;
+        mBrowserControlsStateProvider = browserControlsStateProvider;
 
         mStandardDefaultThemeColor =
                 ChromeColors.getDefaultThemeColor(activity, /* isIncognito= */ false);
@@ -203,7 +218,7 @@ public class StatusBarColorController
                 ChromeColors.getDefaultThemeColor(activity, /* isIncognito= */ true);
 
         mDefaultBackgroundColorForNtp =
-                ContextCompat.getColor(activity, R.color.home_surface_background_color);
+                ChromeSemanticColorUtils.getHomeSurfaceBackgroundColor(activity);
         mBackgroundColorForNtp = mDefaultBackgroundColorForNtp;
         mStatusIndicatorColor = UNDEFINED_STATUS_BAR_COLOR;
 
@@ -284,7 +299,7 @@ public class StatusBarColorController
                     // When opening a new Incognito Tab from a normal Tab (or vice versa), the
                     // status bar color is updated. However, this update is triggered after the
                     // animation, so we update here for the duration of the new Tab animation.
-                    // See https://crbug.com/917689.
+                    // See https://crbug.com/41433194.
                     updateStatusBarColor();
                 };
 
@@ -320,16 +335,16 @@ public class StatusBarColorController
      * Initializes to support customized NTP's background color if supportEdgeToEdge is true.
      *
      * @param context The application context.
-     * @param supportEdgeToEdge Whether to support making NTPs edge-to-edge.
+     * @param supportEdgeToEdgeOnTop Whether to support making NTPs edge-to-edge.
      */
-    public void maybeInitializeForCustomizedNtp(Context context, boolean supportEdgeToEdge) {
-        if (!supportEdgeToEdge) return;
+    public void maybeInitializeForCustomizedNtp(Context context, boolean supportEdgeToEdgeOnTop) {
+        if (!supportEdgeToEdgeOnTop) return;
 
         var ntpCustomizationConfigManager = NtpCustomizationConfigManager.getInstance();
         mBackgroundColorForNtp = ntpCustomizationConfigManager.getBackgroundColor(context);
 
         mHomepageStateListener =
-                new NtpCustomizationConfigManager.HomepageStateListener() {
+                new HomepageStateListener() {
                     @Override
                     public void onBackgroundColorChanged(
                             @Nullable NtpThemeColorInfo ntpThemeColorInfo,
@@ -532,6 +547,26 @@ public class StatusBarColorController
                 mActivity,
                 statusBarColor,
                 mForceLightIconColorForNtp && isStandardNtp() && !mIsOmniboxFocused);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            @ColorInt
+            int tabStripColor =
+                    TabUiThemeUtil.getTabStripBackgroundColor(
+                            mWindow.getContext(),
+                            mIsIncognitoBranded,
+                            AppHeaderUtils.isAppInDesktopWindow(mDesktopWindowStateManager),
+                            mIsTopResumedActivity);
+
+            @ColorInt int opaqueBgColor = ColorUtils.getOpaqueColor(tabStripColor);
+
+            if (mTaskDescriptionBackgroundColor != opaqueBgColor) {
+                mTaskDescriptionBackgroundColor = opaqueBgColor;
+                mActivity.setTaskDescription(
+                        new ActivityManager.TaskDescription.Builder()
+                                .setBackgroundColor(opaqueBgColor)
+                                .build());
+            }
+        }
     }
 
     /**
@@ -548,7 +583,7 @@ public class StatusBarColorController
 
     /**
      * @return The status bar color without the status indicator's color taken into consideration.
-     *         However, scrimming isn't included since it's managed completely by this class.
+     *     However, scrimming isn't included since it's managed completely by this class.
      */
     public @ColorInt int getStatusBarColorWithoutStatusIndicator() {
         return mStatusBarColorWithoutStatusIndicator;
@@ -592,7 +627,9 @@ public class StatusBarColorController
         if (!BuildConfig.IS_VIVALDI)
         if (mIsOmniboxFocused) {
             // If the flag is enabled, we will use the toolbar color.
-            if (mToolbarColorChanged) return mToolbarColor;
+            if (mToolbarColorChanged && !isBottomBarEnabledAndBottomControls()) {
+                return mToolbarColor;
+            }
             return calculateDefaultStatusBarColor();
         }
 
@@ -620,7 +657,7 @@ public class StatusBarColorController
         }
 
         // If the flag is enabled, we will use the toolbar color.
-        if (mToolbarColorChanged) return mToolbarColor;
+        if (mToolbarColorChanged && !isBottomBarEnabledAndBottomControls()) return mToolbarColor;
         return mTopUiThemeColor.getThemeColorOrFallback(
                 mCurrentTab, calculateDefaultStatusBarColor());
     }
@@ -687,10 +724,21 @@ public class StatusBarColorController
             UiUtils.setStatusBarColor(window, color);
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            var taskDescription =
-                    new ActivityManager.TaskDescription.Builder().setStatusBarColor(color).build();
-            activity.setTaskDescription(taskDescription);
+        @ColorInt int opaqueColor = ColorUtils.getOpaqueColor(color);
+        Integer currentPrimaryColor = sTaskDescriptionColors.get(activity);
+
+        if (currentPrimaryColor == null || currentPrimaryColor != opaqueColor) {
+            sTaskDescriptionColors.put(activity, opaqueColor);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                activity.setTaskDescription(
+                        new ActivityManager.TaskDescription.Builder()
+                                .setPrimaryColor(opaqueColor)
+                                .setStatusBarColor(opaqueColor)
+                                .build());
+            } else {
+                activity.setTaskDescription(
+                        new ActivityManager.TaskDescription(null, null, opaqueColor));
+            }
         }
     }
 
@@ -749,6 +797,11 @@ public class StatusBarColorController
         if (BuildConfig.IS_VIVALDI)
             return mCurrentTab != null && mCurrentTab.getNativePage() instanceof SpeedDialPage;
         return mCurrentTab != null && mCurrentTab.getNativePage() instanceof NewTabPage;
+    }
+
+    private boolean isBottomBarEnabledAndBottomControls() {
+        return mBrowserControlsStateProvider.getControlsPosition() == ControlsPosition.BOTTOM
+                && BottomBarConfigUtils.isBottomBarEnabled(mActivity);
     }
 
     @ColorInt

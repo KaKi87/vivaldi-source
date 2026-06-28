@@ -18,6 +18,7 @@
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_in_progress.h"
 #import "ios/chrome/browser/policy/model/policy_util.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/scene_ui_blocker_state.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -31,6 +32,8 @@
 #import "ios/web/public/test/web_task_environment.h"
 #import "testing/gtest/include/gtest/gtest.h"
 #import "testing/platform_test.h"
+#import "third_party/ocmock/OCMock/OCMock.h"
+#import "third_party/ocmock/gtest_support.h"
 
 // Fake SceneState to set sceneSessionID.
 @interface TaskUpdaterFakeSceneState : SceneState
@@ -103,6 +106,15 @@ class TaskUpdaterSceneAgentTest : public PlatformTest {
 
     agent_ = [[TaskUpdaterSceneAgent alloc] init];
     [scene_state_ addAgent:agent_];
+
+    mock_application_ = OCMPartialMock([UIApplication sharedApplication]);
+    OCMStub([mock_application_ applicationState])
+        .andReturn(UIApplicationStateActive);
+  }
+
+  void TearDown() override {
+    [(OCMockObject*)mock_application_ stopMocking];
+    PlatformTest::TearDown();
   }
 
   AuthenticationService* auth_service() {
@@ -123,6 +135,7 @@ class TaskUpdaterSceneAgentTest : public PlatformTest {
   ProfileState* profile_state_;
   TaskUpdaterFakeSceneState* scene_state_;
   TaskUpdaterSceneAgent* agent_;
+  id mock_application_;
 };
 
 // Tests that TaskExecutionProfileLoaded is sent when profile is loaded.
@@ -179,7 +192,7 @@ TEST_F(TaskUpdaterSceneAgentTest, TestModalOverlay) {
   scene_state_.UIEnabled = YES;
 
   // Set presenting modal overlay before becoming active.
-  scene_state_.presentingModalOverlay = YES;
+  scene_state_.uiBlockerState.presentingModalOverlay = YES;
 
   scene_state_.activationLevel = SceneActivationLevelForegroundActive;
 
@@ -188,7 +201,7 @@ TEST_F(TaskUpdaterSceneAgentTest, TestModalOverlay) {
             TaskExecutionStage::TaskExecutionUIReady);
 
   // Hide modal overlay.
-  scene_state_.presentingModalOverlay = NO;
+  scene_state_.uiBlockerState.presentingModalOverlay = NO;
 
   EXPECT_EQ(fake_task_orchestrator_.stage,
             TaskExecutionStage::TaskExecutionUIReady);

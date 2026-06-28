@@ -8,6 +8,21 @@
 #include "base/functional/bind.h"
 #include "base/notimplemented.h"
 
+namespace {
+
+bool IsStatusTrayAvailable() {
+  // During browser shutdown, the UI and window manager (`ash::Shell`) are torn
+  // down before global browser features. Specifically, `ash::Shell` is
+  // destroyed in `ChromeBrowserMainExtraPartsAsh::PostMainMessageLoopRun()`,
+  // whereas components like `GlicBackgroundModeManager` (which holds onto
+  // `StatusIconChromeOS`) are destroyed later during
+  // `BrowserProcessImpl::StartTearDown()`. We must check if `ash::Shell` still
+  // exists before attempting to interact with it.
+  return ash::Shell::HasInstance();
+}
+
+}  // namespace
+
 using TrayIconConfiguration = ash::TrayIconConfiguration;
 
 StatusIconChromeOS::StatusIconChromeOS(int64_t icon_id) : id_(icon_id) {
@@ -15,12 +30,7 @@ StatusIconChromeOS::StatusIconChromeOS(int64_t icon_id) : id_(icon_id) {
 }
 
 StatusIconChromeOS::~StatusIconChromeOS() {
-  TrayIconConfiguration icon_config;
-  icon_config.id = id_;
-
-  for (const auto& display : display::Screen::Get()->GetAllDisplays()) {
-    ash::Shell::Get()->RemoveStatusTrayIcon(icon_config, display.id());
-  }
+  RemoveTrayIconFromDisplays(display::Screen::Get()->GetAllDisplays());
 }
 
 void StatusIconChromeOS::Initialize() {
@@ -37,31 +47,15 @@ void StatusIconChromeOS::OnClick() {
 
 void StatusIconChromeOS::SetImage(const gfx::ImageSkia& image) {
   image_ = image;
-  if (!initialized_) {
-    return;
-  }
-
-  TrayIconConfiguration icon_config;
-  icon_config.id = id_;
-  icon_config.image = image_;
-
-  for (const auto& display : display::Screen::Get()->GetAllDisplays()) {
-    ash::Shell::Get()->UpdateStatusTrayIcon(icon_config, display.id());
+  if (initialized_) {
+    UpdateTrayIconForAllDisplays();
   }
 }
 
 void StatusIconChromeOS::SetToolTip(const std::u16string& tool_tip) {
   tool_tip_ = tool_tip;
-  if (!initialized_) {
-    return;
-  }
-
-  TrayIconConfiguration icon_config;
-  icon_config.id = id_;
-  icon_config.tool_tip = tool_tip_;
-
-  for (const auto& display : display::Screen::Get()->GetAllDisplays()) {
-    ash::Shell::Get()->UpdateStatusTrayIcon(icon_config, display.id());
+  if (initialized_) {
+    UpdateTrayIconForAllDisplays();
   }
 }
 
@@ -83,22 +77,53 @@ void StatusIconChromeOS::OnDisplayAdded(const display::Display& new_display) {
 
 void StatusIconChromeOS::OnWillRemoveDisplays(
     const display::Displays& removed_displays) {
-  TrayIconConfiguration icon_config;
-  icon_config.id = id_;
-
-  for (const auto& display : removed_displays) {
-    ash::Shell::Get()->RemoveStatusTrayIcon(icon_config, display.id());
-  }
+  RemoveTrayIconFromDisplays(removed_displays);
 }
 
 void StatusIconChromeOS::AddStatusIconForDisplay(int64_t display_id) {
+  if (!IsStatusTrayAvailable()) {
+    return;
+  }
+
   TrayIconConfiguration icon_config;
-  icon_config.id = id_;
-  icon_config.tool_tip = tool_tip_;
-  icon_config.image = image_;
+  PopulateTrayIconConfiguration(icon_config);
 
   ash::Shell::Get()->AddStatusTrayIcon(
       icon_config, display_id,
       base::BindRepeating(&StatusIconChromeOS::OnClick,
                           base::Unretained(this)));
+}
+
+void StatusIconChromeOS::PopulateTrayIconConfiguration(
+    ash::TrayIconConfiguration& config) const {
+  config.id = id_;
+  config.tool_tip = tool_tip_;
+  config.image = image_;
+}
+
+void StatusIconChromeOS::UpdateTrayIconForAllDisplays() {
+  if (!IsStatusTrayAvailable()) {
+    return;
+  }
+
+  TrayIconConfiguration icon_config;
+  PopulateTrayIconConfiguration(icon_config);
+
+  for (const auto& display : display::Screen::Get()->GetAllDisplays()) {
+    ash::Shell::Get()->UpdateStatusTrayIcon(icon_config, display.id());
+  }
+}
+
+void StatusIconChromeOS::RemoveTrayIconFromDisplays(
+    const display::Displays& displays) {
+  if (!IsStatusTrayAvailable()) {
+    return;
+  }
+
+  TrayIconConfiguration icon_config;
+  icon_config.id = id_;
+
+  for (const auto& display : displays) {
+    ash::Shell::Get()->RemoveStatusTrayIcon(icon_config, display.id());
+  }
 }

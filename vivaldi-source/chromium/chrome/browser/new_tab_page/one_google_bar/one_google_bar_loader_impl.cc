@@ -13,6 +13,7 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/json/json_writer.h"
+#include "base/strings/escape.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
 #include "build/build_config.h"
@@ -35,7 +36,7 @@
 #include "url/gurl.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
-#include "chrome/browser/signin/chrome_signin_helper.h"
+#include "chrome/browser/signin/chrome_signin_helper.h"  // nogncheck crbug.com/40147906
 #include "components/signin/core/browser/chrome_connected_header_helper.h"
 #include "components/signin/core/browser/signin_header_helper.h"
 #endif
@@ -263,7 +264,7 @@ void OneGoogleBarLoaderImpl::AuthenticatedURLLoader::Start() {
       network::mojom::CredentialsMode::kInclude;
   SetRequestHeaders(resource_request.get());
   resource_request->request_initiator =
-      url::Origin::Create(GURL(chrome::kChromeUINewTabURL));
+      url::Origin::Create(chrome::ChromeUINewTabURLAsGURL());
   // Adds cookies even if 3P cookies are blocked. See b/297160590.
   resource_request->site_for_cookies = net::SiteForCookies::FromUrl(api_url_);
 
@@ -336,13 +337,16 @@ GURL OneGoogleBarLoaderImpl::GetApiUrl() const {
   }
 
   for (const auto& param_pair : additional_query_params_) {
-    // Add the "async=" parameter. We can't use net::AppendQueryParameter for
-    // this because we need the ":" to remain unescaped.
+    // Escape to neutralize injection chars (e.g., '&', '='), then restore the
+    // ':' and ',' that the backend requires to stay literal in "async".
     if (param_pair.first == "async") {
-      std::string query = api_url.GetQuery() + "&async=" + param_pair.second;
-      if (query.at(0) == '&') {
-        query = query.substr(1);
-      }
+      std::string async_value =
+          base::EscapeQueryParamValue(param_pair.second, /*use_plus*/ true);
+      base::ReplaceSubstringsAfterOffset(&async_value, 0, "%2C", ",");
+      base::ReplaceSubstringsAfterOffset(&async_value, 0, "%3A", ":");
+      std::string query = api_url.GetQuery();
+      query = query.empty() ? "async=" + async_value
+                            : query + "&async=" + async_value;
       GURL::Replacements replacements;
       replacements.SetQueryStr(query);
       api_url = api_url.ReplaceComponents(replacements);

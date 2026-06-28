@@ -260,7 +260,7 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
         if (mPersistencePolicy.isMergeInProgress()) return;
 
         // TODO(smaier): We likely can move everything onto the SequencedTaskRunner when the
-        // SERIAL_EXECUTOR path is gone. crbug.com/957735
+        // SERIAL_EXECUTOR path is gone. crbug.com/40625164
         TaskRunner taskRunner =
                 needsInitialization ? mSequencedTaskRunner : PostTask.getTaskRunner(taskTraits);
 
@@ -334,8 +334,7 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
                     public void didSelectTab(Tab tab, @TabSelectionType int type, int lastId) {
                         // Initialization will create the current tab and select it, this isn't a
                         // meaningful change that needs to be saved.
-                        if (ChromeFeatureList.sTabModelInitFixes.isEnabled()
-                                && !mTabModelSelector.isTabStateInitialized()
+                        if (!mTabModelSelector.isTabStateInitialized()
                                 && lastId == TabList.INVALID_TAB_INDEX) {
                             return;
                         }
@@ -356,8 +355,7 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
                             boolean markedForSelection) {
                         // Ignore all tabs being restored as part of init, they're all already on
                         // disk.
-                        if (ChromeFeatureList.sTabModelInitFixes.isEnabled()
-                                && !mTabModelSelector.isTabStateInitialized()
+                        if (!mTabModelSelector.isTabStateInitialized()
                                 && type == TabLaunchType.FROM_RESTORE) {
                             return;
                         }
@@ -433,11 +431,9 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
                 int id = tab.getId();
                 boolean incognito = tab.isIncognito();
                 try {
-                    if (ChromeFeatureList.sTabModelInitFixes.isEnabled()) {
-                        TabStateAttributes attributes = TabStateAttributes.from(tab);
-                        if (attributes != null) {
-                            attributes.clearTabStateDirtiness();
-                        }
+                    TabStateAttributes attributes = TabStateAttributes.from(tab);
+                    if (attributes != null) {
+                        attributes.clearTabStateDirtiness();
                     }
                     TabState state = TabStateExtractor.from(tab);
                     if (state != null) {
@@ -492,21 +488,22 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
     }
 
     @VisibleForTesting
-    /* package */ void initializeRestoreVars(boolean ignoreIncognitoFiles) {
-        mCancelNormalTabLoads = false;
+    /* package */ void initializeRestoreVars(
+            boolean ignoreIncognitoFiles, boolean ignoreRegularFiles) {
+        mCancelNormalTabLoads = ignoreRegularFiles;
         mCancelIncognitoTabLoads = ignoreIncognitoFiles;
         mNormalTabsRestored = new SparseIntArray();
         mIncognitoTabsRestored = new SparseIntArray();
     }
 
     @Override
-    public void loadState(boolean ignoreIncognitoFiles) {
+    public void loadState(boolean ignoreIncognitoFiles, boolean ignoreRegularFiles) {
         // If a cleanup task is in progress, cancel it before loading state.
         mPersistencePolicy.cancelCleanupInProgress();
 
         waitForMigrationToFinish();
 
-        initializeRestoreVars(ignoreIncognitoFiles);
+        initializeRestoreVars(ignoreIncognitoFiles, ignoreRegularFiles);
 
         try {
             mTabRestoreStartTime = SystemClock.elapsedRealtime();
@@ -579,7 +576,7 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
         }
 
         // Initialize variables.
-        initializeRestoreVars(false);
+        initializeRestoreVars(mCancelIncognitoTabLoads, mCancelNormalTabLoads);
 
         try {
             // Read the tab state metadata file.
@@ -610,7 +607,7 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
         if (setActiveTab) {
             // Restore and select the active tab, which is first in the restore list.
             // If the active tab can't be restored, restore and select another tab. Otherwise, the
-            // tab model won't have a valid index and the UI will break. http://crbug.com/261378
+            // tab model won't have a valid index and the UI will break. http://crbug.com/41026812
             while (!mTabsToRestore.isEmpty()
                     && assumeNonNull(mNormalTabsRestored).size() == 0
                     && assumeNonNull(mIncognitoTabsRestored).size() == 0) {
@@ -666,7 +663,7 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
         StrictMode.ThreadPolicy oldPolicy = StrictMode.allowThreadDiskReads();
         // As we add more field to TabState, we are crossing the 10 operation counts threshold to
         // enforce the detection of unbuffered input/output operations, which results in
-        // https://crbug.com/1276907. After evaluating the performance impact, here we disabled the
+        // https://crbug.com/40809202. After evaluating the performance impact, here we disabled the
         // detection of unbuffered input/output operations.
         // This will no longer be necessary when the TabState schema is replaced with
         // a FlatBuffer approach - go/tabstate-flatbuffer-decision.
@@ -996,13 +993,16 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
         }
         mPersistencePolicy.destroy();
         if (mTabBatchLoader != null) {
-            mTabBatchLoader.cancel(true);
+            // Avoid cancel(true): interrupting a FileChannel read causes the main thread to block
+            // in NativeThreadSet.signalAndWait (ANR). mDestroyed/isCancelled() guards drop results.
+            mTabBatchLoader.cancel(false);
             mTabBatchLoader = null;
         }
         mTabsToSave.clear();
         mTabsToRestore.clear();
         if (mSaveTabTask != null) mSaveTabTask.cancel(false);
-        if (mSaveListTask != null) mSaveListTask.cancel(true);
+        // Same reason as mTabBatchLoader: SaveListTask writes via FileChannel.
+        if (mSaveListTask != null) mSaveListTask.cancel(false);
     }
 
     private void cleanupPersistentData(int id, boolean incognito) {
@@ -1019,7 +1019,8 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
         if (mTabBatchLoader != null) tabsToRestore.addAll(mTabBatchLoader.getTabsInBatch());
         tabsToRestore.addAll(mTabsToRestore);
 
-        return extractTabMetadataFromSelector(mTabModelSelector, tabsToRestore);
+        return extractTabMetadataFromSelector(
+                mTabModelSelector, tabsToRestore, mPersistencePolicy.isRecreating());
     }
 
     private void saveListToFile(TabModelSelectorMetadata listData) {
@@ -1028,6 +1029,11 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
         File metadataFile = new File(getStateDirectory(), mPersistencePolicy.getMetadataFileName());
         TabMetadataFileManager.saveListToFile(metadataFile, listData);
         mLastSavedMetadata = listData;
+    }
+
+    private boolean shouldCancelTabLoad(@Nullable Boolean isIncognito) {
+        return (mCancelIncognitoTabLoads && Boolean.TRUE.equals(isIncognito))
+                || (mCancelNormalTabLoads && Boolean.FALSE.equals(isIncognito));
     }
 
     /**
@@ -1042,7 +1048,7 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
                 @Nullable Boolean isIncognito,
                 boolean isStandardActiveIndex,
                 boolean isIncognitoActiveIndex) -> {
-            if (mCancelIncognitoTabLoads && (isIncognito != null && isIncognito)) {
+            if (shouldCancelTabLoad(isIncognito)) {
                 return;
             }
 
@@ -1221,9 +1227,7 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
 
     @Override
     public void resumeSaveTabList(Runnable onSaveTabListRunnable) {
-        boolean shouldTriggerSave =
-                !ChromeFeatureList.sTabModelInitFixes.isEnabled()
-                        || mMetadataSaveMode == MetadataSaveMode.PAUSED_AND_DIRTY;
+        boolean shouldTriggerSave = mMetadataSaveMode == MetadataSaveMode.PAUSED_AND_DIRTY;
         mMetadataSaveMode = MetadataSaveMode.SAVING_ALLOWED;
         if (shouldTriggerSave) {
             addObserver(
@@ -1841,18 +1845,21 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
      *
      * @param selector The {@link TabModelSelector} to process.
      * @param tabsBeingRestored Tabs that are in the process of being restored.
+     * @param isRecreating Whether the current activity is recreating.
      * @return {@link TabModelSelectorMetadata} containing the meta data of {@code selector}.
      */
     @VisibleForTesting
     public static TabModelSelectorMetadata extractTabMetadataFromSelector(
-            TabModelSelector selector, @Nullable List<TabRestoreDetails> tabsBeingRestored) {
+            TabModelSelector selector,
+            @Nullable List<TabRestoreDetails> tabsBeingRestored,
+            boolean isRecreating) {
         ThreadUtils.assertOnUiThread();
 
         // TODO(crbug.com/40549331): Convert TabModelMetadata to use GURL.
-        TabModelMetadata incognitoInfo = metadataFromModel(selector, true);
+        TabModelMetadata incognitoInfo = metadataFromModel(selector, true, isRecreating);
 
         TabModel normalModel = selector.getModel(false);
-        TabModelMetadata normalInfo = metadataFromModel(selector, false);
+        TabModelMetadata normalInfo = metadataFromModel(selector, false, isRecreating);
 
         // Cache the active tab id to be pre-loaded next launch.
         int activeTabId = Tab.INVALID_TAB_ID;
@@ -1871,7 +1878,7 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
         // worry about Tab duplication because the tab details are processed only on the UI Thread.
         if (tabsBeingRestored != null) {
             for (TabRestoreDetails details : tabsBeingRestored) {
-                // isIncognito was added in M61 (see https://crbug.com/485217), so it is extremely
+                // isIncognito was added in M61 (see https://crbug.com/40417122), so it is extremely
                 // unlikely that isIncognito will be null. But if it is, assume that the tab is
                 // incognito so that #restoreTab() will require a tab state file on disk to
                 // restore. If a tab state file exists and the tab is not actually incognito, it
@@ -1915,9 +1922,10 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
      *
      * @param selector The object of {@link TabModelSelector}
      * @param isIncognito Whether the TabModel is incognito.
+     * @param isRecreating Whether the current activity is recreating.
      */
     private static TabModelMetadata metadataFromModel(
-            TabModelSelector selector, boolean isIncognito) {
+            TabModelSelector selector, boolean isIncognito, boolean isRecreating) {
         TabModel tabModel = selector.getModel(isIncognito);
         TabModelMetadata modelInfo = new TabModelMetadata(tabModel.index());
 
@@ -1940,7 +1948,7 @@ public class TabPersistentStoreImpl implements TabPersistentStore {
                 // If any non-active NTPs have been skipped, the serialized tab model index
                 // needs to be adjusted.
                 modelInfo.index = modelInfo.ids.size();
-            } else if (TabPersistenceUtils.shouldSkipTab(tab)) {
+            } else if (TabPersistenceUtils.shouldSkipTab(tab, isRecreating)) {
                 continue;
             }
             modelInfo.ids.add(tab.getId());

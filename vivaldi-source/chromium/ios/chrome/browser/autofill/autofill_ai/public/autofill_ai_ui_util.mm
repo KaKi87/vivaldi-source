@@ -4,8 +4,10 @@
 
 #import "ios/chrome/browser/autofill/autofill_ai/public/autofill_ai_ui_util.h"
 
+#import "base/feature_list.h"
 #import "base/strings/sys_string_conversions.h"
 #import "components/autofill/core/browser/data_model/autofill_ai/entity_type.h"
+#import "components/autofill/core/common/autofill_payments_features.h"
 #import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/shared/ui/buildflags.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
@@ -177,12 +179,11 @@ NSString* GetSaveEntityToWalletFooterText(NSString* user_email) {
       l10n_util::GetNSString(IDS_AUTOFILL_MANAGE_YOUR_INFO_LINK);
   NSString* formattedLink =
       [NSString stringWithFormat:@"BEGIN_LINK%@END_LINK", linkText];
-  return l10n_util::GetNSStringF(
-      IDS_AUTOFILL_AI_SAVE_ENTITY_TO_WALLET_DIALOG_SUBTITLE_NEW,
-      base::SysNSStringToUTF16(googleWallet),
-      base::SysNSStringToUTF16(formattedLink),
-      base::SysNSStringToUTF16(googleWallet),
-      base::SysNSStringToUTF16(user_email));
+  return l10n_util::GetNSStringF(GetSaveToWalletSubtitleStringId(),
+                                 base::SysNSStringToUTF16(googleWallet),
+                                 base::SysNSStringToUTF16(formattedLink),
+                                 base::SysNSStringToUTF16(googleWallet),
+                                 base::SysNSStringToUTF16(user_email));
 }
 
 NSString* GetUpdateEntitySavedInWalletFooterText(NSString* user_email) {
@@ -206,8 +207,11 @@ GURL GetGoogleWalletPassesURL() {
 
 UIImage* GetWalletLogo(CGFloat point_size, UIColor* tint_color) {
 #if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
-  return MakeSymbolMulticolor(
-      CustomSymbolWithPointSize(kGoogleWalletIconSymbol, point_size));
+  NSString* symbol = base::FeatureList::IsEnabled(
+                         autofill::features::kAutofillEnableGradientGoogleLogos)
+                         ? kGoogleWalletIconV2Symbol
+                         : kGoogleWalletIconSymbol;
+  return MakeSymbolMulticolor(CustomSymbolWithPointSize(symbol, point_size));
 #else
   return SymbolWithPalette(
       DefaultSymbolWithPointSize(kSparklesSymbol, point_size),
@@ -223,6 +227,14 @@ UIView* CreateBrandedTitleForWalletSave(NSString* title) {
   titleView.titleLogoSpacing = kWalletLogoSpacing;
   titleView.accessibilityLabel = title;
   return titleView;
+}
+
+int GetSaveToWalletSubtitleStringId() {
+  return IDS_AUTOFILL_AI_SAVE_ENTITY_TO_WALLET_DIALOG_SUBTITLE_NEW;
+}
+
+int GetSaveEntityAcceptButtonStringId() {
+  return IDS_AUTOFILL_SAVE_ADDRESS_PROMPT_OK_BUTTON_LABEL;
 }
 
 }  // namespace autofill

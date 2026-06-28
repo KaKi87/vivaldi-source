@@ -9,7 +9,6 @@
 #include "base/mac/mac_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/grit/generated_resources.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host.h"
@@ -124,7 +123,7 @@ void RenderViewContextMenuMac::UpdateTextDirection(
   }
 
   // Note: we get the local render frame host so that the writing mode settings
-  // changes apply to the correct frame. See crbug.com/1129073 for a
+  // changes apply to the correct frame. See crbug.com/40149229 for a
   // description of what happens if we use the outermost frame.
   content::RenderFrameHost* rfh = GetRenderFrameHost();
   // It's possible that the frame drops out from under us while the context

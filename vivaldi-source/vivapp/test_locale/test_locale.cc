@@ -7,6 +7,7 @@
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/i18n/icu_util.h"
+#include "base/strings/utf_string_conversions.h"
 
 #include "extensions/common/extension_l10n_util.h"
 #include "extensions/common/manifest_constants.h"
@@ -28,7 +29,7 @@ int main() {
   if (!extension_l10n_util::ValidateExtensionLocales(
           base::FilePath(FILE_PATH_LITERAL("resources/vivaldi")), manifest,
           &error)) {
-    std::cerr << "Extension contains errors:\n\n" << error << "\n";
+    std::cerr << "Extension contains errors:\n\n" << base::UTF16ToUTF8(error) << "\n";
     return 1;
   }
 

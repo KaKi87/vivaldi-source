@@ -27,9 +27,10 @@
 
 #include <array>
 
-#include "dawn/common/TypedInteger.h"
-#include "dawn/common/ityp_span.h"
 #include "gtest/gtest.h"
+#include "src/dawn/common/TypedInteger.h"
+#include "src/dawn/common/ityp_span.h"
+#include "src/utils/compiler.h"
 
 namespace dawn {
 namespace {
@@ -81,7 +82,7 @@ TEST_F(ITypSpanTest, BeginEndFrontBackData) {
 
     // non-const versions
     ASSERT_EQ(&*span.begin(), &span[Key(0)]);
-    ASSERT_EQ(&*span.end(), &span[Key(0)] + static_cast<size_t>(span.size()));
+    DAWN_UNSAFE_TODO(ASSERT_EQ(&*span.end(), &span[Key(0)] + static_cast<size_t>(span.size())));
     ASSERT_EQ(&span.front(), &span[Key(0)]);
     ASSERT_EQ(&span.back(), &span[Key(9)]);
     ASSERT_EQ(span.data(), &span[Key(0)]);
@@ -89,7 +90,8 @@ TEST_F(ITypSpanTest, BeginEndFrontBackData) {
     // const versions
     const Span& constSpan = span;
     ASSERT_EQ(&*constSpan.begin(), &constSpan[Key(0)]);
-    ASSERT_EQ(&*constSpan.end(), &constSpan[Key(0)] + static_cast<size_t>(constSpan.size()));
+    DAWN_UNSAFE_TODO(
+        ASSERT_EQ(&*constSpan.end(), &constSpan[Key(0)] + static_cast<size_t>(constSpan.size())));
     ASSERT_EQ(&constSpan.front(), &constSpan[Key(0)]);
     ASSERT_EQ(&constSpan.back(), &constSpan[Key(9)]);
     ASSERT_EQ(constSpan.data(), &constSpan[Key(0)]);
@@ -139,6 +141,28 @@ TEST_F(ITypSpanDeathTest, OutOfBounds) {
 
     const Span& constSpan = span;
     EXPECT_DEATH(constSpan[Key(10)], "");
+}
+
+// If the index/size is 64-bit, it needs to be narrowed to size_t. Verify that's checked correctly.
+TEST_F(ITypSpanDeathTest, OversizedIndex) {
+    // These tests are only relevant on 32-bit builds.
+    if constexpr (sizeof(size_t) > sizeof(uint32_t)) {
+        GTEST_SKIP();
+    }
+
+    using Key64 = TypedInteger<struct Key64T, uint64_t>;
+    static constexpr Key64 kHugeKey64{0x1'0000'0000LLU};
+
+    std::array<Val, 10> arr;
+    ityp::span<Key64, Val> span(arr.data(), Key64(arr.size()));
+
+    span[Key64(9)];
+    // Regular out-of-bounds.
+    EXPECT_DEATH(span[Key64(10)], "");
+
+    span[Key64(0)];
+    // If this were cast to a 32-bit size_t without a check, it would be in-bounds.
+    EXPECT_DEATH(span[kHugeKey64], "");
 }
 
 }  // anonymous namespace

@@ -7,6 +7,7 @@
 #import "base/apple/foundation_util.h"
 #import "base/strings/sys_string_conversions.h"
 #import "components/bookmarks/browser/bookmark_node.h"
+#import "components/bookmarks/browser/bookmark_utils.h"
 #import "components/url_formatter/elide_url.h"
 #import "ios/chrome/browser/bookmarks/folder_chooser/ui/table_view_bookmarks_folder_item.h"
 #import "ios/chrome/browser/bookmarks/ui_bundled/bookmark_utils_ios.h"
@@ -34,18 +35,63 @@ namespace {
 const NSInteger kNumberOfTitleLines = 2;
 }  // namespace
 
-@implementation BookmarksHomeNodeItem
-@synthesize bookmarkNode = _bookmarkNode;
+@implementation BookmarksHomeNodeItem {
+  // Whether this item represents a folder.
+  BOOL _isFolder;
+  // The title of the node.
+  NSString* _title;
+  // The URL of the node if it’s BookmarkNode.
+  GURL _URL;
+  // The id of the bookmark node used to create this item.
+  int64_t _id_;
+  // Whether a slashed cloud should be displayed.
+  BOOL _shouldDisplayCloudSlashIcon;
+}
+
++ (instancetype)makeItemWithType:(NSInteger)type
+                    bookmarkNode:(const bookmarks::BookmarkNode*)node
+     shouldDisplayCloudSlashIcon:(BOOL)shouldDisplayCloudSlashIcon {
+  CHECK(node);
+
+  if (IsVivaldiRunning()) {
+    BookmarksHomeNodeItem* nodeItem = [[BookmarksHomeNodeItem alloc]
+                       initWithType:type
+                              title:bookmark_utils_ios::TitleForBookmarkNode(
+                                        node)
+                                URL:node->url()
+                                id_:node->id()
+                           isFolder:node->is_folder()
+        shouldDisplayCloudSlashIcon:shouldDisplayCloudSlashIcon];
+    nodeItem.bookmarkNode = node;
+    return nodeItem;
+  }  // End Vivaldi
+
+  return [[BookmarksHomeNodeItem alloc]
+                     initWithType:type
+                            title:bookmark_utils_ios::TitleForBookmarkNode(node)
+                              URL:node->url()
+                              id_:node->id()
+                         isFolder:node->is_folder()
+      shouldDisplayCloudSlashIcon:shouldDisplayCloudSlashIcon];
+}
 
 - (instancetype)initWithType:(NSInteger)type
-                bookmarkNode:(const bookmarks::BookmarkNode*)node {
+                          title:(NSString*)title
+                            URL:(GURL)URL
+                            id_:(int64_t)id_
+                       isFolder:(BOOL)isFolder
+    shouldDisplayCloudSlashIcon:(BOOL)shouldDisplayCloudSlashIcon {
   if ((self = [super initWithType:type])) {
-    if (node->is_folder()) {
+    if (isFolder) {
       self.cellClass = [TableViewBookmarksFolderCell class];
     } else {
       self.cellClass = [LegacyTableViewCell class];
     }
-    _bookmarkNode = node;
+    _isFolder = isFolder;
+    _title = title;
+    _URL = URL;
+    _id_ = id_;
+    _shouldDisplayCloudSlashIcon = shouldDisplayCloudSlashIcon;
   }
   return self;
 }
@@ -54,7 +100,7 @@ const NSInteger kNumberOfTitleLines = 2;
            withStyler:(ChromeTableViewStyler*)styler {
   [super configureCell:cell withStyler:styler];
 
-  if (_bookmarkNode->is_folder()) {
+  if (_isFolder) {
     if (IsVivaldiRunning()) {
       TableViewBookmarksFolderCell* bookmarkCell =
         base::apple::ObjCCastStrict<TableViewBookmarksFolderCell>(cell);
@@ -75,26 +121,23 @@ const NSInteger kNumberOfTitleLines = 2;
       bookmarkCell.accessibilityIdentifier =
           bookmark_utils_ios::TitleForBookmarkNode(_bookmarkNode);
       bookmarkCell.accessibilityTraits |= UIAccessibilityTraitButton;
-    } else {
+    } else { // Vivladi
     TableViewBookmarksFolderCell* bookmarkCell =
         base::apple::ObjCCastStrict<TableViewBookmarksFolderCell>(cell);
-    bookmarkCell.folderTitleTextField.text =
-        bookmark_utils_ios::TitleForBookmarkNode(_bookmarkNode);
+    bookmarkCell.folderTitleTextField.text = _title;
     bookmarkCell.folderImageView.image =
         [UIImage imageNamed:@"bookmark_blue_folder"];
     bookmarkCell.bookmarksAccessoryType =
         BookmarksFolderAccessoryTypeDisclosureIndicator;
-    bookmarkCell.accessibilityIdentifier =
-        bookmark_utils_ios::TitleForBookmarkNode(_bookmarkNode);
+    bookmarkCell.accessibilityIdentifier = _title;
     bookmarkCell.accessibilityTraits |= UIAccessibilityTraitButton;
-    bookmarkCell.cloudSlashedView.hidden = !self.shouldDisplayCloudSlashIcon;
-    } // Vivaldi
+    bookmarkCell.cloudSlashedView.hidden = !_shouldDisplayCloudSlashIcon;
+    } // End Vivaldi
   } else {
     TableViewCellContentConfiguration* configuration =
         [[TableViewCellContentConfiguration alloc] init];
 
-    configuration.title =
-        bookmark_utils_ios::TitleForBookmarkNode(_bookmarkNode);
+    configuration.title = _title;
     configuration.titleNumberOfLines = kNumberOfTitleLines;
 
     if (IsVivaldiRunning() && self.displayURL && self.displayURL.length > 0) {
@@ -103,7 +146,7 @@ const NSInteger kNumberOfTitleLines = 2;
     configuration.subtitle = base::SysUTF16ToNSString(
         url_formatter::
             FormatUrlForDisplayOmitSchemePathTrivialSubdomainsAndMobilePrefix(
-                _bookmarkNode->url()));
+                _URL));
     } // End Vivaldi
 
     FaviconContentConfiguration* faviconConfiguration =
@@ -112,7 +155,7 @@ const NSInteger kNumberOfTitleLines = 2;
 
     configuration.leadingConfiguration = faviconConfiguration;
 
-    if (self.shouldDisplayCloudSlashIcon) {
+    if (_shouldDisplayCloudSlashIcon) {
       ImageContentConfiguration* imageConfiguration =
           [[ImageContentConfiguration alloc] init];
       imageConfiguration.image =
@@ -134,7 +177,7 @@ const NSInteger kNumberOfTitleLines = 2;
 }
 
 - (LegacyTableViewCell*)cellForTableView:(UITableView*)tableView {
-  if (_bookmarkNode->is_folder()) {
+  if (_isFolder) {
     return [super cellForTableView:tableView];
   } else {
     [TableViewCellContentConfiguration
@@ -143,6 +186,13 @@ const NSInteger kNumberOfTitleLines = 2;
         legacyDequeueTableViewCell:tableView];
   }
 }
+
+- (const bookmarks::BookmarkNode*)bookmarkNode:
+    (const bookmarks::BookmarkModel*)model {
+  CHECK(model, base::NotFatalUntil::M155);
+  return bookmarks::GetBookmarkNodeByID(model, _id_);
+}
+
 
 #pragma mark - Vivaldi
 
@@ -186,4 +236,5 @@ const NSInteger kNumberOfTitleLines = 2;
   return dateAdded.ToNSDate();
 }
 // End Vivaldi
+
 @end

@@ -135,6 +135,7 @@ LIGHTWEIGHT_TESTERS = [
     'win-10_laptop_low_end-perf',
     'win-11-perf',
     'mac-m4-mini-perf',
+    'mac-m4-pro-perf',
 ]
 
 UPLOAD_SKIA_JSON_BUILDERS = frozenset([
@@ -147,14 +148,12 @@ UPLOAD_SKIA_JSON_BUILDERS = frozenset([
     'android-pixel4-perf',
     'android-pixel4_webview-perf',  # One of the mobile testers.
     'android-pixel4_webview-perf-pgo',
-    'android-pixel6-perf',
     'android-pixel6-perf-pgo',
-    'android-pixel6-pro-perf',
     'android-pixel9-perf',
     'android-pixel9-pro-perf',
     'android-pixel9-pro-xl-perf',
-    'android-pixel25-ultra-perf',
-    'android-pixel25-ultra-xl-perf',
+    'android-pixel10-perf',
+    'android-pixel10_webview-perf',
     'android-brya-kano-i5-8gb-perf',
     'android-corsola-steelix-8gb-perf',
     'android-nissa-uldren-8gb-perf',
@@ -175,6 +174,7 @@ UPLOAD_SKIA_JSON_BUILDERS = frozenset([
     'mac-m2-pro-perf',
     'mac-m3-pro-perf',
     'mac-m4-mini-processor-perf',
+    'mac-m4-pro-processor-perf',
     'win-10-processor-perf',
     'win-10_amd_laptop-perf',
     'win-10_laptop_low_end-processor-perf',
@@ -186,16 +186,52 @@ UPLOAD_SKIA_JSON_BUILDERS = frozenset([
 ])
 
 PUBLIC_PERF_BUILDERS = [
-    # ChromiumPerf
+    # all except latest pixels
+    'android_arm64-builder-perf',
+    'android-builder-perf',
+    'android-go-wembley-perf',
+    'android-go-wembley_webview-perf',
+    'android-pixel-fold-perf',
+    'android-pixel-tangor-perf',
+    'android-pixel4-perf',
+    'android-pixel4_webview-perf',  # One of the mobile testers.
+    'android-pixel4_webview-perf-pgo',
+    'android-pixel6-perf-pgo',
     'android-pixel9-perf',
     'android-pixel9-pro-perf',
     'android-pixel9-pro-xl-perf',
+    'android-pixel10-perf',
+    'android-pixel10_webview-perf',
+    'linux-builder-perf',
+    'linux-falcon-rak-5070-perf',
     'linux-perf',
-    'linux-r350-perf',
-    'win-10-perf',
-
-    # ChromiumPerfFyi
     'linux-perf-fyi',
+    'linux-perf-rel',
+    'linux-r350-processor-perf',
+    'linux-r350-perf',
+    'mac-arm-builder-perf',
+    'mac-builder-perf',
+    'mac-intel-perf',
+    'mac-m1-pro-perf',
+    'mac-m1_mini_2020-no-brp-perf',
+    'mac-m1_mini_2020-perf',
+    'mac-m1_mini_2020-perf-pgo',
+    'mac-m2-pro-perf',
+    'mac-m3-pro-perf',
+    'mac-m4-mini-perf',
+    'mac-m4-mini-processor-perf',
+    'mac-m4-pro-perf',
+    'mac-m4-pro-processor-perf',
+    'win-10-processor-perf',
+    'win-10_amd_laptop-perf',
+    'win-10_laptop_low_end-perf',
+    'win-10_laptop_low_end-processor-perf',
+    'win-10_laptop_low_end-perf_HP-Candidate',
+    'win-11-perf',
+    'win-11-processor-perf',
+    'win-falcon-rak-5070-perf',
+    'win64-builder-perf',
+    'win-arm64-snapdragon-elite-perf',
 ]
 
 # TODO(zijiehe): Fuchsia should check the os version, i.e. --os-check=check, but
@@ -689,21 +725,6 @@ BUILDERS = {
             'device_os_flavor': 'google',
         },
     },
-    'android-pixel6-perf': {
-        'tests': [{
-            'isolate':
-            'performance_test_suite_android_trichrome_chrome_google_64_32_bundle',
-        }],
-        'platform':
-        'android-trichrome-chrome-google-64-32-bundle',
-        'dimension': {
-            'pool': 'chrome.tests.perf',
-            'os': 'Android',
-            'device_type': 'oriole',
-            'device_os': 'AP1A.240405.002',
-            'device_os_flavor': 'google',
-        },
-    },
     'android-pixel6-perf-pgo': {
         'tests': [{
             'isolate':
@@ -747,21 +768,6 @@ BUILDERS = {
             'pool': 'chrome.tests.perf',
             'os': 'Android',
             'device_type': 'tangorpro',
-            'device_os_flavor': 'google',
-        },
-    },
-    'android-pixel6-pro-perf': {
-        'tests': [{
-            'isolate':
-            'performance_test_suite_android_trichrome_chrome_google_64_32_bundle',
-        }],
-        'platform':
-        'android-trichrome-chrome-google-64-32-bundle',
-        'dimension': {
-            'pool': 'chrome.tests.perf',
-            'os': 'Android',
-            'device_type': 'raven',
-            'device_os': 'AP1A.240405.002',
             'device_os_flavor': 'google',
         },
     },
@@ -825,7 +831,7 @@ BUILDERS = {
             'device_os_flavor': 'google',
         },
     },
-    'android-pixel25-ultra-perf': {
+    'android-pixel10-perf': {
         'tests': [{
             'isolate':
             'performance_test_suite_android_trichrome_chrome_google_64_32_bundle',
@@ -835,23 +841,21 @@ BUILDERS = {
         'dimension': {
             'pool': 'chrome.tests.perf',
             'os': 'Android',
-            'device_type': 'mustang',
+            'device_type': 'frankel',
             'device_os': 'B',
             'device_os_flavor': 'google',
         },
     },
-    'android-pixel25-ultra-xl-perf': {
+    'android-pixel10_webview-perf': {
         'tests': [{
-            'isolate':
-            'performance_test_suite_android_trichrome_chrome_google_64_32_bundle',
+            'isolate': 'performance_webview_test_suite',
         }],
-        'platform':
-        'android-trichrome-chrome-google-64-32-bundle',
+        'platform': 'android-webview-standalone-google',
         'dimension': {
-            'pool': 'chrome.tests.perf',
+            'pool': 'chrome.tests.perf-webview',
             'os': 'Android',
-            'device_type': 'blazer',
-            'device_os': 'B',
+            'device_type': 'frankel',
+            'device_os': 'BP4A.260105.004.E1',
             'device_os_flavor': 'google',
         },
     },
@@ -1151,6 +1155,58 @@ BUILDERS = {
     'mac-m4-mini-processor-perf': {
         'platform': 'linux',
         'perf_processor': True,
+    },
+    'mac-m4-pro-perf': {
+        'tests': [
+            {
+                'isolate': 'performance_test_suite',
+                'extra_args': [
+                    '--assert-gpu-compositing',
+                ],
+            },
+        ],
+        'platform':
+        'mac',
+        'dimension': {
+            'cpu':
+            'arm',
+            'mac_model':
+            'Mac16,8',
+            'os':
+            'Mac',
+            'pool':
+            'chrome.tests.perf',
+            'synthetic_product_name':
+            'Mac16,8_arm64-64-Apple_M4_Pro_apple m4 pro_24576_APPLE SSD AP0512Z',
+        },
+    },
+    'mac-m4-pro-processor-perf': {
+        'platform': 'linux',
+        'perf_processor': True,
+    },
+    'mac-m5-pro-perf': {
+        'tests': [
+            {
+                'isolate': 'performance_test_suite',
+                'extra_args': [
+                    '--assert-gpu-compositing',
+                ],
+            },
+        ],
+        'platform':
+        'mac',
+        'dimension': {
+            'cpu':
+            'arm',
+            'mac_model':
+            'Mac17,9',
+            'os':
+            'Mac',
+            'pool':
+            'chrome.tests.perf',
+            'synthetic_product_name':
+            'Mac17,9_arm64-64-Apple_M5_Pro_apple m5 pro_24576_APPLE SSD AP1024Z',
+        },
     },
     'win-10_amd_laptop-perf': {
         'tests': [

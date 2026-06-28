@@ -42,7 +42,6 @@
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/extensions/extension_test_util.h"
-#include "chrome/common/extensions/webstore_install_result.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -59,6 +58,7 @@
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/test_extension_registry_observer.h"
 #include "extensions/browser/webstore_data_fetcher.h"
+#include "extensions/browser/webstore_install_result.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/extension_features.h"
@@ -404,7 +404,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionInstallDialogViewTest, InstallButtonDelay) {
   CloseAndWait(delegate_view->GetWidget());
 }
 
-// Regression test for https://crbug.com/1201031: Ensures that while an
+// Regression test for https://crbug.com/40055612: Ensures that while an
 // ExtensionInstallDialogView is visible, it does not (and cannot) refer to its
 // originator tab/WebContents after the tab's closure.
 //
@@ -474,7 +474,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionInstallDialogViewTest,
 
   // The dialog remains visible even though |originator_contents| is gone. Note
   // that this doesn't seem quite intuitive, but this is how things are at the
-  // moment. See crbug.com/1201031 for details.
+  // moment. See crbug.com/40055612 for details.
   EXPECT_TRUE(delegate_view->GetVisible());
 
   EXPECT_EQ(nullptr,

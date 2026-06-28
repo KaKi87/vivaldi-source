@@ -43,6 +43,7 @@ import com.android.webview.chromium.WebViewChromiumAwInit.CallSite;
 
 import org.chromium.android_webview.AwBrowserMainParts;
 import org.chromium.android_webview.AwBrowserProcess;
+import org.chromium.android_webview.AwClassPreloader;
 import org.chromium.android_webview.AwContentsStatics;
 import org.chromium.android_webview.AwCookieManager;
 import org.chromium.android_webview.AwSettings;
@@ -60,9 +61,10 @@ import org.chromium.android_webview.common.SafeModeActionIds;
 import org.chromium.android_webview.common.SafeModeController;
 import org.chromium.android_webview.common.WebViewCachedFlags;
 import org.chromium.android_webview.safe_mode.BrowserSafeModeActionList;
-import org.chromium.android_webview.safe_mode.DisableStartupTasksSafeModeAction;
 import org.chromium.android_webview.variations.FastVariationsSeedSafeModeAction;
+import org.chromium.base.AconfigFlaggedApiDelegate;
 import org.chromium.base.ApkInfo;
+import org.chromium.base.BaseFeatures;
 import org.chromium.base.BundleUtils;
 import org.chromium.base.CommandLine;
 import org.chromium.base.ContextUtils;
@@ -185,7 +187,9 @@ public class WebViewChromiumFactoryProvider implements WebViewFactoryProvider {
 
         @Override
         public String findAddress(String addr) {
-            return mSharedStatics.findAddress(addr);
+            // This method is directly handled in the framework since Android P.
+            assert false;
+            return null;
         }
 
         @Override
@@ -250,7 +254,6 @@ public class WebViewChromiumFactoryProvider implements WebViewFactoryProvider {
 
     private boolean mIsSafeModeEnabled;
     private boolean mIsMultiProcessEnabled;
-    private boolean mIsAsyncStartupWithMultiProcessExperimentEnabled;
 
     public static class InitInfo {
         // Timestamp of init start and duration, used in the
@@ -364,7 +367,8 @@ public class WebViewChromiumFactoryProvider implements WebViewFactoryProvider {
             return true;
         }
         // TODO: Remove this once WebViewCachedFlags has landed (and seems safe).
-        if (DisableStartupTasksSafeModeAction.isStartupTasksExperimentDisabled()) {
+        if (SafeModeController.getInstance()
+                .isActionEnabled(SafeModeActionIds.DISABLE_STARTUP_TASKS_LOGIC)) {
             return false;
         }
         return WebViewCachedFlags.get()
@@ -387,15 +391,6 @@ public class WebViewChromiumFactoryProvider implements WebViewFactoryProvider {
 
         return WebViewCachedFlags.get()
                 .isCachedFeatureEnabled(AwFeatures.WEBVIEW_STARTUP_TASKS_YIELD_TO_NATIVE);
-    }
-
-    boolean isAsyncStartupWithMultiProcessExperimentEnabled() {
-        if (CommandLine.getInstance()
-                .hasSwitch(AwSwitches.WEBVIEW_STARTUP_TASKS_PLUS_MULTI_PROCESS)) {
-            return true;
-        }
-
-        return mIsAsyncStartupWithMultiProcessExperimentEnabled;
     }
 
     @SuppressWarnings({"NoContextGetApplicationContext"})
@@ -446,16 +441,20 @@ public class WebViewChromiumFactoryProvider implements WebViewFactoryProvider {
                             ? controller.queryActions(ctx, webViewPackageName)
                             : new HashSet<>();
 
+            long startCachedFlagInit = SystemClock.uptimeMillis();
             try (StrictModeContext ignored = StrictModeContext.allowDiskWrites()) {
                 // Since N, getSharedPreferences creates the preference dir if it doesn't exist,
                 // causing a disk write.
                 mWebViewPrefs = ctx.getSharedPreferences(CHROMIUM_PREFS_NAME, Context.MODE_PRIVATE);
-                if (safeModeActions.contains(SafeModeActionIds.DELETE_VARIATIONS_SEED)) {
+                if (controller.isActionEnabled(SafeModeActionIds.DELETE_VARIATIONS_SEED)) {
                     WebViewCachedFlags.initForSafeMode(mWebViewPrefs);
                 } else {
                     WebViewCachedFlags.init(mWebViewPrefs);
                 }
             }
+            RecordHistogram.recordTimesHistogram(
+                    "Android.WebView.Startup.CachedFlagInitTime",
+                    SystemClock.uptimeMillis() - startCachedFlagInit);
 
             if (WebViewCachedFlags.get()
                     .isCachedFeatureEnabled(AwFeatures.WEBVIEW_EARLY_STARTUP_TRACING)) {
@@ -464,6 +463,11 @@ public class WebViewChromiumFactoryProvider implements WebViewFactoryProvider {
                 // `TraceEvent` and `DualTraceEvent` can be used from this point.
                 EarlyTraceEvent.enable();
             }
+
+            PostTask.setShutdownPostTaskPreNativeThreadPoolEnabled(
+                    WebViewCachedFlags.get()
+                            .isCachedFeatureEnabled(
+                                    BaseFeatures.SHUTDOWN_PRE_NATIVE_THREAD_POOL_AFTER_STARTUP));
 
             mAwInit = createAwInit();
             mSharedStatics = new SharedStatics(mAwInit);
@@ -680,6 +684,11 @@ public class WebViewChromiumFactoryProvider implements WebViewFactoryProvider {
                 }
             }
 
+            if (WebViewCachedFlags.get()
+                    .isCachedFeatureEnabled(AwFeatures.WEBVIEW_BACKGROUND_CLASS_PRELOADING)) {
+                AwClassPreloader.preloadClasses();
+            }
+
             // This must happen after pref value has been read and SafeMode setup has completed.
             setupStartupTaskExperiments(androidXConfig);
 
@@ -735,6 +744,15 @@ public class WebViewChromiumFactoryProvider implements WebViewFactoryProvider {
             RecordHistogram.recordTimesHistogram(
                     "Android.WebView.Startup.CreationTime.TotalFactoryInitTime",
                     mInitInfo.mTotalFactoryInitDuration);
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                RecordHistogram.recordTimesHistogram(
+                        "Android.WebView.Startup.CreationTime.TotalFactoryInitTime.MainLooper",
+                        mInitInfo.mTotalFactoryInitDuration);
+            } else {
+                RecordHistogram.recordTimesHistogram(
+                        "Android.WebView.Startup.CreationTime.TotalFactoryInitTime.NotMainLooper",
+                        mInitInfo.mTotalFactoryInitDuration);
+            }
             RecordHistogram.recordTimesHistogram(
                     "Android.WebView.Startup.CreationTime.CreateContextTime",
                     startupTimestamps.getCreateContextEnd()
@@ -754,6 +772,11 @@ public class WebViewChromiumFactoryProvider implements WebViewFactoryProvider {
                     startupTimestamps.getProviderClassForNameEnd()
                             - startupTimestamps.getProviderClassForNameStart());
         }
+
+        AconfigFlaggedApiDelegate delegate = AconfigFlaggedApiDelegate.getInstance();
+        boolean isNativeWebViewZygoteEnabled =
+                delegate != null && delegate.isNativeWebViewZygoteEnabled(webViewDelegate);
+        AwBrowserProcess.setNativeWebViewZygoteEnabled(isNativeWebViewZygoteEnabled);
     }
 
     // The startup tasks are setup to run based on the following logic:
@@ -807,7 +830,6 @@ public class WebViewChromiumFactoryProvider implements WebViewFactoryProvider {
                         /* enablePhase1= */ false,
                         /* enablePhase2= */ false,
                         /* enableYieldToNative= */ true);
-                mIsAsyncStartupWithMultiProcessExperimentEnabled = true;
                 return;
             default:
                 throw new RuntimeException(
@@ -990,8 +1012,11 @@ public class WebViewChromiumFactoryProvider implements WebViewFactoryProvider {
     }
 
     private static class FilteredClassLoader extends ClassLoader {
+        private final ClassLoader mDelegate;
+
         FilteredClassLoader(ClassLoader delegate) {
-            super(delegate);
+            super();
+            mDelegate = delegate;
         }
 
         @Override
@@ -1008,10 +1033,17 @@ public class WebViewChromiumFactoryProvider implements WebViewFactoryProvider {
             // anything in the support_lib_glue and support_lib_boundary packages (and their
             // subpackages).
             if (name.startsWith(SUPPORT_LIB_GLUE_AND_BOUNDARY_INTERFACE_PREFIX)) {
-                return super.findClass(name);
+                RecordHistogram.recordBooleanHistogram(
+                        "Android.WebView.FilteredClassLoader.FindClassReturnedAllowedClass", true);
+                return Class.forName(name, false, mDelegate);
             }
 
-            throw new ClassNotFoundException(message);
+            // TODO(b/507748195): We should be calling `throw new ClassNotFoundException(message);`
+            // here but we are currently measuring how often this exception would be thrown in the
+            // wild to decide whether it is safe to enforce this restriction.
+            RecordHistogram.recordBooleanHistogram(
+                    "Android.WebView.FilteredClassLoader.FindClassReturnedAllowedClass", false);
+            return Class.forName(name, false, mDelegate);
         }
     }
 

@@ -12,6 +12,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/types/expected.h"
 #include "base/values.h"
 #include "chrome/browser/extensions/chrome_extension_function_details.h"
 #include "chrome/browser/extensions/window_controller.h"
@@ -37,6 +38,9 @@
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
 #endif
+
+// Vivaldi VB-128442
+#include "components/ext_data/tab_positioning_params.h"
 
 static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
@@ -200,15 +204,15 @@ class WindowsCreateFunction : public ExtensionFunction {
   ResponseAction Run() override;
   DECLARE_EXTENSION_FUNCTION("windows.create", WINDOWS_CREATE)
 
+  // Ensures the tab for the window is valid.
+  static base::expected<void, std::string> ValidateTab(
+      WindowController* source_window,
+      Profile* window_profile,
+      content::WebContents* web_contents,
+      bool is_locked_fullscreen = false);
+
  private:
   ~WindowsCreateFunction() override;
-
-  // Ensures the tab for the window is valid. Returns an error string, or the
-  // empty string if the tab is valid.
-  static std::string ValidateTab(WindowController* source_window,
-                                 Profile* window_profile,
-                                 content::WebContents* web_contents,
-                                 bool is_locked_fullscreen);
 
   // Uses `create_data` to set the window position and size in `window_bounds`.
   // Returns an error string, or the empty string if the bounds are valid.
@@ -344,6 +348,8 @@ class TabsCreateFunction : public ExtensionFunction {
   std::optional<std::string> viv_ext_data_;
   extensions::api::history::TransitionType transition_;
   std::optional<bool> from_url_field_;
+  // vivaldi VB-128442
+  ::vivaldi::TabPositioningParams positioning_params_;
 
   // The validated URL to open.
   GURL validated_url_;

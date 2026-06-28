@@ -2,6 +2,7 @@
 
 #import "ios/ui/ntp/nsd/vivaldi_nsd_coordinator.h"
 
+#import "base/memory/raw_ptr.h"
 #import "base/strings/sys_string_conversions.h"
 #import "components/bookmarks/browser/bookmark_model.h"
 #import "components/bookmarks/browser/bookmark_node.h"
@@ -187,7 +188,7 @@ using bookmarks::BookmarkNode;
   if (!self.folderItem.bookmarkNode)
     return;
 
-  std::set<const BookmarkNode*> hiddenNodes;
+  std::set<raw_ptr<const bookmarks::BookmarkNode>> hiddenNodes;
   _folderChooserCoordinator = [[BookmarksFolderChooserCoordinator alloc]
       initWithBaseNavigationController:_baseNavigationController
                                            ? _baseNavigationController

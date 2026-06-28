@@ -64,7 +64,7 @@ Wichtige Hinweise:
 <translation id="2213327331203157297">Um den Blockierungsmodus in Chrome zu deaktivieren, musst du ihn auf deinem iPhone ausschalten.</translation>
 <translation id="2242467532204595597">Du kannst Chrome jederzeit nutzen, wenn du in Nachrichten, Dokumenten und anderen Apps auf Links tippst.</translation>
 <translation id="2256384876478573507">Du kannst Chrome schneller öffnen, wenn du auf deinem iPhone surfen möchtest.</translation>
-<translation id="2270691132923135296">Hier findest du hilfreiche Chrome-Grundlagen für den Einstieg</translation>
+<translation id="2270691132923135296">Komm mit auf eine kurze Tour durch die Chrome-Grundlagen</translation>
 <translation id="2311240109311056604">Öffnet Chrome Dino.</translation>
 <translation id="2339201583852607431">Dein Passwort wird in deinem Google-Konto (<ph name="EMAIL" />) gespeichert.</translation>
 <translation id="2342919707875585281">Chrome teilt deinen Standort mit Websites, für die du das zulässt.</translation>
@@ -110,7 +110,7 @@ Du kannst erst neue Lesezeichen in deinem Konto speichern, wenn du einige gelös
 <translation id="322254490661677575">Gib deine Passphrase ein, um Chrome-Daten in deinem Google-Konto zu verwenden und zu speichern.</translation>
 <translation id="3303503998967553377">Chrome Aktionen unter iOS verwenden</translation>
 <translation id="3348862487678490430">Leselisteneintrag zu Chrome hinzufügen</translation>
-<translation id="3357827134511189025">Verwende „Autofill“ in Chrome, um dich in deinen Apps mit deinen gespeicherten Passwörtern und Passkeys anzumelden</translation>
+<translation id="3357827134511189025">Per „Autofill“ in Chrome kannst du dich in deinen Apps mit deinen gespeicherten Passwörtern und Passkeys anmelden</translation>
 <translation id="3360031466389132716">{THRESHOLD,plural, =1{Das passiert, wenn Chrome {THRESHOLD} Minute lang nicht verwendet wird}other{Das passiert, wenn Chrome {THRESHOLD} Minuten lang nicht verwendet wird}}</translation>
 <translation id="3367797402528056312">Chrome fertig einrichten</translation>
 <translation id="3371064404604898522">Google Chrome als Standardbrowser festlegen</translation>
@@ -297,7 +297,7 @@ Weitere Einstellungen, bei denen Daten zur Verbesserung von Chrome verwendet wer
 <translation id="7617512710641355143">Chrome wird verwaltet</translation>
 <translation id="7626032353295482388">Willkommen bei Chrome</translation>
 <translation id="7634397654061173327">Wenn du in Chrome Funktionen zum Schutz von Kindern nutzen möchtest, kannst du entweder ein Google-Konto verwenden, das für ein Kind eingerichtet ist, oder Chrome ohne Konto nutzen.</translation>
-<translation id="7641448682796883218">Chrome-Tipp: erweitertes Safe Browsing</translation>
+<translation id="7641448682796883218">Chrome-Tipp: Erweitertes Safe Browsing</translation>
 <translation id="7642373780953416937">Du erhältst Benachrichtigungen bei Problemen mit dem Datenschutz oder der Sicherheit, die Chrome automatisch für dich erkennt.</translation>
 <translation id="7660356333829433649">Schaue später noch einmal hier vorbei, um weitere nützliche Tipps zu erhalten, wie du Chrome optimal nutzen kannst.</translation>
 <translation id="7662994914830945754">Melde dich an und aktiviere die Synchronisierung, um deine Tabs überall dort aufzurufen, wo du Chrome verwendest</translation>
@@ -341,6 +341,7 @@ Nur Personen, die deine Passphrase kennen, können deine verschlüsselten Daten 
 <translation id="840168496893712993">Einige Add-ons führen zum Ausfall von Chrome. Bitte deinstalliere diese Add-ons.</translation>
 <translation id="8413500425974960807">Chrome-Tipp: Chrome ins Dock verschieben</translation>
 <translation id="8413795581997394485">Schützt vor Websites, Downloads und Erweiterungen, die als schädlich bekannt sind. Wenn du eine Website besuchst, sendet Chrome einen verschleierten Teil der URL über einen Datenschutzserver, der deine IP-Adresse verbirgt, an Google. Zeigt eine Website verdächtige Aktivitäten, werden außerdem vollständige URLs und Teile von Seiteninhalten gesendet.</translation>
+<translation id="8447479329557998927">Chrome nutzt Google Maps, um dir Wegbeschreibungen und lokale Informationen zu Maps-URLs bereitzustellen</translation>
 <translation id="84594714173170813">Chrome-Daten in deinem Google-Konto weiterhin verwenden</translation>
 <translation id="8491300088149538575">Angemeldet als <ph name="EMAIL" />.
 

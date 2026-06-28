@@ -7,9 +7,11 @@
 #include "base/containers/adapters.h"
 #include "base/feature_list.h"
 #include "base/task/single_thread_task_runner.h"
+#include "chrome/browser/password_manager/password_change/features.h"
+#include "chrome/browser/password_manager/password_change/model_quality_logs_uploader.h"
 #include "components/autofill/content/browser/content_autofill_client.h"
 #include "components/autofill/core/browser/ml_model/field_classification_model_handler.h"
-#include "components/password_manager/core/browser/features/password_features.h"
+#include "components/autofill/core/common/unique_ids.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_form_manager.h"
 #include "components/password_manager/core/browser/password_manager_client.h"
@@ -43,24 +45,46 @@ bool FieldFocusable(autofill::FieldRendererId renderer_id,
   return field->is_focusable();
 }
 
-bool IsLikelyChangePasswordForm(
+bool FieldEnabled(autofill::FieldRendererId renderer_id,
+                  const autofill::FormData& form_data) {
+  const auto& fields = form_data.fields();
+  auto field = std::ranges::find(fields, renderer_id,
+                                 &autofill::FormFieldData::renderer_id);
+  if (field == fields.end()) {
+    return false;
+  }
+  return field->is_enabled() && !field->is_readonly();
+}
+
+using DiscardReason = ModelQualityLogsUploader::FormDiscardReason;
+
+std::optional<DiscardReason> GetDiscardReason(
     const password_manager::PasswordFormManager* form_manager) {
   auto* parsed_form = form_manager->GetParsedObservedForm();
-
   if (!parsed_form) {
-    return false;
+    return DiscardReason::kUnknown;
   }
 
   // New password field must be present in a change password form.
   if (!parsed_form->new_password_element_renderer_id) {
-    return false;
+    return DiscardReason::kNoNewPasswordField;
+  }
+
+  // The new password field must be enabled to be considered a change password
+  // form.
+  if (base::FeatureList::IsEnabled(
+          password_change::features::
+              kCheckFieldEnabledInChangePasswordFormWaiter) &&
+      !FieldEnabled(parsed_form->new_password_element_renderer_id,
+                    parsed_form->form_data)) {
+    return DiscardReason::kNewPasswordFieldDisabled;
   }
 
   // Either password confirmation field or old password field is enough to
   // assume this is a change password form.
   if (parsed_form->confirmation_password_element_renderer_id ||
       parsed_form->password_element_renderer_id) {
-    return true;
+    return std::nullopt;
   }
 
   // If there is a username field, it can't be empty. Websites where username is
@@ -69,10 +93,10 @@ bool IsLikelyChangePasswordForm(
       parsed_form->username_value.empty() &&
       FieldFocusable(parsed_form->username_element_renderer_id,
                      parsed_form->form_data)) {
-    return false;
+    return DiscardReason::kUsernameFieldEmptyAndFocusable;
   }
 
-  return true;
+  return std::nullopt;
 }
 
 }  // namespace
@@ -107,20 +131,21 @@ ChangePasswordFormWaiter::Builder::IgnoreHiddenForms() {
 
 ChangePasswordFormWaiter::Builder&
 ChangePasswordFormWaiter::Builder::SetFieldsToIgnore(
-    const std::vector<autofill::FieldRendererId>& fields_to_ignore) {
+    const std::vector<autofill::FieldGlobalId>& fields_to_ignore) {
   form_waiter_->fields_to_ignore_ = fields_to_ignore;
+  return *this;
+}
+
+ChangePasswordFormWaiter::Builder&
+ChangePasswordFormWaiter::Builder::SetLogsUploader(
+    ModelQualityLogsUploader* logs_uploader) {
+  form_waiter_->logs_uploader_ = logs_uploader;
   return *this;
 }
 
 std::unique_ptr<ChangePasswordFormWaiter>
 ChangePasswordFormWaiter::Builder::Build() {
-  if (base::FeatureList::IsEnabled(
-          password_manager::features::
-              kProactivelyDownloadModelForPasswordChange)) {
-    form_waiter_->WaitForLocalMLModelAvailability();
-  } else {
-    form_waiter_->Init();
-  }
+  form_waiter_->WaitForLocalMLModelAvailability();
   return std::move(form_waiter_);
 }
 
@@ -143,7 +168,10 @@ void ChangePasswordFormWaiter::Init() {
   model_loaded_subscription_ = {};
   if (PasswordFormCache* cache = GetPasswordFormCache(client_)) {
     for (const auto& manager : cache->GetFormManagers()) {
-      if (!IsLikelyChangePasswordForm(manager.get())) {
+      std::optional<DiscardReason> discard_reason =
+          GetDiscardReason(manager.get());
+      if (discard_reason.has_value()) {
+        RecordDiscardedForm(manager.get(), *discard_reason);
         continue;
       }
 
@@ -152,7 +180,10 @@ void ChangePasswordFormWaiter::Init() {
       auto callback = base::BindOnce(
           &ChangePasswordFormWaiter::GetCorrespondingFormManager,
           weak_ptr_factory_.GetWeakPtr(),
-          manager->GetParsedObservedForm()->new_password_element_renderer_id);
+          autofill::FieldGlobalId{
+              manager->GetParsedObservedForm()->form_data.host_frame(),
+              manager->GetParsedObservedForm()
+                  ->new_password_element_renderer_id});
 
       // The form has been already parsed. Invoke OnPasswordFormParsed to check
       // if the form is eligible.
@@ -194,40 +225,54 @@ void ChangePasswordFormWaiter::OnPasswordFormParsed(
     return;
   }
 
-  if (!IsLikelyChangePasswordForm(form_manager)) {
+  std::optional<DiscardReason> discard_reason = GetDiscardReason(form_manager);
+  if (discard_reason.has_value()) {
+    RecordDiscardedForm(form_manager, *discard_reason);
     return;
   }
 
-  if (std::ranges::count(fields_to_ignore_,
-                         form_manager->GetParsedObservedForm()
-                             ->new_password_element_renderer_id)) {
+  if (std::ranges::count(
+          fields_to_ignore_,
+          autofill::FieldGlobalId{
+              form_manager->GetParsedObservedForm()->form_data.host_frame(),
+              form_manager->GetParsedObservedForm()
+                  ->new_password_element_renderer_id})) {
+    RecordDiscardedForm(form_manager, DiscardReason::kFieldToIgnore);
     return;
   }
 
   if (!form_manager->GetDriver()) {
+    RecordDiscardedForm(form_manager, DiscardReason::kNoDriver);
     return;
   }
 
   auto new_field_id =
       form_manager->GetParsedObservedForm()->new_password_element_renderer_id;
+  auto field_global_id = autofill::FieldGlobalId{
+      form_manager->GetParsedObservedForm()->form_data.host_frame(),
+      new_field_id};
   form_manager->GetDriver()->CheckViewAreaVisible(
       new_field_id,
       base::BindOnce(&ChangePasswordFormWaiter::OnCheckViewAreaVisibleCallback,
-                     weak_ptr_factory_.GetWeakPtr(), new_field_id));
+                     weak_ptr_factory_.GetWeakPtr(), field_global_id));
   return;
 }
 
 void ChangePasswordFormWaiter::OnCheckViewAreaVisibleCallback(
-    autofill::FieldRendererId new_password_element_id,
+    autofill::FieldGlobalId field_global_id,
     bool is_visible) {
-  if (!is_visible) {
+  auto* form_manager = GetCorrespondingFormManager(
+      weak_ptr_factory_.GetWeakPtr(), field_global_id);
+  if (!form_manager) {
     return;
   }
 
-  if (auto* form_manager = GetCorrespondingFormManager(
-          weak_ptr_factory_.GetWeakPtr(), new_password_element_id)) {
-    std::move(callback_).Run(form_manager);
+  if (!is_visible) {
+    RecordDiscardedForm(form_manager, DiscardReason::kFormNotVisible);
+    return;
   }
+
+  std::move(callback_).Run(form_manager);
 }
 
 void ChangePasswordFormWaiter::DidStartLoading() {
@@ -251,11 +296,20 @@ void ChangePasswordFormWaiter::OnTimeout() {
   }
 }
 
+void ChangePasswordFormWaiter::RecordDiscardedForm(
+    const password_manager::PasswordFormManager* form_manager,
+    ModelQualityLogsUploader::FormDiscardReason discard_reason) {
+  if (logs_uploader_) {
+    logs_uploader_->RecordDiscardedForm(form_manager->GetParsedObservedForm(),
+                                        discard_reason);
+  }
+}
+
 // static
 password_manager::PasswordFormManager*
 ChangePasswordFormWaiter::GetCorrespondingFormManager(
     base::WeakPtr<ChangePasswordFormWaiter> waiter,
-    autofill::FieldRendererId new_password_element_id) {
+    autofill::FieldGlobalId field_global_id) {
   if (!waiter) {
     return nullptr;
   }
@@ -263,8 +317,10 @@ ChangePasswordFormWaiter::GetCorrespondingFormManager(
   if (auto* cache = GetPasswordFormCache(waiter->client_)) {
     for (const auto& manager : cache->GetFormManagers()) {
       if (manager->GetParsedObservedForm() &&
-          manager->GetParsedObservedForm()->new_password_element_renderer_id ==
-              new_password_element_id) {
+          autofill::FieldGlobalId{
+              manager->GetParsedObservedForm()->form_data.host_frame(),
+              manager->GetParsedObservedForm()
+                  ->new_password_element_renderer_id} == field_global_id) {
         return manager.get();
       }
     }

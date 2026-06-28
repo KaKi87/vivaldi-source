@@ -4,6 +4,7 @@
 
 #include "components/omnibox/composebox/contextual_search_mojom_traits.h"
 
+#include "base/logging.h"
 #include "base/notreached.h"
 #include "components/omnibox/composebox/composebox_query.mojom-shared.h"
 
@@ -179,7 +180,7 @@ UsedInputType EnumTraits<UsedInputType, omnibox::InputType>::ToMojom(
     case omnibox::InputType::InputType_INT_MAX_SENTINEL_DO_NOT_USE_:
       break;
   }
-  DUMP_WILL_BE_NOTREACHED();
+  DLOG(ERROR) << "Unexpected InputType in ToMojom: " << static_cast<int>(input);
   return UsedInputType::kUnspecified;
 }
 
@@ -198,7 +199,9 @@ omnibox::InputType EnumTraits<UsedInputType, omnibox::InputType>::FromMojom(
     case UsedInputType::kDrive:
       return omnibox::InputType::INPUT_TYPE_DRIVE;
   }
-  NOTREACHED();
+  DLOG(ERROR) << "Unexpected InputType in FromMojom: "
+              << static_cast<int>(input);
+  return omnibox::InputType::INPUT_TYPE_UNSPECIFIED;
 }
 
 // static
@@ -276,6 +279,31 @@ EnumTraits<UsedContextUploadErrorType,
       return UsedContextUploadErrorType::kAborted;
     case contextual_search::ContextUploadErrorType::kImageProcessingError:
       return UsedContextUploadErrorType::kImageProcessingError;
+    case contextual_search::ContextUploadErrorType::
+        kBrowserProcessingFileTooLargeError:
+      return UsedContextUploadErrorType::kBrowserProcessingFileTooLargeError;
+    case contextual_search::ContextUploadErrorType::
+        kBrowserProcessingFileEmptyError:
+      return UsedContextUploadErrorType::kBrowserProcessingFileEmptyError;
+    case contextual_search::ContextUploadErrorType::
+        kBrowserProcessingMaxFilesExceededError:
+      return UsedContextUploadErrorType::
+          kBrowserProcessingMaxFilesExceededError;
+    case contextual_search::ContextUploadErrorType::
+        kBrowserProcessingUnsupportedFileTypeError:
+      return UsedContextUploadErrorType::
+          kBrowserProcessingUnsupportedFileTypeError;
+    case contextual_search::ContextUploadErrorType::
+        kBrowserProcessingFileUploadNotAllowedError:
+      return UsedContextUploadErrorType::
+          kBrowserProcessingFileUploadNotAllowedError;
+    case contextual_search::ContextUploadErrorType::
+        kBrowserProcessingMaxImagesExceededError:
+      return UsedContextUploadErrorType::
+          kBrowserProcessingMaxImagesExceededError;
+    case contextual_search::ContextUploadErrorType::
+        kBrowserProcessingMaxPdfsExceededError:
+      return UsedContextUploadErrorType::kBrowserProcessingMaxPdfsExceededError;
   }
   return UsedContextUploadErrorType::kUnknown;
 }
@@ -301,6 +329,28 @@ EnumTraits<UsedContextUploadErrorType,
       return contextual_search::ContextUploadErrorType::kAborted;
     case UsedContextUploadErrorType::kImageProcessingError:
       return contextual_search::ContextUploadErrorType::kImageProcessingError;
+    case UsedContextUploadErrorType::kBrowserProcessingFileTooLargeError:
+      return contextual_search::ContextUploadErrorType::
+          kBrowserProcessingFileTooLargeError;
+    case UsedContextUploadErrorType::kBrowserProcessingFileEmptyError:
+      return contextual_search::ContextUploadErrorType::
+          kBrowserProcessingFileEmptyError;
+    case UsedContextUploadErrorType::kBrowserProcessingMaxFilesExceededError:
+      return contextual_search::ContextUploadErrorType::
+          kBrowserProcessingMaxFilesExceededError;
+    case UsedContextUploadErrorType::kBrowserProcessingUnsupportedFileTypeError:
+      return contextual_search::ContextUploadErrorType::
+          kBrowserProcessingUnsupportedFileTypeError;
+    case UsedContextUploadErrorType::
+        kBrowserProcessingFileUploadNotAllowedError:
+      return contextual_search::ContextUploadErrorType::
+          kBrowserProcessingFileUploadNotAllowedError;
+    case UsedContextUploadErrorType::kBrowserProcessingMaxImagesExceededError:
+      return contextual_search::ContextUploadErrorType::
+          kBrowserProcessingMaxImagesExceededError;
+    case UsedContextUploadErrorType::kBrowserProcessingMaxPdfsExceededError:
+      return contextual_search::ContextUploadErrorType::
+          kBrowserProcessingMaxPdfsExceededError;
   }
   NOTREACHED();
 }
@@ -376,6 +426,13 @@ StructTraits<UsedToolConfigDataView, omnibox::ToolConfig>::aim_url_params(
 }
 
 // static
+const std::string&
+StructTraits<UsedToolConfigDataView, omnibox::ToolConfig>::menu_tooltip(
+    const omnibox::ToolConfig& config) {
+  return config.menu_tooltip();
+}
+
+// static
 bool StructTraits<UsedToolConfigDataView, omnibox::ToolConfig>::Read(
     UsedToolConfigDataView data,
     omnibox::ToolConfig* output) {
@@ -416,6 +473,12 @@ bool StructTraits<UsedToolConfigDataView, omnibox::ToolConfig>::Read(
     *output->add_aim_url_params() = param;
   }
 
+  std::string menu_tooltip;
+  if (!data.ReadMenuTooltip(&menu_tooltip)) {
+    return false;
+  }
+  output->set_menu_tooltip(menu_tooltip);
+
   return true;
 }
 
@@ -449,6 +512,13 @@ StructTraits<UsedModelConfigDataView, omnibox::ModelConfig>::aim_url_params(
 }
 
 // static
+const std::string&
+StructTraits<UsedModelConfigDataView, omnibox::ModelConfig>::menu_tooltip(
+    const omnibox::ModelConfig& config) {
+  return config.menu_tooltip();
+}
+
+// static
 bool StructTraits<UsedModelConfigDataView, omnibox::ModelConfig>::Read(
     UsedModelConfigDataView data,
     omnibox::ModelConfig* output) {
@@ -479,6 +549,12 @@ bool StructTraits<UsedModelConfigDataView, omnibox::ModelConfig>::Read(
   for (const auto& param : params) {
     *output->add_aim_url_params() = param;
   }
+
+  std::string menu_tooltip;
+  if (!data.ReadMenuTooltip(&menu_tooltip)) {
+    return false;
+  }
+  output->set_menu_tooltip(menu_tooltip);
 
   return true;
 }
@@ -649,10 +725,17 @@ StructTraits<UsedInputStateDataView, omnibox::InputState>::max_total_inputs(
 }
 
 // static
+bool StructTraits<UsedInputStateDataView, omnibox::InputState>::
+    is_canvas_query_submitted(const omnibox::InputState& input) {
+  return input.is_canvas_query_submitted;
+}
+
+// static
 bool StructTraits<UsedInputStateDataView, omnibox::InputState>::Read(
     UsedInputStateDataView data,
     omnibox::InputState* output) {
   output->max_total_inputs = data.max_total_inputs();
+  output->is_canvas_query_submitted = data.is_canvas_query_submitted();
   return data.ReadAllowedModels(&output->allowed_models) &&
          data.ReadAllowedTools(&output->allowed_tools) &&
          data.ReadAllowedInputTypes(&output->allowed_input_types) &&

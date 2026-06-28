@@ -120,14 +120,12 @@ gfx::Rect GetModalDialogBounds(views::Widget* widget,
 
   if (widget->is_top_level() && SupportsGlobalScreenCoordinates()) {
     views::Widget* const host_widget =
-#if defined(VIVALDI_BUILD)
+        vivaldi::IsVivaldiRunning() ?
         static_cast<VivaldiBrowserWindow*>(
             tab_interface->GetBrowserWindowInterface()->GetWindow())
-            ->GetWidget();
-#else   //  VIVALDI_BUILD
+            ->GetWidget() :
         BrowserElementsViews::From(host_browser_window)
             ->GetPrimaryWindowWidget();
-#endif  //  VIVALDI_BUILD
     gfx::Rect dialog_screen_bounds =
         dialog_bounds +
         host_widget->GetClientAreaBoundsInScreen().OffsetFromOrigin();
@@ -303,6 +301,9 @@ TabDialogManager::TabDialogManager(TabInterface* tab_interface)
   tab_subscriptions_.push_back(
       tab_interface_->RegisterWillDetach(base::BindRepeating(
           &TabDialogManager::TabWillDetach, base::Unretained(this))));
+  tab_subscriptions_.push_back(
+      tab_interface->RegisterWillDiscardContents(base::BindRepeating(
+          &TabDialogManager::OnDiscardContents, base::Unretained(this))));
 }
 
 TabDialogManager::~TabDialogManager() = default;
@@ -575,6 +576,13 @@ void TabDialogManager::TabWillDetach(TabInterface* tab_interface,
   if (widget_ && params_->close_on_detach) {
     CloseDialog();
   }
+}
+
+void TabDialogManager::OnDiscardContents(TabInterface* tab,
+                                         content::WebContents* old_contents,
+                                         content::WebContents* new_contents) {
+  CHECK_EQ(tab, tab_interface_);
+  Observe(new_contents);
 }
 
 bool TabDialogManager::GetDialogWidgetVisibility() {

@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors
+// Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,24 @@
 
 #include <vector>
 
-#include "base/numerics/safe_conversions.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "ui/base/accelerators/accelerator.h"
+#include "ui/events/keycodes/keyboard_codes_posix.h"
 
 namespace ui {
 
+namespace {
+
 std::string KeyboardCodeToString(KeyboardCode key_code) {
   if (key_code >= VKEY_A && key_code <= VKEY_Z) {
-    return std::string(1, base::checked_cast<char>('a' + (key_code - VKEY_A)));
+    return std::string(1, static_cast<char>('a' + (key_code - VKEY_A)));
   }
   if (key_code >= VKEY_0 && key_code <= VKEY_9) {
-    return std::string(1, base::checked_cast<char>('0' + (key_code - VKEY_0)));
+    return std::string(1, static_cast<char>('0' + (key_code - VKEY_0)));
+  }
+  if (key_code >= VKEY_F1 && key_code <= VKEY_F12) {
+    return "F" + base::NumberToString(key_code - VKEY_F1 + 1);
   }
 
   switch (key_code) {
@@ -61,14 +68,15 @@ std::string KeyboardCodeToString(KeyboardCode key_code) {
       return "XF86AudioPlay";
 
     default:
-      return "UnknownKey";
+      return "";
   }
 }
+
+}  // namespace
 
 std::string AcceleratorToXdgShortcut(const Accelerator& accelerator) {
   std::vector<std::string> parts;
 
-  // Map Chromium modifiers to XDG spec modifiers
   if (accelerator.IsCtrlDown()) {
     parts.push_back("CTRL");
   }
@@ -82,8 +90,11 @@ std::string AcceleratorToXdgShortcut(const Accelerator& accelerator) {
     parts.push_back("LOGO");
   }
 
-  parts.push_back(KeyboardCodeToString(accelerator.key_code()));
-
+  std::string key = KeyboardCodeToString(accelerator.key_code());
+  if (key.empty()) {
+    return "";
+  }
+  parts.push_back(std::move(key));
   return base::JoinString(parts, "+");
 }
 

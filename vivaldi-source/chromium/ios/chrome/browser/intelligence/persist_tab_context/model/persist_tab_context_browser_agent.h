@@ -74,6 +74,7 @@ class PersistTabContextBrowserAgent
       web::PageLoadCompletionStatus load_completion_status) override;
 
  private:
+  friend class PersistTabContextBrowserAgentTest;
   friend class BrowserUserData<PersistTabContextBrowserAgent>;
 
   explicit PersistTabContextBrowserAgent(Browser* browser);
@@ -110,9 +111,8 @@ class PersistTabContextBrowserAgent
                               PageContextWrapperCallbackResponse response);
 
   // Writes the page context to the PageContentCache.
-  void WriteContextToContentCache(
-      web::WebState* web_state,
-      const PageContextWrapperCallbackResponse& response);
+  void WriteContextToContentCache(web::WebState* web_state,
+                                  PageContextWrapperCallbackResponse response);
 
   // Deletes a page context from the PageContentCache.
   void DeleteContextFromContentCache(int64_t tab_id);

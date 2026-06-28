@@ -1,22 +1,35 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="nl">
+<translation id="1062777154504442433">Nieuwe tabgroep</translation>
 <translation id="1204037785786432551">Koppeling downloaden</translation>
 <translation id="1206892813135768548">Koppelingstekst kopiëren</translation>
+<translation id="1223158186497001208">Gedeelde tabgroep <ph name="GROUP_TITLE" /> met nieuwe activiteit</translation>
+<translation id="1328749518742029305"><ph name="TAB_GROUP_TITLE" /> tabgroep gesloten en opgeslagen</translation>
 <translation id="1397811292916898096">Zoeken met <ph name="PRODUCT_NAME" /></translation>
 <translation id="1435593198351412143">Pdf's automatisch openen</translation>
 <translation id="1456207338570705181">Tikken-om-te-zoeken is een functie die alleen beschikbaar is wanneer Google is ingesteld als standaardzoekmachine in Vivaldi. Het stuurt het geselecteerde woord en de huidige pagina als context naar Google Search. Je kunt het uitschakelen in <ph name="BEGIN_LINK" /> Instellingen <ph name="END_LINK" />.</translation>
 <translation id="1598449788754183301">Normale/Privétabbladen wisselen</translation>
+<translation id="1626105448931436644">Meer informatie over gedeelde tabgroepen</translation>
 <translation id="1644574205037202324">Geschiedenis</translation>
 <translation id="1829244130665387512">Zoeken op pagina</translation>
-<translation id="1910514478706885609">Openen in nieuwe tabgroep</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+          =1 {Bekijk <ph name="TABS_COUNT_ONE" /> tab met nieuwe activiteit in gedeelde tabgroepen}
+          other {Bekijk <ph name="TABS_COUNT_MANY" /> tabs met nieuwe activiteit in gedeelde tabgroepen}
+        }</translation>
 <translation id="1925021887439448749">Aangepast webadres opgeven</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+          =1 {Deelnemen aan tabgroep met <ph name="OWNER_FIRST_NAME" /> en <ph name="NUMBER_OF_OTHER_MEMBERS" /> anderen}
+          other {Deelnemen aan tabgroep met <ph name="OWNER_FIRST_NAME" /> en <ph name="NUMBER_OF_OTHER_MEMBERS" /> anderen}
+        }</translation>
 <translation id="2038563949887743358">'Desktopwebsite aanvragen' inschakelen</translation>
+<translation id="2067565353468675023">Deelnemen aan tabgroep met <ph name="OWNER_FIRST_NAME" /></translation>
 <translation id="208033313373016095">Leesweergave voor webpagina's</translation>
 <translation id="2149973817440762519">Bladwijzer bewerken</translation>
 <translation id="2306442503286132111">Bladwijzer opgeslagen in map <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Uiterlijk</translation>
-<translation id="2501278716633472235">Ga terug</translation>
+<translation id="2495373685671077949">Je tabbladen en groepen doorzoeken</translation>
+<translation id="2500281581698062897">Je verliest onmiddellijk de toegang tot de tabgroep “<ph name="GROUP_NAME" />” en <ph name="BLOCKED_MEMBER_FULL_NAME" /> (<ph name="BLOCKED_MEMBER_EMAIL" />) zal niet langer met je kunnen communiceren via Google-diensten.</translation>
 <translation id="2546283357679194313">Cookies en websitegegevens</translation>
 <translation id="2633278372998075009">Privétabs</translation>
 <translation id="2650751991977523696">Bestand opnieuw downloaden?</translation>
@@ -26,6 +39,7 @@
 <translation id="2871733351037274014">Pagina's vooraf laden</translation>
 <translation id="2904300462646366554">Gedownloade pdf's worden automatisch geopend met een van de pdf-viewers op je apparaat</translation>
 <translation id="2951071800649516099">Voeg pagina's aan je leeslijst toe voor later</translation>
+<translation id="3020023775880428664">Tabblad naar groep verplaatsen</translation>
 <translation id="3029276696788198026">Niet vooraf laden</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> bladwijzer}
@@ -35,7 +49,13 @@
 <translation id="3232293466644486101">Browsegegevens verwijderen…</translation>
 <translation id="3234355010754616171">Nieuwe privétab</translation>
 <translation id="3237087289225714896">Standaard vooraf laden:</translation>
+<translation id="3298614730029636660">Groep verlaten</translation>
+<translation id="3359462099791810823">Bewaar deze groep om later tabbladen toe te voegen, of verwijder deze als je deze niet langer nodig hebt.</translation>
 <translation id="3478414204555961127">Leesweergave</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+          =1 {Tabgroep van <ph name="TAB_COUNT_ONE" /> tab, kleur <ph name="COLOR_NAME" />, herstellen als nieuwe achtergrontabgroep.}
+          other {Tabgroep van <ph name="TAB_COUNT_MANY" /> tabs, kleur <ph name="COLOR_NAME" />, herstellen als nieuwe achtergrondtabgroep.}
+        }</translation>
 <translation id="3504699618187058974">Tabs groeperen</translation>
 <translation id="3518985090088779359">Accepteren &amp; doorgaan</translation>
 <translation id="3571177741182643350">Ongelezen artikelen - offline beschikbaar:</translation>
@@ -43,9 +63,11 @@
 <translation id="3700829948786686853">Welkom bij Vivaldi</translation>
 <translation id="3719826155360621982">Startpagina</translation>
 <translation id="3738139272394829648">Tikken om te zoeken</translation>
-<translation id="385051799172605136">Terug</translation>
+<translation id="3900825170941000696">Tabgroep <ph name="TITLE_OF_GROUP" />, kleur <ph name="COLOR_NAME" />, herstellen als een nieuwe achtergrondtabgroep.</translation>
+<translation id="395421286877117532">Pas de tabgroep aan en tik klaar</translation>
 <translation id="3987993985790029246">Link kopiëren</translation>
 <translation id="399014816462153200">Te lezen artikelen:</translation>
+<translation id="4048089913902125176">Open tabgroep <ph name="TITLE_OF_GROUP" />, kleur <ph name="COLOR_NAME" />, met sites <ph name="URL_LIST" />.</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> tab}
           other {<ph name="TAB_COUNT_MANY" /> tabs, <ph name="TAB_COUNT_INCOGNITO" /> privé}}</translation>
@@ -53,26 +75,42 @@
 <translation id="4121750346708795461">Als je deze app gebruikt, ga je akkoord met de <ph name="BEGIN_LINK1" />Licentieovereenkomst voor eindgebruikers<ph name="END_LINK1" /> en het <ph name="BEGIN_LINK2" />Privacybeleid<ph name="END_LINK2" /> van Vivaldi.</translation>
 <translation id="4137746084635924146">Huidige taal van dit apparaat</translation>
 <translation id="4167670741834902166">Nieuwe privétab</translation>
-<translation id="4195643157523330669">Openen op nieuw tabblad</translation>
+<translation id="4195643157523330669">Openen op nieuwe tab</translation>
+<translation id="4219031106525503429">Tabgroep “<ph name="GROUP_NAME" />” delen</translation>
 <translation id="4225895483398857530">Snelkoppeling voor werkbalk</translation>
 <translation id="4243710787042215766">Openen in privétab</translation>
 <translation id="4269820728363426813">Koppelingsadres kopiëren</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Schermvergrendeling aanzetten via Android-instellingen<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Wachtwoordbeheer</translation>
-<translation id="441100617989818073">Ongebruikte of dubbele tabbladen en groepen</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {<ph name="TABS_COUNT_ONE" /> standaard tabblad met nieuwe activiteit in gedeelde tabgroepen}
+          other {<ph name="TABS_COUNT_MANY" /> standaard tabbladen met nieuwe activiteit in gedeelde tabgroepen}
+        }</translation>
+<translation id="4445802392779002787">Tab toevoegen aan groep</translation>
 <translation id="451872707440238414">Bladwijzers doorzoeken</translation>
 <translation id="4526803704855831732">Privétabs</translation>
 <translation id="4532845899244822526">Map kiezen</translation>
+<translation id="454284936014822050"><ph name="GROUP_TITLE" /> tabgroep</translation>
+<translation id="4614713783237504866">Ongebruikte of dubbele tabs en groepen</translation>
+<translation id="463284870544181537">Bewaar deze groep om later tabbladen toe te voegen, of laat deze als je er geen toegang meer toe wilt</translation>
+<translation id="4638726726741656531">Je kunt hier nu eenvoudig tabbladen aan groepen toevoegen</translation>
 <translation id="4699172675775169585">Afbeeldingen en bestanden in tijdelijke opslag</translation>
 <translation id="4719086422742491124">Leer meer over onderwerpen op websites zonder de pagina te verlaten. Selecteer een of meer woorden op de pagina om ernaar te zoeken.
 
 Tikken-om-te-zoeken is een functie die alleen beschikbaar is wanneer Google is ingesteld als de standaardzoekmachine in Vivaldi.</translation>
 <translation id="4759238208242260848">Downloads</translation>
-<translation id="4777866634702576038">Tabgroep verwijderen?</translation>
+<translation id="4771820744342013314">Tabgroep verwijderen?</translation>
 <translation id="4850886885716139402">Weergave</translation>
 <translation id="4883379392681899581">Privémodus verlaten</translation>
+<translation id="4883812026489706387">Tabgroep “<ph name="TAB_GROUP_TITLE" />” heeft nieuwe activiteit</translation>
+<translation id="4887248255051238988">Tabgroep verlaten?</translation>
 <translation id="4943872375798546930">Geen resultaten</translation>
 <translation id="49576331685473090">Inhoudsblokkering</translation>
+<translation id="4964059453543967592">Gesloten groep opnieuw openen</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" /> tabgroep}
+          other {<ph name="TAB_GROUPS_MANY" /> tabgroepen}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> privétab}
           other {<ph name="TAB_COUNT_NORMAL" /> privétabs}}</translation>
@@ -83,19 +121,26 @@ Tikken-om-te-zoeken is een functie die alleen beschikbaar is wanneer Google is i
 <translation id="5206168361184759344">{FILE_COUNT,plural,
             =1{Bestand downloaden…}
             other{# bestanden downloaden…}}</translation>
+<translation id="5210689723585747462"><ph name="TAB_GROUP_TITLE" /> tabgroep gesloten</translation>
 <translation id="5233638681132016545">Nieuwe tab</translation>
 <translation id="5375131951310889874">Leer meer over onderwerpen op websites zonder de pagina te verlaten. Tikken-om-te-zoeken is een functie die alleen beschikbaar is wanneer Google is ingesteld als standaardzoekmachine in Vivaldi. Het stuurt een woord en de omringende context naar Google Search en retourneert definities, afbeeldingen, zoekresultaten en andere details.
 
 Druk lang op de zoekterm om de selectie aan te passen. Om de zoekopdracht te verfijnen, schuif het paneel helemaal naar boven en tik op het zoekvak.</translation>
+<translation id="5570837353202786816">Iedereen verliest onmiddellijk de toegang tot de tabgroep “<ph name="GROUP_NAME" />” en alle uitnodigingslinks worden uitgeschakeld</translation>
+<translation id="5614794348925178470">Gedeelde tabgroep <ph name="GROUP_TITLE" /></translation>
 <translation id="572328651809341494">Recente tabs</translation>
 <translation id="5833984609253377421">Koppeling delen</translation>
+<translation id="6129507335719227488">Tabs in groep</translation>
 <translation id="6150320133806434356">Bladwijzer opgeslagen</translation>
 <translation id="6193448654517602979">Tabs selecteren</translation>
+<translation id="6221225660285238685">Groep naar een ander venster verplaatsen</translation>
+<translation id="6277377952699614191">Tabgroep</translation>
 <translation id="6336451774241870485">Nieuwe privétab</translation>
 <translation id="6337323516034698937">Als je dit tabblad naar een ander apparaat wilt sturen, log je op beide apparaten in bij Vivaldi Synchronisatie. Zorg ervoor dat je indien nodig het coderingswachtwoord invoert.</translation>
 <translation id="6341580099087024258">Vragen waar bestanden moeten worden opgeslagen</translation>
 <translation id="6364438453358674297">Suggestie uit de geschiedenis verwijderen?</translation>
 <translation id="6404511346730675251">Bladwijzer bewerken</translation>
+<translation id="6453011654157908292">Tabgroepdetails</translation>
 <translation id="650224091954855786">{FILE_COUNT,plural,
             =1{Bestand gedownload}
             other{# downloads voltooid}}</translation>
@@ -104,11 +149,13 @@ Druk lang op de zoekterm om de selectie aan te passen. Om de zoekopdracht te ver
 <translation id="6593061639179217415">Desktopwebsite</translation>
 <translation id="6610147964972079463">Privétabs sluiten</translation>
 <translation id="6627583120233659107">Map bewerken</translation>
+<translation id="6785740335511995065">Tabgroep bewaren?</translation>
 <translation id="6865313869410766144">Formuliergegevens voor automatisch invullen</translation>
 <translation id="6909589135458168665">Pagina's vooraf laden</translation>
 <translation id="7029995644714925509">Wanneer een website vraagt om koppelingen van hun pagina vooruit te laden, dan versleutelt Vivaldi en laadt deze pagina's zonder cookies van de Google-servers. Hierdoor blijft jouw identiteit verborgen voor de vooruit geladen website.</translation>
 <translation id="706339621163631076">Privacybeleid van Vivaldi</translation>
 <translation id="7100573672995171864">Vivaldi aanpassen en bedienen</translation>
+<translation id="7133879160432070247">Blokkeren en groep verlaten?</translation>
 <translation id="732145680195464316">Bladwijzer opgeslagen in <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Een Do Not Track-verzoek sturen</translation>
 <translation id="7359002509206457351">Toegang tot betaalmethoden</translation>
@@ -117,24 +164,33 @@ Druk lang op de zoekterm om de selectie aan te passen. Om de zoekopdracht te ver
 <translation id="7456774706094330779">Uitgebreid vooraf laden</translation>
 <translation id="7465104139234185284">Alle privétabs sluiten</translation>
 <translation id="7481312909269577407">Vooruit</translation>
+<translation id="759273611317559136"><ph name="TAB_GROUP_TITLE" /> tabgroep verwijderd</translation>
+<translation id="7630413501995820846">Groep bewaren</translation>
+<translation id="7640137753339219124">Tabgroep verwijderen</translation>
 <translation id="7764225426217299476">Adres toevoegen</translation>
+<translation id="7910753230807645596">Dubbele tabbladen en -groepen of die <ph name="DAYS_INACTIVE" /> dagen ongebruikt zijn worden hier <ph name="AUTODELETE_SECTION" /> verplaatst. Je kunt dit op elk gewenst moment wijzigen in <ph name="DECLUTTER_SETTINGS_TITLE" />.</translation>
 <translation id="7968014550143838305">Toegevoegd aan leeslijst</translation>
 <translation id="804786196054284061">Licentieovereenkomst voor eindgebruikers</translation>
 <translation id="8062594758852531064">Uitgebreid vooraf laden:</translation>
 <translation id="8073388330009372546">Afbeelding in nieuwe tab openen</translation>
 <translation id="8127542551745560481">Startpagina bewerken</translation>
+<translation id="8149776854955817519">Bekijk hier je inactieve tabbladen en groepen</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
           =1 {(1) inactief item}
           other {(#) inactieve items}}</translation>
 <translation id="8266862848225348053">Downloadlocatie</translation>
 <translation id="8348430946834215779">Waar mogelijk HTTPS gebruiken en waarschuwen voordat er sites worden geladen die dit niet ondersteunen</translation>
+<translation id="8480628728881718381">Openen in nieuw tabblad in groep</translation>
+<translation id="8543049482641423692">Tab toevoegen aan nieuwe groep</translation>
 <translation id="8560602726703398413">Bekijk je leeslijst in Bladwijzers</translation>
 <translation id="85991616550051997">Startpagina openen</translation>
+<translation id="8680308397617585416">Je verliest onmiddellijk de toegang tot de tabgroep “<ph name="GROUP_NAME" />” en deze wordt van al je apparaten verwijderd</translation>
 <translation id="8738163682604285902">Leesweergave tonen?</translation>
 <translation id="8820817407110198400">Bladwijzers</translation>
 <translation id="9042893549633094279">Privacy en beveiliging</translation>
 <translation id="9063523880881406963">'Desktopwebsite opvragen' uitschakelen</translation>
 <translation id="9080642952018487277">Privémodus inschakelen</translation>
+<translation id="9099398755190923267">Iedereen verliest onmiddellijk de toegang tot de tabgroep “<ph name="GROUP_NAME" />” en deze wordt van alle apparaten verwijderd</translation>
 <translation id="930124987204876019">Geschiedenis, cookies, sitegegevens, cachegeheugen verwijderen…</translation>
 <translation id="961856697154696964">Browsegegevens verwijderen</translation>
 </translationbundle>

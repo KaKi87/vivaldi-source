@@ -14,11 +14,11 @@
 #include "chrome/browser/ui/views/web_apps/web_app_icon_name_and_origin_view.h"
 #include "chrome/browser/ui/web_applications/web_app_dialogs.h"
 #include "chrome/browser/ui/web_applications/web_app_info_image_source.h"
+#include "chrome/browser/web_applications/model/web_app_icon_types.h"
 #include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/browser/web_applications/web_app_filter.h"
 #include "chrome/browser/web_applications/web_app_icon_generator.h"
 #include "chrome/browser/web_applications/web_app_icon_manager.h"
-#include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/browser/web_applications/web_app_uninstall_dialog_user_options.h"
@@ -76,7 +76,8 @@ WebAppUninstallDialogDelegateView::WebAppUninstallDialogDelegateView(
   DCHECK(!app_start_url.is_empty());
   DCHECK(app_start_url.is_valid());
 
-  web_app::SizeToBitmap icon_bitmaps = std::move(icon_metadata.icons_map);
+  web_app::UnorderedSizeToBitmap icon_bitmaps(icon_metadata.icons_map.begin(),
+                                              icon_metadata.icons_map.end());
   gfx::Size image_size{kIconSizeInDip, kIconSizeInDip};
   image_ = gfx::ImageSkia(std::make_unique<WebAppInfoImageSource>(
                               kIconSizeInDip, std::move(icon_bitmaps)),

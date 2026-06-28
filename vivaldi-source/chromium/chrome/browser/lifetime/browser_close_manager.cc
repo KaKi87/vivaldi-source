@@ -13,7 +13,7 @@
 #include "base/metrics/histogram_functions.h"
 #include "build/build_config.h"
 #include "chrome/browser/background/extensions/background_mode_manager.h"
-#include "chrome/browser/background/glic/glic_background_mode_manager.h"
+//#include "chrome/browser/background/glic/glic_background_mode_manager.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/download/download_core_service.h"
 #include "chrome/browser/download/download_core_service_factory.h"
@@ -21,13 +21,13 @@
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/scoped_tabbed_browser_displayer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/unload_controller.h"
 #include "chrome/common/buildflags.h"
 #include "content/public/browser/web_contents.h"
 
@@ -218,7 +218,8 @@ void BrowserCloseManager::CloseBrowsers() {
             browser_shutdown::ShouldIgnoreUnloadHandlers();
 
         Browser* const browser = browser_window->GetBrowserForMigrationOnly();
-        browser->set_force_skip_warning_user_on_close(ignore_unload_handlers);
+        UnloadController::From(browser_window)
+            ->set_force_skip_warning_user_on_close(ignore_unload_handlers);
         browser_window->GetWindow()->Close();
 
         if (ignore_unload_handlers) {

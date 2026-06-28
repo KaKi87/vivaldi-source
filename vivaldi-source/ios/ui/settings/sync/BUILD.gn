@@ -36,6 +36,7 @@ source_set("vivaldi_sync_settings") {
     "manager:sync_manager",
     "resources:sync_settings_assets",
     "//base",
+    "//components/os_crypt/async/browser",
     "//net",
     "//vivaldi/ios/ui/common:vivaldi_common",
     "//vivaldi/ios/ui/modal_page:vivaldi_modal_page",

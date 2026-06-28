@@ -133,8 +133,15 @@ class SyncServiceFactoryTest : public testing::Test {
 
 #if !BUILDFLAG(IS_ANDROID)
     datatypes.Put(syncer::THEMES);
-    datatypes.Put(syncer::SEARCH_ENGINES);
 #endif  // !BUILDFLAG(IS_ANDROID)
+
+#if BUILDFLAG(IS_ANDROID)
+    if (base::FeatureList::IsEnabled(syncer::kSyncSearchEnginesAndroidLFF)) {
+      datatypes.Put(syncer::SEARCH_ENGINES);
+    }
+#else
+    datatypes.Put(syncer::SEARCH_ENGINES);
+#endif  // BUILDFLAG(IS_ANDROID)
 
     datatypes.Put(syncer::SAVED_TAB_GROUP);
 
@@ -239,10 +246,11 @@ class SyncServiceFactoryTest : public testing::Test {
       datatypes.Put(syncer::THEMES_IOS);
     }
 
-    if (base::FeatureList::IsEnabled(syncer::kSyncAccessibilityAnnotation)) {
-      datatypes.Put(syncer::ACCESSIBILITY_ANNOTATION);
-    }
 
+    if (base::FeatureList::IsEnabled(
+            syncer::kNewTabPageCustomizationThemeSync)) {
+      datatypes.Put(syncer::THEMES_ANDROID);
+    }
     return datatypes;
   }
 

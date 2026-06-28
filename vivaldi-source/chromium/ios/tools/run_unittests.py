@@ -40,7 +40,8 @@ def _build_tests(out_dir: str, test_target: str) -> bool:
 
 
 def _run_tests(out_dir: str, simulator_udid: str,
-               gtest_filter: Optional[str], test_target: str) -> int:
+               gtest_filter: Optional[str], test_target: str,
+               gtest_repeat: Optional[str] = None) -> int:
   """Installs and runs the tests on the specified simulator.
 
   Args:
@@ -68,6 +69,8 @@ def _run_tests(out_dir: str, simulator_udid: str,
   ]
   if gtest_filter:
     launch_command.append('--gtest_filter=' + gtest_filter)
+  if gtest_repeat:
+    launch_command.append('--gtest_repeat=' + gtest_repeat)
   print_header("--- Running Tests ---")
   print_command(launch_command)
 
@@ -121,6 +124,8 @@ def main() -> int:
       help='The output directory to use for the build (default: %(default)s).')
   parser.add_argument('--gtest_filter',
                       help='The gtest_filter to use for running the tests.')
+  parser.add_argument('--gtest_repeat',
+                      help='The gtest_repeat to use for running the tests.')
   parser.add_argument('--device', help='The device type to use for the test.')
   parser.add_argument('--os',
                       help='The OS version to use for the test (e.g., 17.5).')
@@ -128,6 +133,10 @@ def main() -> int:
       '--test-target',
       default='ios_chrome_unittests',
       help='The test target to run (default: %(default)s).')
+  parser.add_argument(
+      '--no-build',
+      action='store_true',
+      help='Skip compiling/building the tests and only run them.')
   args = parser.parse_args()
 
   simulator = shared_test_utils.find_and_boot_simulator(
@@ -135,11 +144,12 @@ def main() -> int:
   if not simulator:
     return 1
 
-  if not _build_tests(args.out_dir, args.test_target):
-    return 1
+  if not args.no_build:
+    if not _build_tests(args.out_dir, args.test_target):
+      return 1
 
   return _run_tests(args.out_dir, simulator.udid, args.gtest_filter,
-                    args.test_target)
+                    args.test_target, args.gtest_repeat)
 
 
 if __name__ == '__main__':

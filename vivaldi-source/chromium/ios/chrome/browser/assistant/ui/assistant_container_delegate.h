@@ -61,11 +61,22 @@ enum class AssistantPresentationContext;
 
 #pragma mark - Gesture Handling
 
+// Asks the delegate if the container should pause the scroll view for this
+// gesture. Return YES to pause the scroll view and allow the container to move.
+- (BOOL)assistantContainer:(AssistantContainerViewController*)container
+     shouldPauseScrollView:(UIScrollView*)scrollView
+                forGesture:(UIGestureRecognizer*)otherGesture;
+
 // Asks the delegate if it should intercept the container's resizing pan
 // gesture. This is mainly used to avoid gesture conflicts with the embedder. If
 // this returns YES, the container will ignore the gesture. Defaults to NO.
 - (BOOL)assistantContainer:(AssistantContainerViewController*)container
     shouldInterceptPanGesture:(UIPanGestureRecognizer*)gesture;
+
+// Called when the container receives an accessibility escape gesture while
+// already in the minimized detent.
+- (void)assistantContainerDidRequestDismissal:
+    (AssistantContainerViewController*)container;
 
 @end
 

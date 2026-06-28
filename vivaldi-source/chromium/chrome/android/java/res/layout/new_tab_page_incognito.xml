@@ -16,9 +16,11 @@ found in the LICENSE file.
     android:contentDescription="@string/accessibility_new_incognito_tab_page">
 
     <!-- Vivaldi -->
-    <ImageView
+    <org.vivaldi.browser.common.TopCropImageView
+        android:id="@+id/vivaldi_image_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:adjustViewBounds="false"
         android:contentDescription="@string/accessibility_new_incognito_tab_page"
         android:scaleType="centerCrop"
         android:src="@drawable/private_window_bg"/>

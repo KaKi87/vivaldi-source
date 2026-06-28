@@ -12,9 +12,7 @@ Sources
    (JSONC — C-style comments are stripped before parsing)
 
 Skipped policies:
- - deprecated: true in YAML
- - No desktop platform in YAML supported_on (i.e. no chrome.* entry)
- - type: external
+ - deprecated: true in YAML (includes Vivaldi removed policies, set by vivaldi_generate_policy_templates.py)
  - Pref mapping contains no pref mapping
 
 Policies that cannot be handled automatically must be listed in one of:
@@ -35,7 +33,6 @@ Usage
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 from typing import Optional
@@ -138,10 +135,10 @@ PRIMARY_PREF_OVERRIDE: dict = {
   "WebAppInstallByUserEnabled": "profile.web_app.install_by_user_enabled",
   "ManagedBookmarks": "bookmarks.managed_bookmarks",
   "ProfileSeparationSettings": "profile_separation.settings",
+  "BookmarkBarEnabled": "bookmark_bar.show_on_all_tabs",
 }
 
 # policy_templates.json may use schema: $ref instead of a known type; resolve it from the root schema.
-# Policies of type external are skipped.
 _TOPLEVEL_TYPE_MAP: dict = {
   "main": "boolean",
   "int": "integer",
@@ -151,7 +148,6 @@ _TOPLEVEL_TYPE_MAP: dict = {
   "string-enum-list": "list",
   "list": "list",
   "dict": "dictionary",
-  "external": "external",
 }
 
 _SCHEMA_TYPE_MAP: dict = {
@@ -162,8 +158,6 @@ _SCHEMA_TYPE_MAP: dict = {
   "array": "list",
   "object": "dictionary",
 }
-
-_DESKTOP_PLATFORM_RE = re.compile(r"^chrome\.")
 
 # Strip '//' comments and parse JSON.
 def _load_jsonc(text: str):
@@ -193,21 +187,6 @@ def _load_jsonc(text: str):
         result.append(c)
     i += 1
   return json.loads("".join(result))
-
-
-def _is_desktop_platform(p: str) -> bool:
-  plat = re.sub(r":\S*$", "", p).strip().lower()
-  return bool(_DESKTOP_PLATFORM_RE.match(plat))
-
-
-def _is_desktop(policy: dict) -> bool:
-  supported_on = policy.get("supported_on", [])
-  future_on = policy.get("future_on", [])
-  return any(_is_desktop_platform(p) for p in supported_on + future_on)
-
-
-def _is_external_no_platform(yaml_info: dict) -> bool:
-  return yaml_info.get("type") == "external" and not yaml_info.get("supported_on")
 
 
 def parse_pref_mapping(data: list) -> tuple:
@@ -280,16 +259,6 @@ def generate(templates_file: Path, pref_mappings_dir: Path,
 
     if policy_name in KNOWN_NO_PREF_POLICIES:
       log(f"  SKIP [no-pref, known]: {policy_name}")
-      skipped += 1
-      continue
-
-    if _is_external_no_platform(policy):
-      log(f"  SKIP [external, no platform]: {policy_name}")
-      skipped += 1
-      continue
-
-    if not _is_desktop(policy):
-      log(f"  SKIP [non-desktop]: {policy_name}")
       skipped += 1
       continue
 

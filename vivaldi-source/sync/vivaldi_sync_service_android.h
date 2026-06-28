@@ -49,7 +49,7 @@ class VivaldiSyncServiceAndroid : public syncer::SyncServiceObserver {
   void OnSyncShutdown(syncer::SyncService* sync) override;
 
  private:
-  raw_ptr<syncer::SyncService> sync_service_;
+  raw_ptr<syncer::SyncService> sync_service_ = nullptr;
 
   void SendCycleData();
 

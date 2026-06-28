@@ -228,6 +228,35 @@ suite('TrackedElementTest', function() {
     assertTrue(args[1]);  // visible
   });
 
+  test('Adding hidden attribute sends visibility false', async () => {
+    manager.startTracking(element, NATIVE_ID);
+    await waitForVisibilityEvents();
+    handler.reset();
+
+    element.hidden = true;
+    await waitForVisibilityEvents();
+
+    assertGT(handler.getCallCount('trackedElementVisibilityChanged'), 0);
+    const args = handler.getArgs('trackedElementVisibilityChanged')[0];
+    assertEquals(NATIVE_ID, args[0]);
+    assertFalse(args[1]);  // not visible
+  });
+
+  test('Removing hidden attribute sends visibility false', async () => {
+    element.hidden = true;
+    manager.startTracking(element, NATIVE_ID);
+    await waitForVisibilityEvents();
+    handler.reset();
+
+    element.hidden = false;
+    await waitForVisibilityEvents();
+
+    assertGT(handler.getCallCount('trackedElementVisibilityChanged'), 0);
+    const args = handler.getArgs('trackedElementVisibilityChanged')[0];
+    assertEquals(NATIVE_ID, args[0]);
+    assertTrue(args[1]);  // visible
+  });
+
   test('fixed element tracking', async () => {
     manager.startTracking(element, NATIVE_ID, {fixed: true});
     await microtasksFinished();
@@ -410,5 +439,33 @@ suite('TrackedElementTest', function() {
     assertDeepEquals(
         {x: rect.x, y: rect.y, width: rect.width, height: rect.height},
         lastCall[2]);
+  });
+
+  test('clickElement_ waits until not disabled', async () => {
+    const button = document.createElement('button');
+    button.id = 'button';
+    document.body.appendChild(button);
+
+    let clicked = false;
+    button.addEventListener('click', () => {
+      clicked = true;
+    });
+
+    manager.startTracking(button, NATIVE_ID);
+    await waitForVisibilityEvents();
+
+    // Disable the button and try to click it.
+    button.disabled = true;
+    const clickPromise = managerRemote.clickElement(NATIVE_ID);
+
+    // Give it some time to make sure it hasn't clicked.
+    await microtasksFinished();
+    assertFalse(clicked);
+
+    // Enable the button and wait for the click to complete.
+    button.disabled = false;
+    const result = await clickPromise;
+    assertTrue(result.success);
+    assertTrue(clicked);
   });
 });

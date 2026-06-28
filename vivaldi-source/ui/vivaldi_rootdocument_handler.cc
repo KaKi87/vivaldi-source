@@ -4,6 +4,7 @@
 
 #include <set>
 
+#include "base/task/single_thread_task_runner.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/chrome_extension_system_factory.h"
@@ -251,14 +252,17 @@ void VivaldiRootDocumentHandler::AddGlobalError(
   errors_.push_back(std::move(error));
 }
 
-void VivaldiRootDocumentHandler::RemoveGlobalError(
+std::unique_ptr<VivaldiExtensionDisabledGlobalError>
+VivaldiRootDocumentHandler::RemoveGlobalError(
     VivaldiExtensionDisabledGlobalError* error) {
-  for (auto& err : errors_) {
-    if (error == err.get()) {
-      errors_.erase(std::ranges::find(errors_, err));
-      return;
+  for (auto it = errors_.begin(); it != errors_.end(); ++it) {
+    if (error == it->get()) {
+      auto result = std::move(*it);
+      errors_.erase(it);
+      return result;
     }
   }
+  return nullptr;
 }
 
 raw_ptr<VivaldiExtensionDisabledGlobalError>
@@ -499,12 +503,15 @@ void VivaldiExtensionDisabledGlobalError::RemoveGlobalError() {
 
   registry_observation_.Reset();
 
-  //  VivaldiRootDocumentHandler* root_doc_handler =
-  //      extensions::VivaldiRootDocumentHandlerFactory::GetForBrowserContext(
-  //          browser_context_);
-
-  // Avoid double deletes on shutdown.
-  //  root_doc_handler->RemoveGlobalError(this);
+  VivaldiRootDocumentHandler* root_doc_handler =
+      VivaldiRootDocumentHandlerFactory::GetForBrowserContext(browser_context_);
+  if (root_doc_handler) {
+    // Same pattern as Chromium's ExtensionDisabledGlobalError: defer
+    // deletion so the call stack unwinds before we're destroyed
+    auto ptr = root_doc_handler->RemoveGlobalError(this);
+    base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(
+        FROM_HERE, ptr.release());
+  }
 }
 
 const Extension* VivaldiExtensionDisabledGlobalError::GetExtension() {

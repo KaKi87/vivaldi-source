@@ -22,6 +22,7 @@
 #include "chrome/browser/ui/views/elevation_icon_setter.h"
 #include "chrome/browser/ui/views/frame/app_menu_button.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/toolbar/app_menu_control.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "ui/base/buildflags.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -47,16 +48,16 @@ GlobalErrorBubbleViewBase* GlobalErrorBubbleViewBase::ShowStandardBubbleView(
   if (vivaldi::IsVivaldiRunning()) {
     VivaldiBrowserWindow* browserwindow =
         static_cast<VivaldiBrowserWindow*>(browser->window());
-    views::View* anchor_view = browserwindow->toolbar_button_provider()
-                                   ->GetDefaultExtensionDialogAnchorView();
+    views::BubbleAnchor anchor = browserwindow->toolbar_button_provider()
+                                     ->GetDefaultExtensionDialogAnchor();
     // Show this in the middle of the browser window.
-    const gfx::Rect view_rect = anchor_view->GetBoundsInScreen();
+    const gfx::Rect view_rect = anchor.GetAnchorRect();
     gfx::Rect anchor_rect;
     anchor_rect.set_x(view_rect.x() + (view_rect.width() /2));
     anchor_rect.set_y(view_rect.y() + (view_rect.height() /2));
 
     GlobalErrorBubbleView* bubble_view = new GlobalErrorBubbleView(
-        anchor_view, views::BubbleBorder::FLOAT, browser, error);
+        anchor, views::BubbleBorder::FLOAT, browser, error);
     views::BubbleDialogDelegateView::CreateBubble(bubble_view);
 
     bubble_view->SetAnchorRect(anchor_rect);
@@ -66,11 +67,13 @@ GlobalErrorBubbleViewBase* GlobalErrorBubbleViewBase::ShowStandardBubbleView(
     return bubble_view;
   }
 
-  views::View* anchor_view = BrowserView::GetBrowserViewForBrowser(browser)
-                                 ->toolbar_button_provider()
-                                 ->GetAppMenuButton();
+  auto* control = BrowserView::GetBrowserViewForBrowser(browser)
+                      ->toolbar_button_provider()
+                      ->GetAppMenuControl();
+  views::BubbleAnchor anchor =
+      control ? control->GetAnchor() : views::BubbleAnchor();
   GlobalErrorBubbleView* bubble_view = new GlobalErrorBubbleView(
-      anchor_view, views::BubbleBorder::TOP_RIGHT, browser, error);
+      anchor, views::BubbleBorder::TOP_RIGHT, browser, error);
   views::BubbleDialogDelegateView::CreateBubble(bubble_view);
   bubble_view->GetWidget()->Show();
   return bubble_view;
@@ -79,11 +82,11 @@ GlobalErrorBubbleViewBase* GlobalErrorBubbleViewBase::ShowStandardBubbleView(
 // GlobalErrorBubbleView -------------------------------------------------------
 
 GlobalErrorBubbleView::GlobalErrorBubbleView(
-    views::View* anchor_view,
+    views::BubbleAnchor anchor,
     views::BubbleBorder::Arrow arrow,
     Browser* browser,
     const base::WeakPtr<GlobalErrorWithStandardBubble>& error)
-    : BubbleDialogDelegateView(anchor_view,
+    : BubbleDialogDelegateView(anchor,
                                arrow,
                                views::BubbleBorder::DIALOG_SHADOW,
                                /*autosize=*/true),

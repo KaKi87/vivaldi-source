@@ -8,7 +8,7 @@ if (vivaldi_build_tests) {
     sources += [ "//vivaldi/prefs/vivaldi_tab_zoom_pref_tests.cc" ]
   }
 
-  if(!is_ios && !is_mac) {
+  if (!is_ios && !is_mac) {
     update_target("//content/test:content_browsertests") {
       if (!defined(sources)) {
         sources = []
@@ -35,9 +35,7 @@ if (vivaldi_build_tests) {
       if (!defined(sources)) {
         sources = []
       }
-      sources += [
-        "//vivaldi/prefs/vivaldi_tab_zoom_pref_tests.cc",
-      ]
+      sources += [ "//vivaldi/prefs/vivaldi_tab_zoom_pref_tests.cc" ]
     }
   }
 }
@@ -45,6 +43,6 @@ if (vivaldi_build_tests) {
 update_target("//chrome/browser/prefs:impl") {
   sources += [
     "//vivaldi/prefs/vivaldi_local_state_prefs.cc",
-    "//vivaldi/prefs/vivaldi_local_state_prefs.h"
+    "//vivaldi/prefs/vivaldi_local_state_prefs.h",
   ]
 }

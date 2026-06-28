@@ -5,8 +5,8 @@
 package org.chromium.chrome.browser.bookmarks;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalBookmarksUrl;
 import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeBookmarksUrl;
-import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNonNativeBookmarksUrl;
 import static org.chromium.components.browser_ui.widget.ListItemBuilder.buildSimpleMenuItem;
 
 import android.app.Activity;
@@ -98,9 +98,10 @@ import android.view.View;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
-import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 
 import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
@@ -327,10 +328,7 @@ public class BookmarkManagerMediator // Vivaldi
                 @Override
                 public void onSelectionStateChange(List<BookmarkId> selectedBookmarks) {
                     clearHighlight();
-
-                    if (mIsSelectionEnabled != mSelectionDelegate.isSelectionEnabled()) {
-                        changeSelectionMode(mSelectionDelegate.isSelectionEnabled());
-                    }
+                    changeSelectionMode(mSelectionDelegate.isSelectionEnabled());
                 }
             };
 
@@ -605,7 +603,7 @@ public class BookmarkManagerMediator // Vivaldi
 
         updateShoppingFilterVisible();
 
-        // TODO(https://crbug.com/1413463): This logic is here to keep the same execution order
+        // TODO(https://crbug.com/40255666): This logic is here to keep the same execution order
         // from when it was in the original adapter. It doesn't conceptually make sense to be here,
         // and should happen earlier.
         addUiObserver(mBookmarkUiObserver);
@@ -787,6 +785,17 @@ public class BookmarkManagerMediator // Vivaldi
             }
             newOrder.add(bookmarkItem.getId().getId());
         }
+
+        // Update ordered list to include hidden items if needed
+        if (ChromeApplicationImpl.isVivaldi()) {
+            List<BookmarkId> childIds =
+                    mBookmarkModel.getChildIDsVivaldi(currentId,
+                            true, true, true);
+            if (childIds.size() != newOrder.size()) {
+                newOrder = buildFullIdList(childIds, newOrder);
+            }
+        } // End Vivaldi
+
         long[] newOrderArr = new long[newOrder.size()];
         for (int i = 0; i < newOrder.size(); i++) {
             newOrderArr[i] = newOrder.get(i);
@@ -798,6 +807,7 @@ public class BookmarkManagerMediator // Vivaldi
 
         updateAllLocations();
     }
+
 
     public boolean isReorderable(BookmarkListEntry entry) {
         if (!mCurrentPowerFilter.isEmpty()) {
@@ -1056,7 +1066,7 @@ public class BookmarkManagerMediator // Vivaldi
             // If a loading state is replaced by another loading state, do not notify this change.
             if (mNativePage != null) {
                 boolean replaceLastUrl =
-                        TextUtils.equals(mNativePage.getUrl(), getOriginalNonNativeBookmarksUrl())
+                        TextUtils.equals(mNativePage.getUrl(), getOriginalBookmarksUrl())
                                 || TextUtils.equals(
                                         mNativePage.getUrl(), getOriginalNativeBookmarksUrl());
                 mNativePage.onStateChange(state.mUrl, replaceLastUrl);
@@ -1182,6 +1192,10 @@ public class BookmarkManagerMediator // Vivaldi
         }
 
         for (BookmarkListEntry bookmarkListEntry : bookmarkListEntryList) {
+            if (bookmarkListEntry.getBookmarkItem() != null &&
+                    mBookmarkModel.isSeparator(bookmarkListEntry.getBookmarkItem().getId())) {
+                continue;
+            }
             updateOrAdd(index++, buildBookmarkListItem(bookmarkListEntry));
         }
 
@@ -1565,13 +1579,11 @@ public class BookmarkManagerMediator // Vivaldi
                 mImprovedBookmarkRowCoordinator.createBasePropertyModel(bookmarkId);
         propertyModel.set(BookmarkManagerProperties.BOOKMARK_LIST_ENTRY, bookmarkListEntry);
 
-        if (ChromeFeatureList.sAndroidBookmarkBarFastFollow.isEnabled()) {
-            // Include #isReorderable because Mobile bookmarks, Bookmarks bar, and Reading list
-            // should not be draggable.
-            boolean isDragEnabled =
-                    mDragStateDelegate.getDragEnabled() && isReorderable(bookmarkListEntry);
-            propertyModel.set(ImprovedBookmarkRowProperties.IS_DRAG_ENABLED, isDragEnabled);
-        }
+        // Include #isReorderable because Mobile bookmarks, Bookmarks bar, and Reading list
+        // should not be draggable.
+        boolean isDragEnabled =
+                mDragStateDelegate.getDragEnabled() && isReorderable(bookmarkListEntry);
+        propertyModel.set(ImprovedBookmarkRowProperties.IS_DRAG_ENABLED, isDragEnabled);
 
         // Menu
         propertyModel.set(
@@ -1613,13 +1625,11 @@ public class BookmarkManagerMediator // Vivaldi
         boolean canMove = BookmarkUtils.isMovable(mBookmarkModel, bookmarkItem);
 
         if (bookmarkId.getType() == BookmarkType.READING_LIST) {
-            if (bookmarkItem != null) {
-                listItems.add(
-                        buildSimpleMenuItem(
-                                bookmarkItem.isRead()
-                                        ? R.string.reading_list_mark_as_unread
-                                        : R.string.reading_list_mark_as_read));
-            }
+            listItems.add(
+                    buildSimpleMenuItem(
+                            bookmarkItem.isRead()
+                                    ? R.string.reading_list_mark_as_unread
+                                    : R.string.reading_list_mark_as_read));
         }
 
         listItems.add(buildSimpleMenuItem(R.string.bookmark_item_select));
@@ -2219,10 +2229,8 @@ public class BookmarkManagerMediator // Vivaldi
             if (state == null)
                 state = it.next(); // top item
             parentState = it.next(); // parent
-            if (state.mUiMode == BookmarkUiMode.SEARCHING &&
-                    mBookmarkModel.isReadingListFolder(parentState.mFolder)) {
-                return true;
-            }
+            return state.mUiMode == BookmarkUiMode.SEARCHING &&
+                    mBookmarkModel.isReadingListFolder(parentState.mFolder);
         }
         return false;
     }
@@ -2265,6 +2273,44 @@ public class BookmarkManagerMediator // Vivaldi
         searchBoxPropertyModel.set(BookmarkSearchBoxRowProperties.SEARCH_TEXT_HINT,
                 readingList ? ContextCompat.getString(mContext, R.string.search) :
                         ContextCompat.getString(mContext, R.string.bookmark_toolbar_search));
+    }
+
+    /** Vivaldi
+        Build List of ordered ids from @param newOrder but including hidden items (separators)
+     */
+    private List<Long> buildFullIdList(
+            List<BookmarkId> childIds, List<Long> newOrder) {
+        List<Long> newModelOrder = new ArrayList<>(childIds.size());
+        final Long defaultFirstItem = Long.valueOf(-1);
+        if (childIds.size() != newOrder.size()) {
+            Map<Long, List<Long>> hiddenAfterVisible = new HashMap<>();
+            Long currentVisibleItem = defaultFirstItem;
+            for (BookmarkId id : childIds) {
+                if (!mBookmarkModel.isSeparator(id)) {
+                    currentVisibleItem = id.getId();
+                    hiddenAfterVisible.put(currentVisibleItem, new ArrayList<>());
+                } else { // Hidden item
+                    if (currentVisibleItem.equals(defaultFirstItem) && hiddenAfterVisible.isEmpty()) {
+                        hiddenAfterVisible.put(currentVisibleItem, new ArrayList<>());
+                    }
+                    if  (hiddenAfterVisible.get(currentVisibleItem) != null) {
+                        hiddenAfterVisible.get(currentVisibleItem).add(id.getId());
+                    }
+                }
+            }
+            if (hiddenAfterVisible.get(defaultFirstItem) != null) {
+                newModelOrder.addAll(Objects.requireNonNull(hiddenAfterVisible.getOrDefault(
+                        defaultFirstItem, Collections.emptyList())));
+            }
+            for (int i = 0; i < newOrder.size(); i++) {
+                Long visibleItemId = newOrder.get(i);
+                newModelOrder.add(visibleItemId);
+                if (hiddenAfterVisible.get(visibleItemId) != null)
+                    newModelOrder.addAll(Objects.requireNonNull(hiddenAfterVisible.getOrDefault(
+                            visibleItemId, Collections.emptyList())));
+            }
+        }
+        return newModelOrder;
     }
     // End Vivaldi
 }

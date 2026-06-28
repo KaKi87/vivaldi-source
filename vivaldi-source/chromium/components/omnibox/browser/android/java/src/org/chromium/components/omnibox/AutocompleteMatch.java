@@ -86,11 +86,13 @@ public class AutocompleteMatch {
     private final @Nullable String mImageDominantColor;
     private final int mTransition;
     private final boolean mIsDeletable;
+    private final int mStarterPackId;
     private final Map<String, String> mExtraHeaders;
     private byte @Nullable [] mPostData;
     private final int mGroupId;
     private byte @Nullable [] mClipboardImageData;
     private final boolean mHasTabMatch;
+    private final int mAndroidTabId;
     private long mNativeMatch;
     private final List<OmniboxAction> mActions;
     private final boolean mAllowedToBeDefaultMatch;
@@ -118,11 +120,13 @@ public class AutocompleteMatch {
             GURL imageUrl,
             @Nullable String imageDominantColor,
             boolean isDeletable,
+            int starterPackId,
             @Nullable String postContentType,
             byte @Nullable [] postData,
             int groupId,
             byte @Nullable [] clipboardImageData,
             boolean hasTabMatch,
+            int androidTabId,
             @Nullable List<OmniboxAction> actions,
             boolean allowedToBeDefaultMatch,
             String inlineAutocompletion,
@@ -157,11 +161,13 @@ public class AutocompleteMatch {
         mImageUrl = imageUrl;
         mImageDominantColor = imageDominantColor;
         mIsDeletable = isDeletable;
+        mStarterPackId = starterPackId;
         mExtraHeaders = new ArrayMap<>();
         mPostData = postData;
         mGroupId = groupId;
         mClipboardImageData = clipboardImageData;
         mHasTabMatch = hasTabMatch;
+        mAndroidTabId = androidTabId;
         mActions = actions != null ? actions : Arrays.asList();
         mAllowedToBeDefaultMatch = allowedToBeDefaultMatch;
         mInlineAutocompletion = inlineAutocompletion;
@@ -216,11 +222,13 @@ public class AutocompleteMatch {
             @JniType("GURL") GURL imageUrl,
             @JniType("std::string") String imageDominantColor,
             boolean isDeletable,
+            int starterPackId,
             @JniType("std::string") String postContentType,
             byte[] postData,
             int groupId,
             byte[] clipboardImageData,
             boolean hasTabMatch,
+            int androidTabId,
             @JniType("std::vector") List<OmniboxAction> actions,
             boolean allowedToBeDefaultMatch,
             @JniType("std::u16string") String inlineAutocompletion,
@@ -236,7 +244,7 @@ public class AutocompleteMatch {
                             contentClassificationOffsets[i], contentClassificationStyles[i]));
         }
 
-        Set<Integer> subtypes = new ArraySet(nativeSubtypes.length);
+        Set<Integer> subtypes = new ArraySet<>(nativeSubtypes.length);
         for (int i = 0; i < nativeSubtypes.length; i++) {
             subtypes.add(nativeSubtypes[i]);
         }
@@ -259,11 +267,13 @@ public class AutocompleteMatch {
                         imageUrl,
                         imageDominantColor,
                         isDeletable,
+                        starterPackId,
                         postContentType,
                         postData,
                         groupId,
                         clipboardImageData,
                         hasTabMatch,
+                        androidTabId,
                         actions,
                         allowedToBeDefaultMatch,
                         inlineAutocompletion,
@@ -424,6 +434,17 @@ public class AutocompleteMatch {
         return mIsDeletable;
     }
 
+    /** {@return whether the match type is a search or url match to what the user typed} */
+    public static boolean isWhatYouTyped(@OmniboxSuggestionType int type) {
+        return type == OmniboxSuggestionType.URL_WHAT_YOU_TYPED
+                || type == OmniboxSuggestionType.SEARCH_WHAT_YOU_TYPED;
+    }
+
+    /** {@return whether the member match type is a search or url match to what the user typed} */
+    public boolean isWhatYouTyped() {
+        return isWhatYouTyped(mType);
+    }
+
     /**
      * Returns the extra HTTP headers associated with this autocomplete match. These headers should
      * be included when navigating to the suggestion's URL.
@@ -440,6 +461,10 @@ public class AutocompleteMatch {
 
     public boolean hasTabMatch() {
         return mHasTabMatch;
+    }
+
+    public int getAndroidTabId() {
+        return mAndroidTabId;
     }
 
     public List<OmniboxAction> getActions() {
@@ -519,6 +544,7 @@ public class AutocompleteMatch {
                 && Arrays.equals(mPostData, suggestion.mPostData)
                 && mGroupId == suggestion.mGroupId
                 && mAnswerType == suggestion.mAnswerType
+                && mAndroidTabId == suggestion.mAndroidTabId
                 && answer_template_is_equal
                 && suggest_template_is_equal
                 && ObjectsCompat.equals(mTabGroupUuid, suggestion.mTabGroupUuid)
@@ -540,6 +566,13 @@ public class AutocompleteMatch {
 
     public @Nullable String getAssociatedKeyword() {
         return mAssociatedKeyword;
+    }
+
+    /**
+     * @return The starter pack engine id, or 0 if not a starter pack match.
+     */
+    public int getStarterPackId() {
+        return mStarterPackId;
     }
 
     public boolean isRefineable() {
@@ -573,7 +606,8 @@ public class AutocompleteMatch {
                 .setGroupId(mGroupId)
                 .setIsSearchType(mIsSearchType)
                 .setAllowedToBeDefaultMatch(mAllowedToBeDefaultMatch)
-                .setIconType(mIconType);
+                .setIconType(mIconType)
+                .setStarterPackId(mStarterPackId);
 
         if (!TextUtils.isEmpty(mFillIntoEdit)) {
             builder.setFillIntoEdit(mFillIntoEdit);
@@ -630,7 +664,7 @@ public class AutocompleteMatch {
 
         return new AutocompleteMatch(
                 input.getType(),
-                new ArraySet(input.getSubtypeList()),
+                new ArraySet<>(input.getSubtypeList()),
                 input.getIsSearchType(),
                 input.getIconType(),
                 input.getTransition(),
@@ -645,11 +679,13 @@ public class AutocompleteMatch {
                 new GURL(input.getImageUrl()),
                 /* imageDominantColor= */ null,
                 /* isDeletable= */ false,
+                input.getStarterPackId(),
                 /* postContentType= */ null,
                 /* postData= */ null,
                 input.getGroupId(),
                 /* clipboardImageData= */ null,
                 /* hasTabMatch= */ false,
+                /* androidTabId= */ 0,
                 /* actions= */ null,
                 input.getAllowedToBeDefaultMatch(),
                 input.getInlineAutocompletion(),
@@ -678,6 +714,8 @@ public class AutocompleteMatch {
                         "mExtraHeaders=" + mExtraHeaders,
                         "mPostData=" + Arrays.toString(mPostData),
                         "mGroupId=" + mGroupId,
+                        "mHasTabMatch=" + mHasTabMatch,
+                        "mAndroidTabId=" + mAndroidTabId,
                         "mDisplayTextClassifications=" + mDisplayTextClassifications,
                         "mDescriptionClassifications=" + mDescriptionClassifications,
                         "mAnswerTemplate=" + mAnswerTemplate,

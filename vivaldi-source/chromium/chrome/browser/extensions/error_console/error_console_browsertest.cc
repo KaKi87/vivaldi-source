@@ -270,7 +270,7 @@ class ErrorConsoleBrowserTest : public ExtensionBrowserTest {
 #endif
       case ACTION_NEW_TAB: {
         ASSERT_TRUE(content::NavigateToURL(web_contents,
-                                           GURL(chrome::kChromeUINewTabURL)));
+                                           chrome::ChromeUINewTabURLAsGURL()));
         content::WaitForLoadStop(web_contents);
         break;
       }
@@ -487,7 +487,7 @@ IN_PROC_BROWSER_TEST_F(ErrorConsoleBrowserTest, BadAPIArgumentsRuntimeError) {
   std::string source = extension->GetResourceURL("background.js").spec();
   std::string message =
       "Uncaught TypeError: Error in invocation of alarms.getAll"
-      "(function callback): No matching signature.";
+      "(optional function callback): No matching signature.";
 
   CheckRuntimeError(errors[1].get(), extension->id(), source,
                     false,  // not incognito

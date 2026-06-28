@@ -45,6 +45,7 @@ import org.chromium.base.UserDataHost;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.omnibox.OmniboxChipManager;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
@@ -96,6 +97,7 @@ public class TabbedOpenInAppEntryPointUnitTest {
         TabModelSelectorSupplier.setInstanceForTesting(mTabModelSelector);
         when(mTab.getUserDataHost()).thenReturn(mUserDataHost);
         when(mTab.getWebContents()).thenReturn(mWebContents);
+        when(mTab.getUrl()).thenReturn(mUrl);
         when(mPackageManager.getApplicationInfo(any(), anyInt())).thenReturn(new ApplicationInfo());
         when(mPackageManager.getApplicationLogo(any(ApplicationInfo.class))).thenReturn(mIcon);
         when(mPackageManager.getApplicationLabel(any(ApplicationInfo.class))).thenReturn(LABEL);
@@ -120,7 +122,8 @@ public class TabbedOpenInAppEntryPointUnitTest {
                 /* isExternalProtocol= */ false,
                 /* isPdf= */ false,
                 /* mimeType= */ "",
-                Page.createForTesting());
+                Page.createForTesting(),
+                /* isSameOrigin= */ true);
 
         mEntryPoint = new TabbedOpenInAppEntryPoint(mTabSupplier, mOmniboxChipManager, mContext);
         mTabSupplier.set(mTab);
@@ -142,42 +145,46 @@ public class TabbedOpenInAppEntryPointUnitTest {
 
         // Simulate receiving resolve infos.
         var infos = new OpenInAppEntryPoint.ResolveResult.Info(mResolveInfo);
+        var shownWatcher =
+                HistogramWatcher.newSingleRecordWatcher("Android.OpenInApp.Impression", true);
         mEntryPoint.onResolveInfosFetched(delegate, infos, mIntent, mUrl, /* navigationId= */ 123L);
+        shownWatcher.assertExpected();
 
         // Resolve infos received; the app info should be non-null.
         assertNonNull(delegate.getCurrentOpenInAppInfo());
 
-        ArgumentCaptor<OmniboxChipManager.ChipCallback> callbackCaptor =
-                ArgumentCaptor.forClass(OmniboxChipManager.ChipCallback.class);
+        // Calling it again on same package should not emit.
+        var shownWatcher2 =
+                HistogramWatcher.newBuilder()
+                        .expectNoRecords("Android.OpenInApp.Impression")
+                        .build();
+        mEntryPoint.onResolveInfosFetched(delegate, infos, mIntent, mUrl, /* navigationId= */ 123L);
+        shownWatcher2.assertExpected();
+
         ArgumentCaptor<Runnable> actionCaptor = ArgumentCaptor.forClass(Runnable.class);
         String chipTitle = mContext.getString(R.string.open_in_app);
         String chipDescription = mContext.getString(R.string.open_in_app_desc, LABEL);
-        verify(mOmniboxChipManager)
-                .placeChip(
-                        eq(chipTitle),
-                        eq(mIcon),
-                        eq(chipDescription),
-                        actionCaptor.capture(),
-                        callbackCaptor.capture());
+        verify(mOmniboxChipManager, times(2))
+                .placeChip(eq(chipTitle), eq(mIcon), eq(chipDescription), actionCaptor.capture());
 
         // Simulate chip click.
+        var clickWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.OpenInApp.Clicked.OmniboxChip", true);
         actionCaptor.getValue().run();
+        clickWatcher.assertExpected();
+
         verify(mExternalNavigationHelper).launchExternalApp(eq(mIntent), eq(mContext));
         ShadowLooper.idleMainLooper();
         verify(mTabModelSelector).tryCloseTab(any(), eq(false));
 
         when(mOmniboxChipManager.isChipPlaced()).thenReturn(true);
 
-        // When chip is shown, it shouldn't be in the menu.
-        callbackCaptor.getValue().onChipShown();
-        assertNull(mEntryPoint.getOpenInAppInfoForMenuItem());
-
-        // When chip is hidden, it should be in the menu.
-        callbackCaptor.getValue().onChipHidden();
         var appInfo = mEntryPoint.getOpenInAppInfoForMenuItem();
         assertNonNull(appInfo);
         assertEquals(LABEL, appInfo.appName);
         assertEquals(mIcon, appInfo.appIcon);
+        assertEquals(PACKAGE, appInfo.packageName);
 
         captor.getValue().didFinishNavigationInPrimaryMainFrame(mNavigationHandle);
         verify(mOmniboxChipManager).dismissChip();
@@ -191,6 +198,13 @@ public class TabbedOpenInAppEntryPointUnitTest {
                 /* navigationId= */ 0);
         assertNull(delegate.getCurrentOpenInAppInfo());
         verify(mOmniboxChipManager, times(2)).dismissChip();
+
+        // Now if we get info again, it should emit again (even on same domain because it was
+        // cleared).
+        var shownWatcher3 =
+                HistogramWatcher.newSingleRecordWatcher("Android.OpenInApp.Impression", true);
+        mEntryPoint.onResolveInfosFetched(delegate, infos, mIntent, mUrl, /* navigationId= */ 123L);
+        shownWatcher3.assertExpected();
     }
 
     @Test
@@ -209,7 +223,7 @@ public class TabbedOpenInAppEntryPointUnitTest {
         mEntryPoint.onResolveInfosFetched(delegate, infos, mIntent, mUrl, /* navigationId= */ 123L);
 
         ArgumentCaptor<Runnable> actionCaptor = ArgumentCaptor.forClass(Runnable.class);
-        verify(mOmniboxChipManager).placeChip(any(), any(), any(), actionCaptor.capture(), any());
+        verify(mOmniboxChipManager).placeChip(any(), any(), any(), actionCaptor.capture());
 
         // Simulate chip click.
         actionCaptor.getValue().run();

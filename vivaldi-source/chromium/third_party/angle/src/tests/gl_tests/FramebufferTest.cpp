@@ -608,6 +608,34 @@ TEST_P(FramebufferTest_ES3, InvalidateIncomplete)
     EXPECT_GL_NO_ERROR();
 }
 
+// Covers invalidating an incomplete framebuffer with a depth/stencil attachment.
+// This should be a no-op, but should not crash on buggy drivers.
+TEST_P(FramebufferTest_ES3, InvalidateIncompleteDepthStencil)
+{
+    GLTexture texture;
+    glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
+    // 2 levels, GL_RGBA8, 4x4, 1 layer
+    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 2, GL_RGBA8, 4, 4, 1);
+
+    GLFramebuffer framebuffer;
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+
+    // Try to attach level 1 (out of range) to GL_DEPTH_STENCIL_ATTACHMENT.
+    // This makes the framebuffer incomplete.
+    glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, texture, 1, 0);
+    EXPECT_GL_NO_ERROR();
+
+    // Verify the framebuffer is incomplete.
+    EXPECT_GLENUM_EQ(GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT,
+                     glCheckFramebufferStatus(GL_FRAMEBUFFER));
+
+    std::vector<GLenum> attachments;
+    attachments.push_back(GL_DEPTH_STENCIL_ATTACHMENT);
+
+    glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, attachments.data());
+    EXPECT_GL_NO_ERROR();
+}
+
 // Covers sub-invalidating an incomplete framebuffer. This should be a no-op, but should not error.
 TEST_P(FramebufferTest_ES3, SubInvalidateIncomplete)
 {
@@ -8872,6 +8900,100 @@ TEST_P(FramebufferTest_ES31, InvalidateThenResolve)
     ASSERT_GL_NO_ERROR();
 }
 
+// Test that doing a partial resolve with a region that matches the render pass scissor works.
+TEST_P(FramebufferTest_ES31, PartialResolveMatchingScissor)
+{
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Red());
+
+    constexpr int kWidth         = 36;
+    constexpr int kHeight        = 20;
+    constexpr int kScissorWidth  = 12;
+    constexpr int kScissorHeight = 10;
+    glViewport(0, 0, kWidth, kHeight);
+
+    GLTexture color;
+    glBindTexture(GL_TEXTURE_2D, color);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, kScissorWidth, kScissorHeight);
+
+    GLFramebuffer FBO;
+    glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color, 0);
+    ASSERT_GL_NO_ERROR();
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    GLTexture msaaColor;
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, msaaColor);
+    glTexStorage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA8, kWidth, kHeight, false);
+
+    GLFramebuffer msaaFBO;
+    glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE,
+                           msaaColor, 0);
+    ASSERT_GL_NO_ERROR();
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    // Use a scissor and draw into the MSAA image
+    glScissor(0, 0, kScissorWidth, kScissorHeight);
+    glEnable(GL_SCISSOR_TEST);
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+
+    // Resolve into the single-sampled image, the subregion that matches the scissor.
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, FBO);
+    glBlitFramebuffer(0, 0, kScissorWidth, kScissorHeight, 0, 0, kScissorWidth, kScissorHeight,
+                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    ASSERT_GL_NO_ERROR();
+
+    // Verify resolve results
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, FBO);
+    EXPECT_PIXEL_RECT_EQ(0, 0, kScissorWidth, kScissorHeight, GLColor::red);
+    ASSERT_GL_NO_ERROR();
+}
+
+// Test that resolving into a bigger framebuffer works.
+TEST_P(FramebufferTest_ES31, ResolveIntoBiggerFramebuffer)
+{
+    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Red());
+
+    constexpr int kWidth  = 36;
+    constexpr int kHeight = 20;
+    glViewport(0, 0, kWidth, kHeight);
+
+    GLTexture color;
+    glBindTexture(GL_TEXTURE_2D, color);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, kWidth + 1, kHeight + 1);
+
+    GLFramebuffer FBO;
+    glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color, 0);
+    ASSERT_GL_NO_ERROR();
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    GLTexture msaaColor;
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, msaaColor);
+    glTexStorage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA8, kWidth, kHeight, false);
+
+    GLFramebuffer msaaFBO;
+    glBindFramebuffer(GL_FRAMEBUFFER, msaaFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE,
+                           msaaColor, 0);
+    ASSERT_GL_NO_ERROR();
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    // Draw into the MSAA image
+    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
+
+    // Resolve into the single-sampled image.
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, FBO);
+    glBlitFramebuffer(0, 0, kWidth, kHeight, 0, 0, kWidth, kHeight, GL_COLOR_BUFFER_BIT,
+                      GL_NEAREST);
+    ASSERT_GL_NO_ERROR();
+
+    // Verify resolve results
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, FBO);
+    EXPECT_PIXEL_RECT_EQ(0, 0, kWidth, kHeight, GLColor::red);
+    ASSERT_GL_NO_ERROR();
+}
+
 // Test framebuffer completeness with a mix of multisampled textures and renderbuffers.
 TEST_P(FramebufferTest_ES31, MixesMultisampleTextureRenderbuffer)
 {
@@ -8950,19 +9072,364 @@ TEST_P(FramebufferTest_ES3, DISABLED_MaxSize2DArrayNoOverflow)
     ASSERT_GL_NO_ERROR();
 }
 
+// Verify that recreating a texture's backing image due to use as storage image works when a
+// framebuffer is attached to multiple faces of the same cubemap.
+TEST_P(FramebufferTest_ES31, AttachToMultipleCubeFacesThenBindAsStorageImage)
+{
+    constexpr char kFS[] = R"(#version 310 es
+precision mediump float;
+layout(location = 0) out vec4 o0;
+layout(location = 1) out vec4 o1;
+void main()
+{
+    o0 = vec4(1.0, 0.0, 0.0, 1.0);
+    o1 = vec4(0.0, 1.0, 0.0, 1.0);
+})";
+    ANGLE_GL_PROGRAM(program, essl31_shaders::vs::Simple(), kFS);
+    glUseProgram(program);
+
+    // Create a cube map, and attach a framebuffer to two faces of it.
+    GLTexture cube;
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cube);
+    glTexStorage2D(GL_TEXTURE_CUBE_MAP, 1, GL_RGBA8, 6, 6);
+    ASSERT_GL_NO_ERROR();
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X,
+                           cube, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
+                           cube, 0);
+    constexpr GLenum kDrawBufs[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+    glDrawBuffers(2, kDrawBufs);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+    ASSERT_GL_NO_ERROR();
+
+    // Draw once to flush all dirty bits.
+    drawQuad(program, essl31_shaders::PositionAttrib(), 0.5f);
+
+    // Bind the texture as a storage image.  This can trigger a recreation of the backing image of
+    // the texture.
+    glBindImageTexture(0, cube, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
+    ASSERT_GL_NO_ERROR();
+
+    // Change one of the attachments to dirty it, but not the other one.
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_Y,
+                           cube, 0);
+
+    // Draw again.  If the backing image is recreated, both framebuffer attachments must be updated.
+    drawQuad(program, essl31_shaders::PositionAttrib(), 0.5f);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+    glReadBuffer(GL_COLOR_ATTACHMENT1);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+
+    // Verify the first draw was also done correctly
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X,
+                           cube, 0);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+}
+
+// Verify that recreating a texture's backing image due to srgb override works when a framebuffer is
+// attached to multiple faces of the same cubemap.
+TEST_P(FramebufferTest_ES31, AttachToMultipleCubeFacesThenSrgbOverride)
+{
+    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_texture_format_sRGB_override"));
+
+    constexpr char kFS[] = R"(#version 310 es
+precision mediump float;
+layout(location = 0) out vec4 o0;
+layout(location = 1) out vec4 o1;
+void main()
+{
+    o0 = vec4(1.0, 0.0, 0.0, 1.0);
+    o1 = vec4(0.0, 1.0, 0.0, 1.0);
+})";
+    ANGLE_GL_PROGRAM(program, essl31_shaders::vs::Simple(), kFS);
+    glUseProgram(program);
+
+    // Create a cube map, and attach a framebuffer to two faces of it.
+    GLTexture cube;
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cube);
+    glTexStorage2D(GL_TEXTURE_CUBE_MAP, 1, GL_RGBA8, 6, 6);
+    ASSERT_GL_NO_ERROR();
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X,
+                           cube, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
+                           cube, 0);
+    constexpr GLenum kDrawBufs[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+    glDrawBuffers(2, kDrawBufs);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+    ASSERT_GL_NO_ERROR();
+
+    // Draw once to flush all dirty bits.
+    drawQuad(program, essl31_shaders::PositionAttrib(), 0.5f);
+
+    // Enable SRGB override on the texture
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_FORMAT_SRGB_OVERRIDE_EXT, GL_SRGB);
+    ASSERT_GL_NO_ERROR();
+
+    // Change one of the attachments to dirty it, but not the other one.
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_Y,
+                           cube, 0);
+
+    // Draw again.  If the backing image is recreated, both framebuffer attachments must be updated.
+    drawQuad(program, essl31_shaders::PositionAttrib(), 0.5f);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+    glReadBuffer(GL_COLOR_ATTACHMENT1);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+
+    // Verify the first draw was also done correctly
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X,
+                           cube, 0);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+}
+
+// Verify that recreating a texture's backing image due to MSRTT binding works when a framebuffer is
+// attached to multiple faces of the same cubemap.
+TEST_P(FramebufferTest_ES31, AttachToMultipleCubeFacesThenMSRTT)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_EXT_multisampled_render_to_texture"));
+
+    constexpr char kFS[] = R"(#version 310 es
+precision mediump float;
+layout(location = 0) out vec4 o0;
+layout(location = 1) out vec4 o1;
+void main()
+{
+    o0 = vec4(1.0, 0.0, 0.0, 1.0);
+    o1 = vec4(0.0, 1.0, 0.0, 1.0);
+})";
+    ANGLE_GL_PROGRAM(program, essl31_shaders::vs::Simple(), kFS);
+    glUseProgram(program);
+
+    // Create a cube map, and attach a framebuffer to two faces of it.
+    GLTexture cube;
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cube);
+    glTexStorage2D(GL_TEXTURE_CUBE_MAP, 1, GL_RGBA8, 6, 6);
+    ASSERT_GL_NO_ERROR();
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X,
+                           cube, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
+                           cube, 0);
+    constexpr GLenum kDrawBufs[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+    glDrawBuffers(2, kDrawBufs);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+    ASSERT_GL_NO_ERROR();
+
+    // Draw once to flush all dirty bits.
+    drawQuad(program, essl31_shaders::PositionAttrib(), 0.5f);
+
+    // Bind the texture to an unrelated MSRTT framebuffer.
+    GLFramebuffer msrtt;
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, msrtt);
+    glFramebufferTexture2DMultisampleEXT(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                         GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, cube, 0, 4);
+    EXPECT_GL_FRAMEBUFFER_COMPLETE(GL_READ_FRAMEBUFFER);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+    ASSERT_GL_NO_ERROR();
+
+    // Change one of the attachments to dirty it, but not the other one.
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_Y,
+                           cube, 0);
+
+    // Draw again.  If the backing image is recreated, both framebuffer attachments must be updated.
+    drawQuad(program, essl31_shaders::PositionAttrib(), 0.5f);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+    glReadBuffer(GL_COLOR_ATTACHMENT1);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+
+    // Verify the first draw was also done correctly
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X,
+                           cube, 0);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+}
+
+// Verify that recreating a texture's backing image due to changing its base level works when a
+// framebuffer is attached to multiple faces of the same cubemap.
+TEST_P(FramebufferTest_ES31, AttachToMultipleCubeFacesThenChangeBaseLevel)
+{
+    constexpr char kFS[] = R"(#version 310 es
+precision mediump float;
+layout(location = 0) out vec4 o0;
+layout(location = 1) out vec4 o1;
+void main()
+{
+    o0 = vec4(1.0, 0.0, 0.0, 1.0);
+    o1 = vec4(0.0, 1.0, 0.0, 1.0);
+})";
+    ANGLE_GL_PROGRAM(program, essl31_shaders::vs::Simple(), kFS);
+    glUseProgram(program);
+
+    // Create a cube map with multiple levels, and attach a framebuffer to two faces of it.
+    // The [base, max] level is initially [3, 4] and the framebuffer is attached to level 4.  Later,
+    // the [base, max] level is changed to [4, 7].
+    GLTexture cube;
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cube);
+    for (uint32_t level = 0; level < 8; ++level)
+    {
+        const uint32_t size = 64 >> level;
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, level, GL_RGBA, size, size, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, level, GL_RGBA, size, size, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, level, GL_RGBA, size, size, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, level, GL_RGBA, size, size, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, level, GL_RGBA, size, size, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, level, GL_RGBA, size, size, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, nullptr);
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_BASE_LEVEL, 3);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_LEVEL, 4);
+    ASSERT_GL_NO_ERROR();
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X,
+                           cube, 4);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
+                           cube, 4);
+    constexpr GLenum kDrawBufs[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+    glDrawBuffers(2, kDrawBufs);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+    ASSERT_GL_NO_ERROR();
+
+    // Draw once to flush all dirty bits.
+    drawQuad(program, essl31_shaders::PositionAttrib(), 0.5f);
+
+    // Change the base/max level of the texture such that level 4 (where the framebuffer is already
+    // attached to) is still in range.
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_BASE_LEVEL, 4);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_LEVEL, 7);
+    ASSERT_GL_NO_ERROR();
+
+    // Change one of the attachments to dirty it, but not the other one.
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_Y,
+                           cube, 4);
+
+    // Draw again.  If the backing image is recreated, both framebuffer attachments must be updated.
+    drawQuad(program, essl31_shaders::PositionAttrib(), 0.5f);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+    glReadBuffer(GL_COLOR_ATTACHMENT1);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+
+    // Verify the first draw was also done correctly
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X,
+                           cube, 4);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+}
+
+// Verify that recreating a texture's backing image due to enabling mipmapping works when a
+// framebuffer is attached to multiple faces of the same cubemap.
+TEST_P(FramebufferTest_ES31, AttachToMultipleCubeFacesThenEnableMipmapping)
+{
+    constexpr char kFS[] = R"(#version 310 es
+precision mediump float;
+layout(location = 0) out vec4 o0;
+layout(location = 1) out vec4 o1;
+void main()
+{
+    o0 = vec4(1.0, 0.0, 0.0, 1.0);
+    o1 = vec4(0.0, 1.0, 0.0, 1.0);
+})";
+    ANGLE_GL_PROGRAM(program, essl31_shaders::vs::Simple(), kFS);
+    glUseProgram(program);
+
+    // Create a cube map with multiple levels, and attach a framebuffer to two faces of it.
+    // The [base, max] level is initially [3, 4] and the framebuffer is attached to level 4.  Later,
+    // the [base, max] level is changed to [4, 7].
+    GLTexture cube;
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cube);
+    for (uint32_t level = 0; level < 8; ++level)
+    {
+        const uint32_t size = 64 >> level;
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, level, GL_RGBA, size, size, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, level, GL_RGBA, size, size, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, level, GL_RGBA, size, size, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, level, GL_RGBA, size, size, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, level, GL_RGBA, size, size, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, level, GL_RGBA, size, size, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, nullptr);
+    }
+    // Disable mipmapping
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    ASSERT_GL_NO_ERROR();
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X,
+                           cube, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
+                           cube, 0);
+    constexpr GLenum kDrawBufs[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+    glDrawBuffers(2, kDrawBufs);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+    ASSERT_GL_NO_ERROR();
+
+    // Draw once to flush all dirty bits.
+    drawQuad(program, essl31_shaders::PositionAttrib(), 0.5f);
+
+    // Enable mipmapping.
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+    ASSERT_GL_NO_ERROR();
+
+    // Change one of the attachments to dirty it, but not the other one.
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_Y,
+                           cube, 0);
+
+    // Draw again.  If the backing image is recreated, both framebuffer attachments must be updated.
+    drawQuad(program, essl31_shaders::PositionAttrib(), 0.5f);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+    glReadBuffer(GL_COLOR_ATTACHMENT1);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+
+    // Verify the first draw was also done correctly
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X,
+                           cube, 0);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+}
+
 ANGLE_INSTANTIATE_TEST_ES2_AND(AddMockTextureNoRenderTargetTest,
                                ES2_D3D9().enable(Feature::AddMockTextureNoRenderTarget),
                                ES2_D3D11().enable(Feature::AddMockTextureNoRenderTarget));
 
-ANGLE_INSTANTIATE_TEST_ES2(FramebufferTest);
-ANGLE_INSTANTIATE_TEST_ES2(FramebufferExtensionsTest);
-ANGLE_INSTANTIATE_TEST_ES2_AND_ES3(FramebufferFormatsTest);
+ANGLE_INSTANTIATE_TEST_ES2_AND(FramebufferTest,
+                               ES2_VULKAN().disable(Feature::PreferDynamicRendering));
+ANGLE_INSTANTIATE_TEST_ES2_AND(FramebufferExtensionsTest,
+                               ES2_VULKAN().disable(Feature::PreferDynamicRendering));
+ANGLE_INSTANTIATE_TEST_ES2_AND_ES3_AND(FramebufferFormatsTest,
+                                       ES2_VULKAN().disable(Feature::PreferDynamicRendering));
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(FramebufferTest_ES3);
 ANGLE_INSTANTIATE_TEST_ES3_AND(FramebufferTest_ES3,
                                ES3_VULKAN().enable(Feature::EmulatedPrerotation90),
                                ES3_VULKAN().enable(Feature::EmulatedPrerotation180),
-                               ES3_VULKAN().enable(Feature::EmulatedPrerotation270));
+                               ES3_VULKAN().enable(Feature::EmulatedPrerotation270),
+                               ES3_VULKAN().disable(Feature::PreferDynamicRendering));
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(FramebufferTest_ES3_WebGPU);
 ANGLE_INSTANTIATE_TEST(FramebufferTest_ES3_WebGPU, ES3_WEBGPU());
@@ -8973,6 +9440,530 @@ ANGLE_INSTANTIATE_TEST(FramebufferTest_ES3Metal,
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(FramebufferTest_ES31);
 ANGLE_INSTANTIATE_TEST_ES31_AND(FramebufferTest_ES31,
-                                ES31_VULKAN().disable(Feature::SupportsImagelessFramebuffer));
-ANGLE_INSTANTIATE_TEST_ES3(FramebufferTestWithFormatFallback);
-ANGLE_INSTANTIATE_TEST_ES3(DefaultFramebufferTest);
+                                ES31_VULKAN().disable(Feature::SupportsImagelessFramebuffer),
+                                ES31_VULKAN().disable(Feature::PreferDynamicRendering),
+                                ES31_VULKAN()
+                                    .disable(Feature::PreferDynamicRendering)
+                                    .disable(Feature::SupportsImagelessFramebuffer));
+ANGLE_INSTANTIATE_TEST_ES3_AND(FramebufferTestWithFormatFallback,
+                               ES3_VULKAN().disable(Feature::PreferDynamicRendering));
+ANGLE_INSTANTIATE_TEST_ES3_AND(DefaultFramebufferTest,
+                               ES3_VULKAN().disable(Feature::PreferDynamicRendering));
+
+class FramebufferTest_ES3FBOWorkaround : public ANGLETest<>
+{
+  protected:
+    FramebufferTest_ES3FBOWorkaround()
+    {
+        setWindowWidth(128);
+        setWindowHeight(128);
+        setConfigRedBits(8);
+        setConfigGreenBits(8);
+        setConfigBlueBits(8);
+        setConfigAlphaBits(8);
+        setConfigDepthBits(24);
+        setConfigStencilBits(8);
+    }
+
+    void testSetUp() override
+    {
+        mColorProgram =
+            CompileProgram(essl1_shaders::vs::Simple(), essl1_shaders::fs::UniformColor());
+        ASSERT_NE(0u, mColorProgram);
+        mColorUniformLocation = glGetUniformLocation(mColorProgram, essl1_shaders::ColorUniform());
+        ASSERT_NE(-1, mColorUniformLocation);
+    }
+
+    void testTearDown() override
+    {
+        if (mColorProgram != 0)
+        {
+            glDeleteProgram(mColorProgram);
+        }
+    }
+
+    void drawRedQuad()
+    {
+        glUseProgram(mColorProgram);
+        glUniform4f(mColorUniformLocation, 1.0f, 0.0f, 0.0f, 1.0f);
+        drawQuad(mColorProgram, essl1_shaders::PositionAttrib(), 0.5f);
+    }
+
+    void drawGreenQuad()
+    {
+        glUseProgram(mColorProgram);
+        glUniform4f(mColorUniformLocation, 0.0f, 1.0f, 0.0f, 1.0f);
+        drawQuad(mColorProgram, essl1_shaders::PositionAttrib(), 0.5f);
+    }
+
+    GLuint mColorProgram        = 0;
+    GLint mColorUniformLocation = -1;
+};
+
+// Sub-Test 1: Renderbuffer depth/stencil attachment Case
+TEST_P(FramebufferTest_ES3FBOWorkaround, RenderbufferWorkaround)
+{
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+    GLRenderbuffer rbo;
+    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, 128, 128);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+    GLTexture texture;
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 128, 128);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+    ASSERT_GL_NO_ERROR();
+
+    // Draw a red quad to color buffer
+    drawRedQuad();
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+
+    // Trigger flush -> FBO recreation!
+    glFlush();
+    ASSERT_GL_NO_ERROR();
+
+    // Draw a green quad to color buffer
+    drawGreenQuad();
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+    ASSERT_GL_NO_ERROR();
+}
+
+// Sub-Test 2: Uninitialized Texture Case
+TEST_P(FramebufferTest_ES3FBOWorkaround, UninitializedTextureWorkaround)
+{
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+    GLTexture depthTex;
+    glBindTexture(GL_TEXTURE_2D, depthTex);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT16, 128, 128);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTex, 0);
+
+    GLTexture colorTex;
+    glBindTexture(GL_TEXTURE_2D, colorTex);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 128, 128);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTex, 0);
+
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+    ASSERT_GL_NO_ERROR();
+
+    // Draw red
+    drawRedQuad();
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+
+    // Trigger flush -> FBO recreation!
+    glFlush();
+    ASSERT_GL_NO_ERROR();
+
+    // Draw green
+    drawGreenQuad();
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+    ASSERT_GL_NO_ERROR();
+}
+
+// Sub-Test 3: Initialized Texture Case (Workaround does NOT trigger)
+TEST_P(FramebufferTest_ES3FBOWorkaround, InitializedTextureNoWorkaround)
+{
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+    GLTexture depthTex;
+    glBindTexture(GL_TEXTURE_2D, depthTex);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT16, 128, 128);
+
+    // Initialize/clear the depth texture level using glTexSubImage2D
+    std::vector<GLushort> depthData(128 * 128, 0);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 128, 128, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT,
+                    depthData.data());
+    ASSERT_GL_NO_ERROR();
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTex, 0);
+
+    GLTexture colorTex;
+    glBindTexture(GL_TEXTURE_2D, colorTex);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 128, 128);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTex, 0);
+
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+    ASSERT_GL_NO_ERROR();
+
+    // Draw red
+    drawRedQuad();
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+
+    // Trigger flush -> Workaround should NOT trigger, but we test that everything still works
+    glFlush();
+    ASSERT_GL_NO_ERROR();
+
+    // Draw green
+    drawGreenQuad();
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+    ASSERT_GL_NO_ERROR();
+}
+
+// Sub-Test 4: FBO combined with FenceSync
+TEST_P(FramebufferTest_ES3FBOWorkaround, FBOAndFenceSync)
+{
+    constexpr char kBufferCount = 10;
+
+    // Allocate and clear two textures
+    GLTexture textures[2];
+    constexpr uint32_t kTextureSize[2] = {40, 43};
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        glBindTexture(GL_TEXTURE_2D, textures[i]);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, kTextureSize[i], kTextureSize[i]);
+
+        GLFramebuffer clearFbo;
+        glBindFramebuffer(GL_FRAMEBUFFER, clearFbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textures[i], 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+    }
+
+    // Allocate a depth/stencil renderbuffer, bind it to one FBO together with a texture.
+    GLRenderbuffer depthStencil;
+    glBindRenderbuffer(GL_RENDERBUFFER, depthStencil);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, kTextureSize[0], kTextureSize[0]);
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textures[0], 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depthStencil);
+
+    // Attach the renderbuffer to another framebuffer and clear it.
+    std::vector<uint8_t> pixels(0x4000, 0);
+    {
+        GLFramebuffer clearFbo;
+        glBindFramebuffer(GL_FRAMEBUFFER, clearFbo);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER,
+                                  depthStencil);
+        glClear(GL_STENCIL_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        // Detach from the framebuffer, and read back the texture's contents for later use.
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+        glReadPixels(0, 0, 40, 40, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+    }
+
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
+    glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Clear the second texture again.
+    {
+        GLFramebuffer clearFbo;
+        glBindFramebuffer(GL_FRAMEBUFFER, clearFbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textures[1], 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+    }
+
+    // Recreate the renderbuffer and clear it again
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, kTextureSize[0], kTextureSize[0]);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depthStencil);
+    glClear(GL_STENCIL_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Upload data to pixel unpack buffer
+    std::vector<uint32_t> evilData(400, 0);
+    evilData[0]  = 0x40082000;
+    evilData[1]  = 0x40282000;
+    evilData[2]  = 0x40282000;
+    evilData[3]  = 0x40282000;
+    evilData[10] = 0x33800000;
+    evilData[68] = 0x40282000;
+    evilData[69] = 0x40282000;
+    evilData[70] = 0x40282000;
+    evilData[71] = 0x40282000;
+
+    glPixelStorei(GL_PACK_ROW_LENGTH, kTextureSize[1]);
+    GLBuffer buffer1, buffer2;
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, buffer1);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, 0x400, evilData.data(), GL_DYNAMIC_DRAW);
+
+    GLTexture textures2[2];
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, textures2[0]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 0x25, 1, 0, GL_RGBA, GL_FLOAT, 0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, textures2[1]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 0x27, 1, 0, GL_RGBA, GL_FLOAT, 0);
+    // Dirty GL_PACK_ROW_LENGTH state.
+    glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_PACK_ROW_LENGTH, kTextureSize[1]);
+
+    GLBuffer buffers[kBufferCount];
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, buffer2);
+    glBufferData(GL_PIXEL_PACK_BUFFER, 0x4000, pixels.data(), GL_STATIC_COPY);
+    glFinish();
+    // Read into buffer2
+    glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    char kUninitializedData[16];
+    for (uint32_t i = 0; i < kBufferCount; i++)
+    {
+        glBindBuffer(GL_ARRAY_BUFFER, buffers[i]);
+        glBufferData(GL_ARRAY_BUFFER, 16, kUninitializedData, GL_DYNAMIC_DRAW);
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    for (uint32_t i = 0; i < kBufferCount; i++)
+    {
+        buffers[i].reset();
+
+        glActiveTexture(GL_TEXTURE0);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 0x25, 1, 0, GL_RGBA, GL_FLOAT, 0);
+        glActiveTexture(GL_TEXTURE1);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 0x27, 1, 0, GL_RGBA, GL_FLOAT, 0);
+    }
+
+    // Issue a fence sync.  This triggers the recreate-fbo workaround.
+    glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    ASSERT_GL_NO_ERROR();
+}
+
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(FramebufferTest_ES3FBOWorkaround);
+ANGLE_INSTANTIATE_TEST_ES3_AND(FramebufferTest_ES3FBOWorkaround,
+                               ES3_OPENGL().enable(Feature::RecreateFboUponFlush),
+                               ES3_OPENGLES().enable(Feature::RecreateFboUponFlush));
+
+class FramebufferTest_ES3FBOReattachmentWorkaround : public ANGLETest<>
+{
+  protected:
+    FramebufferTest_ES3FBOReattachmentWorkaround()
+    {
+        setWindowWidth(128);
+        setWindowHeight(128);
+        setConfigRedBits(8);
+        setConfigGreenBits(8);
+        setConfigBlueBits(8);
+        setConfigAlphaBits(8);
+        setConfigDepthBits(24);
+        setConfigStencilBits(8);
+    }
+
+    void testSetUp() override
+    {
+        mColorProgram =
+            CompileProgram(essl1_shaders::vs::Simple(), essl1_shaders::fs::UniformColor());
+        ASSERT_NE(0u, mColorProgram);
+        mColorUniformLocation = glGetUniformLocation(mColorProgram, essl1_shaders::ColorUniform());
+        ASSERT_NE(-1, mColorUniformLocation);
+    }
+
+    void testTearDown() override
+    {
+        if (mColorProgram != 0)
+        {
+            glDeleteProgram(mColorProgram);
+        }
+    }
+
+    void drawRedQuad()
+    {
+        glUseProgram(mColorProgram);
+        glUniform4f(mColorUniformLocation, 1.0f, 0.0f, 0.0f, 1.0f);
+        drawQuad(mColorProgram, essl1_shaders::PositionAttrib(), 0.5f);
+    }
+
+    void runReallocationTest(bool useTexture, bool bindFboDuringReallocation)
+    {
+        GLTexture colorTex;
+        glBindTexture(GL_TEXTURE_2D, colorTex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+        GLTexture depthTex;
+        GLRenderbuffer depthRb;
+
+        GLFramebuffer fbo;
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTex, 0);
+
+        if (useTexture)
+        {
+            glBindTexture(GL_TEXTURE_2D, depthTex);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, 16, 16, 0, GL_DEPTH_COMPONENT,
+                         GL_UNSIGNED_INT, nullptr);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTex, 0);
+        }
+        else
+        {
+            glBindRenderbuffer(GL_RENDERBUFFER, depthRb);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 16, 16);
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER,
+                                      depthRb);
+        }
+
+        ASSERT_GL_NO_ERROR();
+        ASSERT_GLENUM_EQ(GL_FRAMEBUFFER_COMPLETE, glCheckFramebufferStatus(GL_FRAMEBUFFER));
+
+        // Clear color to green, depth to 1.0.
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        glClearDepthf(1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Draw Red quad at depth 0.5. Should pass (0.5 < 1.0).
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LESS);
+        drawRedQuad();
+
+        // Verify color is Red.
+        EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+
+        // Unbind FBO if requested.
+        if (!bindFboDuringReallocation)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        }
+
+        // Redefine depth attachment.
+        if (useTexture)
+        {
+            glBindTexture(GL_TEXTURE_2D, depthTex);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, 16, 16, 0, GL_DEPTH_COMPONENT,
+                         GL_UNSIGNED_INT, nullptr);
+        }
+        else
+        {
+            glBindRenderbuffer(GL_RENDERBUFFER, depthRb);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 16, 16);
+        }
+
+        // Bind FBO back if it was unbound.
+        if (!bindFboDuringReallocation)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        }
+
+        ASSERT_GL_NO_ERROR();
+        ASSERT_GLENUM_EQ(GL_FRAMEBUFFER_COMPLETE, glCheckFramebufferStatus(GL_FRAMEBUFFER));
+
+        // Clear color to green again, depth to 1.0.
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        glClearDepthf(1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Draw Red quad again at depth 0.5.
+        drawRedQuad();
+
+        // Verify color is Red.
+        EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+
+        glDisable(GL_DEPTH_TEST);
+    }
+
+    void runTexImage2DToTexStorage2DTest(bool bindFboDuringReallocation)
+    {
+        GLTexture colorTex;
+        glBindTexture(GL_TEXTURE_2D, colorTex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+        GLTexture depthTex;
+        glBindTexture(GL_TEXTURE_2D, depthTex);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, 16, 16, 0, GL_DEPTH_COMPONENT,
+                     GL_UNSIGNED_INT, nullptr);
+
+        GLFramebuffer fbo;
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTex, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTex, 0);
+
+        ASSERT_GL_NO_ERROR();
+        ASSERT_GLENUM_EQ(GL_FRAMEBUFFER_COMPLETE, glCheckFramebufferStatus(GL_FRAMEBUFFER));
+
+        // Clear and draw.
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        glClearDepthf(1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LESS);
+        drawRedQuad();
+        EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+
+        // Unbind FBO if requested.
+        if (!bindFboDuringReallocation)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        }
+
+        // Reallocate depth texture using glTexStorage2D.
+        glBindTexture(GL_TEXTURE_2D, depthTex);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT24, 16, 16);
+
+        // Bind FBO back if it was unbound.
+        if (!bindFboDuringReallocation)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        }
+
+        GLenum error = glGetError();
+        if (error == GL_INVALID_OPERATION)
+        {
+            return;
+        }
+        ASSERT_GLENUM_EQ(GL_NO_ERROR, error);
+
+        // Clear and draw again.
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        glClearDepthf(1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        drawRedQuad();
+        EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+
+        glDisable(GL_DEPTH_TEST);
+    }
+
+    GLuint mColorProgram        = 0;
+    GLint mColorUniformLocation = -1;
+};
+
+// Test that redefining a depth texture attached to an FBO works correctly when FBO is bound.
+TEST_P(FramebufferTest_ES3FBOReattachmentWorkaround, TextureReallocationBound)
+{
+    runReallocationTest(true, true);
+}
+
+// Test that redefining a depth texture attached to an FBO works correctly when FBO is NOT bound.
+TEST_P(FramebufferTest_ES3FBOReattachmentWorkaround, TextureReallocationUnbound)
+{
+    runReallocationTest(true, false);
+}
+
+// Test that redefining a depth renderbuffer attached to an FBO works correctly when FBO is bound.
+TEST_P(FramebufferTest_ES3FBOReattachmentWorkaround, RenderbufferReallocationBound)
+{
+    runReallocationTest(false, true);
+}
+
+// Test that redefining a depth renderbuffer attached to an FBO works correctly when FBO is NOT
+// bound.
+TEST_P(FramebufferTest_ES3FBOReattachmentWorkaround, RenderbufferReallocationUnbound)
+{
+    runReallocationTest(false, false);
+}
+
+// Test that redefining a depth texture allocated via glTexImage2D via glTexStorage2D works when FBO
+// is bound.
+TEST_P(FramebufferTest_ES3FBOReattachmentWorkaround, TexImage2DToTexStorage2DBound)
+{
+    runTexImage2DToTexStorage2DTest(true);
+}
+
+// Test that redefining a depth texture allocated via glTexImage2D via glTexStorage2D works when FBO
+// is NOT bound.
+TEST_P(FramebufferTest_ES3FBOReattachmentWorkaround, TexImage2DToTexStorage2DUnbound)
+{
+    runTexImage2DToTexStorage2DTest(false);
+}
+
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(FramebufferTest_ES3FBOReattachmentWorkaround);
+ANGLE_INSTANTIATE_TEST_ES3_AND(
+    FramebufferTest_ES3FBOReattachmentWorkaround,
+    ES3_OPENGL().enable(Feature::ReattachFboDepthStencilOnReallocation),
+    ES3_OPENGL().disable(Feature::ReattachFboDepthStencilOnReallocation),
+    ES3_OPENGLES().enable(Feature::ReattachFboDepthStencilOnReallocation),
+    ES3_OPENGLES().disable(Feature::ReattachFboDepthStencilOnReallocation));

@@ -19,6 +19,7 @@ import './search_engine_icon.js';
 
 import {ExtensionControlBrowserProxyImpl} from '/shared/settings/extension_control_browser_proxy.js';
 import type {ExtensionControlBrowserProxy} from '/shared/settings/extension_control_browser_proxy.js';
+import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
 import {AnchorAlignment} from 'chrome://resources/cr_elements/cr_action_menu/cr_action_menu.js';
 import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {assert} from 'chrome://resources/js/assert.js';
@@ -28,9 +29,10 @@ import {loadTimeData} from '../i18n_setup.js';
 
 import {getTemplate} from './search_engine_entry.html.js';
 import type {SearchEngine, SearchEnginesBrowserProxy} from './search_engines_browser_proxy.js';
-import {ChoiceMadeLocation, SearchEnginesBrowserProxyImpl} from './search_engines_browser_proxy.js';
+import {ChoiceMadeLocation, SearchEnginesBrowserProxyImpl, SearchEnginesInteractions} from './search_engines_browser_proxy.js';
 
-const SettingsSearchEngineEntryElementBase = I18nMixin(PolymerElement);
+const SettingsSearchEngineEntryElementBase =
+    I18nMixin(PrefsMixin(PolymerElement));
 
 export class SettingsSearchEngineEntryElement extends
     SettingsSearchEngineEntryElementBase {
@@ -68,7 +70,8 @@ export class SettingsSearchEngineEntryElement extends
 
       disableDots_: {
         type: Boolean,
-        computed: 'computeDisableDots_(engine)',
+        computed: 'computeDisableDots_(engine,' +
+            'prefs.default_search_provider_data.template_url_data.value)',
       },
 
       turnOnLabel: {
@@ -108,6 +111,17 @@ export class SettingsSearchEngineEntryElement extends
     this.shadowRoot!.querySelector('cr-action-menu')!.close();
   }
 
+  private isDefaultEngineManagedByExtension_(): boolean {
+    if (!this.engine.extension || this.engine.isOmniboxExtension) {
+      return false;
+    }
+
+    const extensionId =
+        this.getPref('default_search_provider_data.template_url_data')
+            .extensionId;
+    return !!extensionId && extensionId === this.engine.extension.id;
+  }
+
   private showEditOption_(): boolean {
     // Hide the edit option for extension shortcuts except if they are the
     // current default (e.g. by policy).
@@ -144,6 +158,10 @@ export class SettingsSearchEngineEntryElement extends
   private computeDisableDots_(): boolean {
     // Disable the dots if none of the options are available for the engine.
     if (this.searchSettingsUpdateEnabled_) {
+      if (this.isDefaultEngineManagedByExtension_()) {
+        return true;
+      }
+
       return !this.showEditOption_() && !this.engine.canBeActivated &&
           !this.engine.canBeDeactivated && !this.engine.canBeRemoved &&
           !this.engine.canBeDefault;
@@ -179,10 +197,8 @@ export class SettingsSearchEngineEntryElement extends
     assert(this.searchSettingsUpdateEnabled_);
 
     // `canBeRemoved` is always false if the engine is the current default,
-    // but it should be shown (and disabled) anyway. Hide the delete option if
-    // the engine is prepopulated, as the user should not be able to delete it.
-    return this.engine.canBeRemoved ||
-        (this.engine.default && !this.engine.isPrepopulated);
+    // but it should be shown (and disabled) anyway.
+    return this.engine.canBeRemoved || this.engine.default;
   }
 
   private showMakeDefaultOption_(): boolean {
@@ -196,7 +212,8 @@ export class SettingsSearchEngineEntryElement extends
 
   private showDisableExtensionOption_(): boolean {
     assert(this.searchSettingsUpdateEnabled_);
-    return !!this.engine.extension && this.engine.extension.canBeDisabled;
+    return this.engine.isOmniboxExtension && !!this.engine.extension &&
+        this.engine.extension.canBeDisabled;
   }
 
   private showControlledIndicator_(): boolean {
@@ -205,12 +222,17 @@ export class SettingsSearchEngineEntryElement extends
 
   private onManageClick_() {
     assert(this.engine.extension);
+    this.closePopupMenu_();
+    this.browserProxy_.recordSearchEnginesPageHistogram(
+        SearchEnginesInteractions.EXTENSION_MANAGE);
     this.extensionBrowserProxy_.manageExtension(this.engine.extension.id);
   }
 
   private onDisableClick_() {
     assert(this.engine.extension);
     assert(this.engine.extension.canBeDisabled);
+    this.browserProxy_.recordSearchEnginesPageHistogram(
+        SearchEnginesInteractions.EXTENSION_DISABLE);
     this.extensionBrowserProxy_.disableExtension(this.engine.extension.id);
   }
 
@@ -238,6 +260,8 @@ export class SettingsSearchEngineEntryElement extends
   }
 
   private onDotsClick_() {
+    this.browserProxy_.recordSearchEnginesPageHistogram(
+        SearchEnginesInteractions.MORE_ACTIONS);
     const dots = this.shadowRoot!.querySelector<HTMLElement>(
         'cr-icon-button.icon-more-vert');
     assert(dots);
@@ -249,33 +273,26 @@ export class SettingsSearchEngineEntryElement extends
   private onViewOrEditClick_(e: Event) {
     e.preventDefault();
     this.closePopupMenu_();
-    const anchor = this.shadowRoot!.querySelector('cr-icon-button');
+
+    // Only record an edit event if the engine is modifiable.
+    if (!this.showSecondaryButton_) {
+      this.browserProxy_.recordSearchEnginesPageHistogram(
+          SearchEnginesInteractions.EDIT_SEARCH_ENGINE);
+    }
+
+    const anchorToActionMenu =
+        this.searchSettingsUpdateEnabled_ && !this.showSecondaryButton_;
+    const anchor = this.shadowRoot!.querySelector(
+        anchorToActionMenu ? 'cr-icon-button.icon-more-vert' :
+                             'cr-icon-button');
     assert(anchor);
+
     this.dispatchEvent(new CustomEvent('view-or-edit-search-engine', {
       bubbles: true,
       composed: true,
       detail: {
         engine: this.engine,
         anchorElement: anchor,
-      },
-    }));
-  }
-
-  private onEditClick_(e: Event) {
-    assert(this.searchSettingsUpdateEnabled_);
-    e.preventDefault();
-    this.closePopupMenu_();
-
-    const dots =
-        this.shadowRoot!.querySelector('cr-icon-button.icon-more-vert');
-    assert(dots);
-
-    this.dispatchEvent(new CustomEvent('view-or-edit-search-engine', {
-      bubbles: true,
-      composed: true,
-      detail: {
-        engine: this.engine,
-        anchorElement: dots,
       },
     }));
   }

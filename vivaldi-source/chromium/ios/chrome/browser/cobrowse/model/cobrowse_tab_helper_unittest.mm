@@ -4,8 +4,11 @@
 
 #import "ios/chrome/browser/cobrowse/model/cobrowse_tab_helper.h"
 
+#import "base/no_destructor.h"
 #import "base/test/scoped_feature_list.h"
+#import "components/omnibox/browser/mock_aim_eligibility_service.h"
 #import "components/search_engines/template_url_service.h"
+#import "ios/chrome/browser/aim/model/ios_chrome_aim_eligibility_service_factory.h"
 #import "ios/chrome/browser/cobrowse/model/cobrowse_browser_agent.h"
 #import "ios/chrome/browser/cobrowse/model/cobrowse_context.h"
 #import "ios/chrome/browser/search_engines/model/template_url_service_factory.h"
@@ -18,6 +21,7 @@
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/signin/model/identity_manager_factory.h"
 #import "ios/web/public/test/fakes/fake_navigation_context.h"
 #import "ios/web/public/test/fakes/fake_navigation_manager.h"
 #import "ios/web/public/test/fakes/fake_web_state.h"
@@ -35,6 +39,21 @@ class CobrowseTabHelperTest : public PlatformTest {
     builder.AddTestingFactory(
         ios::TemplateURLServiceFactory::GetInstance(),
         ios::TemplateURLServiceFactory::GetDefaultFactory());
+    builder.AddTestingFactory(
+        IOSChromeAimEligibilityServiceFactory::GetInstance(),
+        base::BindRepeating([](ProfileIOS* profile)
+                                -> std::unique_ptr<KeyedService> {
+          auto service =
+              std::make_unique<testing::NiceMock<MockAimEligibilityService>>(
+                  *profile->GetPrefs(),
+                  ios::TemplateURLServiceFactory::GetForProfile(profile),
+                  nullptr, IdentityManagerFactory::GetForProfile(profile));
+          ON_CALL(*service, IsFuseboxEligible())
+              .WillByDefault(testing::Return(true));
+          ON_CALL(*service, IsCobrowseEligible())
+              .WillByDefault(testing::Return(true));
+          return service;
+        }));
     profile_ = std::move(builder).Build();
 
     TemplateURLService* template_url_service =
@@ -49,6 +68,12 @@ class CobrowseTabHelperTest : public PlatformTest {
     template_url_service->SetUserSelectedDefaultSearchProvider(template_url);
 
     mock_scene_state_ = OCMClassMock([SceneState class]);
+    static base::NoDestructor<std::string> test_session_id("test_session_id");
+    OCMStub([mock_scene_state_ sceneSessionID])
+        .andDo(^(NSInvocation* invocation) {
+          const std::string* ptr = &(*test_session_id);
+          [invocation setReturnValue:&ptr];
+        });
     mock_tab_grid_state_ = OCMClassMock([TabGridState class]);
     OCMStub([mock_scene_state_ tabGridState]).andReturn(mock_tab_grid_state_);
 
@@ -247,28 +272,28 @@ TEST_F(CobrowseTabHelperTest, NoTriggerInIncognito) {
   [mock_scene_commands_handler_ verify];
 }
 
-// Tests that hideAssistant is called when navigating to a search URL.
-TEST_F(CobrowseTabHelperTest, HideAssistantOnSearchNavigation) {
+// Tests that closeAssistant is called when navigating to a search URL.
+TEST_F(CobrowseTabHelperTest, CloseAssistantOnSearchNavigation) {
   GURL search_url("https://www.google.com/search?q=test");
 
   web::FakeNavigationContext context;
   context.SetUrl(search_url);
 
-  OCMExpect([mock_scene_commands_handler_ hideAssistant]);
+  OCMExpect([mock_scene_commands_handler_ closeAssistant]);
 
   tab_helper_->DidStartNavigation(fake_web_state_, &context);
 
   [mock_scene_commands_handler_ verify];
 }
 
-// Tests that hideAssistant is called when navigating to the NTP.
-TEST_F(CobrowseTabHelperTest, HideAssistantOnNtpNavigation) {
+// Tests that closeAssistant is called when navigating to the NTP.
+TEST_F(CobrowseTabHelperTest, CloseAssistantOnNtpNavigation) {
   GURL ntp_url("chrome://newtab");
 
   web::FakeNavigationContext context;
   context.SetUrl(ntp_url);
 
-  OCMExpect([mock_scene_commands_handler_ hideAssistant]);
+  OCMExpect([mock_scene_commands_handler_ closeAssistant]);
 
   tab_helper_->DidStartNavigation(fake_web_state_, &context);
 

@@ -1,4 +1,5 @@
-#include "../include/benchmark/benchmark.h"
+#include "benchmark/benchmark_api.h"
+#include "benchmark/state.h"
 #include "gtest/gtest.h"
 
 namespace benchmark {
@@ -6,7 +7,7 @@ namespace internal {
 
 namespace {
 
-class DummyBenchmark : public Benchmark {
+class DummyBenchmark : public benchmark::Benchmark {
  public:
   DummyBenchmark() : Benchmark("dummy") {}
   void Run(State& /*state*/) override {}

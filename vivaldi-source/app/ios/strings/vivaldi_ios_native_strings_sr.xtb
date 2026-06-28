@@ -218,7 +218,7 @@
           other {обележивачи ({count}) су премештени у "{title}"}}</translation>
 <translation id="3638687955382971136">Зумирај текст</translation>
 <translation id="3646647753063635401">Синхронизуј све податке и аутоматски омогући синхронизацију нових типова података</translation>
-<translation id="3682791711395736890">Прикажи верзију сајта за рачунаре</translation>
+<translation id="3682791711395736890">Прикажи десктоп верзију сајта</translation>
 <translation id="3689125468279190285">Прикажи дугме матичне странице</translation>
 <translation id="3694122362646626770">Веб сајтови</translation>
 <translation id="3699026013955941879">Код је истекао. Затражите нови активациони код.</translation>
@@ -354,6 +354,7 @@
 <translation id="495421405224926623">Прочитао сам и прихватам Услове коришћења и Политику приватности</translation>
 <translation id="497942794017668482">Блокирање праћења и реклама</translation>
 <translation id="4983968022327077496">Ваша организација захтева да прегледате приватно. Картице се не чувају у приватном режиму. <ph name="BEGIN_LINK" />Сазнајте више<ph name="END_LINK" /></translation>
+<translation id="4991261712398289852">Два нивоа</translation>
 <translation id="4993477362660748586">Синхронизација</translation>
 <translation id="500392125908657603">Опције адресног поља</translation>
 <translation id="5037761343305489956">Копирано у белешку</translation>
@@ -452,7 +453,7 @@
 <translation id="6329717714920146925">Веб сајтови (само приказ)</translation>
 <translation id="6346549829676591152">Омогући историју претраге</translation>
 <translation id="6365929278691047681">Немачки (<ph name="ORIGIN" />)</translation>
-<translation id="638249699236255123">Изглд веб сајт је неисправан или изгледа чудно</translation>
+<translation id="638249699236255123">Изглед веб сајта је неисправан или изгледа чудно</translation>
 <translation id="6383855939619098095">Тешко је прилагодити почетну страницу Vivaldi прегледача</translation>
 <translation id="6406506848690869874">Синхронизација</translation>
 <translation id="641394169129472837">Изаберите која страница да се отвори додиром на дугме Нова картица.</translation>
@@ -621,7 +622,7 @@
 <translation id="8284356787013856231">Дозвола за отварање датотеке је одбијена</translation>
 <translation id="8289933454364510719">Врх или дно</translation>
 <translation id="8304044605002588416">Дугме ’Прилагоди почетну страницу’</translation>
-<translation id="8304538706952727936">Ослободите се ИТ гиганата</translation>
+<translation id="8304538706952727936">Ослободите се технолошких гиганата</translation>
 <translation id="8316087354921793295">Ваши подаци ће бити сачувани на вашем Vivaldi налогу када је синхронизација активна.</translation>
 <translation id="8323167517179506834">Унесите URL адресу</translation>
 <translation id="8326104954595890674">Нова приватна картица</translation>
@@ -700,7 +701,6 @@
 <translation id="9157459516617966251">Уреди везу</translation>
 <translation id="9157539936604258187">Отвори везу</translation>
 <translation id="9165758833825521812">Режим читања</translation>
-<translation id="9171713938468458286">Два нивоа</translation>
 <translation id="9195659219948942754">Наставите да користите синхронизоване податке на свом Vivaldi налогу</translation>
 <translation id="9195802773917252923">Омогући надимке обележивача</translation>
 <translation id="9212737146310746733">Персијски (<ph name="ORIGIN" />)</translation>

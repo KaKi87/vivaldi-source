@@ -9,7 +9,8 @@
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/autofill/payments/payments_view_factory.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/tabs/public/tab_dialog_manager.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
@@ -158,7 +159,14 @@ SelectBnplIssuerDialog::SelectBnplIssuerDialog(
     bnpl_issuer_view_->SetVisible(true);
   }
 
-  TextWithLink link_text = controller_.get()->GetLinkText();
+  TextWithLink link_text;
+  if (base::FeatureList::IsEnabled(
+          ::autofill::features::kAutofillEnableAiBasedAmountExtraction)) {
+    CHECK(controller_);
+    link_text = GetBnplUiFooterTextForAi(controller_->GetPaymentsDataManager());
+  } else {
+    link_text = GetBnplUiFooterText();
+  }
   TextLinkInfo link_info;
   link_info.bold_range = link_text.bold_range;
   link_info.offset = link_text.offset;
@@ -237,7 +245,9 @@ void SelectBnplIssuerDialog::OnSettingsLinkClicked() {
   if (!web_contents_) {
     return;
   }
-  Browser* browser = chrome::FindBrowserWithTab(web_contents_.get());
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          web_contents_.get());
   if (!browser) {
     return;
   }

@@ -86,6 +86,10 @@ class ExternalProcessImporterBridge : public ImporterBridge {
 
   void NotifyItemFailed(user_data_importer::ImportItem item,
                         const std::string& error) override;
+
+  // Send raw (encrypted) password forms to the browser process for decryption.
+  void AddRawPasswords(
+      const std::vector<ImportedRawPasswordForm>& passwords) override;
  private:
   ~ExternalProcessImporterBridge() override;
 

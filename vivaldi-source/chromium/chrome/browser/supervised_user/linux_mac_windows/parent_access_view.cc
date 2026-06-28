@@ -25,6 +25,7 @@
 #include "third_party/blink/public/common/page/page_zoom.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 #include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/gfx/geometry/size.h"
@@ -268,15 +269,9 @@ void ParentAccessView::ResizeDueToAutoResize(content::WebContents* web_contents,
   web_view_->ResizeDueToAutoResize(web_contents, new_size);
 }
 
-void ParentAccessView::DisplayErrorMessage(content::WebContents* web_contents) {
+void ParentAccessView::DisplayErrorMessage() {
   if (!dialog_result_reset_callback_.is_null()) {
     std::move(dialog_result_reset_callback_).Run();
-  }
-
-  if (!base::FeatureList::IsEnabled(
-          supervised_user::kEnableLocalWebApprovalErrorDialog)) {
-    CloseView();
-    return;
   }
 
   // Remove the web view that displays the PACP widget content, and replace it
@@ -312,8 +307,14 @@ void ParentAccessView::DisplayErrorMessage(content::WebContents* web_contents) {
   // Add error icon.
   auto error_icon_view =
       std::make_unique<views::ImageView>(ui::ImageModel::FromVectorIcon(
-          vector_icons::kErrorOutlineIcon, ui::kColorAlertHighSeverity,
-          gfx::GetDefaultSizeOfVectorIcon(vector_icons::kErrorOutlineIcon)));
+          features::IsRoundedIconsEnabled()
+              ? vector_icons::kErrorIcon
+              : vector_icons::kErrorOutlineOldIcon,
+          ui::kColorAlertHighSeverity,
+          gfx::GetDefaultSizeOfVectorIcon(
+              features::IsRoundedIconsEnabled()
+                  ? vector_icons::kErrorIcon
+                  : vector_icons::kErrorOutlineOldIcon)));
   // Spec required the margin to be 60 px from the the top, from which we
   // subtract the additional space taken by the dialog border displaying the "X"
   // button.

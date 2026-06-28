@@ -269,7 +269,7 @@
 <translation id="4151468644762710975">Възстановяване на фабричните търсачки?</translation>
 <translation id="4152011295694446843">Тук са вашите отметки.</translation>
 <translation id="4152623049003960417">За тракерите</translation>
-<translation id="4176463684765177261">Забранен</translation>
+<translation id="4176463684765177261">забранено</translation>
 <translation id="4181792832006033883">Vivaldi разработват нашите потребители, а не техгигант или инвеститори. Всяко дарение пряко подкрепя нашата мисия за отворен и поверителен интернет. Бъдете част от промяната.</translation>
 <translation id="4184746246941929945">Vivaldi партнира с <ph name="PARTNER_NAME" />, за да не блокира реклами в страницата. Тези реклами подпомагат финансирането на разработката на Vivaldi.</translation>
 <translation id="4193549853510262477">самооткривай</translation>
@@ -354,6 +354,7 @@
 <translation id="495421405224926623">Прочетох и приемам Условия на ползване и Политика на поверителност</translation>
 <translation id="497942794017668482">Блокиране на реклами и тракери</translation>
 <translation id="4983968022327077496">Вашата организация изисква да сърфирате поверително. Разделите не се записват в частен режим. <ph name="BEGIN_LINK" />Повече<ph name="END_LINK" /></translation>
+<translation id="4991261712398289852">двуредно</translation>
 <translation id="4993477362660748586">Сверяване</translation>
 <translation id="500392125908657603">Настройки на адресното поле</translation>
 <translation id="5037761343305489956">Копирано в записка</translation>
@@ -481,7 +482,7 @@
 <translation id="6703516503311038964">Да, искам да получавам бюлетин на Vivaldi</translation>
 <translation id="6709133671862442373">Новини</translation>
 <translation id="6724024423419410528">Палитра</translation>
-<translation id="6745857330065678428">Заемай открояване от страницата</translation>
+<translation id="6745857330065678428">Заемай открояващ цвят от страницата</translation>
 <translation id="6756507620369789050">Сподели отзив</translation>
 <translation id="6798469570047202628">Въведена е грешна парола.</translation>
 <translation id="6807791860691150411">Образование</translation>
@@ -542,7 +543,7 @@
 <translation id="7362952245780030555">Посочете пълноценни настолни раздели или опростен превключвач на раздели.</translation>
 <translation id="736592699917579616">Храна</translation>
 <translation id="7379938540614588640">нидерландски (<ph name="ORIGIN" />)</translation>
-<translation id="7386354767119759965">Мобилна версия</translation>
+<translation id="7386354767119759965">Покажи мобилна версия</translation>
 <translation id="7388525939184421699">Добави нов източник</translation>
 <translation id="7393145587390257456">Блокерът на реклами не работи добре</translation>
 <translation id="7400418766976504921">Адрес</translation>
@@ -622,7 +623,7 @@
 <translation id="8289933454364510719">отгоре или отдолу</translation>
 <translation id="8304044605002588416">Показвай бутон за нагласяване</translation>
 <translation id="8304538706952727936">Освободете се от техгантите</translation>
-<translation id="8316087354921793295">Когато Свер е включен данните ще се записват във вашия профил във Vivaldi.</translation>
+<translation id="8316087354921793295">Когато Свер е включен вашите данни ще се записват във вашия профил във Vivaldi.</translation>
 <translation id="8323167517179506834">Въведете адрес</translation>
 <translation id="8326104954595890674">Нов частен раздел</translation>
 <translation id="8329813750766387010">обновен на: <ph name="DATE" /></translation>
@@ -700,7 +701,6 @@
 <translation id="9157459516617966251">Редактирай препратката</translation>
 <translation id="9157539936604258187">Отвори препратката</translation>
 <translation id="9165758833825521812">Режим на четене</translation>
-<translation id="9171713938468458286">двуредно</translation>
 <translation id="9195659219948942754">Продължавате да ползвате сверени данни от своя профил във Vivaldi</translation>
 <translation id="9195802773917252923">Разреши отметки по псевдоним</translation>
 <translation id="9212737146310746733">персийски (<ph name="ORIGIN" />)</translation>

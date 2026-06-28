@@ -13,7 +13,6 @@ import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
 
-import org.chromium.base.Log;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -30,9 +29,6 @@ import org.chromium.url.Origin;
 import java.util.HashMap;
 import java.util.Map;
 
-// Vivaldi
-import org.chromium.build.BuildConfig;
-
 /**
  * The NavigationControllerImpl Java wrapper to allow communicating with the native
  * NavigationControllerImpl object.
@@ -42,8 +38,6 @@ import org.chromium.build.BuildConfig;
 //                package whose visibility will be enforced via DEPS.
 @NullMarked
 /* package */ class NavigationControllerImpl implements NavigationController {
-    private static final String TAG = "NavigationController";
-
     // Using ScopedJavaGlobalRef in the owning C++ object to keep the Java object alive consumes an
     // entry per instance in the finite global ref table. This scales poorly with a large number of
     // WebContents. As a workaround, the C++ owner uses a JavaObjectWeakGlobalRef and an entry is
@@ -241,7 +235,7 @@ import org.chromium.build.BuildConfig;
                                     inputStart,
                                     params.getNavigationUIDataSupplier() == null
                                             ? 0
-                                            : params.getNavigationUIDataSupplier().get(),
+                                            : params.getNavigationUIDataSupplier().getAsLong(),
                                     params.getIsPdf(),
                                     params.getRemoveExtraHeadersOnCrossOriginRedirect(),
                                     params.getInternalScrollToTextFragment());
@@ -302,17 +296,6 @@ import org.chromium.build.BuildConfig;
     public void setUseDesktopUserAgent(
             boolean override, boolean reloadOnChange, boolean skipOnInitialNavigation) {
         if (mNativeNavigationControllerAndroid != 0) {
-            // Vivaldi
-            if (!BuildConfig.IS_VIVALDI) {
-            Log.i(
-                    TAG,
-                    "Thread dump for debugging, override: "
-                            + override
-                            + " reloadOnChange: "
-                            + reloadOnChange);
-            Thread.dumpStack();
-            } // End Vivaldi
-
             NavigationControllerImplJni.get()
                     .setUseDesktopUserAgent(
                             mNativeNavigationControllerAndroid,

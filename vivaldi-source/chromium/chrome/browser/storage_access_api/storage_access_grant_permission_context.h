@@ -106,6 +106,7 @@ class StorageAccessGrantPermissionContext
       const permissions::PermissionRequestData& request_data,
       permissions::BrowserPermissionCallback callback,
       bool persist,
+      const content::PermissionResult* permission_result,
       const permissions::PermissionPromptDecision& decision) override;
 
   // ContentSettingPermissionContextBase
@@ -113,10 +114,9 @@ class StorageAccessGrantPermissionContext
       content::RenderFrameHost* render_frame_host,
       const GURL& requesting_origin,
       const GURL& embedding_origin) const override;
-  void UpdateContentSetting(
-      const permissions::PermissionRequestData& request_data,
-      ContentSetting content_setting,
-      bool is_one_time) override;
+  void UpdateSetting(const permissions::PermissionRequestData& request_data,
+                     const PermissionSetting& content_setting,
+                     bool is_one_time) override;
 
   // Internal implementation for NotifyPermissionSet.
   void NotifyPermissionSetInternal(

@@ -35,7 +35,11 @@ enum class EntryPoint {
   DirectOmniboxBadge = 9,
   // Gemini was opened from the AI Hub after a sign-in flow.
   AIHubSignInSheet = 10,
-  kMaxValue = AIHubSignInSheet,
+  // Gemini was opened via an external App Store event.
+  ExternalAppStoreEvent = 11,
+  // Gemini was opened from the Toolbar.
+  Toolbar = 12,
+  kMaxValue = Toolbar,
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/ios/enums.xml:IOSGeminiEntryPoint)
 
@@ -60,7 +64,7 @@ enum class FloatyUpdateSource {
   Banner = 12,
   Keyboard = 13,
   GestureIph = 14,
-  SearchRelatedPage = 15,
+  SearchRelatedPage = 15,  // Deprecated
   kMaxValue = SearchRelatedPage,
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/ios/enums.xml:IOSGeminiFloatyUpdateSource)
@@ -92,6 +96,22 @@ enum class InputPlateAttachmentOption {
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/ios/enums.xml:IOSGeminiInputPlateAttachmentOption)
 
+// The type of regenerate option for a Gemini query retry.
+// Logged as IOSGeminiRegenerateOptionType enum for the
+// IOS.Gemini.RegenerateButton.Tapped histogram.
+// LINT.IfChange(RegenerateOptionType)
+enum class RegenerateOptionType {
+  kUnspecified = 0,
+  kNoChanges = 1,
+  kWithoutPersonalization = 2,
+  kWithPersonalization = 3,
+  kWithNanoBananaPro = 4,
+  kElaborate = 5,
+  kShorten = 6,
+  kMaxValue = kShorten,
+};
+// LINT.ThenChange(/tools/metrics/histograms/metadata/ios/enums.xml:IOSGeminiRegenerateOptionType)
+
 // Settings for Gemini integration.
 enum class SettingsPolicy {
   kAllowed = 0,
@@ -121,6 +141,71 @@ enum class FREState {
   kMaxValue = kCompleted
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/ios/enums.xml:IOSGeminiFREState)
+
+// Input type for Gemini queries.
+// LINT.IfChange(InputType)
+enum class InputType {
+  // Unknown input type.
+  kUnknown = 0,
+  // Text input type.
+  kText = 1,
+  // Summarize input type.
+  kSummarize = 2,
+  // Check this site input type.
+  kCheckThisSite = 3,
+  // Find related sites input type.
+  kFindRelatedSites = 4,
+  // Ask about page input type.
+  kAskAboutPage = 5,
+  // Create FAQ input type.
+  kCreateFaq = 6,
+  // Omnibox summarize input type.
+  kOmniboxSummarize = 7,
+  // Zero state model suggestion input type.
+  kZeroStateModelSuggestion = 8,
+  // 'What can Gemini do' input type.
+  kWhatCanGeminiDo = 9,
+  // Discovery card input type.
+  kDiscoveryCard = 10,
+  // Omnibox prompt input type.
+  kOmniboxPrompt = 11,
+  // Transition to live input type.
+  kTransitionToLive = 12,
+  // Onboarding: what can gemini do input type.
+  kOnboardingWhatCanGeminiDo = 13,
+  // Onboarding: ask about page input type.
+  kOnboardingAskAboutPage = 14,
+  // Onboarding: summarize input type.
+  kOnboardingSummarize = 15,
+  // Onboarding: no I am done input type.
+  kOnboardingNoIAmDone = 16,
+  // Onboarding: keep learning input type.
+  kOnboardingKeepLearning = 17,
+  // Suggested reply input type.
+  kSuggestedReply = 18,
+  // Nano Banana: turn this page into a comic strip input type.
+  kNanoBananaTurnThisPageIntoAComicStrip = 19,
+  // Nano Banana: make a folk art illustration input type.
+  kNanoBananaMakeAFolkArtIllustration = 20,
+  // Nano Banana: make a custom mini figure input type.
+  kNanoBananaMakeACustomMiniFigure = 21,
+  // Nano Banana: give me a grunge makeover input type.
+  kNanoBananaGiveMeAGrungeMakeover = 22,
+  // Nano Banana: turn this image into a vintage postcard input type.
+  kNanoBananaTurnThisImageIntoAVintagePostcard = 23,
+  // Nano Banana: turn this image into a watercolor painting input type.
+  kNanoBananaTurnThisImageIntoAWatercolorPainting = 24,
+  // Nano Banana: make this image look like instant film input type.
+  kNanoBananaMakeThisImageLookLikeInstantFilm = 25,
+  // Input from Helios entry point on the Edit menu when user highlights text
+  // Something like: “Explain this to me: <selected text>”
+  kEditMenuPrompt = 26,
+  kMaxValue = kEditMenuPrompt,
+};
+// LINT.ThenChange(
+//   /ios/chrome/browser/intelligence/bwg/metrics/gemini_metrics.h:IOSGeminiFirstPromptSubmissionMethod,
+//   /tools/metrics/histograms/metadata/ios/enums.xml:IOSGeminiFirstPromptSubmissionMethod
+// )
 
 }  // namespace gemini
 
@@ -155,43 +240,60 @@ extern NSString* const kLottieAnimationFREBannerName;
 
 // Session map dictionary key for the last interaction timestamp.
 extern const char kLastInteractionTimestampDictKey[];
-
-// The accessibility ID of the Gemini consent FootNote textView.
-extern NSString* const kGeminiFootNoteTextViewAccessibilityIdentifier;
-
-// The accessibility ID the Gemini consent primary button.
-extern NSString* const kGeminiPrimaryButtonAccessibilityIdentifier;
-
-// The accessibility ID the Gemini consent secondary button.
-extern NSString* const kGeminiSecondaryButtonAccessibilityIdentifier;
-
 // Session map dictionary key for the visible URL during the last BWG
 // interaction.
 extern const char kURLOnLastInteractionDictKey[];
 
-// Links for attributed links.
-extern const char kFirstFootnoteLinkURL[];
-extern const char kSecondFootnoteLinkURL[];
-extern const char kKoreanTermsFootnoteLinkURL[];
-extern const char kFootnoteLinkURLManagedAccount[];
+// Consent row links for the new FRE.
+extern const char kDataGovernanceManagedLinkURL[];
+extern const char kDataGovernanceStrictLinkURL[];
+extern const char kDataGovernanceNormalLocationLinkURL[];
+extern const char kDataGovernanceNormalChoicesLinkURL[];
+extern const char kConnectedServicesLinkURL[];
+
+// Consent row links for the old FRE.
+// TODO(crbug.com/393204662): Remove these links once the old FRE is removed.
 extern const char kSecondBoxLinkURLManagedAccount[];
 extern const char kSecondBoxLink1URLNonManagedAccount[];
 extern const char kSecondBoxLink2URLNonManagedAccount[];
+
+// Consent row links for Live FRE.
 extern const char kLivePrivacyNoticeLinkURL[];
 extern const char kLiveLearnMoreLinkURL[];
 extern const char kLivePrivacyPolicyLinkURL[];
 
-// Action identifier on a tap on links in the footnote.
-extern NSString* const kGeminiFirstFootnoteLinkAction;
-extern NSString* const kGeminiSecondFootnoteLinkAction;
-extern NSString* const kGeminiKoreanTermsLinkAction;
-extern NSString* const kGeminiFootnoteLinkActionManagedAccount;
+// Footnote links.
+extern const char kFirstFootnoteLinkURL[];
+extern const char kSecondFootnoteLinkURL[];
+extern const char kKoreanTermsFootnoteLinkURL[];
+extern const char kWatchLinkURL[];
+
+// Action identifiers for links in the new FRE Gemini consent rows.
+extern NSString* const kGeminiDataGovernanceManagedLinkAction;
+extern NSString* const kGeminiDataGovernanceStrictLinkAction;
+extern NSString* const kGeminiDataGovernanceNormalLocationLinkAction;
+extern NSString* const kGeminiDataGovernanceNormalChoicesLinkAction;
+extern NSString* const kGeminiConnectedServicesLinkAction;
+
+// Action identifiers for links in the old FRE Gemini consent rows.
 extern NSString* const kGeminiSecondBoxLinkActionManagedAccount;
 extern NSString* const kGeminiSecondBoxLink1ActionNonManagedAccount;
 extern NSString* const kGeminiSecondBoxLink2ActionNonManagedAccount;
+
+// Action identifiers for links in the Live FRE Gemini consent rows.
 extern NSString* const kGeminiLivePrivacyNoticeLinkAction;
 extern NSString* const kGeminiLiveLearnMoreLinkAction;
 extern NSString* const kGeminiLivePrivacyPolicyLinkAction;
+
+// Action identifier for links in the Gemini consent footnote.
+extern NSString* const kGeminiFirstFootnoteLinkAction;
+extern NSString* const kGeminiSecondFootnoteLinkAction;
+extern NSString* const kGeminiKoreanTermsLinkAction;
+extern NSString* const kGeminiWatchLinkAction;
+
+// Accessibility identifiers for Gemini consent view.
+// The accessibility ID of the Gemini consent FootNote textView.
+extern NSString* const kGeminiFootNoteTextViewAccessibilityIdentifier;
 
 // The sliding window for displaying a Gemini contextual cue chip. Chips are
 // shown within this time range (in hours) relative to the last chip that was

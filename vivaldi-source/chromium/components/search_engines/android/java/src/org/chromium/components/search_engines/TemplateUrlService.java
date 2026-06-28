@@ -783,6 +783,8 @@ public class TemplateUrlService {
                 long nativeTemplateUrlServiceAndroid, TemplateUrlService caller, String url);
         String getUrlFromDisplayBridge(
                 long nativeTemplateUrlServiceAndroid, TemplateUrlService caller, String url);
+        void vivaldiRestoreTemplateUrls(
+                long nativeTemplateUrlServiceAndroid, TemplateUrlService caller);
         // End Vivladi
     }
 
@@ -843,6 +845,12 @@ public class TemplateUrlService {
     public String getUrlFromDisplayBridge(String url) {
         return TemplateUrlServiceJni.get().getUrlFromDisplayBridge(
                 mNativeTemplateUrlServiceAndroid, TemplateUrlService.this, url);
+    }
+
+    public void vivaldiRestoreTemplateUrls() { // Ref: VAB-12041
+        ThreadUtils.assertOnUiThread();
+        TemplateUrlServiceJni.get().vivaldiRestoreTemplateUrls(
+                mNativeTemplateUrlServiceAndroid, TemplateUrlService.this);
     }
     // End Vivaldi
 }

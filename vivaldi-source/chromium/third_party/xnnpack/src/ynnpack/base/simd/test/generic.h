@@ -396,6 +396,105 @@ void test_sqrt() {
 #define TEST_SQRT(test_class, type, N) \
   TEST_F(test_class, sqrt_##type##x##N) { test_sqrt<type, N>(); }
 
+template <typename scalar, size_t N>
+void test_floor_log2() {
+  using vector = vec<scalar, N>;
+
+  std::pair<scalar, scalar> special_values[] = {
+      {static_cast<scalar>(0.0), -type_info<scalar>::infinity()},
+      {static_cast<scalar>(-0.0), -type_info<scalar>::infinity()},
+      {type_info<scalar>::infinity(), type_info<scalar>::infinity()},
+      {static_cast<scalar>(-1.0), type_info<scalar>::nan()},
+      {-type_info<scalar>::infinity(), type_info<scalar>::nan()},
+      {-type_info<scalar>::max(), type_info<scalar>::nan()},
+  };
+
+  for (const auto& [input, expected] : special_values) {
+    scalar a[vector::N];
+    std::fill_n(a, vector::N, input);
+
+    scalar result[vector::N];
+    store(result, floor_log2(load(a, vector::N)));
+    if (std::isnan(expected)) {
+      ASSERT_TRUE(std::isnan(result[0])) << input;
+    } else {
+      ASSERT_EQ(result[0], expected) << input;
+    }
+  }
+
+  ReplicableRandomDevice rng;
+  for (auto _ : FuzzTest(std::chrono::milliseconds(100))) {
+    scalar a[vector::N];
+    fill_random(a, vector::N, rng, 0.0, 1000.0);
+
+    scalar result[vector::N];
+    store(result, floor_log2(load(a, vector::N)));
+
+    for (size_t i = 0; i < vector::N; ++i) {
+      int exp;
+      std::frexp(static_cast<double>(a[i]), &exp);
+      scalar expected = static_cast<scalar>(exp - 1);
+      ASSERT_EQ(result[i], expected);
+    }
+  }
+}
+
+#define TEST_FLOOR_LOG2(test_class, type, N) \
+  TEST_F(test_class, floor_log2_##type##x##N) { test_floor_log2<type, N>(); }
+
+template <typename scalar, size_t N>
+void test_exp2_round() {
+  using vector = vec<scalar, N>;
+
+  ReplicableRandomDevice rng;
+  for (auto _ : FuzzTest(std::chrono::milliseconds(100))) {
+    scalar a[vector::N];
+    auto abs_max = std::log2(type_info<scalar>::max()) - 2;
+    fill_random(a, vector::N, rng, -abs_max, abs_max);
+
+    scalar result[vector::N];
+    store(result, exp2_round(load(a, vector::N)));
+
+    for (size_t i = 0; i < vector::N; ++i) {
+      // Allow any integer k such that |k - a| <= 0.5.
+      // This accommodates different tie-breaking behaviors.
+      auto k = std::log2(result[i]);
+      ASSERT_NEAR(k, a[i], 0.5001) << a[i];
+      ASSERT_EQ(k, std::nearbyint(k)) << a[i];
+    }
+  }
+}
+
+#define TEST_EXP2_ROUND(test_class, type, N) \
+  TEST_F(test_class, exp2_round_##type##x##N) { test_exp2_round<type, N>(); }
+
+template <typename scalar, size_t N>
+void test_copynan() {
+  using vector = vec<scalar, N>;
+
+  scalar x[vector::N];
+  std::iota(x, x + vector::N, static_cast<scalar>(0));
+
+  scalar nan[vector::N];
+  for (size_t i = 0; i < vector::N; ++i) {
+    nan[i] = i % 3 == 0 ? type_info<scalar>::nan() : static_cast<scalar>(i);
+  }
+
+  scalar result[vector::N];
+  store(result, copynan(load(x, vector::N), load(nan, vector::N)));
+
+  for (size_t i = 0; i < vector::N; ++i) {
+    if (i % 3 == 0) {
+      ASSERT_TRUE(std::isnan(result[i]));
+    } else {
+      ASSERT_EQ(result[i], static_cast<scalar>(i));
+    }
+  }
+}
+
+#define TEST_COPYNAN(test_class, type, N) \
+  TEST_F(test_class, copynan_##type##x##N) { test_copynan<type, N>(); }
+
 struct min_op {
   template <typename T>
   T operator()(T a, T b) {
@@ -641,75 +740,25 @@ template <typename To, typename From>
 void test_cast() {
   using FromScalar = typename From::value_type;
   static constexpr size_t N = From::N;
+  using vector = vec<FromScalar, N>;
 
-  FromScalar src[N];
-  for (size_t i = 0; i < N; ++i) {
-    src[i] = static_cast<FromScalar>(i);
-  }
-  From from_v = load(src, From::N);
-  auto to_v = cast(from_v, To{});
+  ReplicableRandomDevice rng;
+  for (auto _ : FuzzTest(std::chrono::milliseconds(100))) {
+    FromScalar src[N];
+    fill_random(src, N, rng);
+    From from_v = load(src, vector::N);
+    auto to_v = cast(from_v, To{});
 
-  To dst[N];
-  store(dst, to_v);
-  for (size_t i = 0; i < N; ++i) {
-    ASSERT_EQ(dst[i], static_cast<To>(src[i]));
+    To dst[N];
+    store(dst, to_v);
+    for (size_t i = 0; i < N; ++i) {
+      ASSERT_EQ(dst[i], ynn::cast<To>(src[i]));
+    }
   }
 }
 
 #define TEST_CAST(test_class, to, from) \
   TEST_F(test_class, cast_##to##_##from) { test_cast<to, from>(); }
-
-template <typename To, typename From>
-void test_saturate_cast() {
-  using FromScalar = typename From::value_type;
-  static constexpr size_t N = From::N;
-  using vector = vec<FromScalar, N>;
-
-  ReplicableRandomDevice rng;
-  for (auto _ : FuzzTest(std::chrono::milliseconds(100))) {
-    FromScalar src[N];
-    fill_random(src, N, rng);
-    From from_v = load(src, vector::N);
-    auto to_v = saturate_cast(from_v, To{});
-
-    To dst[N];
-    store(dst, to_v);
-    for (size_t i = 0; i < N; ++i) {
-      ASSERT_EQ(dst[i], ynn::saturate_cast<To>(src[i]));
-    }
-  }
-}
-
-#define TEST_SATURATE_CAST(test_class, to, from)    \
-  TEST_F(test_class, saturate_cast_##to##_##from) { \
-    test_saturate_cast<to, from>();                 \
-  }
-
-template <typename To, typename From>
-void test_round_float_to_int() {
-  using FromScalar = typename From::value_type;
-  static constexpr size_t N = From::N;
-  using vector = vec<FromScalar, N>;
-
-  ReplicableRandomDevice rng;
-  for (auto _ : FuzzTest(std::chrono::milliseconds(100))) {
-    FromScalar src[N];
-    fill_random(src, N, rng);
-    From from_v = load(src, vector::N);
-    auto to_v = round_float_to_int(from_v, To{});
-
-    To dst[N];
-    store(dst, to_v);
-    for (size_t i = 0; i < N; ++i) {
-      ASSERT_EQ(dst[i], ynn::round_float_to_int<To>(src[i]));
-    }
-  }
-}
-
-#define TEST_ROUND_FLOAT_TO_INT(test_class, to, from)    \
-  TEST_F(test_class, round_float_to_int_##to##_##from) { \
-    test_round_float_to_int<to, from>();                 \
-  }
 
 template <typename scalar, size_t N>
 void test_horizontal_sum() {
@@ -800,6 +849,51 @@ void test_fma() {
 
 #define TEST_FMA(test_class, type, N) \
   TEST_F(test_class, fma_##type##x##N) { test_fma<type, N>(); }
+
+template <typename scalar, size_t N>
+void test_kahan_sum() {
+  using vector = vec<scalar, N>;
+
+  ReplicableRandomDevice rng;
+  for (auto _ : FuzzTest(std::chrono::milliseconds(100))) {
+    scalar a[vector::N];
+    scalar b[vector::N];
+    fill_random(a, vector::N, rng);
+    fill_random(b, vector::N, rng);
+
+    vector acc = broadcast<N>(static_cast<scalar>(0));
+    vector error = broadcast<N>(static_cast<scalar>(0));
+    kahan_sum(load(a, vector::N), acc, error);
+    kahan_sum(load(b, vector::N), acc, error);
+
+    scalar sum[vector::N];
+    store(sum, acc);
+
+    for (size_t i = 0; i < vector::N; ++i) {
+      scalar a_i = a[i];
+      scalar b_i = b[i];
+      scalar expected = a_i + b_i;
+
+#ifdef YNN_ARCH_ARM32
+      if (std::abs(expected) < type_info<scalar>::smallest_normal()) {
+        // ARM32 flushes denormals to 0(?).
+        continue;
+      }
+#endif  // YNN_ARCH_ARM32
+
+      if (std::isnan(expected)) {
+        ASSERT_TRUE(std::isnan(sum[i]));
+      } else {
+        scalar tolerance = type_info<scalar>::epsilon() *
+                           std::max(std::abs(a_i), std::abs(b_i));
+        ASSERT_NEAR(sum[i], expected, tolerance);
+      }
+    }
+  }
+}
+
+#define TEST_KAHAN_SUM(test_class, type, N) \
+  TEST_F(test_class, kahan_sum_##type##x##N) { test_kahan_sum<type, N>(); }
 
 template <typename scalar, size_t N>
 void test_add_sat() {

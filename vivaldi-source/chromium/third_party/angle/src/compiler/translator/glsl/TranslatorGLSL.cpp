@@ -12,9 +12,13 @@
 #include "compiler/translator/glsl/ExtensionGLSL.h"
 #include "compiler/translator/glsl/OutputGLSL.h"
 #include "compiler/translator/glsl/VersionGLSL.h"
+#include "compiler/translator/tree_ops/AddDefaultReturnStatements.h"
 #include "compiler/translator/tree_ops/MonomorphizeUnsupportedFunctions.h"
 #include "compiler/translator/tree_ops/PreTransformTextureCubeGradDerivatives.h"
+#include "compiler/translator/tree_ops/RemoveDynamicIndexing.h"
+#include "compiler/translator/tree_ops/RemoveInvariantDeclaration.h"
 #include "compiler/translator/tree_ops/RewriteTexelFetchOffset.h"
+#include "compiler/translator/tree_ops/glsl/ExpandFragmentOutputsToVec4.h"
 #include "compiler/translator/tree_ops/glsl/apple/RewriteRowMajorMatrices.h"
 
 namespace sh
@@ -46,8 +50,16 @@ bool TranslatorGLSL::translate(TIntermBlock *root,
     // variables. It should be harmless to do this twice in the case that the shader also explicitly
     // did this. However, it's important to emit invariant qualifiers only for those built-in
     // variables that are actually used, to avoid affecting the behavior of the shader.
-    if (compileOptions.flattenPragmaSTDGLInvariantAll && getPragma().stdgl.invariantAll &&
-        !sh::RemoveInvariant(getShaderType(), getShaderVersion(), getOutputType(), compileOptions))
+    const bool removeInvariant =
+        RemoveInvariant(getShaderType(), getShaderVersion(), getOutputType(), compileOptions);
+    if (removeInvariant)
+    {
+        if (!RemoveInvariantDeclaration(this, root))
+        {
+            return false;
+        }
+    }
+    else if (compileOptions.flattenPragmaSTDGLInvariantAll && getPragma().stdgl.invariantAll)
     {
         switch (getShaderType())
         {
@@ -87,6 +99,11 @@ bool TranslatorGLSL::translate(TIntermBlock *root,
 
     if (!compileOptions.useIR)
     {
+        if (!sh::AddDefaultReturnStatements(this, root))
+        {
+            return false;
+        }
+
         // anglebug.com/42265954: The ESSL spec has a bug with images as function arguments. The
         // recommended workaround is to inline functions that accept image arguments.
         if (getShaderVersion() >= 310 &&
@@ -109,6 +126,21 @@ bool TranslatorGLSL::translate(TIntermBlock *root,
     if (compileOptions.rewriteRowMajorMatrices && getShaderVersion() >= 300)
     {
         if (!RewriteRowMajorMatrices(this, root, &getSymbolTable()))
+        {
+            return false;
+        }
+    }
+
+    if (compileOptions.removeDynamicIndexingOfSwizzledVector)
+    {
+        if (!sh::RemoveDynamicIndexingOfSwizzledVector(this, root, &getSymbolTable(), nullptr))
+        {
+            return false;
+        }
+    }
+    if (compileOptions.expandFragmentOutputsToVec4)
+    {
+        if (!ExpandFragmentOutputsToVec4(this, root, &getSymbolTable()))
         {
             return false;
         }

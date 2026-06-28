@@ -4,15 +4,17 @@ source_set("tools") {
     "../tools/vivaldi_tools.h",
   ]
   deps = [
-    "//components/sharing_message/proto",
-    "//chrome/common",
     "//chrome/browser/ui/webui/tab_search:mojo_bindings",
+    "//chrome/common",
+    "//components/sharing_message/proto",
     "//components/zoom",
     "//extensions/buildflags",
+
     # "//extensions/browser",
     "//net",
     "//skia",
     "//ui/views:buildflags",
+
     # "//vivaldi/ui",
   ]
   allow_circular_includes_from = [

@@ -13,26 +13,32 @@
 #include "base/strings/stringprintf.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/security_principal.h"
 #include "content/public/browser/site_isolation_policy.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/child_process_id.h"
 #include "content/public/common/content_features.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_navigation_observer.h"
-#include "extensions/browser/app_window/app_window.h"
-#include "extensions/browser/app_window/app_window_registry.h"
 #include "extensions/browser/browsertest_util.h"
 #include "extensions/browser/guest_view/web_view/web_view_guest.h"
+#include "extensions/buildflags/buildflags.h"
 #include "extensions/common/constants.h"
 #include "extensions/common/mojom/context_type.mojom.h"
 #include "extensions/test/extension_test_message_listener.h"
 #include "extensions/test/test_extension_dir.h"
 #include "net/dns/mock_host_resolver.h"
 #include "testing/gtest/include/gtest/gtest.h"
+
+#if BUILDFLAG(ENABLE_PLATFORM_APPS)
+#include "extensions/browser/app_window/app_window.h"
+#include "extensions/browser/app_window/app_window_registry.h"
+#endif
+
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 namespace extensions {
 
@@ -53,8 +59,8 @@ class ProcessMapBrowserTest : public ExtensionBrowserTest {
     return *GetActiveWebContents()->GetPrimaryMainFrame()->GetProcess();
   }
 
-  int GetActiveMainFrameProcessID() {
-    return GetActiveMainFrameProcess().GetDeprecatedID();
+  content::ChildProcessId GetActiveMainFrameProcessID() {
+    return GetActiveMainFrameProcess().GetID();
   }
 
   // Adds a new extension with the given `extension_name` and host permission to
@@ -315,6 +321,7 @@ class ProcessMapBrowserTest : public ExtensionBrowserTest {
     return extension;
   }
 
+#if BUILDFLAG(IS_CHROMEOS)
   const Extension* AddExtensionWithWebViewAndOpen() {
     static constexpr char kManifest[] =
         R"({
@@ -369,7 +376,9 @@ class ProcessMapBrowserTest : public ExtensionBrowserTest {
 
     return extension;
   }
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
+#if BUILDFLAG(ENABLE_PLATFORM_APPS)
   content::WebContents* GetAppWindowContents() {
     AppWindowRegistry* registry = AppWindowRegistry::Get(profile());
     if (registry->app_windows().size() != 1) {
@@ -380,6 +389,7 @@ class ProcessMapBrowserTest : public ExtensionBrowserTest {
 
     return (*registry->app_windows().begin())->web_contents();
   }
+#endif  // BUILDFLAG(ENABLE_PLATFORM_APPS)
 
   content::WebContents* GetWebViewFromEmbedder(content::WebContents* embedder) {
     std::vector<content::WebContents*> inner_web_contents =
@@ -407,8 +417,10 @@ class ProcessMapBrowserTest : public ExtensionBrowserTest {
 
   // Opens a new tab to a Web UI page.
   void OpenWebUi() {
+    // Use chrome://version because it is Web UI on all platforms, including
+    // Android (which has some native UI chrome:// pages like settings).
     ASSERT_TRUE(
-        NavigateToURL(GetActiveWebContents(), GURL("chrome://settings")));
+        NavigateToURL(GetActiveWebContents(), GURL("chrome://version")));
   }
 
   // Opens a new tab to a page in the given `extension`.
@@ -964,11 +976,12 @@ void ProcessMapBrowserTest::VerifyWhetherSubframesAreIsolated(
 
   EXPECT_FALSE(ExtensionFrameIsSandboxed(main_frame));
 
-  int main_frame_process_id = main_frame->GetProcess()->GetDeprecatedID();
-  int sandboxed_frame_process_id =
-      sandboxed_child_frame->GetProcess()->GetDeprecatedID();
-  int non_sandboxed_frame_process_id =
-      non_sandboxed_child_frame->GetProcess()->GetDeprecatedID();
+  content::ChildProcessId main_frame_process_id =
+      main_frame->GetProcess()->GetID();
+  content::ChildProcessId sandboxed_frame_process_id =
+      sandboxed_child_frame->GetProcess()->GetID();
+  content::ChildProcessId non_sandboxed_frame_process_id =
+      non_sandboxed_child_frame->GetProcess()->GetID();
 
   if (expect_subframes_isolated_from_each_other) {
     EXPECT_NE(sandboxed_frame_process_id, non_sandboxed_frame_process_id);
@@ -1070,8 +1083,8 @@ void ProcessMapBrowserTest::
 
   content::RenderFrameHost* sandboxed_child_frame =
       content::ChildFrameAt(main_frame, 0);
-  int sandboxed_frame_process_id =
-      sandboxed_child_frame->GetProcess()->GetDeprecatedID();
+  content::ChildProcessId sandboxed_frame_process_id =
+      sandboxed_child_frame->GetProcess()->GetID();
   // Sandboxed extension frames should still have access to other extension
   // resources. Verify the extension script (resource.js) was properly loaded
   // by looking for foo variable.
@@ -1161,9 +1174,10 @@ IN_PROC_BROWSER_TEST_F(ProcessMapBrowserTest,
   content::RenderFrameHost* sandboxed_child_frame =
       content::ChildFrameAt(main_frame, 0);
 
-  int main_frame_process_id = main_frame->GetProcess()->GetDeprecatedID();
-  int sandboxed_frame_process_id =
-      sandboxed_child_frame->GetProcess()->GetDeprecatedID();
+  content::ChildProcessId main_frame_process_id =
+      main_frame->GetProcess()->GetID();
+  content::ChildProcessId sandboxed_frame_process_id =
+      sandboxed_child_frame->GetProcess()->GetID();
 
   // Since we normally process-isolate E1 from E2, placing E1 in a sandboxed
   // iframe will make no difference.
@@ -1226,11 +1240,12 @@ IN_PROC_BROWSER_TEST_F(ProcessMapBrowserTest,
   EXPECT_TRUE(ExtensionFrameIsSandboxed(sandboxed_frame));
   EXPECT_TRUE(ExtensionFrameIsSandboxed(other_sandboxed_frame));
 
-  int main_frame_process_id = main_frame->GetProcess()->GetDeprecatedID();
-  int sandboxed_frame_process_id =
-      sandboxed_frame->GetProcess()->GetDeprecatedID();
-  int other_sandboxed_frame_process_id =
-      other_sandboxed_frame->GetProcess()->GetDeprecatedID();
+  content::ChildProcessId main_frame_process_id =
+      main_frame->GetProcess()->GetID();
+  content::ChildProcessId sandboxed_frame_process_id =
+      sandboxed_frame->GetProcess()->GetID();
+  content::ChildProcessId other_sandboxed_frame_process_id =
+      other_sandboxed_frame->GetProcess()->GetID();
 
   // The two manifest-sandboxed frames will be in the same process, regardless
   // of whether IsolateSandboxedIframes is enabled or not.
@@ -1404,6 +1419,9 @@ IN_PROC_BROWSER_TEST_F(ProcessMapBrowserTest,
   }
 }
 
+// The following tests launch a dynamic Chrome App, which is only supported on
+// ChromeOS.
+#if BUILDFLAG(IS_CHROMEOS)
 IN_PROC_BROWSER_TEST_F(ProcessMapBrowserTest,
                        IsPrivilegedExtensionProcess_WebViews) {
   const Extension* extension = AddExtensionWithWebViewAndOpen();
@@ -1418,11 +1436,9 @@ IN_PROC_BROWSER_TEST_F(ProcessMapBrowserTest,
   // The embedder (the app window) should be a privileged extension process,
   // but the webview should not.
   EXPECT_TRUE(process_map()->IsPrivilegedExtensionProcess(
-      *extension,
-      embedder->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID()));
+      *extension, embedder->GetPrimaryMainFrame()->GetProcess()->GetID()));
   EXPECT_FALSE(process_map()->IsPrivilegedExtensionProcess(
-      *extension,
-      webview->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID()));
+      *extension, webview->GetPrimaryMainFrame()->GetProcess()->GetID()));
 }
 
 IN_PROC_BROWSER_TEST_F(ProcessMapBrowserTest, CanHostContextType_WebViews) {
@@ -1460,6 +1476,7 @@ IN_PROC_BROWSER_TEST_F(ProcessMapBrowserTest, CanHostContextType_WebViews) {
       {mojom::ContextType::kWebPage, mojom::ContextType::kUntrustedWebUi},
       "webview process without extension passed");
 }
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 IN_PROC_BROWSER_TEST_F(ProcessMapBrowserTest,
                        IsPrivilegedExtensionProcess_UserScripts) {

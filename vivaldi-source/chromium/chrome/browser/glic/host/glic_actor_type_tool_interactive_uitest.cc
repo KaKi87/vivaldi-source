@@ -4,6 +4,7 @@
 
 #include "chrome/browser/actor/actor_test_util.h"
 #include "chrome/browser/glic/host/glic_actor_interactive_uitest_common.h"
+#include "components/actor/public/mojom/actor_types.mojom.h"
 #include "components/optimization_guide/proto/features/actions_data.pb.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -134,8 +135,15 @@ IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
                       kExpectedText));
 }
 
+// TODO(crbug.com/469210106): Re-enable this test on ChromeOS.
+#if BUILDFLAG(IS_CHROMEOS)
+#define MAYBE_TypeActionOnDisabledInputFails \
+  DISABLED_TypeActionOnDisabledInputFails
+#else
+#define MAYBE_TypeActionOnDisabledInputFails TypeActionOnDisabledInputFails
+#endif
 IN_PROC_BROWSER_TEST_F(GlicActorTypeToolUiTest,
-                       TypeActionOnDisabledInputFails) {
+                       MAYBE_TypeActionOnDisabledInputFails) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kTypingTestTabId);
   const GURL task_url = embedded_test_server()->GetURL("/actor/input.html");
   const std::string kElementLabel = "disabled-input";

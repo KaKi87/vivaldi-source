@@ -22,6 +22,7 @@
 #import "components/signin/public/base/consent_level.h"
 #import "components/signin/public/base/gaia_id_hash.h"
 #import "components/signin/public/base/signin_pref_names.h"
+#import "components/signin/public/base/signin_switches.h"
 #import "components/signin/public/identity_manager/tribool.h"
 #import "components/sync/base/account_pref_utils.h"
 #import "components/sync/service/sync_service.h"
@@ -30,11 +31,11 @@
 #import "ios/chrome/app/application_delegate/app_state.h"
 #import "ios/chrome/app/change_profile_commands.h"
 #import "ios/chrome/app/profile/profile_state.h"
+#import "ios/chrome/browser/authentication/enterprise/public/managed_profile_creation_constants.h"
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_flow/authentication_flow_delegate.h"
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_flow/authentication_flow_in_profile.h"
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_flow/authentication_flow_performer.h"
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_ui_util.h"
-#import "ios/chrome/browser/authentication/ui_bundled/enterprise/managed_profile_creation/managed_profile_creation_constants.h"
 #import "ios/chrome/browser/flags/ios_chrome_flag_descriptions.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
 #import "ios/chrome/browser/policy/model/browser_policy_connector_ios.h"
@@ -69,16 +70,29 @@ namespace {
 // The states of the sign-in flow state machine.
 enum class AuthenticationState {
   kBegin,
+  // Fetch "CanSignInToChrome" capability before sign-in to check for age
+  // restrictions.
+  kFetchCanSignInToChromeCapability,
+  // If the user needs reauth, maybe reauth.
+  kReauthIfNeeded,
   // Check if there are unsynced data with the primary account, in the current
   // profile.
   kCheckUnsyncedData,
+  // Show Age Mismatch dialog if needed.
+  kShowAgeMismatchDialogIfNeeded,
   // Display confirmation dialog when the user is already signed in, based on
-  // unsynced data and if the primary account is a managed account.
+  // the CanSignInToChrome capability.
   kShowLeavingPrimaryAccountConfirmationIfNeeded,
   kFetchManagedStatus,
   kFetchProfileSeparationPoliciesIfNeeded,
   kShowManagedConfirmationIfNeeded,
   kConvertPersonalProfileToManagedIfNeeded,
+  // Checks with AuthenticationService is sign-in is allowed. If not,
+  // the sign-in is canceled.
+  kCheckSignInAllowed,
+  // After this step, sign-in should not be canceled or stopped.
+  // This steps calls `-[<AuthenticationFlowDelegate>
+  // authenticationFlowWillSwitchProfileWithReadyCompletion:]` if needed.
   kSwitchProfileIfNeeded,
   kHandOverToAuthenticationFlowInProfile,
   kCompleteWithFailure,
@@ -275,6 +289,10 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
 
   // The actions to perform following account sign-in.
   PostSignInActionSet _postSignInActions;
+
+  // YES if the user can sign in to Chrome (determined by the
+  // can_signin_to_chrome capability). YES by default.
+  BOOL _canSignInToChrome;
 }
 
 @synthesize handlingError = _handlingError;
@@ -308,6 +326,7 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
     _anchorRect = anchorRect;
     _state = AuthenticationState::kBegin;
     _cancelationReason = signin_ui::CancelationReason::kNotCanceled;
+    _canSignInToChrome = YES;
     _profileSeparationDataMigrationCloudSettings =
         policy::ProfileSeparationDataMigrationSettings::USER_OPT_IN;
 
@@ -315,16 +334,14 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
     AuthenticationService* authenticationService =
         AuthenticationServiceFactory::GetForProfile(profile);
     id<SystemIdentity> current_primary_identity =
-        authenticationService->GetPrimaryIdentity(
-            signin::ConsentLevel::kSignin);
+        authenticationService->GetPrimaryIdentity();
     // The user should not be allowed to sign-in to the current primary
     // identity.
     CHECK(![current_primary_identity isEqual:identity],
           base::NotFatalUntil::M142);
     if (current_primary_identity) {
       _wasPrimaryAccountManaged =
-          authenticationService->HasPrimaryIdentityManaged(
-              signin::ConsentLevel::kSignin);
+          authenticationService->HasPrimaryIdentityManaged();
     }
   }
   return self;
@@ -375,12 +392,16 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
   DCHECK([self canceled]);
   switch (_state) {
     case AuthenticationState::kBegin:
+    case AuthenticationState::kReauthIfNeeded:
     case AuthenticationState::kCheckUnsyncedData:
     case AuthenticationState::kShowLeavingPrimaryAccountConfirmationIfNeeded:
+    case AuthenticationState::kFetchCanSignInToChromeCapability:
+    case AuthenticationState::kShowAgeMismatchDialogIfNeeded:
     case AuthenticationState::kFetchManagedStatus:
     case AuthenticationState::kFetchProfileSeparationPoliciesIfNeeded:
     case AuthenticationState::kShowManagedConfirmationIfNeeded:
     case AuthenticationState::kConvertPersonalProfileToManagedIfNeeded:
+    case AuthenticationState::kCheckSignInAllowed:
     case AuthenticationState::kSwitchProfileIfNeeded:
     case AuthenticationState::kHandOverToAuthenticationFlowInProfile:
       return AuthenticationState::kCompleteWithFailure;
@@ -399,8 +420,14 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
   DCHECK(![self canceled]);
   switch (_state) {
     case AuthenticationState::kBegin:
+      return AuthenticationState::kFetchCanSignInToChromeCapability;
+    case AuthenticationState::kFetchCanSignInToChromeCapability:
+      return AuthenticationState::kReauthIfNeeded;
+    case AuthenticationState::kReauthIfNeeded:
       return AuthenticationState::kCheckUnsyncedData;
     case AuthenticationState::kCheckUnsyncedData:
+      return AuthenticationState::kShowAgeMismatchDialogIfNeeded;
+    case AuthenticationState::kShowAgeMismatchDialogIfNeeded:
       return AuthenticationState::
           kShowLeavingPrimaryAccountConfirmationIfNeeded;
     case AuthenticationState::kShowLeavingPrimaryAccountConfirmationIfNeeded:
@@ -412,6 +439,8 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
     case AuthenticationState::kShowManagedConfirmationIfNeeded:
       return AuthenticationState::kConvertPersonalProfileToManagedIfNeeded;
     case AuthenticationState::kConvertPersonalProfileToManagedIfNeeded:
+      return AuthenticationState::kCheckSignInAllowed;
+    case AuthenticationState::kCheckSignInAllowed:
       return AuthenticationState::kSwitchProfileIfNeeded;
     case AuthenticationState::kSwitchProfileIfNeeded:
       return AuthenticationState::kHandOverToAuthenticationFlowInProfile;
@@ -439,8 +468,20 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
     case AuthenticationState::kBegin:
       NOTREACHED();
 
+    case AuthenticationState::kFetchCanSignInToChromeCapability:
+      [self fetchCanSignInToChromeCapabilityStep];
+      return;
+
+    case AuthenticationState::kReauthIfNeeded:
+      [self reauthIfNeededStep];
+      return;
+
     case AuthenticationState::kCheckUnsyncedData:
       [self checkUnsyncedDataStep];
+      return;
+
+    case AuthenticationState::kShowAgeMismatchDialogIfNeeded:
+      [self showAgeMismatchDialogIfNeededStep];
       return;
 
     case AuthenticationState::kShowLeavingPrimaryAccountConfirmationIfNeeded:
@@ -461,6 +502,10 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
 
     case AuthenticationState::kConvertPersonalProfileToManagedIfNeeded:
       [self convertPersonalProfileToManagedIfNeededStep];
+      return;
+
+    case AuthenticationState::kCheckSignInAllowed:
+      [self checkSignInAllowedStep];
       return;
 
     case AuthenticationState::kSwitchProfileIfNeeded:
@@ -493,12 +538,25 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
   NOTREACHED();
 }
 
+- (void)reauthIfNeededStep {
+  if (self.skipReauthIfNeeded ||
+      base::FeatureList::IsEnabled(kAuthenticationFlowReauthFirstKillswitch) ||
+      _identityToSignIn.hasValidAuth) {
+    [self continueFlow];
+    return;
+  }
+  [_performer reauthIdentity:_identityToSignIn
+                     browser:_browser
+              viewController:_presentingViewController
+                 accessPoint:_accessPoint];
+}
+
 - (void)checkUnsyncedDataStep {
   ProfileIOS* profile = [self profile];
   AuthenticationService* authenticationService =
       AuthenticationServiceFactory::GetForProfile(profile);
   id<SystemIdentity> currentIdentity =
-      authenticationService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
+      authenticationService->GetPrimaryIdentity();
   // AuthenticationFlow should not switch to the same identity.
   CHECK(![currentIdentity isEqual:_identityToSignIn],
         base::NotFatalUntil::M145);
@@ -523,7 +581,8 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
   SignedInUserState signedInUserState = GetSignedInUserState(
       authenticationService, identityManager, profilePrefService);
   if (!ForceLeavingPrimaryAccountConfirmationDialog(signedInUserState,
-                                                    profile) &&
+                                                    profile,
+                                                    _identityToSignIn.gaiaId) &&
       _unsyncedDataTypes.value().empty()) {
     [self continueFlow];
     return;
@@ -536,6 +595,26 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
                                                     signedInUserState
                                                        anchorView:_anchorView
                                                        anchorRect:_anchorRect];
+}
+
+- (void)fetchCanSignInToChromeCapabilityStep {
+  if (base::FeatureList::IsEnabled(switches::kBuildExternalPrivacyContext)) {
+    [_performer fetchCanSignInToChromeCapability:_identityToSignIn
+                                         profile:[self profile]];
+  } else {
+    [self continueFlow];
+  }
+}
+
+- (void)showAgeMismatchDialogIfNeededStep {
+  if (base::FeatureList::IsEnabled(switches::kBuildExternalPrivacyContext) &&
+      !_canSignInToChrome) {
+    [_performer showAgeMismatchDialogForIdentity:_identityToSignIn
+                                  viewController:_presentingViewController
+                                         browser:_browser];
+  } else {
+    [self continueFlow];
+  }
 }
 
 // Fetches ManagedAccountsSigninRestriction policy, if needed.
@@ -605,6 +684,18 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
   [_performer makePersonalProfileManagedWithIdentity:_identityToSignIn];
 }
 
+// Checks if sign-in is allowed on the current profile.
+- (void)checkSignInAllowedStep {
+  ProfileIOS* profile = [self profile];
+  AuthenticationService* authenticationService =
+      AuthenticationServiceFactory::GetForProfile(profile);
+  if (!authenticationService->SigninEnabled()) {
+    [self cancelFlowWithReason:signin_ui::CancelationReason::kSignInNotAllowed];
+    return;
+  }
+  [self continueFlow];
+}
+
 // Switches profile if `_identityToSignIn` is assigned to another profile.
 // If `_identityToSignIn` doesn't exist anymore, an error is generated.
 // If the identity is assigned to the current profile this step is a no-op.
@@ -653,14 +744,21 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
     // deallocated by the time the `signinCompletion` is executed.
     _signInInProfileCompletion = ^(
         signin_ui::CancelationReason cancelationReason) {
-      [delegate
-          authenticationFlowDidSignInInSameProfileWithCancelationReason:
-              cancelationReason
-                                                               identity:
-                                                                   identityToSignIn];
-      if (Browser* browser = weakBrowser.get()) {
-        CompletePostSignInActions(postSignInActions, identityToSignIn, browser,
-                                  accessPoint);
+      ProceduralBlock completion = ^() {
+        if (Browser* browser = weakBrowser.get()) {
+          CompletePostSignInActions(postSignInActions, identityToSignIn,
+                                    browser, accessPoint);
+        }
+      };
+      if (delegate) {
+        [delegate
+            authenticationFlowDidSignInInSameProfileWithIdentity:
+                identityToSignIn
+                                               cancelationReason:
+                                                   cancelationReason
+                                                      completion:completion];
+      } else {
+        completion();
       }
     };
     [self continueFlow];
@@ -756,9 +854,10 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
 - (void)completeWithFailureStep {
   CHECK_NE(_cancelationReason, signin_ui::CancelationReason::kNotCanceled);
   [[self takeDelegate]
-      authenticationFlowDidSignInInSameProfileWithCancelationReason:
-          _cancelationReason
-                                                           identity:nil];
+      authenticationFlowDidSignInInSameProfileWithIdentity:nil
+                                         cancelationReason:_cancelationReason
+                                                completion:^{
+                                                }];
   [self continueFlow];
 }
 
@@ -809,6 +908,15 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
 
 #pragma mark AuthenticationFlowPerformerDelegate
 
+- (void)didCompleteReauthWithSuccess:(BOOL)success {
+  // Success means the user reauthenticated with `_identityToSignIn`.
+  CHECK_EQ(AuthenticationState::kReauthIfNeeded, _state);
+  if (!success) {
+    _cancelationReason = signin_ui::CancelationReason::kUserCanceled;
+  }
+  [self continueFlow];
+}
+
 - (void)didFetchUnsyncedDataWithUnsyncedDataTypes:
     (syncer::DataTypeSet)unsyncedDataTypes {
   _unsyncedDataTypes = unsyncedDataTypes;
@@ -830,6 +938,22 @@ void RecordUnsyncedDataHistogramIfNeeded(UnsyncedDataTypeHistogram histogram,
                      (authenticationFlowDidFetchHostedDomain:)]) {
     [self.delegate authenticationFlowDidFetchHostedDomain:hostedDomain];
   }
+  [self continueFlow];
+}
+
+- (void)authenticationFlowPerformer:(AuthenticationFlowPerformer*)performer
+    didFetchCanSignInToChromeCapability:(signin::Tribool)capability {
+  CHECK_EQ(AuthenticationState::kFetchCanSignInToChromeCapability, _state);
+  if (capability == signin::Tribool::kFalse) {
+    _canSignInToChrome = NO;
+  }
+  [self continueFlow];
+}
+
+- (void)didDismissAgeMismatchDialogWithCancelationReason:
+    (signin_ui::CancelationReason)reason {
+  CHECK_EQ(AuthenticationState::kShowAgeMismatchDialogIfNeeded, _state);
+  _cancelationReason = reason;
   [self continueFlow];
 }
 

@@ -109,8 +109,7 @@ public class ChannelsInitializerTest {
                         ChromeChannelDefinitions.ChannelId.BROWSER,
                         ChromeChannelDefinitions.ChannelId.DOWNLOADS,
                         ChromeChannelDefinitions.ChannelId.INCOGNITO,
-                        ChromeChannelDefinitions.ChannelId.MEDIA_PLAYBACK,
-                        ChromeChannelDefinitions.ChannelId.TIPS));
+                        ChromeChannelDefinitions.ChannelId.MEDIA_PLAYBACK));
     }
 
     @Test
@@ -229,7 +228,7 @@ public class ChannelsInitializerTest {
 
     @Test
     @Feature({"Browser", "Notifications"})
-    @DisabledTest(message = "https://crbug.com/1201250")
+    @DisabledTest(message = "https://crbug.com/40762262")
     public void testEnsureInitialized_sitesChannel() {
         mChannelsInitializer.ensureInitialized(ChromeChannelDefinitions.ChannelId.SITES);
 

@@ -484,25 +484,26 @@ DirectMatchService::GetDirectMatch(std::string query) {
       continue;
     }
 
-    auto updateCandidate = [&candidate, &unit, &lowercase_query,
-                            &candidate_allowed_to_be_default_match](std::u16string name) {
-      bool unit_allowed_to_be_default_match =
-          // VAB-10348 fuzzy match can not be default
-          base::StartsWith(name, lowercase_query,
-                           base::CompareCase::INSENSITIVE_ASCII) &&
-          // VB-111392 Allow match shorter than match_offset
-          lowercase_query.length() >= unit.match_offset;
-      if (!candidate ||
-          (!candidate_allowed_to_be_default_match &&
-           unit_allowed_to_be_default_match) ||
-          // Example: typing 'ali' should match on AliExpress with match_offset
-          // 3 instead of Alibaba with match_offset 4.
-          candidate->match_offset > unit.match_offset) {
-        candidate = &unit;
-        candidate_allowed_to_be_default_match =
-            unit_allowed_to_be_default_match;
-      }
-    };
+    auto updateCandidate =
+        [&candidate, &unit, &lowercase_query,
+         &candidate_allowed_to_be_default_match](std::u16string name) {
+          bool unit_allowed_to_be_default_match =
+              // VAB-10348 fuzzy match can not be default
+              base::StartsWith(name, lowercase_query,
+                               base::CompareCase::INSENSITIVE_ASCII) &&
+              // VB-111392 Allow match shorter than match_offset
+              lowercase_query.length() >= unit.match_offset;
+          if (!candidate ||
+              (!candidate_allowed_to_be_default_match &&
+               unit_allowed_to_be_default_match) ||
+              // Example: typing 'ali' should match on AliExpress with
+              // match_offset 3 instead of Alibaba with match_offset 4.
+              candidate->match_offset > unit.match_offset) {
+            candidate = &unit;
+            candidate_allowed_to_be_default_match =
+                unit_allowed_to_be_default_match;
+          }
+        };
 
     size_t match_len = lowercase_query.size();
     std::u16string name =

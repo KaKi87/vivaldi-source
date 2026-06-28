@@ -74,6 +74,7 @@ suite('ContextualTasksComposeboxFilesTest', () => {
 
     loadTimeData.overrideValues({
       contextualMenuUsePecApi: false,
+      composeboxSmartTabSharingVisible: false,
       enableComposeboxJumpFix: false,
       composeboxShowTypedSuggest: true,
       composeboxShowZps: true,
@@ -91,9 +92,14 @@ suite('ContextualTasksComposeboxFilesTest', () => {
     BrowserProxyImpl.setInstance(testProxy);
 
     mockComposeboxPageHandler = TestMock.fromClass(ComposeboxPageHandlerRemote);
+    mockComposeboxPageHandler.setResultFor(
+        'getSmartTabSharingActive', Promise.resolve({active: false}));
     mockSearchboxPageHandler = TestMock.fromClass(SearchboxPageHandlerRemote);
     mockSearchboxPageHandler.setResultFor(
         'getRecentTabs', Promise.resolve({tabs: []}));
+    mockSearchboxPageHandler.setResultFor(
+        'getPageClassification',
+        Promise.resolve({metricSource: 'CO_BROWSING_COMPOSEBOX'}));
     mockSearchboxPageHandler.setResultFor('getInputState', Promise.resolve({
       state: {
         allowedModels: [],
@@ -111,6 +117,7 @@ suite('ContextualTasksComposeboxFilesTest', () => {
           chipLabel: 'Canvas',
           hintText: 'Canvas hint',
           aimUrlParams: [{paramKey: 'rc', paramValue: '1'}],
+          menuTooltip: '',
         }],
       },
     }));
@@ -325,7 +332,7 @@ suite('ContextualTasksComposeboxFilesTest', () => {
         await composebox.updateComplete;
         await microtasksFinished();
 
-        assertEquals(1, composebox.pendingUploads.size);
+        assertEquals(1, composebox.files.size);
 
         const submitButton: HTMLButtonElement|null =
             getSubmitButton(composebox);
@@ -333,19 +340,19 @@ suite('ContextualTasksComposeboxFilesTest', () => {
             getSubmitContainer(composebox);
         assertTrue(submitButton !== null, 'Submit button should exist');
 
-        // There are no more deletable files, so submit should be disabled.
-        assertTrue(submitButton.disabled, 'Button should be disabled');
+        // There are no more deletable files, but the remaining undeletable
+        // file supports unimodal search, so submit should be enabled.
+        assertFalse(submitButton.disabled, 'Button should be enabled');
 
         assertTrue(
             submitContainer !== null, 'Submit container button should exist');
 
         assertStyle(
-            submitContainer, 'cursor', 'not-allowed',
-            'Submit button cursor should be not-allowed');
+            submitContainer, 'cursor', 'pointer',
+            'Submit button cursor should be pointer');
         assertStyle(
             submitContainer, 'pointer-events', 'auto',
-            'Submit container should still have pointer-events on,\
-                even when disabled.');
+            'Submit container should have pointer-events on.');
 
         // Reupload 2nd deleted file.
         await uploadFileAndVerify(
@@ -370,23 +377,23 @@ suite('ContextualTasksComposeboxFilesTest', () => {
         composebox.clearAllInputs(false);
         await composebox.updateComplete;
         await microtasksFinished();
-        assertEquals(2, composebox.pendingUploads.size);
+        assertEquals(2, composebox.files.size);
 
         assertTrue(submitButton !== null, 'Submit button should exist');
-        // There are no more deletable files, so submit should be disabled.
-        assertTrue(submitButton.disabled, 'Button should be disabled');
+        // There are no more deletable files, but the remaining undeletable
+        // files support unimodal search, so submit should be enabled.
+        assertFalse(submitButton.disabled, 'Button should be enabled');
 
         assertTrue(
             submitContainer !== null, 'Submit container button should exist');
 
         assertStyle(
-            submitContainer, 'cursor', 'not-allowed',
-            'Submit button cursor should be not-allowed');
+            submitContainer, 'cursor', 'pointer',
+            'Submit button cursor should be pointer');
         assertStyle(
             submitContainer, 'pointer-events', 'auto',
-            'Submit container should still have pointer-events on,\
-                even when disabled.');
-        assertEquals(2, composebox.pendingUploads.size);
+            'Submit container should have pointer-events on.');
+        assertEquals(2, composebox.files.size);
       });
 
   test('Composebox upload disabled when uploading files', async () => {

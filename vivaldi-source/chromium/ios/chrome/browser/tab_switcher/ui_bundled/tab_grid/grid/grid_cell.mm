@@ -358,7 +358,7 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
     return;
   } // End Vivaldi
 
-  if (self.theme == GridThemeLight) {
+  if (self.theme == GridTheme::kDynamic) {
     [self updateInterfaceStyleForWindow:self.window];
   }
 }
@@ -421,8 +421,8 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 
 #pragma mark - Public
 
-// Updates the theme to either dark or light. Updating is only done if the
-// current theme is not the desired theme.
+// Updates the theme to either forced dark or dynamic. Updating is only done if
+// the current theme is not the desired theme.
 - (void)setTheme:(GridTheme)theme {
   if (_theme == theme) {
     return;
@@ -435,16 +435,16 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
     return;
   } // End Vivaldi
 
-  // The light and dark themes have different colored borders based on the
-  // theme, regardless of dark mode, so `overrideUserInterfaceStyle` is not
-  // enough here.
+  // The dynamic and dark themes have different colored borders based on the
+  // mode (incognito/regular), regardless of dark mode, so
+  // `overrideUserInterfaceStyle` is not enough here.
   switch (theme) {
-    case GridThemeLight:
+    case GridTheme::kDynamic:
       [self updateInterfaceStyleForWindow:self.window];
       self.border.layer.borderColor =
           [UIColor colorNamed:kStaticBlue400Color].CGColor;
       break;
-    case GridThemeDark:
+    case GridTheme::kDark:
       self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
       self.border.layer.borderColor = UIColor.whiteColor.CGColor;
       break;
@@ -831,8 +831,6 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 // selected.
 - (void)setupSelectedBackgroundView {
   self.selectedBackgroundView = [[UIView alloc] init];
-  self.selectedBackgroundView.backgroundColor =
-      [UIColor colorNamed:kGridBackgroundColor];
   UIView* border = [[UIView alloc] init];
   border.hidden = self.isInSelectionMode;
   border.translatesAutoresizingMaskIntoConstraints = NO;
@@ -996,10 +994,10 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 
 - (void)applyUserInterfaceStyleForTheme {
   switch (_theme) {
-    case GridThemeLight:
+    case GridTheme::kDynamic:
       self.overrideUserInterfaceStyle = UIUserInterfaceStyleUnspecified;
       break;
-    case GridThemeDark:
+    case GridTheme::kDark:
       self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
       break;
   }

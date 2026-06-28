@@ -11,7 +11,7 @@
 #include "base/observer_list.h"
 #include "base/values.h"
 #include "components/ext_data/tab_ext_data.h"
-#include "components/ext_data/tab_weak_ext_data.h"
+#include "components/ext_data/tab_positioning_params.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 
@@ -24,8 +24,7 @@ namespace vivaldi {
 
 class TabExtDataImpl : public TabExtData,
                        public content::WebContentsUserData<TabExtDataImpl>,
-                       public content::WebContentsObserver
-{
+                       public content::WebContentsObserver {
  public:
   ~TabExtDataImpl() override;
 
@@ -36,7 +35,8 @@ class TabExtDataImpl : public TabExtData,
   // Implementing TabExtData
   void AddObserver(Observer* observer) override;
   void RemoveObserver(Observer* observer) override;
-  void Restore(const std::string& json, const TabExtData::RestoreArgs& args) override;
+  void Restore(const std::string& json,
+               const TabExtData::RestoreArgs& args) override;
   void Merge(const std::string& json) override;
   std::string ToString() const override;
   Result Set(TabExtKey key, std::string value) override;
@@ -44,6 +44,7 @@ class TabExtDataImpl : public TabExtData,
   Result Set(TabExtKey key, bool value) override;
   Result Set(TabExtKey key, int value) override;
   Result Set(TabExtKey key, const base::Value& value) override;
+
   Result Remove(TabExtKey key) override;
   std::string GetExtId() const override;
   std::optional<std::string> GetParentExtId() const override;
@@ -58,17 +59,29 @@ class TabExtDataImpl : public TabExtData,
   const base::Value* Get(TabExtKey key) const override;
   std::optional<double> GetWorkspaceId() const override;
   bool HasWorkspaceIdSet() const override;
-  WeakExtData* GetWeakExtData() override;
 
   void OnTabAdded() override;
   void OnTabRemoved() override;
 
-  void CopyFrom(TabExtData *) override;
+  void CopyFrom(TabExtData*) override;
   content::WebContents* GetWebContents() override;
+  void JoinGroup(TabExtData& source, bool create_if_not_exist) override;
+  void Ungroup() override;
 
-  static TabExtData * Create(content::WebContents *);
+  static TabExtData* Create(content::WebContents*);
+
+  Result SetForTesting(TabExtKey key, const base::Value& value) override;
+
+  static double RemapWorkspaceId(double id, std::string_view salt);
+
+  StackingMode GetStackingMode() const override;
+  void SetStackingMode(StackingMode mode) override;
+  TabPurpose GetPurpose() const override;
+  void SetPositioningParams(const TabPositioningParams &) override;
+  const TabPositioningParams & GetPositioningParams() override;
 
  protected:
+  Result SetUnsafe(TabExtKey key, const base::Value& value) override;
   // content::WebContentsObserver
   void DidOpenRequestedURL(content::WebContents* new_contents,
                            content::RenderFrameHost* source_render_frame_host,
@@ -83,10 +96,10 @@ class TabExtDataImpl : public TabExtData,
   friend class content::WebContentsUserData<TabExtDataImpl>;
   explicit TabExtDataImpl(content::WebContents*);
 
-  enum class MergeType { kNormal, kRestore, kRestoreForeign };
-
-  void MergeInternal(const base::DictValue& new_dict, MergeType merge_type);
-  void MergeInternal(const std::string& json, MergeType merge_type);
+  void MergeInternal(const base::DictValue& new_dict,
+                     const TabExtData::RestoreArgs& args);
+  void MergeInternal(const std::string& json,
+                     const TabExtData::RestoreArgs& args);
 
   enum class Action {
     kContinue,
@@ -101,11 +114,11 @@ class TabExtDataImpl : public TabExtData,
     // it functional.
     kMergeFlag,
 
-    // extData passed over the chrome.tabs.create() call
-    kCreateFlag,
-
     // Restore over chrome.session.restore() call
     kForeign,
+
+    // Ignore attempts to set workspace.
+    kWithoutWorkspace,
 
     // Disable all the consistency checks.
     kMigration,
@@ -117,22 +130,30 @@ class TabExtDataImpl : public TabExtData,
   Action SanitizeBeforeUpdate(std::string_view key,
                               base::Value& new_val,
                               const base::Value* old_val,
-                              UpdateFlags flags);
+                              UpdateFlags flags,
+                              const std::optional<std::string>& salt);
 
   void SanitizeExtId();
   void SanitizeExtId() const;
 
-  void SanitizeAfterRemove(std::string_view key);
+  void SanitizeAfterChange(std::string_view key);
 
-  void OnKeyChange(std::string_view key, const base::Value* new_val);
+  void OnKeyChange(std::string_view key,
+                   const base::Value* new_val,
+                   bool restore);
   void NotifyChange();
   bool Check(std::string_view key,
              const base::Value& new_val,
              const base::Value* old_val);
   Result UpdateValue(std::string_view key,
                      const base::Value& value,
-                     UpdateFlags flags);
+                     UpdateFlags flags,
+                     const std::optional<std::string>& salt = std::nullopt);
   Result RemoveValue(std::string_view key);
+
+  void CopyExtDataUnsafe(TabExtData& target,
+                         ::vivaldi::TabExtKey key,
+                         const TabExtData& source);
 
   base::ObserverList<Observer> observers_;
   mutable std::optional<std::string> cache_;
@@ -142,9 +163,9 @@ class TabExtDataImpl : public TabExtData,
   bool has_ext_id_ = false;
   bool workspace_id_chosen_ = false;
   std::set<std::string> changed_keys_;
-  WeakExtData weak_ext_data_;
-
+  TabPositioningParams positioning_params_;
   bool in_tab_strip_ = false;
+  StackingMode stacking_mode_ = StackingMode::kAvoid;
 };
 
 }  // namespace vivaldi

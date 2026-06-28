@@ -94,12 +94,14 @@ struct AutocompleteMatchType {
                                        // Enterprise policy.
     HISTORY_EMBEDDINGS_ANSWER   = 38,
     TAB_GROUP                   = 39,  // A tab group match.
+    CROSS_DEVICE_TAB            = 40,  // A tab opened on another device.
 
     // Vivaldi, make sure to keep the Vivaldi ones lasst, next to NUM_TYPES
     BOOKMARK_NICKNAME,  // A bookmark whose nickname
                         // contains the input.
     DIRECT_MATCH,       // A direct match
     RECENT_TYPED_HISTORY, // Recent searches and typed urls.
+
     NUM_TYPES,
   };
   // clang-format on

@@ -7,6 +7,7 @@
 #include <string>
 
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/zoom/chrome_zoom_level_prefs.h"
 #include "components/zoom/zoom_observer.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
@@ -27,8 +28,8 @@ class ZoomAPI : public BrowserContextKeyedAPI,
   // BrowserContextKeyedAPI implementation.
   static BrowserContextKeyedAPIFactory<ZoomAPI>* GetFactoryInstance();
 
-  static void AddZoomObserver(Browser* browser);
-  static void RemoveZoomObserver(Browser* browser);
+  static void AddZoomObserver(BrowserWindowInterface* browser);
+  static void RemoveZoomObserver(BrowserWindowInterface* browser);
 
   // EventRouter::Observer implementation.
   void OnListenerAdded(const EventListenerInfo& details) override;

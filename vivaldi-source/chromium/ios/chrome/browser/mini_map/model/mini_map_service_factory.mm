@@ -1,4 +1,4 @@
-// Copyright 2025 The Chromium Authors
+// Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #import "ios/chrome/browser/search_engines/model/template_url_service_factory.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
-#import "ios/chrome/browser/signin/model/identity_manager_factory.h"
 
 // static
 MiniMapService* MiniMapServiceFactory::GetForProfile(ProfileIOS* profile) {
@@ -26,8 +25,8 @@ MiniMapServiceFactory* MiniMapServiceFactory::GetInstance() {
 }
 
 MiniMapServiceFactory::MiniMapServiceFactory()
-    : ProfileKeyedServiceFactoryIOS("MiniMapService") {
-  DependsOn(IdentityManagerFactory::GetInstance());
+    : ProfileKeyedServiceFactoryIOS("MiniMapService",
+                                    ProfileSelection::kRedirectedInIncognito) {
   DependsOn(ios::TemplateURLServiceFactory::GetInstance());
 }
 
@@ -35,11 +34,10 @@ MiniMapServiceFactory::~MiniMapServiceFactory() = default;
 
 std::unique_ptr<KeyedService> MiniMapServiceFactory::BuildServiceInstanceFor(
     ProfileIOS* profile) const {
-  CHECK(!profile->IsOffTheRecord());
-  CHECK(base::FeatureList::IsEnabled(kIOSMiniMapUniversalLink));
+  CHECK(base::FeatureList::IsEnabled(kIOSMiniMapUniversalLink) ||
+        base::FeatureList::IsEnabled(kIOSMiniMapUniversalLinkCounterfactual));
 
   return std::make_unique<MiniMapService>(
       profile->GetPrefs(),
-      ios::TemplateURLServiceFactory::GetForProfile(profile),
-      IdentityManagerFactory::GetForProfile(profile));
+      ios::TemplateURLServiceFactory::GetForProfile(profile));
 }

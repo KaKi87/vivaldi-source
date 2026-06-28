@@ -12,7 +12,6 @@
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -515,7 +514,6 @@ int OpenPersistentTabs(BrowserWindowInterface* browser, bool discard) {
       DeleteSessionFile(profile, node);
       model->Remove(node);
     } else {
-      extensions::SessionsPrivateAPI::SendOnPersistentLoad(profile, true);
       vivaldi::SessionOptions opts;
       opts.newWindow_ = false;
       opts.oneWindow_ = true;
@@ -524,7 +522,6 @@ int OpenPersistentTabs(BrowserWindowInterface* browser, bool discard) {
       // Can only be opened once after it has been saved so deleting now.
       DeleteSessionFile(profile, node);
       model->Remove(node);
-      extensions::SessionsPrivateAPI::SendOnPersistentLoad(profile, false);
     }
   }
   return kNoError;

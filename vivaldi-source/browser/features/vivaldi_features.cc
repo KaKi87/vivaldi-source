@@ -93,6 +93,10 @@ BASE_FEATURE(kDoubleClickMenu,
              "VivaldiDoubleClickMenu",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
+BASE_FEATURE(kHorizontalPinnedTabs,
+             "VivaldiHorizontalPinnedTabs",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
 BASE_FEATURE(kCssMods, "VivaldiCssMods", base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kChromePages,
@@ -103,27 +107,17 @@ BASE_FEATURE(kInternalPageReaderMode,
              "VivaldiInternalPageReaderMode",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kLayouts,
-             "VivaldiLayouts",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 BASE_FEATURE(kNoteEditor,
              "VivaldiNewNoteEditor",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kPanelOnboarding,
-             "VivaldiPanelOnboarding",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
 BASE_FEATURE(kRelatedTabs,
              "VivaldiRelatedTabs",
-          base::FEATURE_ENABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kSettings20,
              "VivaldiSettings20",
              base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kThemeUnified, "VivaldiUnified", base::FEATURE_ENABLED_BY_DEFAULT);
 
 #if BUILDFLAG(IS_IOS)
 // iOS specific feature flags should be delcared within this block.
@@ -131,6 +125,14 @@ BASE_FEATURE(kThemeUnified, "VivaldiUnified", base::FEATURE_ENABLED_BY_DEFAULT);
 BASE_FEATURE(kBankIDDigIDLatencyWorkaround,
              "VivaldiBankIDDigIDLatencyWorkaround",
              base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kVivaldiIOSCopySanitizedLink,
+             "VivaldiIOSCopySanitizedLink",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsVivaldiIOSCopySanitizedLinkEnabled() {
+  return base::FeatureList::IsEnabled(kVivaldiIOSCopySanitizedLink);
+}
 
 BASE_FEATURE(kVivaldiIOSShowRefactoredStartPage,
              "VivaldiIOSShowRefactoredStartPage",
@@ -148,16 +150,12 @@ BASE_FEATURE(kCinemaMode,
              base::FEATURE_DISABLED_BY_DEFAULT);
 #endif  // defined(OEM_AUTOMOTIVE_BUILD)
 
-BASE_FEATURE(kShowNewDeviceChooser,
-             "VivaldiShowNewDeviceChooser",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+BASE_FEATURE(kVivaldiUseNewUrlSanitizer,
+             "VivaldiUseNewUrlSanitizer",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
-bool IsNewDeviceChooserEnabled() {
-  return base::FeatureList::IsEnabled(kShowNewDeviceChooser);
-}
-
-BASE_FEATURE(kShowUnifiedSiteDialog,
-             "VivaldiShowUnifiedSiteDialog",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+BASE_FEATURE(kMailSavingAttachments,
+             "VivaldiSavingMailAttachments",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 }  // namespace vivaldi_features

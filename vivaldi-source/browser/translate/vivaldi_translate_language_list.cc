@@ -29,7 +29,7 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #else
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #endif
 
 namespace translate {
@@ -177,7 +177,8 @@ void VivaldiTranslateLanguageList::StartDownload() {
 #if BUILDFLAG(IS_ANDROID)
   Profile* profile = ProfileManager::GetLastUsedProfile();
 #else
-  Browser* browser = chrome::FindLastActive();
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
   if (!browser) {
     // VB-88607 [macOS] Browser crashes randomly
     // If there is no window open GetDefaultStoragePartition will crash on macOS
@@ -185,7 +186,7 @@ void VivaldiTranslateLanguageList::StartDownload() {
     StartUpdateTimer();
     return;
   }
-  Profile* profile = browser->profile();
+  Profile* profile = browser->GetProfile();
 #endif
 
   auto url_loader_factory = profile->GetDefaultStoragePartition()

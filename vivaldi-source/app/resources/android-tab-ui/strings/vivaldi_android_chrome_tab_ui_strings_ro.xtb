@@ -20,7 +20,6 @@
           =1 {Filă de semne de carte}
           other {File de semne de carte}
         }</translation>
-<translation id="2498435670446402865">Denumiți grupul de file</translation>
 <translation id="2734252994837336591">{NUM_WEEKS, plural,
           =1 {Actualizat acum <ph name="NUM_WEEKS_ONE" /> săptămână}
           other {Actualizate acum <ph name="NUM_WEEKS_MANY" /> săptămâni}
@@ -56,7 +55,6 @@
           =1 {Actualizat acum <ph name="NUM_YEARS_ONE" /> an}
           other {Actualizate acum <ph name="NUM_YEARS_MANY" /> ani}
         }</translation>
-<translation id="7825973332242257878">Grupuri de file</translation>
 <translation id="8207688828622594111">{NUM_MINS, plural,
           =1 {Actualizat acum <ph name="NUM_MINS_ONE" /> minut}
           other {Actualizate acum <ph name="NUM_MINS_MANY" /> minute}
@@ -72,5 +70,4 @@
                 other {Create acum <ph name="NUM_MONTHS_MANY" /> luni}
               }</translation>
 <translation id="8851621822786801079">Scoateți din filele suprapuse</translation>
-<translation id="8887921976452567404">Filele și grupurile închise pot fi redeschise din secțiunea File recente și secțiunea Grupuri de file.</translation>
 </translationbundle>

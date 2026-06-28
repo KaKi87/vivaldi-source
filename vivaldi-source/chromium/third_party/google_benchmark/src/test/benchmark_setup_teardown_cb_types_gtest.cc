@@ -1,13 +1,16 @@
-#include "benchmark/benchmark.h"
+#include "benchmark/benchmark_api.h"
+#include "benchmark/reporter.h"
+#include "benchmark/state.h"
+#include "benchmark/types.h"
 #include "gtest/gtest.h"
 
+using benchmark::Benchmark;
 using benchmark::BenchmarkReporter;
 using benchmark::callback_function;
 using benchmark::ClearRegisteredBenchmarks;
 using benchmark::RegisterBenchmark;
 using benchmark::RunSpecifiedBenchmarks;
 using benchmark::State;
-using benchmark::internal::Benchmark;
 
 static int functor_called = 0;
 struct Functor {

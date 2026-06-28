@@ -66,6 +66,29 @@ base::Value TranslateEnumValue(
   return base::Value(*name);
 }
 
+vivaldi::prefs::PrefStoreType GetControllingStore(
+    const PrefService::Preference* pref) {
+  if (pref->IsManaged()) {
+    return vivaldi::prefs::PrefStoreType::kManaged;
+  }
+  if (pref->IsManagedByCustodian()) {
+    return vivaldi::prefs::PrefStoreType::kSupervisedUser;
+  }
+  if (pref->IsExtensionControlled()) {
+    return vivaldi::prefs::PrefStoreType::kExtension;
+  }
+  if (pref->IsUserControlled()) {
+    return vivaldi::prefs::PrefStoreType::kUser;
+  }
+  if (pref->IsRecommended()) {
+    return vivaldi::prefs::PrefStoreType::kRecommended;
+  }
+  if (pref->IsDefaultValue()) {
+    return vivaldi::prefs::PrefStoreType::kDefault;
+  }
+  return vivaldi::prefs::PrefStoreType::kCommandLine;
+}
+
 vivaldi::prefs::PreferenceValue GetPrefValueForJS(
     PrefService* prefs,
     const std::string& path,
@@ -74,15 +97,16 @@ vivaldi::prefs::PreferenceValue GetPrefValueForJS(
   DCHECK(pref);
 
   vivaldi::prefs::PreferenceValue pref_value;
-  if (!pref->IsDefaultValue()) {
-    pref_value.value = TranslateEnumValue(prefs->GetValue(path), properties);
-  }
-  pref_value.default_value =
-      TranslateEnumValue(*prefs->GetDefaultPrefValue(path), properties);
+  pref_value.store = GetControllingStore(pref);
+  pref_value.value = TranslateEnumValue(prefs->GetValue(path), properties);
 
-  if (pref->IsManaged()) {
-    pref_value.managed = true;
+  if (pref_value.store == vivaldi::prefs::PrefStoreType::kUser) {
+    const base::Value* recommended = pref->GetRecommendedValue();
+    const base::Value& default_source =
+        recommended ? *recommended : *prefs->GetDefaultPrefValue(path);
+    pref_value.default_value = TranslateEnumValue(default_source, properties);
   }
+
   return pref_value;
 }
 
@@ -224,13 +248,6 @@ ExtensionFunction::ResponseAction PrefsSetFunction::Run() {
   if (!prefs)
     return RespondNow(Error(UnknownPrefError(path)));
 
-  const PrefService::Preference* preference = prefs->FindPreference(path);
-  DCHECK(preference);
-  if (!preference->IsUserModifiable() || !preference->IsExtensionModifiable()) {
-    return RespondNow(
-        Error(std::string("Cannot change the value of a managed preference ") +
-              path));
-  }
   DCHECK(!base::StartsWith(path, "vivaldi.system",
                            base::CompareCase::INSENSITIVE_ASCII));
 

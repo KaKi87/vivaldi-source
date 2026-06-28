@@ -37,7 +37,7 @@
 #include "src/tint/api/common/bindings.h"
 #include "src/tint/api/common/resource_table_config.h"
 #include "src/tint/api/common/substitute_overrides_config.h"
-#include "src/tint/utils/reflection.h"
+#include "src/tint/utils/reflection/reflection.h"
 
 namespace tint::spirv::writer {
 
@@ -95,23 +95,27 @@ struct Options {
         /// of cube depth.
         bool texture_sample_compare_depth_cube_array = false;
 
+        /// Set to 'true' to force a polyfill for 'textureSampleCompare(Level)' for all 2D
+        /// textures (and arrays) using bilinear interpolation.
+        bool texture_sample_compare_2d_polyfill = false;
+
         /// Set to `true` to generate polyfill for `subgroupBroadcast(f16)`
         bool polyfill_subgroup_broadcast_f16 = false;
 
         /// Set to `true` to always pass matrices to user functions by pointer instead of by value.
         bool pass_matrix_by_pointer = false;
 
-        /// Set to `true` to generate polyfill for f32 negation.
-        bool polyfill_unary_f32_negation = false;
+        /// Set to `true` to generate polyfill for f32 and f16 negation.
+        bool polyfill_float_negation = false;
 
-        /// Set to `true` to generate polyfill for f32 abs.
-        bool polyfill_f32_abs = false;
+        /// Set to `true` to generate polyfill for f32 and f16 abs.
+        bool polyfill_float_abs = false;
 
-        /// Set to `true` to generate polyfill for length(scalar f32).
-        bool polyfill_length_scalar_f32 = false;
+        /// Set to `true` to generate polyfill for length(scalar f32 and f16).
+        bool polyfill_length_scalar_float = false;
 
-        /// Set to `true` to generate polyfill for distance(scalar f32).
-        bool polyfill_distance_scalar_f32 = false;
+        /// Set to `true` to generate polyfill for distance(scalar f32 and f16).
+        bool polyfill_distance_scalar_float = false;
 
         /// Set to `true` to generate polyfill for f16 saturate.
         bool polyfill_saturate_as_min_max_f16 = false;
@@ -120,6 +124,9 @@ struct Options {
         /// instructions as matrix elements instead of a source/dest pointee elements.
         bool cooperative_matrix_stride_is_matrix_elements = false;
 
+        /// Set to `true` to collapse redundant subgroup min and max operations
+        bool collapse_subgroup_min_max = false;
+
         TINT_REFLECT(Workarounds,
                      polyfill_case_switch,
                      scalarize_max_min_clamp,
@@ -127,14 +134,16 @@ struct Options {
                      polyfill_pack_unpack_4x8_norm,
                      subgroup_shuffle_clamped,
                      texture_sample_compare_depth_cube_array,
+                     texture_sample_compare_2d_polyfill,
                      polyfill_subgroup_broadcast_f16,
                      pass_matrix_by_pointer,
-                     polyfill_unary_f32_negation,
-                     polyfill_f32_abs,
-                     polyfill_length_scalar_f32,
-                     polyfill_distance_scalar_f32,
+                     polyfill_float_negation,
+                     polyfill_float_abs,
+                     polyfill_length_scalar_float,
+                     polyfill_distance_scalar_float,
                      polyfill_saturate_as_min_max_f16,
-                     cooperative_matrix_stride_is_matrix_elements);
+                     cooperative_matrix_stride_is_matrix_elements,
+                     collapse_subgroup_min_max);
     };
 
     /// Any options which are controlled by the presence/absence of a vulkan extension.
@@ -225,8 +234,9 @@ struct Options {
     /// from all vertex shaders in the module.
     bool emit_vertex_point_size = true;
 
-    /// Set to `true` to apply builtin 'position' pixel center emulation.
-    bool polyfill_pixel_center = false;
+    /// If the optional is set, then we apply the builtin 'position' pixel center emulation with a
+    /// location provided by the optional.
+    std::optional<uint32_t> polyfill_pixel_center = std::nullopt;
 
     /// Set to `true` if framebuffer fetch should be multisampled
     bool multisampled_framebuffer_fetch = false;

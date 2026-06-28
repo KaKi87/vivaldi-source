@@ -20,19 +20,12 @@
 #include "base/functional/callback.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
-#include "base/metrics/field_trial_params.h"
 #include "base/metrics/persistent_histogram_allocator.h"
-#include "base/metrics/persistent_memory_allocator.h"
 #include "base/metrics/statistics_recorder.h"
 #include "base/no_destructor.h"
-#include "base/notreached.h"
 #include "base/path_service.h"
-#include "base/rand_util.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
-#include "base/task/task_traits.h"
-#include "base/task/thread_pool.h"
-#include "base/threading/platform_thread.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
@@ -68,11 +61,8 @@
 #include "chrome/common/channel_info.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_paths.h"
-#include "chrome/common/chrome_paths_internal.h"
 #include "chrome/common/chrome_switches.h"
-#include "chrome/common/pref_names.h"
 #include "components/component_updater/component_updater_service.h"
-#include "components/country_codes/country_codes.h"
 #include "components/crash/core/common/crash_keys.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/language/core/browser/locale_util.h"
@@ -92,11 +82,11 @@
 #include "components/metrics/metrics_features.h"
 #include "components/metrics/metrics_log_uploader.h"
 #include "components/metrics/metrics_pref_names.h"
+#include "components/metrics/metrics_reporting_choice_service.h"
 #include "components/metrics/metrics_reporting_default_state.h"
 #include "components/metrics/metrics_service.h"
 #include "components/metrics/metrics_service_client.h"
 #include "components/metrics/metrics_state_manager.h"
-#include "components/metrics/metrics_switches.h"
 #include "components/metrics/net/cellular_logic_helper.h"
 #include "components/metrics/net/net_metrics_log_uploader.h"
 #include "components/metrics/net/network_metrics_provider.h"
@@ -110,6 +100,7 @@
 #include "components/metrics/ui/form_factor_metrics_provider.h"
 #include "components/metrics/ui/screen_info_metrics_provider.h"
 #include "components/metrics/version_utils.h"
+#include "components/metrics_services_manager/metrics_services_manager.h"
 #include "components/network_time/network_time_tracker.h"
 #include "components/omnibox/browser/omnibox_metrics_provider.h"
 #include "components/pref_registry/pref_registry_syncable.h"
@@ -143,6 +134,9 @@
 #else
 #include "chrome/browser/metrics/browser_activity_watcher.h"
 #include "chrome/browser/performance_manager/metrics/metrics_provider_desktop.h"
+#include "chrome/browser/skills/skills_metrics_provider.h"  // nogncheck
+#include "chrome/browser/ui/tabs/tab_metrics_provider.h"
+#include "components/skills/features.h"  // nogncheck
 #endif
 
 #if BUILDFLAG(IS_POSIX)
@@ -176,22 +170,22 @@
 #include "chrome/browser/metrics/family_user_metrics_provider.h"
 #include "chrome/browser/metrics/k12_age_classification_metrics_provider.h"
 #include "chrome/browser/metrics/per_user_state_manager_chromeos.h"
+#include "chrome/browser/metrics/structured/ash_structured_metrics_recorder.h"
 #include "chrome/browser/metrics/update_engine_metrics_provider.h"
 #include "chrome/browser/ui/ash/shelf/chrome_shelf_metrics_provider.h"
 #include "chrome/browser/ui/webui/ash/settings/services/metrics/os_settings_metrics_provider.h"
 #include "chromeos/ash/components/demo_mode/utils/demo_session_utils.h"
-#endif  // BUILDFLAG(IS_CHROMEOS)
-
-#if BUILDFLAG(IS_CHROMEOS)
-#include "chrome/browser/metrics/structured/ash_structured_metrics_recorder.h"
 #else
+#include "chrome/browser/metrics/family_link_user_metrics_provider.h"
 #include "chrome/browser/metrics/structured/chrome_structured_metrics_delegate.h"
 #include "chrome/browser/metrics/structured/chrome_structured_metrics_recorder.h"
-#endif
+#include "chrome/browser/signin/chrome_signin_and_sync_status_metrics_provider.h"
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_WIN)
 #include <windows.h>
 
+#include "base/win/windows_version.h"
 #include "chrome/browser/metrics/antivirus_metrics_provider_win.h"
 #include "chrome/browser/metrics/google_update_metrics_provider_win.h"
 #include "chrome/browser/metrics/system_memory_list_metrics_provider_win.h"
@@ -204,6 +198,7 @@
 
 #if BUILDFLAG(IS_MAC)
 #include "chrome/browser/metrics/google_update_metrics_provider_mac.h"
+#include "chrome/browser/metrics/power/power_metrics_provider_mac.h"
 #endif
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
@@ -214,26 +209,9 @@
 #include "chrome/browser/metrics/chrome_metrics_service_crash_reporter.h"
 #endif
 
-#if !BUILDFLAG(IS_CHROMEOS)
-#include "chrome/browser/metrics/family_link_user_metrics_provider.h"
-#include "chrome/browser/signin/chrome_signin_and_sync_status_metrics_provider.h"
-#endif  // !BUILDFLAG(IS_CHROMEOS)
-
-#if BUILDFLAG(IS_MAC)
-#include "chrome/browser/metrics/power/power_metrics_provider_mac.h"
-#endif
-
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/metrics/bluetooth_metrics_provider.h"
 #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
-    BUILDFLAG(IS_CHROMEOS)
-#include "chrome/browser/skills/skills_metrics_provider.h"
-#include "chrome/browser/ui/tabs/tab_metrics_provider.h"
-#include "components/skills/features.h"
-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) ||
-        // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 #include "chrome/browser/updates/update_metrics_provider.h"
@@ -492,9 +470,9 @@ class ChromeComponentMetricsProviderDelegate
 };
 
 #if BUILDFLAG(IS_CHROMEOS)
-// TODO(crbug.com/40214482): Remove this and use ChangeMetricsReportingState()
-// once crash no longer depends on GoogleUpdateSettings and per-user is
-// available outside of Ash.
+// TODO(crbug.com/40214482): Remove this and use
+// metrics::ChangeMetricsReportingState() once crash no longer depends on
+// GoogleUpdateSettings and per-user is available outside of Ash.
 void UpdateMetricsServicesForPerUser(bool enabled) {
   // Set the local state pref because a lot of services read directly from this
   // pref to obtain metrics consent.
@@ -719,7 +697,7 @@ ChromeMetricsServiceClient::GetCustomUploadInterval() const {
 }
 
 bool ChromeMetricsServiceClient::IsReportingPolicyManaged() {
-  return IsMetricsReportingPolicyManaged();
+  return metrics::IsMetricsReportingPolicyManaged();
 }
 
 metrics::EnableMetricsDefault
@@ -908,8 +886,12 @@ void ChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
       std::make_unique<TPMMetricsProvider>());
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<SystemMemoryListMetricsProvider>());
-  metrics_service_->RegisterMetricsProvider(
-      std::make_unique<SystemPdhMetricsProvider>());
+  // Process V2 metrics are only guaranteed to be supported on Win11.
+  if (base::win::GetVersion() >= base::win::Version::WIN11 &&
+      base::FeatureList::IsEnabled(features::kSystemPdhMetrics)) {
+    metrics_service_->RegisterMetricsProvider(
+        std::make_unique<SystemPdhMetricsProvider>());
+  }
 #endif  // BUILDFLAG(IS_WIN)
 
 #if BUILDFLAG(IS_MAC)
@@ -1001,22 +983,12 @@ void ChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
 
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<syncer::PassphraseTypeMetricsProvider>(
-          syncer::PassphraseTypeMetricsProvider::HistogramVersion::kV2,
-          base::BindRepeating(&SyncServiceFactory::GetAllSyncServices)));
-  metrics_service_->RegisterMetricsProvider(
-      std::make_unique<syncer::PassphraseTypeMetricsProvider>(
-          syncer::PassphraseTypeMetricsProvider::HistogramVersion::kV4,
-          base::BindRepeating(&SyncServiceFactory::GetAllSyncServices)));
-  metrics_service_->RegisterMetricsProvider(
-      std::make_unique<syncer::PassphraseTypeMetricsProvider>(
-          syncer::PassphraseTypeMetricsProvider::HistogramVersion::kV5,
           base::BindRepeating(&SyncServiceFactory::GetAllSyncServices)));
 
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<HttpsEngagementMetricsProvider>());
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
-    BUILDFLAG(IS_CHROMEOS)
+#if !BUILDFLAG(IS_ANDROID)
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<TabMetricsProvider>(
           g_browser_process->profile_manager()));
@@ -1030,8 +1002,7 @@ void ChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
                          : std::vector<Profile*>();
             })));
   }
-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) ||
-        // BUILDFLAG(IS_CHROMEOS)
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(IS_MAC)
   metrics_service_->RegisterMetricsProvider(
@@ -1312,6 +1283,14 @@ void ChromeMetricsServiceClient::OnHistoryDeleted() {
 void ChromeMetricsServiceClient::OnUkmAllowedStateChanged(
     bool total_purge,
     ukm::UkmConsentState previous_consent_state) {
+  // If the metrics consent restructure is enabled, UKM and DWA consent states
+  // are now managed by the metrics reporting level. Changes to these states
+  // are handled in OnMetricsReportingLevelChanged().
+  if (metrics::MetricsReportingChoiceService::
+          ShouldUseMetricsConsentRestructure(
+              g_browser_process->local_state())) {
+    return;
+  }
   const ukm::UkmConsentState consent_state = GetUkmConsentState();
   // Apply UKM consent changes to UKM service.
   if (ukm_service_) {
@@ -1460,10 +1439,26 @@ void ChromeMetricsServiceClient::SetIsProcessRunningForTesting(
 }
 
 bool ChromeMetricsServiceClient::IsUkmAllowedForAllProfiles() {
+  // Note: Incognito is handled separately, see
+  // MetricsServicesManager::UpdateUkmService().
+  PrefService* local_state = g_browser_process->local_state();
+  if (metrics::MetricsReportingChoiceService::
+          ShouldUseMetricsConsentRestructure(local_state)) {
+    return metrics::MetricsReportingChoiceService::
+        IsAdvancedMetricsReportingEnabled(local_state);
+  }
   return UkmConsentStateObserver::IsUkmAllowedForAllProfiles();
 }
 
 bool ChromeMetricsServiceClient::IsDwaAllowedForAllProfiles() {
+  // Note: Incognito is handled separately, see
+  // MetricsServicesManager::UpdateUkmService().
+  PrefService* local_state = g_browser_process->local_state();
+  if (metrics::MetricsReportingChoiceService::
+          ShouldUseMetricsConsentRestructure(local_state)) {
+    return metrics::MetricsReportingChoiceService::
+        IsAdvancedMetricsReportingEnabled(local_state);
+  }
   return UkmConsentStateObserver::IsDwaAllowedForAllProfiles();
 }
 

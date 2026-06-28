@@ -64,7 +64,8 @@ std::unique_ptr<LoopbackServerEntity> NotesEntityBuilder::Build() {
   notes_specifics->set_content(content_);
 
   if (parent_id_.empty()) {
-    parent_id_ = LoopbackServerEntity::CreateId(syncer::NOTES, "main_notes");
+    parent_id_ = LoopbackServerEntity::CreateId(syncer::NOTES, "main_notes",
+                                                /*migration_version=*/0);
   }
 
   sync_pb::UniquePosition unique_position;
@@ -74,7 +75,8 @@ std::unique_ptr<LoopbackServerEntity> NotesEntityBuilder::Build() {
   unique_position = syncer::UniquePosition::FromInt64(0, suffix).ToProto();
 
   const string id = LoopbackServerEntity::CreateId(
-      syncer::NOTES, base::Uuid::GenerateRandomV4().AsLowercaseString());
+      syncer::NOTES, base::Uuid::GenerateRandomV4().AsLowercaseString(),
+      /*migration_version=*/0);
 
   return base::WrapUnique<LoopbackServerEntity>(
       new syncer::PersistentNotesEntity(

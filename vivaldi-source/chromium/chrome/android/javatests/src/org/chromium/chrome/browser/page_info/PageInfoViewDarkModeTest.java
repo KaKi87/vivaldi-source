@@ -14,7 +14,7 @@ import android.view.View;
 
 import androidx.test.filters.MediumTest;
 
-import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -24,13 +24,13 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.Feature;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.night_mode.ChromeNightModeTestUtils;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
 import org.chromium.chrome.test.transit.page.WebPageStation;
@@ -120,13 +120,12 @@ public class PageInfoViewDarkModeTest {
         mStartingPage = mActivityTestRule.startOnBlankPage();
     }
 
-    @After
-    public void tearDown() {
+    @AfterClass
+    public static void tearDownAfterActivityDestroyed() {
+        // Flip the night-mode pref only after the activity is gone; otherwise the live
+        // activity recreates and strands entries in AsyncTabParamsManager.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    ChromeNightModeTestUtils.setUpNightModeForChromeActivity(
-                            /* nightModeEnabled= */ false);
-                });
+                ChromeNightModeTestUtils::tearDownNightModeAfterChromeActivityDestroyed);
     }
 
     /** Tests the PageInfo UI on a secure website in dark mode. */

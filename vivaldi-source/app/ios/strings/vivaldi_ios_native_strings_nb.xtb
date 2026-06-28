@@ -354,6 +354,7 @@ blokkert</translation>
 <translation id="495421405224926623">Jeg har lest og godtar Vilkår for bruk og Retningslinjer for personvern</translation>
 <translation id="497942794017668482">Blokker sporing og reklame</translation>
 <translation id="4983968022327077496">Organisasjonen din krever at du surfer privat. Faner lagres ikke i privatmodus. <ph name="BEGIN_LINK" />Lær mer<ph name="END_LINK" /></translation>
+<translation id="4991261712398289852">To nivåer</translation>
 <translation id="4993477362660748586">Synkronisering</translation>
 <translation id="500392125908657603">Valg for adressefelt</translation>
 <translation id="5037761343305489956">Kopiert til notat</translation>
@@ -550,6 +551,7 @@ blokkert</translation>
 <translation id="7451784507428459503">YouTube-videoer spiller ikke eller har problemer</translation>
 <translation id="7454640759045234067">Sporinger blokkert</translation>
 <translation id="7461899062138731833">KILDER</translation>
+<translation id="7468954955637197279">Visning av tastaturtillegg</translation>
 <translation id="7473891865547856676">Nei takk</translation>
 <translation id="749277285729135008">Fokuser på adresselinjen på ny fane</translation>
 <translation id="7504733216949066481">Oversettelse feilet!</translation>
@@ -591,6 +593,7 @@ blokkert</translation>
 <translation id="7925340978147141704">Vis passord</translation>
 <translation id="7930665886069596866">En funksjon virker ikke</translation>
 <translation id="7931102520806266819">Åpne i privatmodus</translation>
+<translation id="7932430723325928206">Viser autofyll-forslag over tastaturet</translation>
 <translation id="7961270736686975887">Bytt språk</translation>
 <translation id="7967161908152532036">Nettadresse</translation>
 <translation id="7979036127916589816">Synkroniseringsfeil</translation>
@@ -620,6 +623,7 @@ Du har nådd maksgrensen for antall forsøk. Be om en ny kode ved å velge Send 
 <translation id="8289933454364510719">Topp eller bunn</translation>
 <translation id="8304044605002588416">Tilpass startsideknapp</translation>
 <translation id="8304538706952727936">Slipp fri fra Big Techs jerngrep</translation>
+<translation id="8316087354921793295">Datene blir lagrer i Vivaldi-kontoen din når Sync er aktiv.</translation>
 <translation id="8323167517179506834">Skriv inn adresse</translation>
 <translation id="8326104954595890674">Ny privatfane</translation>
 <translation id="8329813750766387010">Oppdatert: <ph name="DATE" /></translation>
@@ -664,6 +668,7 @@ Du har nådd maksgrensen for antall forsøk. Be om en ny kode ved å velge Send 
 <translation id="8786689981011401964">Bakgrunnsbilder</translation>
 <translation id="8804164990146287819">Retningslinjer for personvern</translation>
 <translation id="8805346136361295421">Skjul finn på siden</translation>
+<translation id="8806518325449247164">Premiumsøk uten reklame og sporing</translation>
 <translation id="8818152010000655963">Bakgrunn</translation>
 <translation id="8819841443522803117">På tide å bytte standardnettleser? Velg Vivaldi.</translation>
 <translation id="8820817407110198400">Bokmerker</translation>
@@ -696,11 +701,11 @@ blokkert</translation>
 <translation id="9157459516617966251">Rediger lenke</translation>
 <translation id="9157539936604258187">Åpne lenke</translation>
 <translation id="9165758833825521812">Lesemodus</translation>
-<translation id="9171713938468458286">To-nivåer</translation>
 <translation id="9195659219948942754">Fortsett å bruke synkroniserte data i din Vivaldi-konto</translation>
 <translation id="9195802773917252923">Aktiver bokmerke-kallenavn</translation>
 <translation id="9212737146310746733">Persisk (<ph name="ORIGIN" />)</translation>
 <translation id="9218693288527810093">Blokker sporing</translation>
+<translation id="9222340187757024053">Vis tastaturtillegg</translation>
 <translation id="924053859552461110">Tilpass startside</translation>
 <translation id="925891113183098411">Jeg har problemer med å synkronisere data på tvers av enheter</translation>
 <translation id="932327136139879170">Hjem</translation>

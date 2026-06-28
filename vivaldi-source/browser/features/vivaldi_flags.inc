@@ -26,6 +26,13 @@
          flags_ui::kOsCrOS,
      FEATURE_VALUE_TYPE(vivaldi_features::kDoubleClickMenu)},
 
+    {vivaldi_flag::kHorizontalPinnedTabsInternalName,
+     vivaldi_flag::kHorizontalPinnedTabsName,
+     vivaldi_flag::kHorizontalPinnedTabsDescription,
+     flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux |
+         flags_ui::kOsCrOS,
+     FEATURE_VALUE_TYPE(vivaldi_features::kHorizontalPinnedTabs)},
+
     {vivaldi_flag::kInternalPageReaderModeInternalName,
      vivaldi_flag::kInternalPageReaderModeName,
      vivaldi_flag::kInternalPageReaderModeDescription,
@@ -33,24 +40,11 @@
          flags_ui::kOsCrOS,
      FEATURE_VALUE_TYPE(vivaldi_features::kInternalPageReaderMode)},
 
-    {vivaldi_flag::kLayoutsInternalName, vivaldi_flag::kLayoutsName,
-     vivaldi_flag::kLayoutsDescription,
-     flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux |
-         flags_ui::kOsCrOS,
-     FEATURE_VALUE_TYPE(vivaldi_features::kLayouts)},
-
     {vivaldi_flag::kNoteEditorName, vivaldi_flag::kNoteEditorOption,
      vivaldi_flag::kNoteEditorDescription,
      flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux |
          flags_ui::kOsCrOS,
      FEATURE_VALUE_TYPE(vivaldi_features::kNoteEditor)},
-
-    {vivaldi_flag::kPanelOnboardingInternalName,
-     vivaldi_flag::kPanelOnboardingName,
-     vivaldi_flag::kPanelOnboardingDescription,
-     flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux |
-         flags_ui::kOsCrOS,
-     FEATURE_VALUE_TYPE(vivaldi_features::kPanelOnboarding)},
 
     {vivaldi_flag::kRelatedTabsInternalName, vivaldi_flag::kRelatedTabsName,
      vivaldi_flag::kRelatedTabsDescription,
@@ -63,11 +57,6 @@
      flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux,
      FEATURE_VALUE_TYPE(vivaldi_features::kSettings20)},
 
-    {vivaldi_flag::kThemeUnifiedInternalName, vivaldi_flag::kThemeUnifiedName,
-     vivaldi_flag::kThemeUnifiedDescription,
-     flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux,
-     FEATURE_VALUE_TYPE(vivaldi_features::kThemeUnified)},
-
 #if BUILDFLAG(IS_IOS)
     // iOS specific feature flags should be delcared within this block.
 
@@ -75,6 +64,11 @@
      vivaldi_flag::kBankIDDigIDLatencyWorkaroundName,
      vivaldi_flag::kBankIDDigIDLatencyWorkaroundDescription, flags_ui::kOsIos,
      FEATURE_VALUE_TYPE(vivaldi_features::kBankIDDigIDLatencyWorkaround)},
+
+    {vivaldi_flag::kVivaldiIOSCopySanitizedLinkInternalName,
+     vivaldi_flag::kVivaldiIOSCopySanitizedLinkName,
+     vivaldi_flag::kVivaldiIOSCopySanitizedLinkDescription, flags_ui::kOsIos,
+     FEATURE_VALUE_TYPE(vivaldi_features::kVivaldiIOSCopySanitizedLink)},
 
     {vivaldi_flag::kVivaldiIOSShowRefactoredStartPageInternalName,
      vivaldi_flag::kVivaldiIOSShowRefactoredStartPageName,
@@ -90,16 +84,16 @@
      FEATURE_VALUE_TYPE(vivaldi_features::kCinemaMode)},
 #endif  // defined(OEM_AUTOMOTIVE_BUILD)
 
-    {vivaldi_flag::kShowNewDeviceChooserInternalName,
-     vivaldi_flag::kShowNewDeviceChooserName,
-     vivaldi_flag::kShowNewDeviceChooserDescription,
+    {vivaldi_flag::kVivaldiUseNewUrlSanitizerInternalName,
+     vivaldi_flag::kVivaldiUseNewUrlSanitizerName,
+     vivaldi_flag::kVivaldiUseNewUrlSanitizerDescription,
      flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux |
          flags_ui::kOsCrOS,
-     FEATURE_VALUE_TYPE(vivaldi_features::kShowNewDeviceChooser)},
+     FEATURE_VALUE_TYPE(vivaldi_features::kVivaldiUseNewUrlSanitizer)},
 
-    {vivaldi_flag::kShowUnifiedSiteDialogInternalName,
-     vivaldi_flag::kShowUnifiedSiteDialogName,
-     vivaldi_flag::kShowUnifiedSiteDialogDescription,
+    {vivaldi_flag::kMailSavingAttachmentsInternalName,
+     vivaldi_flag::kMailSavingAttachmentsName,
+     vivaldi_flag::kMailSavingAttachmentsDescription,
      flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux |
          flags_ui::kOsCrOS,
-     FEATURE_VALUE_TYPE(vivaldi_features::kShowUnifiedSiteDialog)},
+     FEATURE_VALUE_TYPE(vivaldi_features::kMailSavingAttachments)},

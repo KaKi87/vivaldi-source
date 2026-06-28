@@ -278,6 +278,17 @@ std::string GetProfileNameFromUserInfo(NSDictionary* user_info) {
   }
 
   NSString* gaia_id_ns = user_info[kOriginatingGaiaIDKey];
+  // TODO(crbug.com/524713899): Rely on this Chime payload key for all Chime
+  // notifications, not just Content Push Notifications.
+  if (!gaia_id_ns.length && IsContentPushNotificationsEnabled()) {
+    NSDictionary* chime_payload = user_info[kSerializedChimePayloadKey];
+    if (chime_payload) {
+      id user_id_obj = chime_payload[kChimeNotificationGaiaIDKey];
+      if (user_id_obj) {
+        gaia_id_ns = [NSString stringWithFormat:@"%@", user_id_obj];
+      }
+    }
+  }
   GaiaId gaia_id = GaiaId(gaia_id_ns);
 
   if (gaia_id.empty()) {
@@ -705,8 +716,7 @@ void ProcessIncomingNotification(
     if (config.shouldRegisterContentNotification) {
       AuthenticationService* authService =
           AuthenticationServiceFactory::GetForProfile(profile);
-      id<SystemIdentity> identity =
-          authService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
+      id<SystemIdentity> identity = authService->GetPrimaryIdentity();
       config.primaryAccount = identity;
       // Send an initial NAU to share the OS auth status and channel status with
       // the server. Send an NAU on every foreground to report the OS Auth
@@ -1036,8 +1046,7 @@ void ProcessIncomingNotification(
 
   AuthenticationService* authService =
       AuthenticationServiceFactory::GetForProfile(profile);
-  GaiaId gaiaID =
-      authService->GetPrimaryIdentity(signin::ConsentLevel::kSignin).gaiaId;
+  GaiaId gaiaID = authService->GetPrimaryIdentity().gaiaId;
 
   // Early return if 1) the user has previously disabled Send Tab push
   // notifications, because in that case we don't want to automatically enable

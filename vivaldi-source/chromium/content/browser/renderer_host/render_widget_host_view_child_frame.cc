@@ -48,11 +48,14 @@
 #include "ui/gfx/geometry/size_f.h"
 #include "ui/touch_selection/touch_selection_controller.h"
 
+#if BUILDFLAG(IS_WIN)
+#include "content/browser/renderer_host/input/stylus_handwriting_controller_win.h"
+#endif  // BUILDFLAG(IS_WIN)
+
 #include "app/vivaldi_apptools.h"
 #include "browser/vivaldi_clipboard_utils.h"
 #include "content/browser/browser_plugin/browser_plugin_guest.h"
 #include "content/browser/web_contents/web_contents_impl.h"
-
 
 #if defined(USE_AURA)
 #include "content/browser/renderer_host/render_widget_host_view_aura.h"
@@ -315,6 +318,10 @@ uint32_t RenderWidgetHostViewChildFrame::GetCaptureSequenceNumber() const {
 
 void RenderWidgetHostViewChildFrame::ShowWithVisibility(
     PageVisibilityState /*page_visibility*/) {
+  if (frame_connector_) {
+    frame_connector_->SetKeepSurfaceAlive(true);
+  }
+
   if (!host()->IsHidden()) {
     return;
   }
@@ -328,7 +335,15 @@ void RenderWidgetHostViewChildFrame::ShowWithVisibility(
     frame_connector_->SetVisibilityForChildViews(true);
 }
 
+void RenderWidgetHostViewChildFrame::Show() {
+  ShowWithVisibility(PageVisibilityState::kVisible);
+}
+
 void RenderWidgetHostViewChildFrame::Hide() {
+  if (frame_connector_) {
+    frame_connector_->SetKeepSurfaceAlive(false);
+  }
+
   if (host()->IsHidden()) {
     return;
   }
@@ -345,10 +360,6 @@ bool RenderWidgetHostViewChildFrame::IsShowing() {
 
 void RenderWidgetHostViewChildFrame::WasOccluded() {
   Hide();
-}
-
-void RenderWidgetHostViewChildFrame::WasUnOccluded() {
-  Show();
 }
 
 gfx::Rect RenderWidgetHostViewChildFrame::GetViewBounds() {
@@ -513,6 +524,62 @@ RenderWidgetHostViewBase* RenderWidgetHostViewChildFrame::GetRootView() {
   return frame_connector_ ? frame_connector_->GetRootRenderWidgetHostView()
                           : nullptr;
 }
+
+#if BUILDFLAG(IS_WIN)
+bool RenderWidgetHostViewChildFrame::ShouldInitiateStylusWriting() {
+  auto* root = GetRootView();
+  return root ? root->ShouldInitiateStylusWriting()
+              : RenderWidgetHostViewBase::ShouldInitiateStylusWriting();
+}
+
+void RenderWidgetHostViewChildFrame::OnStartStylusWriting() {
+  auto* root = GetRootView();
+  if (!root) {
+    return;
+  }
+  // Register a callback on the root view that handles the TSF
+  // FocusHandwritingTarget response directly in this child frame.
+  root->SetStylusHandwritingFocusCallback(base::BindRepeating(
+      &RenderWidgetHostViewChildFrame::OnFocusHandwritingTarget,
+      weak_factory_.GetWeakPtr()));
+  root->OnStartStylusWriting();
+}
+
+void RenderWidgetHostViewChildFrame::OnEditElementFocusedForStylusWriting(
+    blink::mojom::StylusWritingFocusResultPtr focus_result) {
+  auto* root = GetRootView();
+  if (!root) {
+    return;
+  }
+  // Transform proximate character bounds from child frame widget space to root
+  // view widget space before forwarding.
+  if (focus_result && focus_result->proximate_bounds) {
+    for (auto& rect : focus_result->proximate_bounds->widget_bounds_in_dips) {
+      RenderWidgetHostViewBase::TransformPointAndRectToRootView(this, root,
+                                                                nullptr, &rect);
+    }
+  }
+  root->OnEditElementFocusedForStylusWriting(std::move(focus_result));
+}
+
+void RenderWidgetHostViewChildFrame::OnFocusHandwritingTarget(
+    const gfx::Rect& focus_screen_rect_in_dips,
+    const gfx::Size& tolerance_screen_distance_in_dips) {
+  // TODO(crbug.com/355578906): Consider `tolerance_screen_distance_in_dips`.
+  if (!host()) {
+    if (StylusHandwritingControllerWin::GetInstance()) {
+      StylusHandwritingControllerWin::GetInstance()->OnFocusFailed();
+    }
+    return;
+  }
+
+  // Convert the screen rect to child frame local coordinates by subtracting
+  // screen origin.
+  gfx::Rect local_rect = focus_screen_rect_in_dips;
+  local_rect.Offset(-GetViewBounds().OffsetFromOrigin());
+  host()->UpdateElementFocusForStylusWriting(local_rect);
+}
+#endif  // BUILDFLAG(IS_WIN)
 
 void RenderWidgetHostViewChildFrame::InitAsPopup(
     RenderWidgetHostView* parent_host_view,
@@ -897,6 +964,10 @@ viz::FrameSinkId RenderWidgetHostViewChildFrame::GetRootFrameSinkId() {
 
 viz::SurfaceId RenderWidgetHostViewChildFrame::GetCurrentSurfaceId() const {
   return viz::SurfaceId(frame_sink_id_, GetLocalSurfaceId());
+}
+
+bool RenderWidgetHostViewChildFrame::HasSavedCompositorFrame() const {
+  return GetLocalSurfaceId().is_valid();
 }
 
 bool RenderWidgetHostViewChildFrame::HasSize() const {

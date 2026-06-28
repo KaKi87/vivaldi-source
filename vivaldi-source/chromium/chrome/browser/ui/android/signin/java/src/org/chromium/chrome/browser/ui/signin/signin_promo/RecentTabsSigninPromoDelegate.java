@@ -27,8 +27,6 @@ import org.chromium.chrome.browser.ui.signin.history_sync.HistorySyncHelper;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.signin.SigninFeatureMap;
 import org.chromium.components.signin.SigninFeatures;
-import org.chromium.components.signin.base.CoreAccountInfo;
-import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
 
@@ -168,7 +166,7 @@ public class RecentTabsSigninPromoDelegate extends SigninPromoDelegate {
     }
 
     @Override
-    boolean refreshPromoState(@Nullable CoreAccountInfo visibleAccount) {
+    boolean refreshPromoState(@Nullable DisplayableProfileData visibleAccount) {
         @PromoState int newState = computePromoState();
         boolean wasStateChanged = mPromoState != newState;
         mPromoState = newState;
@@ -248,8 +246,7 @@ public class RecentTabsSigninPromoDelegate extends SigninPromoDelegate {
         assumeNonNull(identityManager);
         SigninManager signinManager = IdentityServicesProvider.get().getSigninManager(mProfile);
         assumeNonNull(signinManager);
-        if (!identityManager.hasPrimaryAccount(ConsentLevel.SIGNIN)
-                && !signinManager.isSigninAllowed()) {
+        if (!identityManager.hasPrimaryAccount() && !signinManager.isSigninAllowed()) {
             // If sign-in is not possible, then history sync isn't possible either.
             return PromoState.NONE;
         }
@@ -257,8 +254,8 @@ public class RecentTabsSigninPromoDelegate extends SigninPromoDelegate {
         if (!historySyncHelper.shouldDisplayHistorySync()) {
             return PromoState.NONE;
         }
-        if (identityManager.hasPrimaryAccount(ConsentLevel.SIGNIN)) {
-                return PromoState.HISTORY_SYNC;
+        if (identityManager.hasPrimaryAccount()) {
+            return PromoState.HISTORY_SYNC;
         }
         return PromoState.SIGNIN;
     }

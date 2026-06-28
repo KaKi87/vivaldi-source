@@ -31,10 +31,11 @@
 #include <vector>
 
 #include "VideoViewsTests.h"
-#include "dawn/common/Assert.h"
-#include "dawn/common/CoreFoundationRef.h"
-#include "dawn/common/IOSurfaceUtils.h"
-#include "dawn/utils/TextureUtils.h"
+#include "src/dawn/common/Assert.h"
+#include "src/dawn/common/CoreFoundationRef.h"
+#include "src/dawn/common/IOSurfaceUtils.h"
+#include "src/dawn/utils/TextureUtils.h"
+#include "src/utils/compiler.h"
 
 namespace dawn {
 namespace {
@@ -80,14 +81,14 @@ class VideoViewsTestBackendIOSurface : public VideoViewsTestBackend {
                             format, plane, IOSurfaceGetBytesPerRowOfPlane(surface, plane),
                             IOSurfaceGetHeightOfPlane(surface, plane), isCheckerboard,
                             /*hasAlpha=*/false);
-                    memcpy(pointer, data.data(), data.size() * 2);
+                    DAWN_UNSAFE_TODO(memcpy(pointer, data.data(), data.size() * 2));
                 } else {
                     std::vector<uint8_t> data =
                         VideoViewsTestsBase::GetTestTextureDataWithPlaneIndex<uint8_t>(
                             format, plane, IOSurfaceGetBytesPerRowOfPlane(surface, plane),
                             IOSurfaceGetHeightOfPlane(surface, plane), isCheckerboard,
                             /*hasAlpha=*/format == wgpu::TextureFormat::R8BG8A8Triplanar420Unorm);
-                    memcpy(pointer, data.data(), data.size());
+                    DAWN_UNSAFE_TODO(memcpy(pointer, data.data(), data.size()));
                 }
             }
             IOSurfaceUnlock(surface, 0, nullptr);
@@ -119,6 +120,7 @@ class VideoViewsTestBackendIOSurface : public VideoViewsTestBackend {
         wgpu::SharedTextureMemoryBeginAccessDescriptor beginAccessDesc;
         beginAccessDesc.initialized = initialized;
         beginAccessDesc.fenceCount = 0;
+        beginAccessDesc.signaledValueCount = 0;
         bool success = sharedTextureMemory.BeginAccess(texture, &beginAccessDesc);
 
         return success ? std::make_unique<PlatformTextureIOSurface>(std::move(texture),

@@ -86,6 +86,11 @@ void GpuDataManagerImpl::SetSkiaGraphiteEnabledForTesting(bool enabled) {
   private_->SetSkiaGraphiteEnabledForTesting(enabled);  // IN-TEST
 }
 
+void GpuDataManagerImpl::SetInitializedForTesting(bool initialized) {
+  base::AutoLock auto_lock(lock_);
+  private_->SetInitializedForTesting(initialized);  // IN-TEST
+}
+
 gpu::GPUInfo GpuDataManagerImpl::GetGPUInfo() {
   base::AutoLock auto_lock(lock_);
   return private_->GetGPUInfo();
@@ -225,6 +230,21 @@ bool GpuDataManagerImpl::VulkanRequested() const {
 void GpuDataManagerImpl::TerminateInfoCollectionGpuProcess() {
   base::AutoLock auto_lock(lock_);
   private_->TerminateInfoCollectionGpuProcess();
+}
+
+void GpuDataManagerImpl::SetUseAdapterLuid(const CHROME_LUID& luid) {
+  base::AutoLock auto_lock(lock_);
+  private_->SetUseAdapterLuid(luid);
+}
+
+void GpuDataManagerImpl::ClearUseAdapterLuid() {
+  base::AutoLock auto_lock(lock_);
+  private_->ClearUseAdapterLuid();
+}
+
+std::optional<CHROME_LUID> GpuDataManagerImpl::GetUseAdapterLuid() const {
+  base::AutoLock auto_lock(lock_);
+  return private_->GetUseAdapterLuid();
 }
 #endif  // BUILDFLAG(IS_WIN)
 

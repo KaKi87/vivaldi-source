@@ -47,6 +47,7 @@ import org.chromium.chrome.browser.toolbar.ToolbarManager;
 import org.chromium.chrome.browser.ui.desktop_windowing.AppHeaderUtils;
 import org.chromium.chrome.browser.ui.web_app_header.WebAppHeaderUtils;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
+import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager.AppHeaderObserver;
 import org.chromium.components.browser_ui.share.ShareHelper;
 import org.chromium.ui.base.ActivityWindowAndroid;
 import org.chromium.ui.util.TokenHolder;
@@ -82,7 +83,7 @@ public class CustomTabToolbarCoordinator {
     private final @Nullable DesktopWindowStateManager mDesktopWindowStateManager;
 
     private @Nullable ToolbarManager mToolbarManager;
-    private DesktopWindowStateManager.@Nullable AppHeaderObserver mAppHeaderObserver;
+    private @Nullable AppHeaderObserver mAppHeaderObserver;
     private @Nullable CustomTabToolbarButtonsCoordinator mToolbarButtonsCoordinator;
 
     private int mControlsHidingToken = TokenHolder.INVALID_TOKEN;
@@ -127,7 +128,7 @@ public class CustomTabToolbarCoordinator {
         assert mDesktopWindowStateManager != null;
 
         mAppHeaderObserver =
-                new DesktopWindowStateManager.AppHeaderObserver() {
+                new AppHeaderObserver() {
                     @Override
                     public void onDesktopWindowingModeChanged(boolean isInDesktopWindow) {
                         updateTitleBarVisibility();
@@ -163,12 +164,8 @@ public class CustomTabToolbarCoordinator {
 
         boolean isInDesktopWindow = AppHeaderUtils.isAppInDesktopWindow(mDesktopWindowStateManager);
 
-        if (ChromeFeatureList.sCctToolbarRefactor.isEnabled()) {
-            if (mToolbarButtonsCoordinator != null) {
-                mToolbarButtonsCoordinator.setCustomActionButtonsVisible(!isInDesktopWindow);
-            }
-        } else {
-            mToolbarManager.setCustomActionsVisibility(!isInDesktopWindow);
+        if (mToolbarButtonsCoordinator != null) {
+            mToolbarButtonsCoordinator.setCustomActionButtonsVisible(!isInDesktopWindow);
         }
 
         if (isInDesktopWindow) {
@@ -184,17 +181,14 @@ public class CustomTabToolbarCoordinator {
      * be initialized yet.
      */
     public void onToolbarInitialized(
-            ToolbarManager manager, CustomTabToolbarButtonsCoordinator toolbarButtonsCoordinator) {
+            ToolbarManager manager,
+            CustomTabToolbarButtonsCoordinator toolbarButtonsCoordinator) {
         assert manager != null : "Toolbar manager not initialized";
         mToolbarManager = manager;
         mToolbarColorController.onToolbarInitialized(manager);
         mToolbarButtonsCoordinator = toolbarButtonsCoordinator;
 
-        if (ChromeFeatureList.sCctToolbarRefactor.isEnabled()) {
-            mToolbarButtonsCoordinator.setCloseButtonClickHandler(v -> onCloseButtonClick());
-        } else {
-            mCloseButtonVisibilityManager.setVisibility(mIntentDataProvider.isCloseButtonEnabled());
-        }
+        mToolbarButtonsCoordinator.setCloseButtonClickHandler(v -> onCloseButtonClick());
 
         mCloseButtonVisibilityManager.onToolbarInitialized(manager, mToolbarButtonsCoordinator);
         updateTitleBarVisibility();
@@ -359,19 +353,9 @@ public class CustomTabToolbarCoordinator {
             return false;
         }
 
-        if (ChromeFeatureList.sCctToolbarRefactor.isEnabled()) {
-            if (mToolbarButtonsCoordinator == null) return false;
+        if (mToolbarButtonsCoordinator == null) return false;
 
-            mToolbarButtonsCoordinator.updateCustomActionButton(
-                    index, params.getIcon(mActivity), params.getDescription());
-            return true;
-        }
-
-        if (mToolbarManager == null) {
-            return false;
-        }
-
-        mToolbarManager.updateCustomActionButton(
+        mToolbarButtonsCoordinator.updateCustomActionButton(
                 index, params.getIcon(mActivity), params.getDescription());
         return true;
     }
@@ -394,7 +378,7 @@ public class CustomTabToolbarCoordinator {
     }
 
     @VisibleForTesting
-    DesktopWindowStateManager.@Nullable AppHeaderObserver getAppHeaderObserver() {
+    @Nullable AppHeaderObserver getAppHeaderObserver() {
         return mAppHeaderObserver;
     }
 }

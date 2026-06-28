@@ -23,6 +23,9 @@
 #include "components/metrics/content/subprocess_metrics_provider.h"
 #include "components/metrics/dwa/dwa_recorder.h"
 #include "components/metrics/file_metrics_provider.h"
+#include "components/metrics/metrics_pref_names.h"
+#include "components/metrics/metrics_reporting_choice_service.h"
+#include "components/metrics/metrics_reporting_level.h"
 #include "components/metrics/metrics_service.h"
 #include "components/metrics/metrics_state_manager.h"
 #include "components/metrics/test/test_enabled_state_provider.h"
@@ -44,6 +47,9 @@
 #if BUILDFLAG(IS_CHROMEOS)
 #include "chromeos/ash/components/login/login_state/login_state.h"
 #include "chromeos/dbus/power/power_manager_client.h"
+#elif BUILDFLAG(IS_WIN)
+#include "base/win/windows_version.h"
+#include "chrome/browser/metrics/system_pdh_metrics_provider_win.h"
 #endif
 
 class TestChromeMetricsServiceClient : public ChromeMetricsServiceClient {
@@ -87,11 +93,14 @@ class ChromeMetricsServiceClientTest : public testing::Test {
 
   void SetUp() override {
     testing::Test::SetUp();
-    metrics::MetricsService::RegisterPrefs(prefs_.registry());
+    metrics::MetricsReportingChoiceService::ClearCachedFeatureStateForTesting();
+    PrefService* local_state =
+        TestingBrowserProcess::GetGlobal()->local_state();
     synthetic_trial_registry_ =
         std::make_unique<variations::SyntheticTrialRegistry>();
     metrics_state_manager_ = metrics::MetricsStateManager::Create(
-        &prefs_, &enabled_state_provider_, std::wstring(), base::FilePath());
+        local_state, &enabled_state_provider_, std::wstring(),
+        base::FilePath());
     metrics_state_manager_->InstantiateFieldTrialList();
     ASSERT_TRUE(profile_manager_.SetUp());
 #if BUILDFLAG(IS_CHROMEOS)
@@ -105,6 +114,11 @@ class ChromeMetricsServiceClientTest : public testing::Test {
     // initialized before they can be instantiated.
     chromeos::PowerManagerClient::InitializeFake();
     ash::LoginState::Initialize();
+#elif BUILDFLAG(IS_WIN)
+    scoped_feature_list_.InitWithFeatures(
+        {metrics::dwa::kDwaFeature, switches::kDynamicProfileCountry,
+         features::kSystemPdhMetrics},
+        {});
 #else
     scoped_feature_list_.InitWithFeatures(
         {metrics::dwa::kDwaFeature, switches::kDynamicProfileCountry}, {});
@@ -112,6 +126,7 @@ class ChromeMetricsServiceClientTest : public testing::Test {
   }
 
   void TearDown() override {
+    metrics::MetricsReportingChoiceService::ClearCachedFeatureStateForTesting();
 #if BUILDFLAG(IS_CHROMEOS)
     ash::LoginState::Shutdown();
     chromeos::PowerManagerClient::Shutdown();
@@ -120,7 +135,6 @@ class ChromeMetricsServiceClientTest : public testing::Test {
 
  protected:
   content::BrowserTaskEnvironment task_environment_;
-  TestingPrefServiceSimple prefs_;
   TestingProfileManager profile_manager_;
   base::UserActionTester user_action_runner_;
   std::unique_ptr<metrics::MetricsStateManager> metrics_state_manager_;
@@ -205,7 +219,7 @@ TEST_F(ChromeMetricsServiceClientTest, TestRegisterMetricsServiceProviders) {
   size_t expected_providers = 2;
 
   // This is the number of metrics providers that are outside any #if macros.
-  expected_providers += 26;
+  expected_providers += 24;
 
   int sample_rate;
   if (ChromeMetricsServicesManagerClient::GetSamplingRatePerMille(
@@ -235,9 +249,14 @@ TEST_F(ChromeMetricsServiceClientTest, TestRegisterMetricsServiceProviders) {
 
 #if BUILDFLAG(IS_WIN)
   // GoogleUpdateMetricsProviderWin, AntiVirusMetricsProvider,
-  // TPMMetricsProvider, SystemMemoryListMetricsProvider, and
-  // SystemPdhMetricsProvider.
-  expected_providers += 5;
+  // TPMMetricsProvider, SystemMemoryListMetricsProvider.
+  expected_providers += 4;
+
+  // SystemPdhMetricsProvider is only supported on Win11.
+  if (base::win::GetVersion() >= base::win::Version::WIN11 &&
+      base::FeatureList::IsEnabled(features::kSystemPdhMetrics)) {
+    ++expected_providers;
+  }
 #endif  // BUILDFLAG(IS_WIN)
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -356,4 +375,50 @@ TEST_F(ChromeMetricsServiceClientTest, GetUploadSigningKey_CanSignLogs) {
   // This signature never fails, even if there is no signing key available:
   // empty keys are padded with zero bytes to the requisite length.
   EXPECT_FALSE(signature.empty());
+}
+
+TEST_F(ChromeMetricsServiceClientTest, UkmAndDwaAllowedWithChoiceService) {
+  PrefService* local_state = TestingBrowserProcess::GetGlobal()->local_state();
+
+  // Set up MetricsReportingChoiceService to be active.
+  local_state->SetBoolean(
+      metrics::prefs::kMetricsConsentRestructureFeatureState, true);
+  local_state->SetBoolean(metrics::prefs::kMetricsReportingMigrationDone, true);
+
+  std::unique_ptr<TestChromeMetricsServiceClient>
+      chrome_metrics_service_client = TestChromeMetricsServiceClient::Create(
+          metrics_state_manager_.get(), synthetic_trial_registry_.get());
+
+  // Case 1: Level is kNone. UKM/DWA should be disallowed.
+  local_state->SetInteger(
+      metrics::prefs::kMetricsReportingLevel,
+      static_cast<int>(metrics::MetricsReportingLevel::kNone));
+  EXPECT_FALSE(chrome_metrics_service_client->IsUkmAllowedForAllProfiles());
+  EXPECT_FALSE(chrome_metrics_service_client->IsDwaAllowedForAllProfiles());
+
+  // Case 2: Level is kBasic. UKM/DWA should be disallowed (only kAdvanced
+  // allowed).
+  local_state->SetInteger(
+      metrics::prefs::kMetricsReportingLevel,
+      static_cast<int>(metrics::MetricsReportingLevel::kBasic));
+  EXPECT_FALSE(chrome_metrics_service_client->IsUkmAllowedForAllProfiles());
+  EXPECT_FALSE(chrome_metrics_service_client->IsDwaAllowedForAllProfiles());
+
+  // Case 3: Level is kAdvanced. UKM/DWA should be allowed.
+  local_state->SetInteger(
+      metrics::prefs::kMetricsReportingLevel,
+      static_cast<int>(metrics::MetricsReportingLevel::kAdvanced));
+  EXPECT_TRUE(chrome_metrics_service_client->IsUkmAllowedForAllProfiles());
+  EXPECT_TRUE(chrome_metrics_service_client->IsDwaAllowedForAllProfiles());
+
+  // Case 4: MetricsReportingChoiceService is NOT active (migration not done).
+  // It should fall back to legacy behavior (UkmConsentStateObserver).
+  local_state->SetBoolean(metrics::prefs::kMetricsReportingMigrationDone,
+                          false);
+
+  // In this test environment,
+  // UkmConsentStateObserver::IsUkmAllowedForAllProfiles() will return false by
+  // default because no profiles are set up with sync consent.
+  EXPECT_FALSE(chrome_metrics_service_client->IsUkmAllowedForAllProfiles());
+  EXPECT_FALSE(chrome_metrics_service_client->IsDwaAllowedForAllProfiles());
 }

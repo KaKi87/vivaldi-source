@@ -20,9 +20,9 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "components/sessions/content/session_tab_helper.h"
@@ -50,14 +50,6 @@ bool IsMainVivaldiBrowserWindow(VivaldiBrowserWindow* window) {
 
 }  // namespace
 
-extensions::WebViewGuest* GetActiveWebViewGuest() {
-  Browser* browser = chrome::FindLastActive();
-  if (!browser)
-    return nullptr;
-
-  return GetActiveWebGuestFromBrowser(browser);
-}
-
 extensions::WebViewGuest* GetActiveWebGuestFromBrowser(Browser* browser) {
   content::WebContents* active_web_contents =
       browser->tab_strip_model()->GetActiveWebContents();
@@ -65,15 +57,6 @@ extensions::WebViewGuest* GetActiveWebGuestFromBrowser(Browser* browser) {
     return nullptr;
 
   return extensions::WebViewGuest::FromWebContents(active_web_contents);
-}
-
-VivaldiBrowserWindow* GetActiveAppWindow() {
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
-  Browser* browser = chrome::FindLastActive();
-  if (browser && browser->is_vivaldi())
-    return static_cast<VivaldiBrowserWindow*>(browser->window());
-#endif
-  return nullptr;
 }
 
 VivaldiBrowserWindow* GetLastActiveMainWindow() {

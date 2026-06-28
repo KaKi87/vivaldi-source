@@ -1,15 +1,28 @@
-
 deps_android_update_deps_list = [
   "//chrome/browser:browser",
+  "//chrome/browser/android:android",
   "//chrome/browser/android:tabs_impl",
   "//chrome/browser/android/guest_view:guest_view",
+  "//chrome/browser/ui/android/tab_model:impl",
 ]
 
 deps_android_update_deps_templ_list = [
   "//chrome/android:chrome_java",
   "//chrome/android:chrome_junit_tests",
+  "//chrome/android:chrome_public_test_apk",
   "//chrome/browser/actor/android:java",
   "//chrome/browser/actor/android:junit",
+  "//chrome/browser/context_sharing/tab_bottom_sheet/android:java",
+  "//chrome/browser/context_sharing/tab_bottom_sheet/android:junit",
+  "//chrome/browser/ui/android/actions:java",
+  "//chrome/browser/ui/android/actions:junit",
+  "//chrome/browser/ui/android/bottombar:java",
+  "//chrome/browser/ui/android/bottombar:junit",
+  "//chrome/browser/ui/android/bottombar:metrics_java",
+  "//chrome/browser/ui/android/toolbar:adaptive_features_java",
+  "//chrome/browser/ui/android/toolbar:optional_button_java",
+  "//chrome/browser/ui/android/toolbar:core_java",
+  "//chrome/browser/ui/android/toolbar:junit",
 ]
 
 update_target("//chrome/browser/actor:tools_test_support") {
@@ -18,4 +31,8 @@ update_target("//chrome/browser/actor:tools_test_support") {
 
 update_target("//chrome/browser/actor:browser_tests") {
   deps = []
+}
+
+update_template_instance("//chrome/browser/ui/android/bottombar:java") {
+  public_deps -= [ ":metrics_java" ]
 }

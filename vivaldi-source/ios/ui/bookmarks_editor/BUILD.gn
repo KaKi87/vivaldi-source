@@ -22,9 +22,10 @@ source_set("vivaldi_bookmarks_editor") {
 
   deps = [
     ":vivaldi_bookmarks_editor_swift",
-    "//base:i18n",
+    "resources:assets",
     "//base",
-    "//components/bookmarks/browser:browser",
+    "//base:i18n",
+    "//components/bookmarks/browser",
     "//ios/chrome/app/strings",
     "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
     "//ios/chrome/browser/shared/model/browser",
@@ -33,7 +34,6 @@ source_set("vivaldi_bookmarks_editor") {
     "//vivaldi/ios/most_visited_sites",
     "//vivaldi/ios/ui/helpers",
     "//vivaldi/ios/ui/settings/start_page/layout_settings",
-    "resources:assets",
   ]
 
   frameworks = [
@@ -50,11 +50,11 @@ swift_source_set("vivaldi_bookmarks_editor_swift") {
     "vivaldi_bookmarks_editor_group_view.swift",
     "vivaldi_bookmarks_editor_state.swift",
     "vivaldi_bookmarks_editor_top_sites_item.swift",
+    "vivaldi_bookmarks_editor_top_sites_view.swift",
     "vivaldi_bookmarks_editor_top_sites_view_cell.swift",
     "vivaldi_bookmarks_editor_top_sites_view_provider.swift",
-    "vivaldi_bookmarks_editor_top_sites_view.swift",
-    "vivaldi_bookmarks_editor_view_provider.swift",
     "vivaldi_bookmarks_editor_view.swift",
+    "vivaldi_bookmarks_editor_view_provider.swift",
   ]
 
   deps = [

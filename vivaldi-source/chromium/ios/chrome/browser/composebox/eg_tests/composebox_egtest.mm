@@ -15,9 +15,10 @@
 #import "components/omnibox/browser/aim_eligibility_service_features.h"
 #import "ios/chrome/browser/composebox/coordinator/composebox_constants.h"
 #import "ios/chrome/browser/composebox/eg_tests/composebox_app_interface.h"
-#import "ios/chrome/browser/composebox/ui/composebox_ui_constants.h"
+#import "ios/chrome/browser/composebox/shared/ui/composebox_ui_constants.h"
 #import "ios/chrome/browser/omnibox/public/omnibox_constants.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/tab_picker/ui/tab_picker_ui_constants.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/grid/grid_constants.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/test/tabs_egtest_util.h"
 #import "ios/chrome/grit/ios_strings.h"
@@ -117,10 +118,9 @@ void SelectTabWithTitle(NSString* title) {
 
   // Attempt to make the item visible by scrolling.
   if (error) {
-    [[EarlGrey
-        selectElementWithMatcher:
-            grey_accessibilityID(
-                kComposeboxTabPickerCollectionViewAccessibilityIdentifier)]
+    [[EarlGrey selectElementWithMatcher:
+                   grey_accessibilityID(
+                       kTabPickerCollectionViewAccessibilityIdentifier)]
         performAction:grey_swipeSlowInDirection(kGREYDirectionDown)];
     [[EarlGrey selectElementWithMatcher:tabMatcher]
         assertWithMatcher:grey_sufficientlyVisible()];
@@ -209,7 +209,11 @@ void RemoveAttachmentWithTitle(NSString* title) {
 }
 
 - (void)setUp {
+  [self addTeardownBlock:^{
+    [ComposeboxAppInterface setAllToolsEnabled:NO];
+  }];
   [super setUp];
+  [ComposeboxAppInterface enableAllTools];
   self.testServer->RegisterRequestHandler(
       base::BindRepeating(&StandardResponse));
   GREYAssertTrue(self.testServer->Start(), @"Test server failed to start.");
@@ -278,60 +282,6 @@ void RemoveAttachmentWithTitle(NSString* title) {
   [[EarlGrey
       selectElementWithMatcher:grey_accessibilityID(
                                    kComposeboxMicButtonAccessibilityIdentifier)]
-      assertWithMatcher:grey_notVisible()];
-}
-
-// Tests that image generation action is present when eligible.
-- (void)testComposeboxCreateImageEligible {
-  [ComposeboxAppInterface setFuseboxEligible:YES];
-  [ComposeboxAppInterface setCreateImagesEligible:YES];
-
-  [ChromeEarlGrey loadURL:self.testServer->GetURL("/")];
-  [ChromeEarlGreyUI focusOmnibox];
-
-  // Wait for the composebox to be visible.
-  [ChromeEarlGrey waitForUIElementToAppearWithMatcher:ComposeboxMatcher()];
-
-  // Tap the plus button.
-  [[EarlGrey
-      selectElementWithMatcher:
-          grey_accessibilityID(kComposeboxPlusButtonAccessibilityIdentifier)]
-      performAction:grey_tap()];
-
-  // Tap the "Create image" button.
-  [[EarlGrey selectElementWithMatcher:
-                 grey_accessibilityID(
-                     kComposeboxImageGenerationActionAccessibilityIdentifier)]
-      performAction:grey_tap()];
-
-  // Verify that the image generation button is visible.
-  [ChromeEarlGrey
-      waitForUIElementToAppearWithMatcher:
-          grey_accessibilityID(
-              kComposeboxImageGenerationButtonAccessibilityIdentifier)];
-}
-
-// Tests that the image generation action is not available when not eligible.
-- (void)testComposeboxCreateImageNotEligible {
-  [ComposeboxAppInterface setFuseboxEligible:YES];
-  [ComposeboxAppInterface setCreateImagesEligible:NO];
-
-  [ChromeEarlGrey loadURL:self.testServer->GetURL("/")];
-  [ChromeEarlGreyUI focusOmnibox];
-
-  // Wait for the composebox to be visible.
-  [ChromeEarlGrey waitForUIElementToAppearWithMatcher:ComposeboxMatcher()];
-
-  // Tap the plus button.
-  [[EarlGrey
-      selectElementWithMatcher:
-          grey_accessibilityID(kComposeboxPlusButtonAccessibilityIdentifier)]
-      performAction:grey_tap()];
-
-  // Verify that the "Create image" action is NOT visible.
-  [[EarlGrey selectElementWithMatcher:
-                 grey_accessibilityID(
-                     kComposeboxImageGenerationActionAccessibilityIdentifier)]
       assertWithMatcher:grey_notVisible()];
 }
 
@@ -424,14 +374,19 @@ void RemoveAttachmentWithTitle(NSString* title) {
 // Tests that tapping the attach tabs button opens the tab picker. Ensures that
 // the title is set correctly and buttons are correctly enabled or disabled.
 - (void)testTabPickerUI {
+  if ([ComposeboxAppInterface isServerSideStateEnabled]) {
+    EARL_GREY_TEST_SKIPPED(
+        @"Skipped when kComposeboxServerSideState is enabled.");
+  }
+
   [ComposeboxAppInterface setFuseboxEligible:YES];
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/")];
   OpenTabPicker();
 
   // Check that the tab picker is visible.
-  [[EarlGrey selectElementWithMatcher:
-                 grey_accessibilityID(
-                     kComposeboxTabPickerCollectionViewAccessibilityIdentifier)]
+  [[EarlGrey
+      selectElementWithMatcher:
+          grey_accessibilityID(kTabPickerCollectionViewAccessibilityIdentifier)]
       assertWithMatcher:grey_sufficientlyVisible()];
   [[EarlGrey selectElementWithMatcher:
                  grey_text(l10n_util::GetNSString(
@@ -487,6 +442,11 @@ void RemoveAttachmentWithTitle(NSString* title) {
 // (User should not be able to attach NTPs to the composebox). It also ensure
 // that the user can dismiss the view.
 - (void)testTabPickerEmptyStateView {
+  if ([ComposeboxAppInterface isServerSideStateEnabled]) {
+    EARL_GREY_TEST_SKIPPED(
+        @"Skipped when kComposeboxServerSideState is enabled.");
+  }
+
   [ComposeboxAppInterface setFuseboxEligible:YES];
   [ChromeEarlGrey closeAllNormalTabs];
   [ChromeEarlGrey openNewTab];
@@ -497,9 +457,9 @@ void RemoveAttachmentWithTitle(NSString* title) {
   OpenTabPicker();
 
   // Check that the empty state view is visible.
-  [[EarlGrey selectElementWithMatcher:
-                 grey_accessibilityID(
-                     kComposeboxTabPickerEmptyStateViewAccessibilityIdentifier)]
+  [[EarlGrey
+      selectElementWithMatcher:
+          grey_accessibilityID(kTabPickerEmptyStateViewAccessibilityIdentifier)]
       assertWithMatcher:grey_sufficientlyVisible()];
 
   // Check that the Done button is disabled and Cancel is enabled.
@@ -514,16 +474,22 @@ void RemoveAttachmentWithTitle(NSString* title) {
       performAction:grey_tap()];
 
   // Check that the tab picker is not visible anymore.
-  [[EarlGrey selectElementWithMatcher:
-                 grey_accessibilityID(
-                     kComposeboxTabPickerCollectionViewAccessibilityIdentifier)]
+  [[EarlGrey
+      selectElementWithMatcher:
+          grey_accessibilityID(kTabPickerCollectionViewAccessibilityIdentifier)]
       assertWithMatcher:grey_notVisible()];
 }
 
 // Tests that multiple tabs selected from the tab picker are displayed in the
 // carousel, the attachment limit is respected, and the AIM button is visible.
+
 - (void)testAttachMultipleTabsAndLimit {
+  if ([ComposeboxAppInterface isServerSideStateEnabled]) {
+    EARL_GREY_TEST_SKIPPED(
+        @"Skipped when kComposeboxServerSideState is enabled.");
+  }
   [ComposeboxAppInterface setFuseboxEligible:YES];
+  [ComposeboxAppInterface setTabUploadAutoSucceed:YES];
   std::vector<GURL> URLS;
   NSUInteger totalNumberOfTabs = kAttachmentLimit + 1;
   [ChromeEarlGrey closeAllNormalTabs];
@@ -556,10 +522,9 @@ void RemoveAttachmentWithTitle(NSString* title) {
       assertWithMatcher:grey_sufficientlyVisible()
                   error:&error];
   if (error) {
-    [[EarlGrey
-        selectElementWithMatcher:
-            grey_accessibilityID(
-                kComposeboxTabPickerCollectionViewAccessibilityIdentifier)]
+    [[EarlGrey selectElementWithMatcher:
+                   grey_accessibilityID(
+                       kTabPickerCollectionViewAccessibilityIdentifier)]
         performAction:grey_scrollToContentEdge(kGREYContentEdgeBottom)];
     [[EarlGrey selectElementWithMatcher:TabWithTitle(currentPageTitle)]
         assertWithMatcher:grey_sufficientlyVisible()];
@@ -584,10 +549,10 @@ void RemoveAttachmentWithTitle(NSString* title) {
   SelectTabWithTitle(firstPageTitle);
   [[EarlGrey selectElementWithMatcher:chrome_test_util::SnackbarViewMatcher()]
       assertWithMatcher:grey_sufficientlyVisible()];
-  [[EarlGrey selectElementWithMatcher:
-                 grey_text(l10n_util::GetPluralNSStringF(
-                     IDS_IOS_COMPOSEBOX_MAXIMUM_ATTACHMENTS_REACHED,
-                     kAttachmentLimit))]
+  [[EarlGrey
+      selectElementWithMatcher:grey_text(l10n_util::GetPluralNSStringF(
+                                   IDS_IOS_COMPOSEBOX_MAXIMUM_TABS_REACHED,
+                                   kAttachmentLimit))]
       assertWithMatcher:grey_sufficientlyVisible()];
 
   // Verify that kAttachmentLimit tabs are selected.
@@ -620,9 +585,64 @@ void RemoveAttachmentWithTitle(NSString* title) {
       assertWithMatcher:grey_nil()];
 }
 
+@end
+
+#pragma mark - ComposeboxEligiblityTestCase
+
+@interface ComposeboxEligiblityTestCase : ChromeTestCase
+@end
+
+@implementation ComposeboxEligiblityTestCase
+
+- (void)setUp {
+  [super setUp];
+  self.testServer->RegisterRequestHandler(
+      base::BindRepeating(&StandardResponse));
+  GREYAssertTrue(self.testServer->Start(), @"Test server failed to start.");
+}
+
+- (AppLaunchConfiguration)appConfigurationForTestCase {
+  AppLaunchConfiguration config = [super appConfigurationForTestCase];
+  config.features_enabled.push_back(kComposeboxIOS);
+  config.features_enabled.push_back(kComposeboxIpad);
+  config.features_disabled.push_back(kComposeboxAIMDisabled);
+  // Only rely on local conditions for AIM eligibility, so disable the
+  // server-side checks.
+  config.features_disabled.push_back(omnibox::kAimServerEligibilityEnabled);
+  return config;
+}
+
+// Tests that the image generation action is not available when not eligible.
+- (void)testComposeboxCreateImageNotEligible {
+  [ComposeboxAppInterface setFuseboxEligible:YES];
+  [ComposeboxAppInterface setCreateImagesEligible:NO];
+
+  [ChromeEarlGrey loadURL:self.testServer->GetURL("/")];
+  [ChromeEarlGreyUI focusOmnibox];
+
+  // Wait for the composebox to be visible.
+  [ChromeEarlGrey waitForUIElementToAppearWithMatcher:ComposeboxMatcher()];
+
+  // Tap the plus button.
+  [[EarlGrey
+      selectElementWithMatcher:
+          grey_accessibilityID(kComposeboxPlusButtonAccessibilityIdentifier)]
+      performAction:grey_tap()];
+
+  // Verify that the "Create image" action is NOT visible.
+  [[EarlGrey selectElementWithMatcher:
+                 grey_accessibilityID(
+                     kComposeboxImageGenerationActionAccessibilityIdentifier)]
+      assertWithMatcher:grey_notVisible()];
+}
+
 // Tests that a tab cannot be attached when in image generation mode, and that
 // image generation mode can be entered after attachments are removed.
 - (void)testNoTabAttachmentsInImageGeneration {
+  if ([ComposeboxAppInterface isServerSideStateEnabled]) {
+    EARL_GREY_TEST_SKIPPED(
+        @"Skipped when kComposeboxServerSideState is enabled.");
+  }
   [ComposeboxAppInterface setFuseboxEligible:YES];
   [ComposeboxAppInterface setCreateImagesEligible:YES];
 
@@ -706,6 +726,41 @@ void RemoveAttachmentWithTitle(NSString* title) {
                                    grey_accessibilityTrait(
                                        UIAccessibilityTraitSelected),
                                    nil)];
+}
+
+// Tests that image generation action is present when eligible.
+- (void)testComposeboxCreateImageEligible {
+  if ([ComposeboxAppInterface isServerSideStateEnabled]) {
+    EARL_GREY_TEST_SKIPPED(
+        @"Skipped when kComposeboxServerSideState is enabled.");
+  }
+
+  [ComposeboxAppInterface setFuseboxEligible:YES];
+  [ComposeboxAppInterface setCreateImagesEligible:YES];
+
+  [ChromeEarlGrey loadURL:self.testServer->GetURL("/")];
+  [ChromeEarlGreyUI focusOmnibox];
+
+  // Wait for the composebox to be visible.
+  [ChromeEarlGrey waitForUIElementToAppearWithMatcher:ComposeboxMatcher()];
+
+  // Tap the plus button.
+  [[EarlGrey
+      selectElementWithMatcher:
+          grey_accessibilityID(kComposeboxPlusButtonAccessibilityIdentifier)]
+      performAction:grey_tap()];
+
+  // Tap the "Create image" button.
+  [[EarlGrey selectElementWithMatcher:
+                 grey_accessibilityID(
+                     kComposeboxImageGenerationActionAccessibilityIdentifier)]
+      performAction:grey_tap()];
+
+  // Verify that the image generation button is visible.
+  [ChromeEarlGrey
+      waitForUIElementToAppearWithMatcher:
+          grey_accessibilityID(
+              kComposeboxImageGenerationButtonAccessibilityIdentifier)];
 }
 
 @end

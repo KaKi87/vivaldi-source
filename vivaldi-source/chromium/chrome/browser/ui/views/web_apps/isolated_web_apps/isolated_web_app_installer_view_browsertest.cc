@@ -25,10 +25,9 @@
 #include "chrome/browser/ui/views/web_apps/isolated_web_apps/test_isolated_web_app_installer_model_observer.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
 #include "chrome/browser/web_applications/isolated_web_apps/signed_web_bundle_metadata.h"
+#include "chrome/browser/web_applications/model/dialog_image_info.h"
 #include "chrome/browser/web_applications/test/web_app_icon_test_utils.h"
-#include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/common/chrome_features.h"
-#include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
 #include "components/prefs/pref_service.h"
 #include "components/web_package/signed_web_bundles/signed_web_bundle_id.h"
@@ -62,7 +61,7 @@ using Step = IsolatedWebAppInstallerModel::Step;
 struct TestParam {
   std::string test_suffix;
   Step step;
-  std::optional<IsolatedWebAppInstallerModel::Dialog> dialog = std::nullopt;
+  std::optional<IsolatedWebAppInstallerModel::Dialog> dialog;
   bool use_dark_theme = false;
   bool use_right_to_left_language = false;
 };
@@ -94,7 +93,7 @@ const TestParam kTestParam[] = {
 SignedWebBundleMetadata CreateTestMetadata() {
   DialogImageInfo image_info;
   image_info.is_maskable = true;
-  AddGeneratedIcon(&image_info.bitmaps, 32, SK_ColorBLUE);
+  image_info.bitmaps.emplace(32, CreateSquareIcon(32, SK_ColorBLUE));
   return SignedWebBundleMetadata::CreateForTesting(
       IsolatedWebAppUrlInfo::CreateFromSignedWebBundleId(
           web_package::SignedWebBundleId::CreateRandomForProxyMode()),

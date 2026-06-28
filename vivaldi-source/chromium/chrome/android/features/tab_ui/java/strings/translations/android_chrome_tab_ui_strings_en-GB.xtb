@@ -31,12 +31,14 @@
 <translation id="1828808367831369073"><ph name="TABS_COUNT_ONE" /> tab grouped</translation>
 <translation id="1844381456014878100">After 7 days inactive</translation>
 <translation id="1869137256605757565">{TABS_COUNT,plural, =1{<ph name="TABS_COUNT_ONE" /> tab}other{<ph name="TABS_COUNT_MANY" /> tabs}}</translation>
+<translation id="1894429470045525403">{TAB_COUNT,plural, =1{Add tab to reading list}other{Add tabs to reading list}}</translation>
 <translation id="1909810060368225529">Notice: Changes to this shared tab group are visible to everyone. Everyone can make changes to your shared tab groups</translation>
 <translation id="1925363809167540686">{TAB_COUNT,plural, =1{Pin tab}other{Pin tabs}}</translation>
 <translation id="1982637982196732906">Move to inactive section</translation>
 <translation id="2050597508048557928">{TABS_COUNT,plural, =1{Bookmark <ph name="TABS_COUNT_ONE" /> selected tab}other{Bookmark <ph name="TABS_COUNT_MANY" /> selected tabs}}</translation>
 <translation id="2055057176188061528">Select tab group or create new tab group</translation>
 <translation id="2074527029802029717">Unpin tab</translation>
+<translation id="2111670510994270194">New tab to the right</translation>
 <translation id="2118649612461486615">Shop info</translation>
 <translation id="2123073051266141035">{INCOGNITO_TABS_COUNT,plural, =1{Your closed tabs and groups can be reopened from the Recent tabs section and the Tab groups section. Your Incognito tab won't be available.}other{Your closed tabs and groups can be reopened from the Recent tabs section and the Tab groups section. Your # Incognito tabs won't be available.}}</translation>
 <translation id="2153899164605463849">{TAB_COUNT,plural, =1{Unmute site}other{Unmute sites}}</translation>
@@ -75,6 +77,8 @@
 <translation id="3052964831964880138"><ph name="PRICE_DROP" /> price drop on <ph name="PRODUCT_NAME" /></translation>
 <translation id="3078350928901129212"><ph name="COLOR_NAME" /> tab group colour icon</translation>
 <translation id="311432875115153175">Tab group list closed</translation>
+<translation id="3152596030350326139">Show tabs horizontally</translation>
+<translation id="31806439105337256">Show tabs vertically</translation>
 <translation id="3194464645767632461">rating</translation>
 <translation id="3269930881809501915">{TABS_COUNT,plural, =1{Add <ph name="TABS_COUNT_ONE" /> tab to group}other{Add <ph name="TABS_COUNT_MANY" /> tabs to group}}</translation>
 <translation id="3328308545011660196">Suggestion: <ph name="NUMBER_OF_TABS" /> tabs seem related. Group them?</translation>
@@ -124,6 +128,7 @@
 <translation id="5076161749301278626">See store reviews?</translation>
 <translation id="5161254044473106830">Title required</translation>
 <translation id="524477996738997490">{AUTO_DELETE_DELAY,plural, =1{Chrome automatically closes inactive tabs and tab groups after <ph name="AUTO_DELETE_DELAY_ONE" /> month. You can change this in settings.}other{Chrome automatically closes inactive tabs and tab groups after <ph name="AUTO_DELETE_DELAY_MANY" /> months. You can change this in settings.}}</translation>
+<translation id="5254233580564156835">Memory usage: <ph name="MEMORY_USAGE" /></translation>
 <translation id="5339733443032484186">Your last tab</translation>
 <translation id="5380159289133845234">Archive duplicate tabs</translation>
 <translation id="5446043142172831860">Remove tab and leave group</translation>
@@ -163,11 +168,13 @@
 <translation id="6589356853295569750">Notice about shared tab group changes opened at full height</translation>
 <translation id="6590332670428149473">Open the tab group action menu for shared tab group <ph name="TITLE_OF_GROUP" />, colour <ph name="COLOR_NAME" />.</translation>
 <translation id="6615455863669487791">Show me</translation>
+<translation id="6686490380836145850">Close tabs to the right</translation>
 <translation id="6694634756612002311">Manage sharing</translation>
 <translation id="6709297274997495821">Select tab</translation>
 <translation id="6744956528665271406">Edit group colour</translation>
 <translation id="6784585810034073638">{TAB_COUNT,plural, =1{Add to group named <ph name="TITLE_OF_GROUP" /> with <ph name="TAB_COUNT1" /> tab}other{Add to group named <ph name="TITLE_OF_GROUP" /> with <ph name="TAB_COUNT1" /> tabs}}</translation>
 <translation id="6818926723028410516">Select items</translation>
+<translation id="68541483639528434">Close other tabs</translation>
 <translation id="6856809498882026482">Hide multi-select mode</translation>
 <translation id="6957436309971790274">After 21 days inactive</translation>
 <translation id="7064815189603108598">{NUMBER_OF_TABS,plural, =1{Expand shared <ph name="TITLE_OF_GROUP" /> tab group with <ph name="TABS_COUNT_ONE" /> tab, colour <ph name="COLOR_NAME" />.}other{Expand shared <ph name="TITLE_OF_GROUP" /> tab group with <ph name="TABS_COUNT_MANY" /> tabs, colour <ph name="COLOR_NAME" />.}}</translation>

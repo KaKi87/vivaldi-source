@@ -157,6 +157,7 @@ public class PaymentHandlerToolbarCoordinator implements PaymentHandlerToolbarMe
                 mIsSmallDevice,
                 /* skipIconForNeutralState= */ false,
                 /* useLockIconForSecureState= */ true,
+                /* isShowingHttpsFirstWarning= */ false,
                 null); // Vivaldi
     }
 

@@ -72,7 +72,7 @@ public class DownloadMessageUiControllerImpl implements DownloadMessageUiControl
     private static final long DURATION_SHOW_RESULT_IN_MS = 6000;
 
     // The description can be an extremely long data url, whose length can cause a low memory
-    // error when applied to a text view. https://crbug.com/1250423
+    // error when applied to a text view. https://crbug.com/40197985
     private static final int MAX_DESCRIPTION_LENGTH = 200;
 
     // Keep this in sync with the DownloadInfoBar.ShownState enum in enums.xml.
@@ -382,6 +382,7 @@ public class DownloadMessageUiControllerImpl implements DownloadMessageUiControl
     public void showIncognitoDownloadMessage(Callback<Boolean> callback) {
         Context context = ContextUtils.getApplicationContext();
 
+        mDelegate.maybeSwitchToFocusedActivity();
         MessageDispatcher dispatcher = getMessageDispatcher();
         // TODO(crbug.com/40234025): Fix the issue with dispatcher
         //                                  being Null and remove the following if clause
@@ -553,11 +554,13 @@ public class DownloadMessageUiControllerImpl implements DownloadMessageUiControl
             return false;
         }
 
-        // Some downloads are displayed as dangerous here due to a warning from Safe Browsing. Note
-        // that this is different from {@link OfflineItem#isDangerous} and the equivalent concept of
+        // Some downloads are displayed as dangerous here due to a warning from Safe Browsing or
+        // because the file is blocked by enterprise policy. Note that this is different from
+        // {@link OfflineItem#isDangerous} and the equivalent concept of
         // `DownloadItemImpl::IsDangerous()` in native, which is a broader category and should not
         // generally be visible in this UI.
-        if (shouldDisplayItemAsDangerousInMessage(offlineItem)) {
+        if (shouldDisplayItemAsDangerousInMessage(offlineItem)
+                || shouldDisplayItemAsBlockedSensitiveInMessage(offlineItem)) {
             return true;
         } else if (offlineItem.isDangerous) {
             return false;
@@ -802,8 +805,7 @@ public class DownloadMessageUiControllerImpl implements DownloadMessageUiControl
                     getContext().getResources().getQuantityString(stringRes, itemCount, itemCount);
             if (singleDownloadCompleted) {
                 String bytesString =
-                        org.chromium.components.browser_ui.util.DownloadUtils.getStringForBytes(
-                                getContext(), itemToShow.totalSizeBytes);
+                        DownloadUtils.getStringForBytes(getContext(), itemToShow.totalSizeBytes);
                 // Try to display the download domain/origin if possible. Otherwise, omit it.
                 String displayUrl =
                         DownloadUtils.formatUrlForDisplayInNotification(
@@ -1001,8 +1003,7 @@ public class DownloadMessageUiControllerImpl implements DownloadMessageUiControl
                 && info.iconType != IconType.ANIMATED_VECTOR_DRAWABLE) {
             mPropertyModel.set(
                     MessageBannerProperties.ICON_TINT_COLOR,
-                    AppCompatResources.getColorStateList(getContext(), info.iconColorTintList)
-                            .getDefaultColor());
+                    getContext().getColorStateList(info.iconColorTintList).getDefaultColor());
         }
         mPropertyModel.set(MessageBannerProperties.TITLE, info.message);
 
@@ -1266,6 +1267,17 @@ public class DownloadMessageUiControllerImpl implements DownloadMessageUiControl
     private static void recordIncognitoDownloadMessage(@IncognitoMessageEvent int event) {
         RecordHistogram.recordEnumeratedHistogram(
                 "Download.Incognito.Message", event, IncognitoMessageEvent.NUM_ENTRIES);
+    }
+
+    /**
+     * Whether the item is a sensitive blocked download that should be displayed in the download
+     * message.
+     */
+    private static boolean shouldDisplayItemAsBlockedSensitiveInMessage(
+            @Nullable OfflineItem item) {
+        if (item == null) return false;
+        return ChromeFeatureList.isEnabled(ChromeFeatureList.SHOW_BLOCKED_SENSITIVE_DOWNLOAD)
+                && DownloadUtils.isBlockedSensitiveDownload(item);
     }
 
     /**

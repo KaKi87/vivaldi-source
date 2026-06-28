@@ -10,8 +10,8 @@
 #include "chrome/browser/ui/tabs/tab_menu_model_factory.h"
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+#include "chrome/browser/ui/views/tabs/shared/tab_strip_types.h"
 #include "chrome/browser/ui/views/tabs/tab/tab_context_menu_controller.h"
-#include "chrome/browser/ui/views/tabs/tab_strip_types.h"
 #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_drag_handler.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "ui/base/models/list_selection_model.h"
@@ -110,11 +110,11 @@ class VerticalTabStripController : public TabContextMenuController::Delegate {
   bool IsContextMenuCommandChecked(
       TabStripModel::ContextMenuCommand command_id) override;
   bool IsContextMenuCommandEnabled(
-      int index,
+      tabs::TabInterface* tab,
       TabStripModel::ContextMenuCommand command_id) override;
   bool IsContextMenuCommandAlerted(
       TabStripModel::ContextMenuCommand command_id) override;
-  void ExecuteContextMenuCommand(int index,
+  void ExecuteContextMenuCommand(tabs::TabInterface* tab,
                                  TabStripModel::ContextMenuCommand command_id,
                                  int event_flags) override;
   bool GetContextMenuAccelerator(int command_id,

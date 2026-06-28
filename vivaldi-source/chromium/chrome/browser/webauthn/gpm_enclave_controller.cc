@@ -38,8 +38,8 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/passwords/passwords_client_ui_delegate.h"
 #include "chrome/browser/ui/webauthn/user_actions.h"
 #include "chrome/browser/webauthn/authenticator_request_dialog_model.h"
@@ -421,9 +421,7 @@ GPMEnclaveController::GPMEnclaveController(
       PasskeyModelFactory::GetInstance()->GetForProfile(profile);
   creds_ = passkey_model->GetPasskeys(
       rp_id_, webauthn::PasskeyModel::ShadowedCredentials::kExclude);
-  if (base::FeatureList::IsEnabled(device::kWebAuthnSignalApiHidePasskeys)) {
-    std::erase_if(creds_, [](const auto& cred) { return cred.hidden(); });
-  }
+  std::erase_if(creds_, [](const auto& cred) { return cred.hidden(); });
 
   // The following code may do some asynchronous processing. However the control
   // flow terminates, it must have called SetAccountState with some value.
@@ -774,7 +772,7 @@ void GPMEnclaveController::OnOutOfContextRecoveryCompletion(
   }
 }
 
-void GPMEnclaveController::OnKeysStored() {
+void GPMEnclaveController::OnKeysStored(const GaiaId& gaia_id) {
   if (recovered_with_icloud_keychain_) {
     // iCloud keychain recovery.
     device::enclave::RecordEvent(
@@ -791,12 +789,28 @@ void GPMEnclaveController::OnKeysStored() {
     // during a request at a different step on another tab. In case of
     // successful key retrieval in another tab, we conclude that the state of
     // the GPM Enclave Controller has become stale.
-    is_state_stale_ = true;
+    if (gaia_id == user_gaia_id_) {
+      is_state_stale_ = true;
+    }
+    return;
+  }
+
+  if (gaia_id != user_gaia_id_) {
+    FIDO_LOG(ERROR) << "Keys stored for wrong account: " << gaia_id.ToString()
+                    << ", expected: " << user_gaia_id_.ToString();
+    OnEnclaveError();
+    return;
+  }
+
+  if (enclave_manager_->IsReady()) {
+    // This can happen if some other process made the enclave ready while the
+    // recovery screen was being shown. We have to start again as we don't know
+    // if we need to create a PIN or not.
+    RefreshStateAndRepeatOperation();
     return;
   }
 
   CHECK(enclave_manager_->has_pending_keys());
-  CHECK(!enclave_manager_->IsReady());
   store_keys_lock_.reset();
 
   if ((pin_metadata_.has_value() && pin_metadata_->usable_pin_metadata) ||
@@ -1049,11 +1063,6 @@ void GPMEnclaveController::OnGPMCreationSelected() {
   // Reset after each GPM selection to ensure correct metric emission.
   model_->in_onboarding_flow = false;
 
-  if (model_->is_off_the_record && !off_the_record_confirmed_) {
-    model_->SetStep(Step::kGPMConfirmOffTheRecordCreate);
-    return;
-  }
-
   if (account_state_ != AccountState::kLoading) {
     // `kLoading` will call `OnGPMCreationSelected` again, therefore we don't
     // emit in these states.
@@ -1279,12 +1288,6 @@ void GPMEnclaveController::OnGPMCreationConfirmed() {
   }
 }
 
-void GPMEnclaveController::OnGPMConfirmOffTheRecordCreate() {
-  CHECK_EQ(model_->step(), Step::kGPMConfirmOffTheRecordCreate);
-  off_the_record_confirmed_ = true;
-  OnGPMCreationSelected();
-}
-
 void GPMEnclaveController::OnGPMPinEntered(const std::u16string& pin) {
   if (ShouldRefreshState()) {
     RefreshStateAndRepeatOperation();
@@ -1428,7 +1431,9 @@ bool GPMEnclaveController::BrowserIsApp() const {
   if (!web_contents()) {
     return false;
   }
-  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents());
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          web_contents());
   return browser && browser->GetType() == BrowserWindowInterface::TYPE_APP;
 }
 

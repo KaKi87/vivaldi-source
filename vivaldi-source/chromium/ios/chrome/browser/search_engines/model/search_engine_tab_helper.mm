@@ -194,7 +194,7 @@ void SearchEngineTabHelper::AddTemplateURLBySearchableURL(
     return;
   }  // End Vivaldi
 
-  if (!searchable_url.is_valid()) {
+  if (!searchable_url.is_valid() || !searchable_url.SchemeIsHTTPOrHTTPS()) {
     return;
   }
 

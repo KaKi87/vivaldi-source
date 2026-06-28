@@ -103,6 +103,7 @@
 
 #include "app/vivaldi_apptools.h"
 #include "extensions/browser/guest_view/web_view/web_view_guest.h"
+#include "extensions/helper/mail_attachments_utils.h"
 
 static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
@@ -1229,9 +1230,11 @@ ExtensionFunction::ResponseAction DownloadsDownloadFunction::Run() {
             base::as_byte_span(*options.body)));
   }
 
-  download_params->set_callback(
-      base::BindOnce(&DownloadsDownloadFunction::OnStarted, this,
-                     creator_suggested_filename, options.conflict_action));
+  const base::FilePath mail_attachment_path = vivaldi::GetMailAttachmentSavePath(
+      options.path, creator_suggested_filename);
+  download_params->set_callback(base::BindOnce(
+      &DownloadsDownloadFunction::OnStarted, this, creator_suggested_filename,
+      options.conflict_action, mail_attachment_path));
   // Prevent login prompts for 401/407 responses.
   download_params->set_do_not_prompt_for_login(true);
   download_params->set_download_source(download::DownloadSource::EXTENSION_API);
@@ -1245,13 +1248,20 @@ ExtensionFunction::ResponseAction DownloadsDownloadFunction::Run() {
 void DownloadsDownloadFunction::OnStarted(
     const base::FilePath& creator_suggested_filename,
     downloads::FilenameConflictAction creator_conflict_action,
+    const base::FilePath& mail_attachment_folder_path,
     DownloadItem* item,
     download::DownloadInterruptReason interrupt_reason) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   VLOG(1) << __func__ << " " << item << " " << interrupt_reason;
+
+  if (item && !mail_attachment_folder_path.empty()) {
+    vivaldi::SetMailAttachmentDownloadPath(item, mail_attachment_folder_path);
+  }
+
   if (item) {
     DCHECK_EQ(download::DOWNLOAD_INTERRUPT_REASON_NONE, interrupt_reason);
-    Respond(WithArguments(static_cast<int>(item->GetId())));
+    Respond(WithArguments(static_cast<int>(item->GetId()),
+                          mail_attachment_folder_path.AsUTF8Unsafe()));
     if (!creator_suggested_filename.empty() ||
         (creator_conflict_action !=
          downloads::FilenameConflictAction::kUniquify)) {

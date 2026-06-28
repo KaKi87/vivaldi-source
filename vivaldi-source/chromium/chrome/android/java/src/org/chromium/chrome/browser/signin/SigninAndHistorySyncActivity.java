@@ -208,7 +208,7 @@ public class SigninAndHistorySyncActivity extends FullscreenSigninAndHistorySync
                 /* listenToActivityState= */ true,
                 getIntentRequestTracker(),
                 getInsetObserver(),
-                /* trackOcclusion= */ true);
+                /* occlusionTrackingAllowed= */ true);
     }
 
     @Override
@@ -335,13 +335,22 @@ public class SigninAndHistorySyncActivity extends FullscreenSigninAndHistorySync
     /**
      * Implements {@link FullscreenSigninAndHistorySyncCoordinator.Delegate} and {@link
      * BottomSheetSigninAndHistorySyncCoordinator.ActivityDelegate}
+     *
+     * @deprecated Use {@link #addAccount(String)} instead.
      */
     @Override
+    @Deprecated
     public void addAccount() {
+        addAccount(null);
+    }
+
+    /** Implements {@link FullscreenSigninAndHistorySyncCoordinator.Delegate} */
+    @Override
+    public void addAccount(@Nullable String accountEmail) {
         SigninMetricsUtils.logAddAccountStateHistogram(State.REQUESTED);
         AccountManagerFacadeProvider.getInstance()
                 .createAddAccountIntent(
-                        null,
+                        accountEmail,
                         intent -> {
                             final ActivityWindowAndroid windowAndroid = getWindowAndroid();
                             if (windowAndroid == null) {
@@ -416,7 +425,8 @@ public class SigninAndHistorySyncActivity extends FullscreenSigninAndHistorySync
                         KeyboardVisibilityDelegate.getInstance(),
                         () -> sheetContainer,
                         () -> 0,
-                        /* desktopWindowStateManager= */ null);
+                        /* desktopWindowStateManager= */ null,
+                        getInsetObserver());
         BackPressHandler bottomSheetBackPressHandler =
                 bottomSheetController.getBottomSheetBackPressHandler();
         BackPressHelper.create(this, getOnBackPressedDispatcher(), bottomSheetBackPressHandler);

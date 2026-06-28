@@ -16,6 +16,8 @@
 
 @implementation CWVPreferences {
   PrefService* _prefService;
+  // In-memory only.
+  BOOL _triggerNonFatalCheck;
 }
 
 - (instancetype)initWithPrefService:(PrefService*)prefService {
@@ -63,22 +65,6 @@
 
 - (BOOL)isAutofillAddressSyncEnabled {
   return ios_web_view::IsAutofillAddressSyncEnabled(_prefService);
-}
-
-- (void)setUseImageFetcherEnabled:(BOOL)enabled {
-  ios_web_view::SetUseImageFetcherEnabled(_prefService, enabled);
-}
-
-- (BOOL)isUseImageFetcherEnabled {
-  return ios_web_view::IsUseImageFetcherEnabled(_prefService);
-}
-
-- (void)setUseCardCustomImageEnabled:(BOOL)enabled {
-  ios_web_view::SetUseCardCustomImageEnabled(_prefService, enabled);
-}
-
-- (BOOL)isUseCardCustomImageEnabled {
-  return ios_web_view::IsUseCardCustomImagerEnabled(_prefService);
 }
 
 - (void)setPasswordAffiliationEnabled:(BOOL)enabled {
@@ -135,6 +121,18 @@
 
 - (BOOL)isRiskBasedAuthenticationEnabled {
   return ios_web_view::IsRiskBasedAuthenticationEnabled(_prefService);
+}
+
+- (void)setTriggerNonFatalCheck:(BOOL)enabled {
+  // TODO(crbug.com/503005390): Remove after release integration testing in
+  // stable.
+  _triggerNonFatalCheck = enabled;
+}
+
+- (BOOL)isTriggerNonFatalCheckEnabled {
+  // TODO(crbug.com/503005390): Remove after release integration testing in
+  // stable.
+  return _triggerNonFatalCheck;
 }
 
 - (void)commitPendingWrite:(void (^)(void))completionHandler {

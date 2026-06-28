@@ -13,7 +13,6 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
 #include "build/build_config.h"
-#include "chrome/browser/accessibility_annotator/accessibility_annotator_backend_factory.h"
 #include "chrome/browser/account_settings/account_setting_service_factory.h"
 #include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
@@ -72,6 +71,7 @@
 #include "components/autofill/core/browser/webdata/autofill_webdata_service.h"
 #include "components/browser_sync/common_controller_builder.h"
 #include "components/collaboration/public/collaboration_service.h"
+#include "components/omnibox/common/omnibox_features.h"
 #include "components/password_manager/core/browser/sharing/password_receiver_service.h"
 #include "components/plus_addresses/core/browser/webdata/plus_address_webdata_service.h"
 #include "components/saved_tab_groups/public/features.h"
@@ -121,6 +121,7 @@
 #include "base/android/scoped_java_ref.h"
 #include "chrome/browser/android/webapk/webapk_sync_service.h"
 #include "chrome/browser/android/webapk/webapk_sync_service_factory.h"
+#include "ui/base/device_form_factor.h"
 
 // Must come after other includes, because FromJniType() uses Profile.
 #include "chrome/browser/sync/android/jni_headers/SyncServiceFactory_jni.h"
@@ -165,6 +166,22 @@ tab_groups::TabGroupSyncService* GetTabGroupSyncService(Profile* profile) {
         // BUILDFLAG(IS_WIN)
 }
 
+// Returns TemplateURLService or nullptr if the feature is disabled. Currently,
+// only on Android we have a separate feature flag for template url sync, and
+// it's only enabled for LFF.
+TemplateURLService* GetTemplateURLService(Profile* profile) {
+  CHECK(profile);
+#if BUILDFLAG(IS_ANDROID)
+  if (base::FeatureList::IsEnabled(syncer::kSyncSearchEnginesAndroidLFF) &&
+      base::FeatureList::IsEnabled(omnibox::kOmniboxSiteSearch)) {
+    return TemplateURLServiceFactory::GetForProfile(profile);
+  }
+  return nullptr;
+#else
+  return TemplateURLServiceFactory::GetForProfile(profile);
+#endif  // BUILDFLAG(IS_ANDROID)
+}
+
 autofill::AddressDataManager* GetAddressDataManager(Profile* profile) {
   auto* pdm =
       autofill::PersonalDataManagerFactory::GetForBrowserContext(profile);
@@ -196,8 +213,6 @@ syncer::DataTypeController::TypeVector CreateCommonControllers(
 #endif  // DCHECK_IS_ON()
 
   browser_sync::CommonControllerBuilder builder;
-  builder.SetAccessibilityAnnotatorBackend(
-      AccessibilityAnnotatorBackendFactory::GetForProfile(profile));
   builder.SetAccountSettingService(
       AccountSettingServiceFactory::GetForBrowserContext(profile));
   // A callback is needed here because `autofill::PersonalDataManagerFactory`
@@ -261,7 +276,7 @@ syncer::DataTypeController::TypeVector CreateCommonControllers(
 #if BUILDFLAG(IS_ANDROID) && !defined(VIVALDI_BUILD) // Vivaldi change
       nullptr
 #else   // BUILDFLAG(IS_ANDROID)
-      TemplateURLServiceFactory::GetForProfile(profile)
+      GetTemplateURLService(profile)
 #endif  // BUILDFLAG(IS_ANDROID)
   );
   builder.SetSendTabToSelfSyncService(
@@ -558,7 +573,6 @@ SyncServiceFactory::SyncServiceFactory()
   // destruction order. Note that some of the dependencies are listed here but
   // actually plumbed in ChromeSyncClient, which this factory constructs.
   DependsOn(AboutSigninInternalsFactory::GetInstance());
-  DependsOn(AccessibilityAnnotatorBackendFactory::GetInstance());
   DependsOn(AccountSettingServiceFactory::GetInstance());
   DependsOn(AccountBookmarkSyncServiceFactory::GetInstance());
   DependsOn(AccountPasswordStoreFactory::GetInstance());

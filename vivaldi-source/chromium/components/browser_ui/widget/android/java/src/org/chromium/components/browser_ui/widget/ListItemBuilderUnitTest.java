@@ -206,7 +206,9 @@ public class ListItemBuilderUnitTest {
 
         assertEquals(ListItemType.MENU_ITEM_WITH_SUBMENU, listItem.type);
         assertEquals(FAKE_TITLE_STRING, listItem.model.get(ListMenuItemProperties.TITLE));
-        assertEquals(submenuItems, listItem.model.get(ListMenuSubmenuItemProperties.SUBMENU_ITEMS));
+        assertEquals(
+                submenuItems,
+                listItem.model.get(ListMenuSubmenuItemProperties.SUBMENU_PROVIDER).get());
     }
 
     @Test
@@ -222,7 +224,7 @@ public class ListItemBuilderUnitTest {
         PropertyModel model = listItem.model;
         assertEquals(ListItemType.MENU_ITEM_WITH_SUBMENU, listItem.type);
         assertEquals(FAKE_TITLE_STRING, model.get(ListMenuItemProperties.TITLE));
-        assertEquals(submenuItems, model.get(ListMenuSubmenuItemProperties.SUBMENU_ITEMS));
+        assertEquals(submenuItems, model.get(ListMenuSubmenuItemProperties.SUBMENU_PROVIDER).get());
         assertEquals(
                 R.style.TextAppearance_DensityAdaptive_TextLarge_Primary_Baseline_Light,
                 model.get(ListMenuItemProperties.TEXT_APPEARANCE_ID));
@@ -252,5 +254,12 @@ public class ListItemBuilderUnitTest {
                 "Icon tint should be 0 when tinting is disabled in incognito",
                 0,
                 model.get(ListMenuItemProperties.ICON_TINT_COLOR_STATE_LIST_ID));
+    }
+
+    @Test
+    public void testBuild_withStartIconWidth() {
+        int width = 12;
+        ListItem listItem = new ListItemBuilder().withStartIconWidth(width).build();
+        assertEquals(width, (int) listItem.model.get(ListMenuItemProperties.START_ICON_WIDTH));
     }
 }

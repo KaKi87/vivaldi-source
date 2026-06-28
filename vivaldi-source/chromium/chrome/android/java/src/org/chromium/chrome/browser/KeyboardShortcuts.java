@@ -14,6 +14,7 @@ import android.content.res.Resources;
 import android.view.KeyEvent;
 import android.view.KeyboardShortcutGroup;
 import android.view.KeyboardShortcutInfo;
+import android.view.View;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.StringRes;
@@ -23,11 +24,11 @@ import org.jni_zero.CalledByNative;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.ui.KeyboardUtils;
 import org.chromium.build.annotations.NullMarked;
-import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.bookmarks.bar.BookmarkBarUtils;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
+import org.chromium.chrome.browser.homepage.HomepageManager;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.tab.Tab;
@@ -42,9 +43,11 @@ import org.chromium.components.browser_ui.widget.MenuOrKeyboardActionController;
 import org.chromium.content_public.browser.BrowserContextHandle;
 import org.chromium.content_public.browser.ContentFeatureList;
 import org.chromium.content_public.browser.ContentFeatureMap;
+import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.device.gamepad.GamepadList;
 import org.chromium.ui.accessibility.AccessibilityState;
+import org.chromium.ui.base.PageTransition;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -131,13 +134,15 @@ public class KeyboardShortcuts {
         KeyboardShortcutsSemanticMeaning.NOT_IMPLEMENTED_AVATAR_MENU,
         KeyboardShortcutsSemanticMeaning.FEEDBACK_FORM,
         KeyboardShortcutsSemanticMeaning.FIND_IN_PAGE,
-        KeyboardShortcutsSemanticMeaning.NOT_IMPLEMENTED_HOME,
+        KeyboardShortcutsSemanticMeaning.OPEN_HOME_PAGE,
         KeyboardShortcutsSemanticMeaning.OPEN_HELP,
         KeyboardShortcutsSemanticMeaning.OPEN_MENU,
         KeyboardShortcutsSemanticMeaning.CUSTOM_EXTENSION_SHORTCUT,
         KeyboardShortcutsSemanticMeaning.TOGGLE_MULTISELECT,
         KeyboardShortcutsSemanticMeaning.ZOOM_IN_LEGACY,
         KeyboardShortcutsSemanticMeaning.ZOOM_OUT_LEGACY,
+        KeyboardShortcutsSemanticMeaning.FOCUS_APP_MENU_BUTTON,
+
         // Vivaldi Shortcuts
         KeyboardShortcutsSemanticMeaning.OPEN_SIDE_PANEL,
         KeyboardShortcutsSemanticMeaning.OPEN_SETTINGS,
@@ -146,6 +151,7 @@ public class KeyboardShortcuts {
         KeyboardShortcutsSemanticMeaning.OPEN_NOTES_PANEL,
         KeyboardShortcutsSemanticMeaning.COPY_TO_NOTES,
         // End Vivaldi
+
         KeyboardShortcutsSemanticMeaning.MAX_VALUE
     })
     @Retention(RetentionPolicy.SOURCE)
@@ -238,7 +244,7 @@ public class KeyboardShortcuts {
         int NOT_IMPLEMENTED_AVATAR_MENU = 55;
         int FEEDBACK_FORM = 56;
         int FIND_IN_PAGE = 57;
-        int NOT_IMPLEMENTED_HOME = 58;
+        int OPEN_HOME_PAGE = 58;
         int OPEN_HELP = 59;
         int OPEN_MENU = 60;
 
@@ -253,15 +259,18 @@ public class KeyboardShortcuts {
         int ZOOM_IN_LEGACY = 63;
         int ZOOM_OUT_LEGACY = 64;
 
+        // App menu button keyboard shortcut.
+        int FOCUS_APP_MENU_BUTTON = 65;
+
         // Vivaldi
-        int OPEN_SIDE_PANEL = 65;
-        int OPEN_SETTINGS = 66;
-        int EXIT = 67;
-        int PASTE_AND_GO = 68;
-        int OPEN_NOTES_PANEL = 69;
-        int COPY_TO_NOTES = 70;
+        int OPEN_SIDE_PANEL = 66;
+        int OPEN_SETTINGS = 67;
+        int EXIT = 68;
+        int PASTE_AND_GO = 69;
+        int OPEN_NOTES_PANEL = 70;
+        int COPY_TO_NOTES = 71;
         // Max value.
-        int MAX_VALUE = 71;
+        int MAX_VALUE = 72;
     }
 
     // LINT.ThenChange(//tools/metrics/histograms/metadata/accessibility/enums.xml:KeyboardShortcutsSemanticMeaning, //tools/metrics/histograms/metadata/accessibility/histograms.xml:KeyboardShortcutsSemanticMeaning)
@@ -600,7 +609,6 @@ public class KeyboardShortcuts {
                 R.string.keyboard_shortcut_chrome_feature_group_header,
                 new KeyCombo[] {
                     new KeyCombo(KeyEvent.KEYCODE_F, KeyEvent.META_ALT_ON),
-                    new KeyCombo(KeyEvent.KEYCODE_F10, NO_MODIFIER),
                     new KeyCombo(KeyEvent.KEYCODE_BUTTON_Y, NO_MODIFIER)
                 });
         new KeyboardShortcutDefinition(
@@ -665,6 +673,9 @@ public class KeyboardShortcuts {
         new KeyboardShortcutDefinition(
                 KeyboardShortcutsSemanticMeaning.FOCUSED_TAB_STRIP_ITEM_REORDER_RIGHT,
                 new KeyCombo(KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.META_CTRL_ON));
+        new KeyboardShortcutDefinition(
+                KeyboardShortcutsSemanticMeaning.FOCUS_APP_MENU_BUTTON,
+                new KeyCombo(KeyEvent.KEYCODE_F10, NO_MODIFIER));
 
         // Bookmark shortcuts.
         new KeyboardShortcutDefinition(
@@ -813,7 +824,7 @@ public class KeyboardShortcuts {
                 KeyboardShortcutsSemanticMeaning.NOT_IMPLEMENTED_AVATAR_MENU,
                 new KeyCombo(KeyEvent.KEYCODE_M, KeyEvent.META_CTRL_ON | KeyEvent.META_SHIFT_ON));
         new KeyboardShortcutDefinition(
-                KeyboardShortcutsSemanticMeaning.NOT_IMPLEMENTED_HOME,
+                KeyboardShortcutsSemanticMeaning.OPEN_HOME_PAGE,
                 new KeyCombo(KeyEvent.KEYCODE_HOME, KeyEvent.META_ALT_ON));
         // Vivaldi
         VivaldiKeyboardShortcutUtils.addVivaldiKeyboardShortcuts();
@@ -886,6 +897,14 @@ public class KeyboardShortcuts {
                     }
                 }
                 break;
+            case KeyEvent.KEYCODE_F6:
+                if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                    if (menuOrKeyboardActionController.onMenuOrKeyboardAction(
+                            R.id.switch_keyboard_focus_row, false)) {
+                        return true;
+                    }
+                }
+                return true;
             case KeyEvent.KEYCODE_TV:
             case KeyEvent.KEYCODE_GUIDE:
             case KeyEvent.KEYCODE_DVR:
@@ -932,6 +951,24 @@ public class KeyboardShortcuts {
                     shortcutDefinition.mPrimaryShortcut.mKeyCode,
                     shortcutDefinition.mPrimaryShortcut.mModifier);
         }
+
+        // The scroll to top and scroll to bottom shortcuts are handled via
+        // Blink in
+        // third_party/blink/renderer/core/input/keyboard_event_manager.cc.
+        addShortcut(
+                context,
+                shortcutGroupsById,
+                R.string.keyboard_shortcut_chrome_feature_group_header,
+                R.string.keyboard_shortcut_scroll_to_top,
+                KeyEvent.KEYCODE_DPAD_UP,
+                (KeyEvent.META_CTRL_ON | KeyEvent.META_ALT_ON));
+        addShortcut(
+                context,
+                shortcutGroupsById,
+                R.string.keyboard_shortcut_chrome_feature_group_header,
+                R.string.keyboard_shortcut_scroll_to_bottom,
+                KeyEvent.KEYCODE_DPAD_DOWN,
+                (KeyEvent.META_CTRL_ON | KeyEvent.META_ALT_ON));
 
         if (BookmarkBarUtils.isDeviceBookmarkBarCompatible(context)) {
             addShortcut(
@@ -1029,6 +1066,7 @@ public class KeyboardShortcuts {
             }
         } else if (!event.isCtrlPressed()
                 && !event.isAltPressed()
+                && keyCode != KeyEvent.KEYCODE_F1
                 && keyCode != KeyEvent.KEYCODE_F3
                 && keyCode != KeyEvent.KEYCODE_F1 // Vivaldi
                 && keyCode != KeyEvent.KEYCODE_F4 // Vivaldi
@@ -1123,6 +1161,16 @@ public class KeyboardShortcuts {
                 };
             } // End Vivaldi
             switch (semanticMeaning) {
+                case KeyboardShortcutsSemanticMeaning.OPEN_HOME_PAGE:
+                    if (currentTab != null) {
+                        String homePageUrl =
+                                HomepageManager.getInstance()
+                                        .getHomepageGurl(currentTab.isIncognito())
+                                        .getSpec();
+                        currentTab.loadUrl(
+                                new LoadUrlParams(homePageUrl, PageTransition.HOME_PAGE));
+                    }
+                    return true;
                 case KeyboardShortcutsSemanticMeaning.TAB_SEARCH:
                     menuOrKeyboardActionController.onMenuOrKeyboardAction(R.id.tab_search, false);
                     return true;
@@ -1160,17 +1208,7 @@ public class KeyboardShortcuts {
                     }
                     return true;
                 case KeyboardShortcutsSemanticMeaning.CLOSE_TAB:
-                    List<Tab> selectedTabs = new ArrayList<>();
-                    for (int i = 0; i < currentTabModel.getCount(); i++) {
-                        @Nullable Tab tab = currentTabModel.getTabAt(i);
-                        if (tab == null) continue;
-                        if (!currentTabModel.isTabMultiSelected(tab.getId())) continue;
-                        selectedTabs.add(tab);
-                    }
-                    List<Tab> tabsToClose =
-                            selectedTabs.isEmpty()
-                                    ? List.of(TabModelUtils.getCurrentTab(currentTabModel))
-                                    : selectedTabs;
+                    List<Tab> tabsToClose = currentTabModel.getOrderedMultiSelectedTabs();
                     Tab tab = TabModelUtils.getCurrentTab(currentTabModel);
                     if (tab != null) {
                         // Pinned tabs require a second Ctrl+W to confirm closure unless part of a
@@ -1280,12 +1318,14 @@ public class KeyboardShortcuts {
                 case KeyboardShortcutsSemanticMeaning.OPEN_HELP:
                     menuOrKeyboardActionController.onMenuOrKeyboardAction(R.id.help_id, false);
                     return true;
-                case KeyboardShortcutsSemanticMeaning.KEYBOARD_FOCUS_SWITCH_ROW_OF_TOP_ELEMENTS:
-                    // TODO(crbug.com/360423850): Don't allow F6 to be overridden by websites.
-                    return menuOrKeyboardActionController.onMenuOrKeyboardAction(
-                            R.id.switch_keyboard_focus_row, /* fromMenu= */ false);
-                case KeyboardShortcutsSemanticMeaning
-                        .FOCUSED_TAB_STRIP_ITEM_OPEN_CONTEXT_MENU:
+                case KeyboardShortcutsSemanticMeaning.FOCUS_APP_MENU_BUTTON:
+                    View menuButtonView = toolbarManager.getMenuButtonView();
+                    if (menuButtonView != null) {
+                        menuButtonView.requestFocus();
+                        return true;
+                    }
+                    return false;
+                case KeyboardShortcutsSemanticMeaning.FOCUSED_TAB_STRIP_ITEM_OPEN_CONTEXT_MENU:
                     return menuOrKeyboardActionController.onMenuOrKeyboardAction(
                             R.id.open_tab_strip_context_menu, /* fromMenu= */ false);
                 case KeyboardShortcutsSemanticMeaning.FOCUSED_TAB_STRIP_ITEM_REORDER_LEFT:

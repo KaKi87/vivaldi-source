@@ -53,8 +53,8 @@ void VivaldiSecretPortalKeyProvider::ReceivedSecret() {
   // implementation for compatibility with existing encrypted data.
   // Sync os_crypt derives a 16-byte key from the portal secret using PBKDF2.
   std::array<uint8_t, 16> derived_key;
-  crypto::kdf::Pbkdf2HmacSha1(kParams, base::span(secret_), kSalt,
-                              derived_key, crypto::SubtlePassKey{});
+  crypto::kdf::Pbkdf2HmacSha1(kParams, base::span(secret_), kSalt, derived_key,
+                              crypto::SubtlePassKey{});
   secret_.clear();
 
   VLOG(1) << "Xdg-Desktop-Portal: Successfully derived key for encryption.";

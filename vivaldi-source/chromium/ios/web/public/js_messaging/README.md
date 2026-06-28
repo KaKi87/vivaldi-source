@@ -1,6 +1,6 @@
 # Using TypeScript in Chrome for iOS
 
-tl;dr A high level overview of using TypeScript and `JavaScriptFeature` to
+**TL;DR:** A high level overview of using TypeScript and `JavaScriptFeature` to
 build features which interact with the web page contents on Chrome for iOS.
 
 Chrome for iOS doesn't have access to the renderer code so many browser features
@@ -127,7 +127,12 @@ back to the native application.
 #### FeatureScript::ReinjectionBehavior
 
 To prevent lost event listeners, they must be setup in a `FeatureScript` which
-specifies `kReinjectOnDocumentRecreation`.
+specifies `kReinjectOnDocumentRecreation`. However, a `CrWebApi` must not be
+added to the `CrWeb` object in a script which is injected with this option. To
+register APIs used to expose functions to native code, you must use
+`kInjectOncePerWindow`. `kReinjectOnDocumentRecreation` should generally only be
+used to inject scripts which register event listeners that would otherwise be
+lost on document recreation.
 
 If a feature also stores global state at the window object level, splitting the
 event listener JavaScript into its own file is a good approach.
@@ -154,6 +159,64 @@ feature scripts were injected into.
 
 JavaScript injected by a `JavaScriptFeature` should not be called outside of the
 specialized `JavaScriptFeature` subclass.
+
+### JavaScriptFeature::CallAsyncJavaScriptFunction
+
+Along with synchronous function calls, `JavaScriptFeature` also provides
+protected `CallAsyncJavaScriptFunction` APIs. These are used within specialized
+`JavaScriptFeature` subclasses in the native code process to invoke functions
+that perform asynchronous operations and return a response.
+
+This is the preferred pattern where the native code process must request an
+action from the web page that requires asynchronous handling (like fetching data
+or waiting for an event) before returning a response directly back to the native
+code callback.
+
+#### How to Use It
+
+**1. JavaScript / TypeScript Side:**
+Register a function that returns a `Promise`. The function will receive the
+parameters passed from native code as a single object (the first argument).
+
+```typescript
+// In your feature's TypeScript file
+function fetchData(options: { url: string }): Promise<string> {
+  return fetch(options.url).then(response => response.text());
+}
+
+// Register it so native code can see it
+const nativeApi = new CrWebApi('fetchUtils');
+nativeApi.addFunction('fetchData', fetchData);
+gCrWeb.registerApi(nativeApi);
+```
+
+**2. Native Side:**
+Call the function by its registered name.
+
+```cpp
+base::DictValue parameters;
+parameters.Set("url", "https://example.com");
+
+feature()->CallAsyncJavaScriptFunction(
+    web_frame, "fetchUtils.fetchData", parameters,
+    base::BindOnce(^(const base::Value* value, NSError* error) {
+      // Handle result or error
+    }));
+```
+
+#### Key Differences from CallJavaScriptFunction
+
+*   **Promise Settlement:** The browser callback is only executed once the
+    returned JavaScript `Promise` settles (resolves or rejects).
+*   **Parameters as Object:** Unlike `CallJavaScriptFunction` which passes a
+    list of arguments, `CallAsyncJavaScriptFunction` passes parameters as a
+    single dictionary object to the JavaScript function.
+*   **Error Propagation:** If the Promise rejects or throws an unhandled
+    exception inside the web content world, the failure is passed directly back
+    to the native callback as an `NSError`.
+*   **Execution Safety:** Just like synchronous execution, these calls are
+    strictly bound to the target `WebFrame`'s content world and security origin
+    are automatically cancelled if the frame navigates or is destroyed.
 
 ### Script Message Handlers
 
@@ -195,7 +258,9 @@ Note that ES6 import/export statements are supported so your feature TypeScript
 can be split across multiple files. Reference other files using the full path,
 similar to other imports in native code. For example:
 
-    import {gCrWeb} from '//ios/web/public/js_messaging/resources/gcrweb.js';
+```typescript
+import {gCrWeb} from '//ios/web/public/js_messaging/resources/gcrweb.js';
+```
 
 Note that the import uses the ".js" extension, even if the file is written as
 TypeScript with a ".ts" file extension.
@@ -272,7 +337,7 @@ Message handlers should include comments describing their purpose and the
 arguments they take, including the expected type of each argument.
 
 For example:
-```
+```cpp
 void MyJavaScriptFeature::ScriptMessageReceived(
     web::WebState* web_state,
     const web::ScriptMessage& message) {
@@ -303,7 +368,7 @@ is of a particular type. Instead, validate the format of each part of the
 message.
 
 For example:
-```
+```cpp
 void MyJavaScriptFeature::ScriptMessageReceived(
     web::WebState* web_state,
     const web::ScriptMessage& message) {

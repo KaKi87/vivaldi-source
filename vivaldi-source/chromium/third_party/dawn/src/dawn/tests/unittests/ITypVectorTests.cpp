@@ -27,9 +27,9 @@
 
 #include <utility>
 
-#include "dawn/common/TypedInteger.h"
-#include "dawn/common/ityp_vector.h"
 #include "gtest/gtest.h"
+#include "src/dawn/common/TypedInteger.h"
+#include "src/dawn/common/ityp_vector.h"
 
 namespace dawn {
 namespace {
@@ -196,6 +196,40 @@ TEST_F(ITypVectorTest, BeginEndFrontBackData) {
     ASSERT_EQ(constVec.data(), &constVec[Key(0)]);
 }
 
+// Special case to make sure that operator[] works for ityp::vector<I, bool> as vector<bool> doesn't
+// return a bool& for these (so that vector<bool> may use a bitfield internally).
+TEST_F(ITypVectorTest, BoolVectorIndexing) {
+    {
+        ityp::vector<Key, bool> vec(Key(5));
+        const auto& const_vec = vec;
+
+        vec[Key(2)] = true;
+        vec[Key(1)] = true;
+        vec[Key(4)] = true;
+
+        ASSERT_EQ(const_vec[Key(0)], false);
+        ASSERT_EQ(const_vec[Key(1)], true);
+        ASSERT_EQ(const_vec[Key(2)], true);
+        ASSERT_EQ(const_vec[Key(3)], false);
+        ASSERT_EQ(const_vec[Key(4)], true);
+    }
+
+    {
+        ityp::vector<Key, bool> vec(Key(5));
+        const auto& const_vec = vec;
+
+        vec.at(Key(2)) = true;
+        vec.at(Key(1)) = true;
+        vec.at(Key(4)) = true;
+
+        ASSERT_EQ(const_vec.at(Key(0)), false);
+        ASSERT_EQ(const_vec.at(Key(1)), true);
+        ASSERT_EQ(const_vec.at(Key(2)), true);
+        ASSERT_EQ(const_vec.at(Key(3)), false);
+        ASSERT_EQ(const_vec.at(Key(4)), true);
+    }
+}
+
 // Name "*DeathTest" per https://google.github.io/googletest/advanced.html#death-test-naming
 using ITypVectorDeathTest = ITypVectorTest;
 
@@ -208,12 +242,43 @@ TEST_F(ITypVectorDeathTest, OutOfBounds) {
     }
 
     Vector vec(Key(10), Val(7));
+    vec[Key(9)];
     EXPECT_DEATH(vec[Key(10)], "");
     EXPECT_DEATH(vec.at(Key(10)), "");
 
     const Vector& constVec = vec;
+    constVec[Key(9)];
     EXPECT_DEATH(constVec[Key(10)], "");
     EXPECT_DEATH(constVec.at(Key(10)), "");
+}
+
+// If the index/size is 64-bit, it needs to be narrowed to size_t. Verify that's checked correctly.
+TEST_F(ITypVectorDeathTest, OversizedIndex) {
+    // These tests are only relevant on 32-bit builds.
+    if constexpr (sizeof(size_t) > sizeof(uint32_t)) {
+        GTEST_SKIP();
+    }
+
+    using Key64 = TypedInteger<struct Key64T, uint64_t>;
+    static constexpr Key64 kHugeKey64{0x1000'0000'0000'0000};
+
+    // Crash either due to OOM (on 64-bit) or due to narrowing (on 32-bit).
+    EXPECT_DEATH((ityp::vector<Key64, Val>(kHugeKey64)), "");
+    EXPECT_DEATH((ityp::vector<Key64, Val>(kHugeKey64, Val(7))), "");
+
+    ityp::vector<Key64, Val> vec(Key64(10), Val(7));
+
+    vec[Key64(9)];
+    // Regular out-of-bounds.
+    EXPECT_DEATH(vec[Key64(10)], "");
+
+    vec[Key64(0)];
+    // If this were cast to a 32-bit size_t without a check, it would be in-bounds.
+    EXPECT_DEATH(vec[kHugeKey64], "");
+
+    EXPECT_DEATH(vec.resize(kHugeKey64), "");
+    EXPECT_DEATH(vec.resize(kHugeKey64, Val(7)), "");
+    EXPECT_DEATH(vec.reserve(kHugeKey64), "");
 }
 
 }  // anonymous namespace

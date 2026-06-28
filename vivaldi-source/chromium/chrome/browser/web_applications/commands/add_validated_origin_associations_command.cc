@@ -67,31 +67,13 @@ void AddValidatedOriginAssociationsCommand::StartWithLock(
     return;
   }
 
-  bool needs_scope_validation =
-      !base::STLSetDifference<base::flat_set<ScopeExtensionInfo>>(
-           app->scope_extensions(), app->validated_scope_extensions())
-           .empty();
-
-  bool needs_migration_validation =
-      !base::STLSetDifference<base::flat_set<MigrationSource>>(
-           base::flat_set<MigrationSource>(
-               app->unvalidated_migration_sources()),
-           base::flat_set<MigrationSource>(app->validated_migration_sources()))
-           .empty();
-
-  if (!needs_scope_validation && !needs_migration_validation) {
-    CompleteAndSelfDestruct(CommandResult::kSuccess,
-                            AddValidatedOriginAssociationsResult::kNotNeeded);
-    return;
-  }
-
   // If the last validation time isn't set, randomize it in the past to ensure
   // no network fetch spikes.
   if (!app->origin_association_last_validation_check_time().has_value()) {
     ScopedRegistryUpdate update = lock_->sync_bridge().BeginUpdate();
     WebApp& app_to_update = CHECK_DEREF(update->UpdateApp(app_id_));
     base::TimeDelta delta =
-        base::Seconds(base::RandInt(0, base::Days(1).InSeconds()));
+        base::Seconds(base::RandIntInclusive(0, base::Days(1).InSeconds()));
     app_to_update.SetOriginAssociationLastValidationCheckTime(
         lock_->clock().Now() + delta + base::Days(1));
     CompleteAndSelfDestruct(CommandResult::kSuccess,
@@ -111,7 +93,7 @@ void AddValidatedOriginAssociationsCommand::StartWithLock(
   origin_associations.migration_sources = app->unvalidated_migration_sources();
 
   lock_->origin_association_manager().GetWebAppOriginAssociations(
-      app->manifest_id(), std::move(origin_associations),
+      app->manifest_id().value(), std::move(origin_associations),
       base::BindOnce(
           &AddValidatedOriginAssociationsCommand::OnOriginAssociationValidated,
           weak_factory_.GetWeakPtr()));
@@ -130,24 +112,17 @@ void AddValidatedOriginAssociationsCommand::OnOriginAssociationValidated(
     web_app::WebApp& app = CHECK_DEREF(update->UpdateApp(app_id_));
 
     {
-      // Gather union of current validated scope extensions and received.
-      auto previously_validated_and_requested =
-          base::STLSetIntersection<base::flat_set<ScopeExtensionInfo>>(
-              app.validated_scope_extensions(), app.scope_extensions());
-
-      auto final_validated =
-          base::STLSetUnion<base::flat_set<ScopeExtensionInfo>>(
-              previously_validated_and_requested,
-              validated_origin_associations.scope_extensions);
-
       unvalidated_items_remain =
           !base::STLSetDifference<base::flat_set<ScopeExtensionInfo>>(
-               app.scope_extensions(), final_validated)
+               app.scope_extensions(),
+               validated_origin_associations.scope_extensions)
                .empty();
 
       scope_extensions_updated =
-          final_validated != app.validated_scope_extensions();
-      app.SetValidatedScopeExtensions(std::move(final_validated));
+          validated_origin_associations.scope_extensions !=
+          app.validated_scope_extensions();
+      app.SetValidatedScopeExtensions(
+          std::move(validated_origin_associations.scope_extensions));
     }
 
     {
@@ -159,23 +134,16 @@ void AddValidatedOriginAssociationsCommand::OnOriginAssociationValidated(
       base::flat_set<MigrationSource> new_validated(
           validated_origin_associations.migration_sources);
 
-      auto previously_validated_and_requested =
-          base::STLSetIntersection<base::flat_set<MigrationSource>>(
-              original_unvalidated, original_validated);
-
-      auto final_validated = base::STLSetUnion<base::flat_set<MigrationSource>>(
-          previously_validated_and_requested, new_validated);
-
       unvalidated_items_remain =
           unvalidated_items_remain ||
           !base::STLSetDifference<base::flat_set<MigrationSource>>(
-               original_unvalidated, final_validated)
+               original_unvalidated, new_validated)
                .empty();
 
       // Check if any migration sources were added or removed.
-      migration_sources_updated = original_validated != final_validated;
+      migration_sources_updated = original_validated != new_validated;
 
-      app.SetValidatedMigrationSources(std::move(final_validated).extract());
+      app.SetValidatedMigrationSources(std::move(new_validated).extract());
     }
     app.SetOriginAssociationLastValidationCheckTime(now_time);
   }

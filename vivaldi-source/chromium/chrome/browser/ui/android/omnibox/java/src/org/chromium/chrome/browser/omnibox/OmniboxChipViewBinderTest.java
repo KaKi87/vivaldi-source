@@ -6,9 +6,11 @@ package org.chromium.chrome.browser.omnibox;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import static org.chromium.base.ThreadUtils.runOnUiThreadBlocking;
+import static org.chromium.build.NullUtil.assertNonNull;
 
 import android.app.Activity;
 import android.graphics.drawable.Drawable;
@@ -25,7 +27,6 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.Batch;
@@ -95,7 +96,7 @@ public class OmniboxChipViewBinderTest {
     public void testIcon() {
         Drawable icon = sActivity.getDrawable(android.R.drawable.ic_menu_add);
         runOnUiThreadBlocking(() -> mModel.set(OmniboxChipProperties.ICON, icon));
-        assertEquals(icon, mView.getIcon());
+        assertNonNull(mView.getIcon());
     }
 
     @Test
@@ -109,7 +110,7 @@ public class OmniboxChipViewBinderTest {
     @Test
     @SmallTest
     public void testOnClick() {
-        var onClick = Mockito.mock(Runnable.class);
+        var onClick = mock(Runnable.class);
         runOnUiThreadBlocking(() -> mModel.set(OmniboxChipProperties.ON_CLICK, onClick));
         runOnUiThreadBlocking(() -> mView.performClick());
         verify(onClick).run();

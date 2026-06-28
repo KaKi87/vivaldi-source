@@ -94,10 +94,8 @@ IN_PROC_BROWSER_TEST_F(TranslatePageActionInteractiveUiTest,
   auto anchor_widget =
       CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET);
   views::View* anchor_view = anchor_widget->GetContentsView();
-  controller->StartPartialTranslate(
-      browser()->tab_strip_model()->GetActiveWebContents(),
-      views::BubbleAnchor(anchor_view), std::nullopt, "fr", "en",
-      std::u16string());
+  controller->SetAnchorViewForTesting(anchor_view);
+  controller->StartPartialTranslate("fr", "en", std::u16string());
   base::RunLoop().RunUntilIdle();
   EXPECT_THAT(GetPartialTranslateBubble(), ::testing::NotNull());
 
@@ -111,10 +109,18 @@ IN_PROC_BROWSER_TEST_F(TranslatePageActionInteractiveUiTest,
 
   EXPECT_THAT(GetPartialTranslateBubble(), ::testing::IsNull());
   EXPECT_THAT(GetBubble(), ::testing::IsNull());
+  controller->SetAnchorViewForTesting(nullptr);
 }
 
 IN_PROC_BROWSER_TEST_F(TranslatePageActionInteractiveUiTest,
                        IconViewAccessibleName) {
+  // Show the Translate icon.
+  ChromeTranslateClient::FromWebContents(
+      browser()->tab_strip_model()->GetActiveWebContents())
+      ->GetTranslateManager()
+      ->GetLanguageState()
+      ->SetTranslateEnabled(true);
+
   EXPECT_EQ(GetTranslateIcon()->GetViewAccessibility().GetCachedName(),
             BrowserActions::GetCleanTitleAndTooltipText(
                 l10n_util::GetStringUTF16(IDS_SHOW_TRANSLATE)));

@@ -5,6 +5,7 @@
 #include "chrome/browser/importer/profile_writer.h"
 
 #include "app/vivaldi_resources.h"
+#include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/token.h"
@@ -19,6 +20,8 @@
 #include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_tabrestore.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/startup/startup_tab.h"
 #include "chrome/browser/ui/tabs/tab_model.h"
 #include "components/bookmarks/browser/bookmark_model.h"
@@ -321,11 +324,13 @@ void ProfileWriter::AddOpenTabs(const std::vector<ImportedTabEntry>& tabs) {
     // VB-113094 No need to restore if no tabs in imported browser.
     return;
   }
-  Browser* browser = chrome::FindBrowserWithActiveWindow();
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
   if (browser) {
     // If we find an active browser instance, we restore into that (same window
     // restore).
-    RestoreTabsToBrowser(session_window->tabs, browser);
+    RestoreTabsToBrowser(session_window->tabs,
+                         browser->GetBrowserForMigrationOnly());
   } else {
     LOG(WARNING) << "Couldn't find an active window browser. Restoring into a "
                     "new window.";

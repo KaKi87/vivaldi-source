@@ -59,8 +59,6 @@ class SessionsPrivateAPI : public BrowserContextKeyedAPI,
       content::BrowserContext* browser_context,
       int id,
       vivaldi::sessions_private::ContentModel& content_model);
-  static void SendOnPersistentLoad(content::BrowserContext* browser_context,
-                                   bool state);
 
  private:
   friend class BrowserContextKeyedAPIFactory<SessionsPrivateAPI>;

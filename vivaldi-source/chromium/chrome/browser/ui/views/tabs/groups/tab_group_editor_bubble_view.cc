@@ -34,7 +34,6 @@
 #include "chrome/browser/ui/bookmarks/bookmark_utils_desktop.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
@@ -97,6 +96,7 @@
 #include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/base/pointer/touch_ui_controller.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/compositor/layer.h"
 #include "ui/events/types/event_type.h"
 #include "ui/gfx/color_palette.h"
@@ -125,6 +125,13 @@
 #include "ui/views/view.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/view_utils.h"
+
+#if BUILDFLAG(IS_CHROMEOS)
+#include "ash/ash_element_identifiers.h"
+#include "ui/base/interaction/element_tracker.h"
+#include "ui/strings/grit/ui_strings.h"
+#include "ui/views/widget/widget.h"
+#endif
 
 #if BUILDFLAG(IS_OZONE)
 #include "ui/ozone/public/ozone_platform.h"
@@ -373,8 +380,20 @@ TabGroupEditorBubbleView::~TabGroupEditorBubbleView() = default;
 
 // TabStripModelObserver:
 void TabGroupEditorBubbleView::OnTabGroupChanged(const TabGroupChange& change) {
-  if (change.group != group_ ||
-      change.type != TabGroupChange::kVisualsChanged ||
+  if (change.group != group_) {
+    return;
+  }
+
+  // The widget close must be handled here to prevent crashes due to the async
+  // nature of the vertical tab group close animation. The animation delays
+  // the destruction of the tracker, which can leave the bubble interactive
+  // after the group has been deleted from the model.
+  if (change.type == TabGroupChange::kClosed) {
+    GetWidget()->CloseWithReason(views::Widget::ClosedReason::kUnspecified);
+    return;
+  }
+
+  if (change.type != TabGroupChange::kVisualsChanged ||
       !change.GetVisualsChange()->new_visuals) {
     return;
   }
@@ -675,7 +694,9 @@ TabGroupEditorBubbleView::BuildNewTabInGroupButton() {
       l10n_util::GetStringUTF16(IDS_TAB_GROUP_HEADER_CXMENU_NEW_TAB_IN_GROUP),
       base::BindRepeating(&TabGroupEditorBubbleView::NewTabInGroupPressed,
                           base::Unretained(this)),
-      ui::ImageModel::FromVectorIcon(kNewTabInGroupRefreshIcon,
+      ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                         ? kLibraryAddIcon
+                                         : kNewTabInGroupRefreshOldIcon,
                                      ui::kColorMenuIcon, kDefaultIconSize),
       GetAcceleratorText(IDC_ADD_NEW_TAB_TO_GROUP, browser_));
 
@@ -691,7 +712,9 @@ TabGroupEditorBubbleView::BuildUngroupButton() {
       l10n_util::GetStringUTF16(IDS_TAB_GROUP_HEADER_CXMENU_UNGROUP),
       base::BindRepeating(&TabGroupEditorBubbleView::UngroupPressed,
                           base::Unretained(this)),
-      ui::ImageModel::FromVectorIcon(kUngroupRefreshIcon));
+      ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                         ? kUngroupIcon
+                                         : kUngroupRefreshOldIcon));
 }
 
 std::unique_ptr<views::LabelButton>
@@ -700,8 +723,10 @@ TabGroupEditorBubbleView::BuildCloseGroupButton() {
       TAB_GROUP_HEADER_CXMENU_CLOSE_GROUP, GetTextForCloseButton(),
       base::BindRepeating(&TabGroupEditorBubbleView::CloseGroupPressed,
                           base::Unretained(this)),
-      ui::ImageModel::FromVectorIcon(kCloseGroupRefreshIcon, ui::kColorMenuIcon,
-                                     kDefaultIconSize),
+      ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                         ? kTabCloseIcon
+                                         : kCloseGroupRefreshOldIcon,
+                                     ui::kColorMenuIcon, kDefaultIconSize),
       GetAcceleratorText(IDC_CLOSE_TAB_GROUP, browser_));
 
   menu_item->SetProperty(views::kElementIdentifierKey,
@@ -717,7 +742,9 @@ TabGroupEditorBubbleView::BuildConvertToBookmarkButton() {
           IDS_TAB_GROUP_HEADER_CXMENU_CONVERT_GROUP_TO_BOOKMARK_FOLDER),
       base::BindRepeating(&TabGroupEditorBubbleView::ConvertToBookmarkPressed,
                           base::Unretained(this)),
-      ui::ImageModel::FromVectorIcon(kBookmarkAllTabsChromeRefreshIcon,
+      ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                         ? kHotelClassIcon
+                                         : kBookmarkAllTabsChromeRefreshOldIcon,
                                      ui::kColorMenuIcon, kDefaultIconSize));
 
   bookmark_group_menu_item->SetProperty(
@@ -733,8 +760,10 @@ TabGroupEditorBubbleView::BuildDeleteGroupButton() {
       l10n_util::GetStringUTF16(IDS_TAB_GROUP_HEADER_CXMENU_DELETE_GROUP),
       base::BindRepeating(&TabGroupEditorBubbleView::DeleteGroupPressed,
                           base::Unretained(this)),
-      ui::ImageModel::FromVectorIcon(kTrashCanRefreshIcon, ui::kColorMenuIcon,
-                                     kDefaultIconSize));
+      ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                         ? kDeleteIcon
+                                         : kTrashCanRefreshOldIcon,
+                                     ui::kColorMenuIcon, kDefaultIconSize));
 
   delete_group_menu_item->SetProperty(views::kElementIdentifierKey,
                                       kTabGroupEditorBubbleDeleteGroupButtonId);
@@ -753,8 +782,10 @@ TabGroupEditorBubbleView::BuildLeaveGroupButton() {
       l10n_util::GetStringUTF16(IDS_DATA_SHARING_LEAVE_GROUP),
       base::BindRepeating(&TabGroupEditorBubbleView::LeaveGroupPressed,
                           base::Unretained(this)),
-      ui::ImageModel::FromVectorIcon(kTrashCanRefreshIcon, ui::kColorMenuIcon,
-                                     kDefaultIconSize));
+      ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                         ? kDeleteIcon
+                                         : kTrashCanRefreshOldIcon,
+                                     ui::kColorMenuIcon, kDefaultIconSize));
 
   leave_group_menu_item->SetProperty(views::kElementIdentifierKey,
                                      kTabGroupEditorBubbleLeaveGroupButtonId);
@@ -775,7 +806,9 @@ TabGroupEditorBubbleView::BuildMoveGroupToNewWindowButton() {
       base::BindRepeating(
           &TabGroupEditorBubbleView::MoveGroupToNewWindowPressed,
           base::Unretained(this)),
-      ui::ImageModel::FromVectorIcon(kMoveGroupToNewWindowRefreshIcon,
+      ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                         ? kMoveGroupIcon
+                                         : kMoveGroupToNewWindowRefreshOldIcon,
                                      ui::kColorMenuIcon, kDefaultIconSize));
 
   menu_item->SetProperty(views::kElementIdentifierKey,
@@ -791,8 +824,10 @@ TabGroupEditorBubbleView::BuildFocusGroupButton() {
       l10n_util::GetStringUTF16(IDS_TAB_GROUP_HEADER_CXMENU_FOCUS_GROUP),
       base::BindRepeating(&TabGroupEditorBubbleView::FocusGroupPressed,
                           base::Unretained(this)),
-      ui::ImageModel::FromVectorIcon(kZoomInMapIcon, ui::kColorMenuIcon,
-                                     kDefaultIconSize));
+      ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                         ? kZoomInMapIcon
+                                         : kZoomInMapOldIcon,
+                                     ui::kColorMenuIcon, kDefaultIconSize));
 
   menu_item->SetProperty(views::kElementIdentifierKey,
                          kTabGroupEditorBubbleFocusGroupButtonId);
@@ -806,7 +841,7 @@ TabGroupEditorBubbleView::BuildUnfocusGroupButton() {
       l10n_util::GetStringUTF16(IDS_TAB_GROUP_HEADER_CXMENU_UNFOCUS_GROUP),
       base::BindRepeating(&TabGroupEditorBubbleView::UnfocusGroupPressed,
                           base::Unretained(this)),
-      ui::ImageModel::FromVectorIcon(kZoomOutMapIcon, ui::kColorMenuIcon,
+      ui::ImageModel::FromVectorIcon(kZoomOutMapOldIcon, ui::kColorMenuIcon,
                                      kDefaultIconSize));
 
   menu_item->SetProperty(views::kElementIdentifierKey,
@@ -837,7 +872,9 @@ TabGroupEditorBubbleView::BuildShareGroupButton() {
       l10n_util::GetStringUTF16(IDS_TAB_GROUP_HEADER_CXMENU_SHARE_GROUP),
       base::BindRepeating(&TabGroupEditorBubbleView::ShareOrManagePressed,
                           base::Unretained(this)),
-      ui::ImageModel::FromVectorIcon(kTabGroupSharingIcon));
+      ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                         ? kGroupCustomIcon
+                                         : kTabGroupSharingOldIcon));
   menu_item->SetProperty(views::kElementIdentifierKey,
                          kTabGroupEditorBubbleShareGroupButtonId);
   return menu_item;
@@ -850,8 +887,9 @@ TabGroupEditorBubbleView::BuildRecentActivityButton() {
       l10n_util::GetStringUTF16(IDS_TAB_GROUP_HEADER_CXMENU_RECENT_ACTIVITY),
       base::BindRepeating(&TabGroupEditorBubbleView::RecentActivityPressed,
                           base::Unretained(this)),
-      ui::ImageModel::FromVectorIcon(kHistoryIcon, ui::kColorMenuIcon,
-                                     kDefaultIconSize));
+      ui::ImageModel::FromVectorIcon(
+          features::IsRoundedIconsEnabled() ? kHistoryIcon : kHistoryOldIcon,
+          ui::kColorMenuIcon, kDefaultIconSize));
   menu_item->SetProperty(views::kElementIdentifierKey,
                          kTabGroupEditorBubbleRecentActivityButtonId);
   return menu_item;
@@ -1086,14 +1124,63 @@ void TabGroupEditorBubbleView::OnBubbleClose() {
   }
 }
 
+#if BUILDFLAG(IS_CHROMEOS)
+void TabGroupEditorBubbleView::PreventCloseOnDeactivateForEmoji() {
+  if (!close_on_deactivate_pin_) {
+    close_on_deactivate_pin_ = PreventCloseOnDeactivate();
+  }
+
+  if (!emoji_picker_hidden_subscription_) {
+    emoji_picker_hidden_subscription_ =
+        ui::ElementTracker::GetElementTracker()
+            ->AddElementHiddenInAnyContextCallback(
+                ash::kEmojiPickerElementId,
+                base::BindRepeating(
+                    &TabGroupEditorBubbleView::OnEmojiPickerClosed,
+                    base::Unretained(this)));
+  }
+}
+
+void TabGroupEditorBubbleView::ClearCloseOnDeactivatePin() {
+  close_on_deactivate_pin_.reset();
+}
+
+void TabGroupEditorBubbleView::OnEmojiPickerClosed(
+    ui::TrackedElement* element) {
+  emoji_picker_hidden_subscription_ = {};
+
+  ClearCloseOnDeactivatePin();
+
+  // Close the editor bubble if it is no longer active, i.e. when the user
+  // clicks elsewhere, off of both the bubble and emoji picker.
+  if (GetWidget() && !(GetWidget()->IsActive())) {
+    GetWidget()->Close();
+  }
+}
+#endif
+
 tab_groups::TabGroupColorId TabGroupEditorBubbleView::InitColorSet() {
   colors_.clear();
-  const tab_groups::ColorLabelMap& color_map =
-      tab_groups::GetTabGroupColorLabelMap();
+  tab_groups::ColorLabelMap color_map = tab_groups::GetTabGroupColorLabelMap();
+
+  // In the tab group color update, the yellow and pink are better described
+  // as lime and magenta. We update the tooltip accordingly.
+  if (features::IsTabGroupColorRefreshEnabled()) {
+    color_map[tab_groups::TabGroupColorId::kYellow] =
+        l10n_util::GetStringUTF16(IDS_TAB_GROUP_COLOR_LIME);
+
+    color_map[tab_groups::TabGroupColorId::kPink] =
+        l10n_util::GetStringUTF16(IDS_TAB_GROUP_COLOR_MAGENTA);
+  }
+
+  const std::vector<tab_groups::TabGroupColorId> color_ordering =
+      TabGroupModel::GetColorOrdering();
 
   // TODO(tluk) remove the reliance on the ordering of the color pairs in the
   // vector and use the ColorLabelMap structure instead.
-  std::ranges::copy(color_map, std::back_inserter(colors_));
+  for (const tab_groups::TabGroupColorId color_id : color_ordering) {
+    colors_.emplace_back(color_id, color_map.at(color_id));
+  }
 
   // Keep track of the current group's color, to be returned as the initial
   // selected value.
@@ -1166,10 +1253,20 @@ void TabGroupEditorBubbleView::TitleField::ShowContextMenu(
   views::Textfield::ShowContextMenu(p, source_type);
 }
 
+#if BUILDFLAG(IS_CHROMEOS)
+void TabGroupEditorBubbleView::TitleField::ExecuteCommand(int command_id,
+                                                          int event_flags) {
+  if (command_id == IDS_CONTENT_CONTEXT_EMOJI) {
+    parent_->PreventCloseOnDeactivateForEmoji();
+  }
+  views::Textfield::ExecuteCommand(command_id, event_flags);
+}
+#endif
+
 std::unique_ptr<TabGroupEditorBubbleView::TitleField>
 TabGroupEditorBubbleView::BuildTitleField(const std::u16string& title) {
   std::unique_ptr<TitleField> title_field =
-      std::make_unique<TitleField>(stop_context_menu_propagation_);
+      std::make_unique<TitleField>(*this, stop_context_menu_propagation_);
   title_field->SetText(title);
   title_field->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(
       IDS_TAB_GROUP_HEADER_CXMENU_TAB_GROUP_TITLE_ACCESSIBLE_NAME));

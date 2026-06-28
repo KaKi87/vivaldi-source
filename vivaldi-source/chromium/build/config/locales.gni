@@ -4,6 +4,8 @@
 
 import("//build/config/chromeos/ui_mode.gni")
 
+import("//vivaldi/gn/config/locale_list.gni")
+
 # This file creates |platform_pak_locales| which is the set of packed locales
 # based on the current platform. Locales in this list are formatted based on
 # what .pak files expect. The |platform_pak_locales| variable *may* contain
@@ -187,33 +189,9 @@ _non_android_locales = [ "cy" ]
 # Setup |platform_pak_locales| for each platform.
 platform_pak_locales = all_chrome_locales
 if (is_android) {
-  if (is_vivaldi) {
-    extended_locales -= [
-      "az",
-      "is",
-      "hy",
-      "be",
-      "gl",
-      "ka",
-      "si",
-    ]
-  }
-
   platform_pak_locales -= _non_android_locales
   extended_locales -= _non_android_locales
 } else {
-  if (is_vivaldi && is_ios) {
-    # Note: (@prio@vivaldi.com) (VIB-411) Chrome do not support few languages
-    # we want to support, so those locale has been removed from subtraction
-    # list.
-    extended_locales -= [
-      "be",
-      "is",
-      "ka",
-      "sr-Latn",
-    ]
-  } # End Vivaldi
-
   platform_pak_locales -= extended_locales
 }
 
@@ -230,25 +208,6 @@ if (is_chromeos) {
   ]
   platform_pak_locales -= [ "ur" ]
 } else if (is_ios) {
-  if (is_vivaldi) {
-    # Note: (@prio@vivaldi.com) (VIB-411) Chrome do not support few languages
-    # we want to support, so those locale has been removed from subtraction
-    # list.
-    platform_pak_locales -= [
-      "am",
-      "bn",
-      "fil",
-      "gu",
-      "kn",
-      "lv",
-      "ml",
-      "mr",
-      "sw",
-      "ta",
-      "te",
-      "ur",
-    ]
-  } else {
   platform_pak_locales -= [
     "af",
     "am",
@@ -265,8 +224,11 @@ if (is_chromeos) {
     "ta",
     "te",
   ]
-  } # End Vivaldi
 }
+
+# Vivaldi removals
+extended_locales -= filter_include(extended_locales, vivaldi_platform_remove_locales)
+platform_pak_locales -= filter_include(platform_pak_locales, vivaldi_platform_remove_locales)
 
 # List for Android locale names in .xml exports. Note: needs to stay in sync
 # with |ToAndroidLocaleName| in build/android/gyp/util/resource_utils.py.
@@ -302,8 +264,9 @@ locales_without_pseudolocales = platform_pak_locales - pseudolocales
 locales_with_pseudolocales = platform_pak_locales
 
 declare_args() {
-  # We want to give pseudolocales to everyone except end-users (devs & QA).
-  # Note that this only packages the locales in, and doesn't add the ui to enable them.
+  # We want to give pseudolocales to everyone except end-users (devs & QA). Note
+  # that this only packages the locales in, and doesn't add the ui to enable
+  # them.
   enable_pseudolocales = !is_official_build
 }
 
@@ -312,21 +275,6 @@ if (!enable_pseudolocales) {
 }
 
 if (is_apple) {
-  if (is_vivaldi && is_ios) {
-    # Note: (@prio@vivaldi.com) (VIB-411) Language Chrome supports but we don't.
-    platform_pak_locales -= [
-      "ar",
-      "he",
-      "hi",
-      "hr",
-      "ms",
-      "th",
-      "lt",
-      "fa",
-      "ro",
-      "vi",
-    ]
-  }
   # Same as the locales list but in the format Mac expects for output files:
   # it uses underscores instead of hyphens, and "en" instead of "en-US".
   locales_as_apple_outputs = []

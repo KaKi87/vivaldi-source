@@ -231,8 +231,11 @@ class _EnabledTurboCiCheckHandler(_TurboCICheckHandler):
         turboci.reason('executing bot_update'),
         turboci.check(
             self._check_id,
+            # TODO(crbug.com/513249469#comment2): Remove realm after move to
+            # new python helpers.
+            realm='$from_container',
             kind='CHECK_KIND_SOURCE',
-            options=[self._source_check_options],
+            realm_options=[('$from_container', self._source_check_options)],
             state='CHECK_STATE_PLANNED',
         ),
     )
@@ -270,7 +273,13 @@ class _EnabledTurboCiCheckHandler(_TurboCICheckHandler):
         turboci.reason('bot_update completed'),
         turboci.check(
             self._check_id,
-            results=[gob_source_check_results, bot_update_check_results],
+            # TODO(crbug.com/513249469#comment2): Remove realm after move to
+            # new python helpers.
+            realm='$from_container',
+            realm_results=[
+                ('$from_container', gob_source_check_results),
+                ('$from_container', bot_update_check_results),
+            ],
             state='CHECK_STATE_FINAL',
         ))
 
@@ -408,6 +417,8 @@ class BotUpdateApi(recipe_api.RecipeApi):
                       with_branch_heads=False,
                       with_tags=False,
                       no_fetch_tags=False,
+                      no_history=False,
+                      shallow=False,
                       refs=None,
                       clobber=False,
                       root_solution_revision=None,
@@ -434,6 +445,14 @@ class BotUpdateApi(recipe_api.RecipeApi):
         fetch any tags referenced from the references being fetched. When a repo
         has many references, it can become a performance bottleneck, so avoid
         tags if the checkout will not need them present.
+      * no_history: When true, all git repos being checked out will not fetch
+        any history. This can significantly speed up syncing times when there
+        is not an existing checkout, 'git cache' is not supported for the repo
+        (i.e. for non-Chromium root git repos), and history is not actually
+        needed.
+      * shallow: When true, all git repos being checked out will fetch a limited
+        amount of history. This provides a compromise between a normal sync and
+        syncing with no_history if some amount of history is needed.
       * ignore_input_commit: if True, ignore api.buildbucket.gitiles_commit.
         Exists for historical reasons. Please do not use.
       * add_blamelists: if True, add blamelist pins for all of the repos that had
@@ -637,6 +656,10 @@ class BotUpdateApi(recipe_api.RecipeApi):
       cmd.append('--enforce_fetch')
     if no_fetch_tags:
       cmd.append('--no_fetch_tags')
+    if no_history:
+      cmd.append('--no-history')
+    if shallow:
+      cmd.append('--shallow')
     if gerrit_no_rebase_patch_ref:
       cmd.append('--gerrit_no_rebase_patch_ref')
     if self.m.properties.get('bot_update_experiments'):

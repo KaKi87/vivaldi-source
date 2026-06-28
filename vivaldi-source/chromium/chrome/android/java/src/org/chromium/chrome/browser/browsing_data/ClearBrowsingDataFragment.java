@@ -379,9 +379,7 @@ public class ClearBrowsingDataFragment extends ChromeBaseSettingsFragment
     private void clearBrowsingData(
             Set<Integer> options,
             String @Nullable [] excludedDomains,
-            int @Nullable [] excludedDomainReasons,
-            String @Nullable [] ignoredDomains,
-            int @Nullable [] ignoredDomainReasons) {
+            String @Nullable [] ignoredDomains) {
         onClearBrowsingData();
         showProgressDialog();
         Set<Integer> dataTypes = new ArraySet<>();
@@ -423,9 +421,7 @@ public class ClearBrowsingDataFragment extends ChromeBaseSettingsFragment
                             dataTypesArray,
                             mLastSelectedTimePeriod,
                             excludedDomains,
-                            excludedDomainReasons,
-                            ignoredDomains,
-                            ignoredDomainReasons);
+                            ignoredDomains);
         } else {
             BrowsingDataBridge.getForProfile(getProfile())
                     .clearBrowsingData(this, dataTypesArray, mLastSelectedTimePeriod);
@@ -570,7 +566,7 @@ public class ClearBrowsingDataFragment extends ChromeBaseSettingsFragment
         }
         // If sites haven't been fetched, just clear the browsing data regularly rather than
         // waiting to show the important sites dialog.
-        clearBrowsingData(getSelectedOptions(), null, null, null, null);
+        clearBrowsingData(getSelectedOptions(), null, null);
     }
 
     @Override
@@ -590,7 +586,7 @@ public class ClearBrowsingDataFragment extends ChromeBaseSettingsFragment
 
     /** Disable the "Clear" button if none of the options are selected. Otherwise, enable it. */
     private void updateButtonState() {
-        Button clearButton = (Button) assumeNonNull(getView()).findViewById(R.id.clear_button);
+        Button clearButton = assumeNonNull(getView()).findViewById(R.id.clear_button);
         boolean isEnabled = !getSelectedOptions().isEmpty();
         clearButton.setEnabled(isEnabled);
     }
@@ -813,7 +809,6 @@ public class ClearBrowsingDataFragment extends ChromeBaseSettingsFragment
                 SignOutCoordinator.startSignOutFlow(
                         requireContext(),
                         getProfile(),
-                        getActivity().getSupportFragmentManager(),
                         ((ModalDialogManagerHolder) getActivity()).getModalDialogManager(),
                         ((SnackbarManager.SnackbarManageable) getActivity()).getSnackbarManager(),
                         SignoutReason.USER_CLICKED_SIGNOUT_FROM_CLEAR_BROWSING_DATA_PAGE,
@@ -854,15 +849,9 @@ public class ClearBrowsingDataFragment extends ChromeBaseSettingsFragment
             String[] deselectedDomains =
                     data.getStringArrayExtra(
                             ConfirmImportantSitesDialogFragment.DESELECTED_DOMAINS_TAG);
-            int[] deselectedDomainReasons =
-                    data.getIntArrayExtra(
-                            ConfirmImportantSitesDialogFragment.DESELECTED_DOMAIN_REASONS_TAG);
             String[] ignoredDomains =
                     data.getStringArrayExtra(
                             ConfirmImportantSitesDialogFragment.IGNORED_DOMAINS_TAG);
-            int[] ignoredDomainReasons =
-                    data.getIntArrayExtra(
-                            ConfirmImportantSitesDialogFragment.IGNORED_DOMAIN_REASONS_TAG);
             if (deselectedDomains != null && mFetcher.getSortedImportantDomains() != null) {
                 // mMaxImportantSites is a constant on the C++ side.
                 RecordHistogram.recordCustomCountHistogram(
@@ -893,12 +882,7 @@ public class ClearBrowsingDataFragment extends ChromeBaseSettingsFragment
                                 / mFetcher.getSortedImportantDomains().length,
                         IMPORTANT_SITES_PERCENTAGE_BUCKET_COUNT + 1);
             }
-            clearBrowsingData(
-                    getSelectedOptions(),
-                    deselectedDomains,
-                    deselectedDomainReasons,
-                    ignoredDomains,
-                    ignoredDomainReasons);
+            clearBrowsingData(getSelectedOptions(), deselectedDomains, ignoredDomains);
         }
     }
 
@@ -945,8 +929,8 @@ public class ClearBrowsingDataFragment extends ChromeBaseSettingsFragment
     private void showSnackbar() {
         SnackbarManager snackbarManager = null;
         Activity activity = getLastFocusedActivity();
-        if (activity instanceof SnackbarManager.SnackbarManageable) {
-            snackbarManager = ((SnackbarManager.SnackbarManageable) activity).getSnackbarManager();
+        if (activity instanceof SnackbarManager.SnackbarManageable manageable) {
+            snackbarManager = manageable.getSnackbarManager();
         }
         if (snackbarManager == null) return;
 

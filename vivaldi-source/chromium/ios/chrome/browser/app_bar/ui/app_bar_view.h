@@ -7,15 +7,23 @@
 
 #import <UIKit/UIKit.h>
 
-// A custom view for the app bar that handles top-edge masking for rounded
-// corners and touch transparency for the background area.
+@class AppBarView;
+
+// Delegate protocol for AppBarView, used to notify observers about
+// changes to the view's window ownership.
+@protocol AppBarViewDelegate <NSObject>
+
+// Called when the view moves to a new window.
+- (void)appBarViewDidMoveToWindow:(AppBarView*)view;
+
+@end
+
+// A container view for the App Bar that handles tracking when it is
+// added to or removed from a window.
 @interface AppBarView : UIView
 
-// Whether the app bar is in incognito mode.
-@property(nonatomic, assign) BOOL incognito;
-
-// Hides any color background if YES.
-@property(nonatomic, assign) BOOL hideColorBackground;
+// Delegate for handling window transition events.
+@property(nonatomic, weak) id<AppBarViewDelegate> delegate;
 
 @end
 

@@ -25,10 +25,11 @@
 #include "chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.h"
 #include "chrome/browser/extensions/context_menu_helpers.h"
 #include "chrome/browser/extensions/context_menu_matcher.h"
+#include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/renderer_context_menu/context_menu_content_type_factory.h"
 #include "chrome/browser/send_tab_to_self/send_tab_to_self_util.h"
 #include "chrome/browser/sync/send_tab_to_self_sync_service_factory.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/incognito_allowed_url.h"
 #include "chrome/browser/ui/qrcode_generator/qrcode_generator_bubble_controller.h"
 #include "chromium/content/public/browser/navigation_entry.h"
@@ -164,12 +165,14 @@ VivaldiRenderViewContextMenu* VivaldiRenderViewContextMenu::GetActive(int id) {
 bool VivaldiRenderViewContextMenu::Supports(
     const content::ContextMenuParams& params) {
 #if defined(ENABLE_VIVALDI_CONTEXT_MENU)
-  Browser* browser = chrome::FindBrowserWithActiveWindow();
+
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
 
   // We do not (yet) support configurable menus in a progressive web app (PWA)
   // We may want to test for Browser::app_controller() as well, but currently
   // not needed.
-  if (browser && browser->is_type_app()) {
+  if (browser && browser->GetType() == BrowserWindowInterface::TYPE_APP) {
     return false;
   }
   // kVivaldiAppId match for areas in UI where we have no JS handler
@@ -185,7 +188,7 @@ bool VivaldiRenderViewContextMenu::Supports(
     // The menu code as it is now depends on being inside a vivaldi browser
     // window so we have to prevent configurability if that is not the case.
     if (params.is_editable) {
-      if (browser && VivaldiBrowserWindow::FromBrowser(browser)) {
+      if (browser && browser->GetWindow()) {
         return true;
       }
     }
@@ -213,8 +216,10 @@ VivaldiRenderViewContextMenu::VivaldiRenderViewContextMenu(
     gfx::NativeView parent_view,
     bool is_paste_enabled,
     bool is_paste_and_match_style_enabled)
-    : RenderViewContextMenu(render_frame_host, params, true/*is_paste_enabled*/,
-                            true/*is_paste_and_match_style_enabled*/),
+    : RenderViewContextMenu(render_frame_host,
+                            params,
+                            true /*is_paste_enabled*/,
+                            true /*is_paste_and_match_style_enabled*/),
       id_(active_id_counter_++),
       parent_view_(parent_view),
       embedder_web_contents_(GetWebContentsToUse(source_web_contents_)) {
@@ -1022,8 +1027,9 @@ void VivaldiRenderViewContextMenu::PopulateContainer(
     case context_menu::ContainerContent::kLinkinpwa:
       pwa_link_controller_ = std::make_unique<PWALinkMenuController>(
           PWALinkMenuController(this, GetProfile()));
-      pwa_link_controller_->Populate(
-          GetBrowser(), base::UTF8ToUTF16(container.name), menu_model);
+      pwa_link_controller_->Populate(GetBrowser()->GetBrowserForMigrationOnly(),
+                                     base::UTF8ToUTF16(container.name),
+                                     menu_model);
       break;
     case context_menu::ContainerContent::kNotes:
       AddNotesController(
@@ -1057,8 +1063,9 @@ void VivaldiRenderViewContextMenu::PopulateContainer(
           base::UTF16ToUTF8(source_web_contents_->GetTitle())));
       if (GetBrowser()) {
         sendtopage_controller_->Populate(
-            GetBrowser(), base::UTF8ToUTF16(container.name), container.icons,
-            dark_text_color, menu_model, this);
+            GetBrowser()->GetBrowserForMigrationOnly(),
+            base::UTF8ToUTF16(container.name), container.icons, dark_text_color,
+            menu_model, this);
       }
       break;
     case context_menu::ContainerContent::kSendlinktodevices:
@@ -1067,8 +1074,9 @@ void VivaldiRenderViewContextMenu::PopulateContainer(
           base::UTF16ToUTF8(source_web_contents_->GetTitle())));
       if (GetBrowser()) {
         sendtolink_controller_->Populate(
-            GetBrowser(), base::UTF8ToUTF16(container.name), container.icons,
-            dark_text_color, menu_model, this);
+            GetBrowser()->GetBrowserForMigrationOnly(),
+            base::UTF8ToUTF16(container.name), container.icons, dark_text_color,
+            menu_model, this);
       }
       break;
     case context_menu::ContainerContent::kSendimagetodevices:
@@ -1077,8 +1085,9 @@ void VivaldiRenderViewContextMenu::PopulateContainer(
           base::UTF16ToUTF8(source_web_contents_->GetTitle())));
       if (GetBrowser()) {
         sendtolink_controller_->Populate(
-            GetBrowser(), base::UTF8ToUTF16(container.name), container.icons,
-            dark_text_color, menu_model, this);
+            GetBrowser()->GetBrowserForMigrationOnly(),
+            base::UTF8ToUTF16(container.name), container.icons, dark_text_color,
+            menu_model, this);
       }
       break;
     case context_menu::ContainerContent::kSpeech:
@@ -1183,7 +1192,7 @@ ui::ImageModel VivaldiRenderViewContextMenu::GetImageForAction(
 #else
   switch (GetStaticIdForAction(command)) {
     case IDC_CONTENT_CONTEXT_GENERATE_QR_CODE:
-      return ui::ImageModel::FromVectorIcon(kQrcodeGeneratorIcon);
+      return ui::ImageModel::FromVectorIcon(kQrcodeGeneratorCustomIcon);
     default:
       return ui::ImageModel();
   }

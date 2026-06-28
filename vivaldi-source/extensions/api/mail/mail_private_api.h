@@ -94,6 +94,31 @@ class MailPrivateGetFilePathsFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
+class MailPrivateCheckFolderFunction : public ExtensionFunction {
+  DECLARE_EXTENSION_FUNCTION("mailPrivate.checkFolder", MAIL_CHECK_FOLDER)
+ public:
+  MailPrivateCheckFolderFunction() = default;
+
+ private:
+  ~MailPrivateCheckFolderFunction() override = default;
+
+  void CheckFolderResult(bool directory_exists);
+  // ExtensionFunction:
+  ResponseAction Run() override;
+};
+
+class MailPrivateOpenFolderFunction : public ExtensionFunction {
+  DECLARE_EXTENSION_FUNCTION("mailPrivate.openFolder", MAIL_OPEN_FOLDER)
+ public:
+  MailPrivateOpenFolderFunction() = default;
+
+ private:
+  ~MailPrivateOpenFolderFunction() override = default;
+
+  // ExtensionFunction:
+  ResponseAction Run() override;
+};
+
 class MailPrivateGetFullPathFunction : public ExtensionFunction {
   DECLARE_EXTENSION_FUNCTION("mailPrivate.getFullPath", MAIL_GET_FULL_PATH)
  public:

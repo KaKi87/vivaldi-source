@@ -16,6 +16,7 @@
 #import "base/memory/weak_ptr.h"
 #import "base/notimplemented.h"
 #import "base/strings/sys_string_conversions.h"
+#import "base/strings/utf_string_conversions.h"
 #import "components/autofill/core/browser/data_manager/payments/payments_data_manager.h"
 #import "components/autofill/core/browser/data_model/payments/bnpl_issuer.h"
 #import "components/autofill/core/browser/field_types.h"
@@ -39,6 +40,7 @@
 #import "components/autofill/core/browser/ui/payments/autofill_progress_dialog_controller.h"
 #import "components/autofill/core/browser/ui/payments/autofill_progress_dialog_controller_impl.h"
 #import "components/autofill/core/browser/ui/payments/autofill_progress_ui_type.h"
+#import "components/autofill/core/browser/ui/payments/bubble_show_options.h"
 #import "components/autofill/core/browser/ui/payments/card_unmask_authentication_selection_dialog_controller_impl.h"
 #import "components/autofill/core/browser/ui/payments/card_unmask_otp_input_dialog_controller.h"
 #import "components/autofill/core/browser/ui/payments/card_unmask_otp_input_dialog_controller_impl.h"
@@ -48,8 +50,11 @@
 #import "components/autofill/core/common/autofill_payments_features.h"
 #import "components/autofill/core/common/autofill_prefs.h"
 #import "components/autofill/ios/browser/credit_card_save_metrics_ios.h"
+#import "components/signin/public/base/consent_level.h"
+#import "ios/chrome/browser/autofill/bnpl/ui/ios_bnpl_ui_delegate.h"
 #import "ios/chrome/browser/autofill/model/bottom_sheet/autofill_bottom_sheet_tab_helper.h"
 #import "ios/chrome/browser/autofill/model/credit_card/autofill_save_card_infobar_delegate_ios.h"
+#import "ios/chrome/browser/autofill/model/manual_fill_virtual_card_cache.h"
 #import "ios/chrome/browser/autofill/ui_bundled/card_expiration_date_fix_flow_view_bridge.h"
 #import "ios/chrome/browser/autofill/ui_bundled/card_name_fix_flow_view_bridge.h"
 #import "ios/chrome/browser/autofill/ui_bundled/card_unmask_prompt_view_bridge.h"
@@ -264,7 +269,18 @@ void IOSChromePaymentsAutofillClient::VirtualCardEnrollCompleted(
 }
 
 void IOSChromePaymentsAutofillClient::OnCardDataAvailable(
-    const FilledCardInformationBubbleOptions& options) {}
+    const FilledCardInformationBubbleOptions& options,
+    const url::Origin& origin) {
+  if (options.filled_card.record_type() ==
+      CreditCard::RecordType::kVirtualCard) {
+    autofill::CreditCard card = options.filled_card;
+    card.set_cvc(options.cvc);
+
+    ManualFillVirtualCardCache::CreateForWebState(web_state_);
+    ManualFillVirtualCardCache::FromWebState(web_state_)
+        ->CacheUnmaskedCard(card, origin);
+  }
+}
 
 void IOSChromePaymentsAutofillClient::ConfirmSaveIbanLocally(
     const Iban& iban,
@@ -476,10 +492,6 @@ bool IOSChromePaymentsAutofillClient::IsMandatoryReauthEnabled() {
   return GetPaymentsDataManager().IsPaymentMethodsMandatoryReauthEnabled();
 }
 
-bool IOSChromePaymentsAutofillClient::IsUsingCustomCardIconEnabled() const {
-  return true;
-}
-
 void IOSChromePaymentsAutofillClient::ShowMandatoryReauthOptInPrompt(
     base::OnceClosure accept_mandatory_reauth_callback,
     base::OnceClosure cancel_mandatory_reauth_callback,
@@ -653,7 +665,10 @@ BnplStrategy* IOSChromePaymentsAutofillClient::GetBnplStrategy() {
 }
 
 BnplUiDelegate* IOSChromePaymentsAutofillClient::GetBnplUiDelegate() {
-  return nullptr;
+  if (!bnpl_ui_delegate_) {
+    bnpl_ui_delegate_ = std::make_unique<IosBnplUiDelegate>(&client_.get());
+  }
+  return bnpl_ui_delegate_.get();
 }
 
 void IOSChromePaymentsAutofillClient::ShowSaveCreditCard(

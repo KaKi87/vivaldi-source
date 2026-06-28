@@ -14,12 +14,13 @@
 #include "chrome/browser/send_tab_to_self/receiving_ui_handler.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/page_action/page_action_model_observer.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
-#include "chrome/browser/ui/views/page_action/page_action_model_observer.h"
 #include "chrome/browser/ui/views/page_action/page_action_view.h"
 #include "components/web_modal/modal_dialog_host.h"
 #include "extensions/common/mojom/frame.mojom.h"
 #include "extensions/schema/window_private.h"
+#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 #include "ui/gfx/image/image_family.h"
 #include "ui/infobar_container_web_proxy.h"
 #include "ui/views/controls/webview/unhandled_keyboard_event_handler.h"
@@ -27,6 +28,8 @@
 
 #include "ui/vivaldi_ui_web_contents_delegate.h"
 
+class DevtoolsUIController;
+class ContentsContainerView;
 class ScopedKeepAlive;
 class SkRegion;
 
@@ -37,7 +40,8 @@ class VivaldiWindowWidgetDelegate;
 
 namespace ui {
 class Accelerator;
-}
+class EventTargeter;
+}  // namespace ui
 
 namespace views {
 class View;
@@ -92,14 +96,14 @@ class VivaldiPageActionModelObserver
   void OnNewActiveController(page_actions::PageActionController* controller);
 
  private:
-
   void SetVisible(bool show);
 
   raw_ptr<VivaldiBrowserWindow> window_ = nullptr;
   // Only kActionShowPasswordsBubbleOrPage.
   base::WeakPtr<actions::ActionItem> action_show_passwords_item_ = nullptr;
 
-  base::ScopedObservation<page_actions::PageActionModelInterface, page_actions::PageActionModelObserver>
+  base::ScopedObservation<page_actions::PageActionModelInterface,
+                          page_actions::PageActionModelObserver>
       observation_{this};
 
   base::CallbackListSubscription action_item_controller_subscription_;
@@ -110,23 +114,28 @@ class VivaldiToolbarButtonProvider : public ToolbarButtonProvider {
   VivaldiToolbarButtonProvider(VivaldiBrowserWindow* window);
   ~VivaldiToolbarButtonProvider() override;
 
+  // This puts a userdata entry onto the browerwindowinterface owned by
+  // window-browser. See ToolbarButtonProvider::From
+  std::optional<ui::ScopedUnownedUserData<ToolbarButtonProvider>>
+      scoped_unowned_user_data_;
+
  private:
   // ToolbarButtonProvider:
   ExtensionsToolbarDesktop* GetExtensionsToolbarDesktop() override;
   PinnedToolbarActions* GetPinnedToolbarActions() override;
   gfx::Size GetToolbarButtonSize() const override;
-  views::View* GetDefaultExtensionDialogAnchorView() override;
+  views::BubbleAnchor GetDefaultExtensionDialogAnchor() override;
   PageActionIconView* GetPageActionIconView(PageActionIconType type) override;
   page_actions::PageActionView* GetPageActionView(
       actions::ActionId action_id) override;
-  AppMenuButton* GetAppMenuButton() override;
+  AppMenuControl* GetAppMenuControl() override;
   gfx::Rect GetFindBarBoundingBox(int contents_bottom) override;
   void FocusToolbar() override;
   views::AccessiblePaneView* GetAsAccessiblePaneView() override;
   views::BubbleAnchor GetBubbleAnchor(
       std::optional<actions::ActionId> action_id) override;
   void ZoomChangedForActiveTab(bool can_show_bubble) override;
-  AvatarToolbarButton* GetAvatarToolbarButton() override;
+  AvatarToolbarButtonInterface* GetAvatarToolbarButtonInterface() override;
   ToolbarButton* GetBackButton() override;
   ReloadControl* GetReloadButton() override;
   IntentChipButton* GetIntentChipButton() override;
@@ -218,7 +227,6 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
   ~VivaldiBrowserWindow() override;
   VivaldiBrowserWindow(const VivaldiBrowserWindow&) = delete;
   VivaldiBrowserWindow& operator=(const VivaldiBrowserWindow&) = delete;
-
 
   void CloseBrowserWindow(views::Widget::ClosedReason reason);
 
@@ -377,11 +385,6 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
   gfx::NativeWindow GetNativeWindow() const override;
   std::vector<StatusBubble*> GetStatusBubbles() override;
   void UpdateTitleBar() override;
-  void BookmarkBarStateChanged(
-      BookmarkBar::AnimateChangeType change_type) override {}
-  void TemporarilyShowBookmarkBar(base::TimeDelta duration) override {}
-  void UpdateDevTools(content::WebContents* inspected_web_contents) override;
-  bool CanDockDevTools() const override;
   void UpdateLoadingAnimations(bool should_animate) override {}
   void SetStarredState(bool is_starred) override {}
   bool IsTabModalPopupDeprecated() const override;
@@ -391,7 +394,6 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
                           content::WebContents* new_contents,
                           int index,
                           int reason) override;
-  void ZoomChangedForActiveTab(bool can_show_bubble) override {}
   gfx::Rect GetRestoredBounds() const override;
   ui::mojom::WindowShowState GetRestoredState() const override;
   gfx::Rect GetBounds() const override;
@@ -400,12 +402,8 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
   void Maximize() override;
   void Minimize() override;
   void Restore() override;
-  bool ShouldHideUIForFullscreen() const override;
   bool IsFullscreen() const override;
   void ResetToolbarTabState(content::WebContents* contents) override {}
-  bool IsFullscreenBubbleVisible() const override;
-  bool IsForceFullscreen() const override;
-  void SetForceFullscreen(bool force_fullscreen) override {}
   LocationBar* GetLocationBar() const override;
   void SetFocusToLocationBar(bool select_all) override {}
   void UpdateReloadStopState(bool is_loading, bool force) override {}
@@ -417,10 +415,6 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
   void FocusToolbar() override {}
   void ToolbarSizeChanged(bool is_animating) override {}
   void FocusAppMenu() override {}
-  void FocusBookmarksToolbar() override {}
-  void FocusInactivePopupForAccessibility() override {}
-  void RotatePaneFocus(bool forwards) override {}
-  void FocusWebContentsPane() override {}
   void ShowAppMenu() override {}
   void PreHandleDragUpdate(const content::DropData& drop_data,
                            const gfx::PointF& point) override {}
@@ -435,25 +429,11 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
   autofill::AutofillBubbleHandler* GetAutofillBubbleHandler() override;
   void ExecutePageActionIconForTesting(PageActionIconType type) override {}
   void ShowEmojiPanel() override;
-  bool IsBookmarkBarVisible() const override;
-  bool IsBookmarkBarAnimating() const override;
   bool IsTabStripEditable() const override;
   void DisableTabStripEditingForTesting() override {}
   bool IsToolbarVisible() const override;
   void ShowUpdateChromeDialog() override {}
   void ShowBookmarkBubble(const GURL& url, bool already_bookmarked) override {}
-  sharing_hub::ScreenshotCapturedBubble* ShowScreenshotCapturedBubble(
-      content::WebContents* contents,
-      const gfx::Image& image) override;
-  qrcode_generator::QRCodeGeneratorBubbleView* ShowQRCodeGeneratorBubble(
-      content::WebContents* contents,
-      const GURL& url,
-      bool show_back_button) override;
-  send_tab_to_self::SendTabToSelfBubbleView*
-  ShowSendTabToSelfDevicePickerBubble(content::WebContents* contents) override;
-  send_tab_to_self::SendTabToSelfBubbleView* ShowSendTabToSelfPromoBubble(
-      content::WebContents* contents,
-      bool show_signin_button) override;
   ShowTranslateBubbleResult ShowTranslateBubble(
       content::WebContents* contents,
       translate::TranslateStep step,
@@ -461,9 +441,6 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
       const std::string& target_language,
       translate::TranslateErrors error_type,
       bool is_user_gesture) override;
-  void StartPartialTranslate(const std::string& source_language,
-                             const std::string& target_language,
-                             const std::u16string& text_selection) override {}
   void ShowAvatarBubbleFromAvatarButton(bool is_source_accelerator) override {}
   DownloadBubbleUIController* GetDownloadBubbleUIController() override;
   void ConfirmBrowserCloseWithPendingDownloads(
@@ -503,12 +480,7 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
       const std::optional<url::Origin>& initiating_origin,
       IntentPickerResponse callback) override {}
 #endif
-  sharing_hub::SharingHubBubbleView* ShowSharingHubBubble(
-      share::ShareAttempt attempt) override;
   void UpdateCustomTabBarVisibility(bool visible, bool animate) override {}
-  SharingDialog* ShowSharingDialog(content::WebContents* contents,
-                                   SharingDialogData data) override;
-  void SetDevToolsScrimVisibility(bool visible) override {}
   void ShowHatsDialog(
       const std::string& site_id,
       const std::optional<std::string>& histogram_name,
@@ -596,6 +568,11 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
   // Activate an area to respond to when mouse into and out of.
   void SetHotSpot(HotSpot hotspot);
 
+  // Update the docked devtools.
+  void UpdateDevTools(content::WebContents* inspected_web_contents);
+
+  content::WebContents* GetActiveWebContents() const;
+
  private:
   enum QuitAction { ShowDialogOnQuit = 0, SaveSessionOnQuit, DoNothingOnQuit };
   enum class CloseDialogMode { CloseWindow = 0, QuitApplication };
@@ -651,8 +628,6 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
   void OnWebsiteSettingsStatClosed(views::Widget::ClosedReason closed_reason,
                                    bool reload_prompt);
 
-  content::WebContents* GetActiveWebContents() const;
-
   gfx::Insets GetFrameInsets() const;
 
   // views::WidgetObserver overrides
@@ -672,6 +647,7 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
   // Saved session history. To be called when last window closes before content
   // is removed.
   void AutoSaveSession();
+
   // This must be the first field for the class to ensure that it outlives any
   // other field that use the class as a delegate and embeds a raw pointer to
   // it.
@@ -781,10 +757,21 @@ class VivaldiBrowserWindow final : public views::WidgetObserver,
   // The icon family for the task bar and elsewhere.
   gfx::ImageFamily icon_family_;
 
+#if defined(USE_AURA)
+  // Stores the current event targeter installed on the native window.
+  // Used to explicitly remove it before destruction to prevent use-after-free
+  // when X11 geometry callbacks fire asynchronously after VivaldiBrowserWindow
+  // starts being destroyed. See VB-127324.
+  std::unique_ptr<ui::EventTargeter> event_targeter_;
+#endif
+
   DidFinishNavigationCallback did_finish_navigation_callback_;
 
   base::ObserverList<web_modal::ModalDialogHostObserver>
       modal_dialog_observers_;
+
+  std::vector<ContentsContainerView*> unused_contents_container_views_;
+  std::unique_ptr<DevtoolsUIController> devtools_ui_controller_;
 
   // Subscription for paint-as-active changes on the widget. Used to call
   // DidBecomeActive/DidBecomeInactive at the right time, accounting for child

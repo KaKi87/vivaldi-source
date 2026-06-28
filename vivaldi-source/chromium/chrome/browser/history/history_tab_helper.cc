@@ -20,7 +20,6 @@
 #include "components/history/core/browser/history_constants.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/history_types.h"
-#include "components/history/core/browser/url_row.h"
 #include "components/no_state_prefetch/browser/no_state_prefetch_manager.h"
 #include "components/sessions/content/navigation_task_id.h"
 #include "components/sessions/content/session_tab_helper.h"
@@ -43,13 +42,13 @@
 #include "chrome/browser/history/jni_headers/HistoryTabHelper_jni.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
-#include "components/feed/core/v2/public/feed_api.h"      // nogncheck
-#include "components/feed/core/v2/public/feed_service.h"  // nogncheck
+#include "components/feed/core/v2/public/feed_api.h"  // nogncheck crbug.com/40147906
+#include "components/feed/core/v2/public/feed_service.h"  // nogncheck crbug.com/40147906
 #include "content/public/browser/web_contents.h"
 #else
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #endif
 
 namespace {
@@ -142,10 +141,12 @@ history::VisitContextAnnotations::BrowserType GetBrowserType(
     case chrome::android::ActivityType::kWebapp:
     case chrome::android::ActivityType::kWebApk:
     case chrome::android::ActivityType::kPreFirstTab:
+    case chrome::android::ActivityType::kDevTools:
       return history::VisitContextAnnotations::BrowserType::kUnknown;
   }
 #else
-  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents);
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents);
   if (!browser) {
     return history::VisitContextAnnotations::BrowserType::kUnknown;
   }
@@ -325,21 +326,17 @@ history::HistoryAddPageArgs HistoryTabHelper::CreateHistoryAddPageArgs(
       !(base::FeatureList::IsEnabled(history::kVisitedLinksOn404) &&
         http_response_code == 404);
 
-  // If the visit was initiated by an actor, it should not contribute to the
-  // Most Visited tiles in the NTP.
-  bool visit_source_qualifies_for_ntp_most_visited = true;
   std::optional<int32_t> actor_task_id;
   actor_task_id =
       chrome_ui_data && chrome_ui_data->actor_task_id()
           ? std::make_optional(chrome_ui_data->actor_task_id().value())
           : std::nullopt;
-  visit_source_qualifies_for_ntp_most_visited =
-      !history::IsBrowsingHistoryActorIntegrationM2Enabled() ||
-      !actor_task_id.has_value();
 
+  // If the visit was initiated by an actor, it should not contribute to the
+  // Most Visited tiles in the NTP.
   const bool should_consider_for_ntp_most_visited =
       status_code_qualifies_for_ntp_most_visited &&
-      visit_source_qualifies_for_ntp_most_visited &&
+      !actor_task_id.has_value() &&
       ShouldConsiderForNtpMostVisited(*web_contents(), navigation_handle);
 
   // Reloads do not result in calling TitleWasSet() (which normally sets
@@ -682,7 +679,8 @@ bool HistoryTabHelper::IsEligibleTab(
   return true;
 #else
   // Don't update history if this web contents isn't associated with a tab.
-  return chrome::FindBrowserWithTab(web_contents()) != nullptr;
+  return GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+             web_contents()) != nullptr;
 #endif
 }
 

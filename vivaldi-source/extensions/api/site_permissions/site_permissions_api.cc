@@ -14,12 +14,12 @@
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/browser/website_settings_registry.h"
 #include "components/content_settings/core/common/content_settings_utils.h"
-#include "url/gurl.h"
 #include "components/permissions/permission_request.h"
 #include "extensions/browser/api/content_settings/content_settings_helpers.h"
 #include "extensions/browser/extension_function.h"
 #include "extensions/schema/site_permissions.h"
 #include "extensions/tools/vivaldi_tools.h"
+#include "url/gurl.h"
 
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/bluetooth/bluetooth_chooser_context_factory.h"
@@ -39,23 +39,23 @@
 
 // For security info
 #include "chrome/browser/extensions/extension_tab_util.h"
-#include "chrome/browser/ui/page_info/chrome_page_info_delegate.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/page_info/chrome_page_info_delegate.h"
 #include "chrome/browser/ui/page_info/page_info_infobar_delegate.h"
 #include "chrome/browser/ui/tab_contents/tab_contents_iterator.h"
 #include "chrome/browser/ui/tab_dialogs.h"
+#include "chrome/browser/ui/views/site_data/page_specific_site_data_dialog_controller.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/infobars/content/content_infobar_manager.h"
-#include "chrome/browser/ui/views/site_data/page_specific_site_data_dialog_controller.h"
 #include "components/security_state/content/security_state_tab_helper.h"
 #include "net/cert/cert_status_flags.h"
 #include "net/cert/x509_certificate.h"
 
 // For site data
-#include "components/content_settings/browser/page_specific_content_settings.h"
-#include "components/browsing_data/content/browsing_data_model.h"
-#include "components/content_settings/core/browser/cookie_settings.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
+#include "components/browsing_data/content/browsing_data_model.h"
+#include "components/content_settings/browser/page_specific_content_settings.h"
+#include "components/content_settings/core/browser/cookie_settings.h"
 #include "net/cookies/cookie_setting_override.h"
 #include "net/cookies/site_for_cookies.h"
 
@@ -84,9 +84,8 @@ bool RequiresSecondaryOrigin(
 }
 
 // Show a "reload to apply changes" infobar on tabs matching the given pattern.
-void ShowReloadInfoBarForPattern(
-    const ContentSettingsPattern& primary_pattern,
-    Profile* profile) {
+void ShowReloadInfoBarForPattern(const ContentSettingsPattern& primary_pattern,
+                                 Profile* profile) {
   tabs::ForEachTabInterface([&](tabs::TabInterface* tab) {
     content::WebContents* web_contents = tab->GetContents();
     const GURL tab_url = web_contents->GetLastCommittedURL();
@@ -157,11 +156,15 @@ inline vivaldi::site_permissions::SafeBrowsingStatus toSafeBrowsingStatus(
     case security_state::MALICIOUS_CONTENT_STATUS_SAVED_PASSWORD_REUSE:
       return vivaldi::site_permissions::SafeBrowsingStatus::kSavedPasswordReuse;
     case security_state::MALICIOUS_CONTENT_STATUS_SIGNED_IN_SYNC_PASSWORD_REUSE:
-      return vivaldi::site_permissions::SafeBrowsingStatus::kSignedInSyncPasswordReuse;
-    case security_state::MALICIOUS_CONTENT_STATUS_SIGNED_IN_NON_SYNC_PASSWORD_REUSE:
-      return vivaldi::site_permissions::SafeBrowsingStatus::kSignedInNonSyncPasswordReuse;
+      return vivaldi::site_permissions::SafeBrowsingStatus::
+          kSignedInSyncPasswordReuse;
+    case security_state::
+        MALICIOUS_CONTENT_STATUS_SIGNED_IN_NON_SYNC_PASSWORD_REUSE:
+      return vivaldi::site_permissions::SafeBrowsingStatus::
+          kSignedInNonSyncPasswordReuse;
     case security_state::MALICIOUS_CONTENT_STATUS_ENTERPRISE_PASSWORD_REUSE:
-      return vivaldi::site_permissions::SafeBrowsingStatus::kEnterprisePasswordReuse;
+      return vivaldi::site_permissions::SafeBrowsingStatus::
+          kEnterprisePasswordReuse;
     case security_state::MALICIOUS_CONTENT_STATUS_BILLING:
       return vivaldi::site_permissions::SafeBrowsingStatus::kBilling;
     case security_state::MALICIOUS_CONTENT_STATUS_MANAGED_POLICY_WARN:
@@ -191,8 +194,7 @@ permissions::ObjectPermissionContextBase* GetChooserContextForType(
 
 // All supported device chooser permission types.
 constexpr std::array<const char*, 4> kAllDeviceTypes = {
-    "usb-guard", "serial-guard", "hid-guard", "bluetooth-guard"
-};
+    "usb-guard", "serial-guard", "hid-guard", "bluetooth-guard"};
 
 // Various device chooser contexts crash in GetKeyForObject when devices
 // have alternative identifiers instead of the expected key fields.
@@ -250,8 +252,9 @@ SitePermissionsAPI::SitePermissionsAPI(content::BrowserContext* context)
 
 SitePermissionsAPI::~SitePermissionsAPI() {}
 
-void BrowserContextFactoryDependencies<SitePermissionsAPI>::DeclareFactoryDependencies(
-    BrowserContextKeyedAPIFactory<SitePermissionsAPI>* factory) {
+void BrowserContextFactoryDependencies<SitePermissionsAPI>::
+    DeclareFactoryDependencies(
+        BrowserContextKeyedAPIFactory<SitePermissionsAPI>* factory) {
   factory->DependsOn(
       ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   factory->DependsOn(HostContentSettingsMapFactory::GetInstance());
@@ -339,7 +342,7 @@ void SitePermissionsAPI::FirePermissionAccessedEvent(
   std::string permission_type = base::ToLowerASCII(
       content_settings_helpers::ContentSettingsTypeToString(type));
   FirePermissionAccessedEvent(browser_context, tab_id, permission_type, origin,
-                               setting, device_names);
+                              setting, device_names);
 }
 
 // static
@@ -405,7 +408,6 @@ void SitePermissionsAPI::FirePermissionRequestEvent(
     const std::string& protocol_name,
     const std::string& protocol_url,
     const std::string& embedding_origin) {
-
   // Generate unique request ID
   std::string request_id = GenerateRequestId();
 
@@ -439,8 +441,7 @@ void SitePermissionsAPI::FirePermissionRequestEvent(
 
   ::vivaldi::BroadcastEvent(
       vivaldi::site_permissions::OnPermissionRequest::kEventName,
-      vivaldi::site_permissions::OnPermissionRequest::Create(event),
-      profile_);
+      vivaldi::site_permissions::OnPermissionRequest::Create(event), profile_);
 }
 
 void SitePermissionsAPI::CleanupRequestsForTab(int tab_id) {
@@ -505,7 +506,8 @@ bool SitePermissionsAPI::RespondToPermissionRequest(
         perm->PermissionGranted(std::monostate(), false);  // Remember decision
         break;
       case CONTENT_SETTING_SESSION_ONLY:
-        perm->PermissionGranted(std::monostate(), true);  // One-time/this session
+        perm->PermissionGranted(std::monostate(),
+                                true);  // One-time/this session
         break;
       case CONTENT_SETTING_BLOCK:
         perm->PermissionDenied();
@@ -556,8 +558,7 @@ void SitePermissionsAPI::FirePermissionRequestEventForDeviceChooser(
 
   ::vivaldi::BroadcastEvent(
       vivaldi::site_permissions::OnPermissionRequest::kEventName,
-      vivaldi::site_permissions::OnPermissionRequest::Create(event),
-      profile_);
+      vivaldi::site_permissions::OnPermissionRequest::Create(event), profile_);
 }
 
 void SitePermissionsAPI::FirePermissionDeviceChooserUpdate(
@@ -619,8 +620,9 @@ void SitePermissionsAPI::FirePermissionDeviceChooserUpdate(
   // VB-114658: Don't erase pending_device_requests_ here even when enumeration
   // is complete. The request needs to stay alive until the user responds via
   // respondToPermissionRequest (which calls RespondToPermissionRequest).
-  // Erasing here caused immediate auto-denial because the request became "not found"
-  // when the user tried to respond, and the permission system auto-denies unknown requests.
+  // Erasing here caused immediate auto-denial because the request became "not
+  // found" when the user tried to respond, and the permission system
+  // auto-denies unknown requests.
 }
 
 ExtensionFunction::ResponseAction
@@ -838,7 +840,6 @@ SitePermissionsGetOverridesForSiteFunction::Run() {
 
   return RespondNow(ArgumentList(Results::Create(result)));
 }
-
 
 ExtensionFunction::ResponseAction
 SitePermissionsGetOverridesForPatternFunction::Run() {
@@ -1098,7 +1099,8 @@ SitePermissionsRespondToPermissionRequestFunction::Run() {
   std::optional<Params> params = Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
 
-  SitePermissionsAPI* api = SitePermissionsAPI::FromBrowserContext(browser_context());
+  SitePermissionsAPI* api =
+      SitePermissionsAPI::FromBrowserContext(browser_context());
   if (!api) {
     return RespondNow(Error("API not available"));
   }
@@ -1130,8 +1132,8 @@ SitePermissionsRespondToPermissionRequestFunction::Run() {
     }
   }
 
-  bool success =
-      api->RespondToPermissionRequest(params->request_id, setting, device_indices);
+  bool success = api->RespondToPermissionRequest(params->request_id, setting,
+                                                 device_indices);
 
   if (!success) {
     return RespondNow(Error("Request not found or already completed"));
@@ -1230,9 +1232,9 @@ SitePermissionsRevokeDeviceGrantFunction::Run() {
   auto origin = url::Origin::Create(GURL(params->origin));
 
   // Find the granted object matching the key, then revoke by object.
-  // This is necessary because UsbChooserContext overrides RevokeObjectPermission
-  // to handle ephemeral (GUID-based) devices that aren't in the base class's
-  // object store.
+  // This is necessary because UsbChooserContext overrides
+  // RevokeObjectPermission to handle ephemeral (GUID-based) devices that aren't
+  // in the base class's object store.
   auto objects = context->GetGrantedObjects(origin);
   for (const auto& object : objects) {
     if (GetSafeKeyForObject(context, object->value) == params->key) {
@@ -1291,7 +1293,7 @@ SitePermissionsGetSecurityInfoFunction::Run() {
   // Get WebContents from tab ID.
   content::WebContents* web_contents = nullptr;
   if (!ExtensionTabUtil::GetTabById(params->tab_id, browser_context(), true,
-                                     &web_contents)) {
+                                    &web_contents)) {
     return RespondNow(Error("Tab not found"));
   }
 
@@ -1305,8 +1307,10 @@ SitePermissionsGetSecurityInfoFunction::Run() {
   auto* helper = SecurityStateTabHelper::FromWebContents(web_contents);
   if (!helper) {
     // Tab doesn't have security state yet, return defaults.
-    security_info.connection_status = vivaldi::site_permissions::ConnectionStatus::kUnencrypted;
-    security_info.identity_status = vivaldi::site_permissions::IdentityStatus::kNoCert;
+    security_info.connection_status =
+        vivaldi::site_permissions::ConnectionStatus::kUnencrypted;
+    security_info.identity_status =
+        vivaldi::site_permissions::IdentityStatus::kNoCert;
     security_info.issuer_name = "";
     security_info.is_secure = false;
     return RespondNow(ArgumentList(Results::Create(std::move(security_info))));
@@ -1317,33 +1321,43 @@ SitePermissionsGetSecurityInfoFunction::Run() {
   // Map connection status based on certificate and cert_status.
   if (visible_security_state->certificate &&
       !(visible_security_state->cert_status & net::CERT_STATUS_ALL_ERRORS)) {
-    security_info.connection_status = vivaldi::site_permissions::ConnectionStatus::kEncrypted;
+    security_info.connection_status =
+        vivaldi::site_permissions::ConnectionStatus::kEncrypted;
     security_info.is_secure = true;
   } else if (!visible_security_state->certificate) {
-    security_info.connection_status = vivaldi::site_permissions::ConnectionStatus::kUnencrypted;
+    security_info.connection_status =
+        vivaldi::site_permissions::ConnectionStatus::kUnencrypted;
     security_info.is_secure = false;
   } else {
-    security_info.connection_status = vivaldi::site_permissions::ConnectionStatus::kError;
+    security_info.connection_status =
+        vivaldi::site_permissions::ConnectionStatus::kError;
     security_info.is_secure = false;
   }
 
   // Map identity status based on certificate.
   if (!visible_security_state->certificate) {
-    security_info.identity_status = vivaldi::site_permissions::IdentityStatus::kNoCert;
+    security_info.identity_status =
+        vivaldi::site_permissions::IdentityStatus::kNoCert;
   } else if (visible_security_state->two_qwac) {
-    security_info.identity_status = vivaldi::site_permissions::IdentityStatus::kQwacCert;
+    security_info.identity_status =
+        vivaldi::site_permissions::IdentityStatus::kQwacCert;
   } else if (visible_security_state->cert_status & net::CERT_STATUS_IS_EV) {
-    security_info.identity_status = vivaldi::site_permissions::IdentityStatus::kEvCert;
-  } else if (visible_security_state->cert_status & net::CERT_STATUS_ALL_ERRORS) {
-    security_info.identity_status = vivaldi::site_permissions::IdentityStatus::kError;
+    security_info.identity_status =
+        vivaldi::site_permissions::IdentityStatus::kEvCert;
+  } else if (visible_security_state->cert_status &
+             net::CERT_STATUS_ALL_ERRORS) {
+    security_info.identity_status =
+        vivaldi::site_permissions::IdentityStatus::kError;
   } else {
-    security_info.identity_status = vivaldi::site_permissions::IdentityStatus::kCert;
+    security_info.identity_status =
+        vivaldi::site_permissions::IdentityStatus::kCert;
   }
 
   // Extract issuer name from certificate.
   security_info.issuer_name = "";
   if (visible_security_state->certificate) {
-    security_info.issuer_name = visible_security_state->certificate->issuer().GetDisplayName();
+    security_info.issuer_name =
+        visible_security_state->certificate->issuer().GetDisplayName();
   }
 
   auto malicious_state = helper->GetMaliciousContentStatus();
@@ -1352,8 +1366,7 @@ SitePermissionsGetSecurityInfoFunction::Run() {
   return RespondNow(ArgumentList(Results::Create(std::move(security_info))));
 }
 
-ExtensionFunction::ResponseAction
-SitePermissionsGetSiteDataFunction::Run() {
+ExtensionFunction::ResponseAction SitePermissionsGetSiteDataFunction::Run() {
   using vivaldi::site_permissions::GetSiteData::Params;
   namespace Results = vivaldi::site_permissions::GetSiteData::Results;
 
@@ -1363,7 +1376,7 @@ SitePermissionsGetSiteDataFunction::Run() {
   // Get WebContents from tab ID.
   content::WebContents* web_contents = nullptr;
   if (!ExtensionTabUtil::GetTabById(params->tab_id, browser_context(), true,
-                                     &web_contents)) {
+                                    &web_contents)) {
     return RespondNow(Error("Tab not found"));
   }
 
@@ -1394,7 +1407,8 @@ SitePermissionsGetSiteDataFunction::Run() {
 
   // Helper lambda to count data entries.
   auto count_entries = [&site_data](BrowsingDataModel* model) {
-    if (!model) return;
+    if (!model)
+      return;
     for (auto entry : *model) {
       const auto& storage_types = entry.data_details->storage_types;
       if (storage_types.Has(BrowsingDataModel::StorageType::kCookie)) {
@@ -1427,12 +1441,11 @@ SitePermissionsGetSiteDataFunction::Run() {
       content_settings::SettingInfo bypass_info;
       GURL first_party_url = web_contents->GetLastCommittedURL();
       if (cookie_settings->IsThirdPartyAccessAllowed(first_party_url,
-                                                      &bypass_info)) {
+                                                     &bypass_info)) {
         site_data.third_party_cookies_bypass_active = true;
         if (!bypass_info.metadata.expiration().is_null()) {
-          site_data.third_party_cookies_bypass_expiration =
-              static_cast<double>(bypass_info.metadata.expiration()
-                                      .InMillisecondsSinceUnixEpoch());
+          site_data.third_party_cookies_bypass_expiration = static_cast<double>(
+              bypass_info.metadata.expiration().InMillisecondsSinceUnixEpoch());
         }
       }
     }
@@ -1455,12 +1468,10 @@ SitePermissionsGetSiteDataFunction::Run() {
     }
   }
 
-  return RespondNow(
-      ArgumentList(Results::Create(std::move(site_data))));
+  return RespondNow(ArgumentList(Results::Create(std::move(site_data))));
 }
 
-ExtensionFunction::ResponseAction
-SitePermissionsSetSiteDataFunction::Run() {
+ExtensionFunction::ResponseAction SitePermissionsSetSiteDataFunction::Run() {
   using vivaldi::site_permissions::SetSiteData::Params;
   namespace Results = vivaldi::site_permissions::SetSiteData::Results;
 
@@ -1498,7 +1509,7 @@ SitePermissionsSetSiteDataFunction::Run() {
       if (hcsm) {
         content_settings::SettingInfo existing_info;
         hcsm->GetContentSetting(GURL(), origin, ContentSettingsType::COOKIES,
-                                 &existing_info);
+                                &existing_info);
         if (!existing_info.secondary_pattern.MatchesAllHosts()) {
           cookie_settings->ResetThirdPartyCookieSetting(origin);
         }
@@ -1507,7 +1518,8 @@ SitePermissionsSetSiteDataFunction::Run() {
       cookie_settings->SetCookieSettingForUserBypass(origin);
     } else {
       // Disabling bypass: the UI only reaches here when a bypass is active, so
-      // a per-site rule always exists and Reset is safe (matches Chrome's flow).
+      // a per-site rule always exists and Reset is safe (matches Chrome's
+      // flow).
       cookie_settings->ResetThirdPartyCookieSetting(origin);
     }
   }
@@ -1525,7 +1537,7 @@ SitePermissionsShowCertificateDialogFunction::Run() {
   // Get WebContents from tab ID.
   content::WebContents* web_contents = nullptr;
   if (!ExtensionTabUtil::GetTabById(params->tab_id, browser_context(), true,
-                                     &web_contents)) {
+                                    &web_contents)) {
     return RespondNow(Error("Tab not found"));
   }
 
@@ -1561,7 +1573,7 @@ SitePermissionsShowSiteDataDialogFunction::Run() {
   // Get WebContents from tab ID.
   content::WebContents* web_contents = nullptr;
   if (!ExtensionTabUtil::GetTabById(params->tab_id, browser_context(), true,
-                                     &web_contents)) {
+                                    &web_contents)) {
     return RespondNow(Error("Tab not found"));
   }
 

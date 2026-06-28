@@ -7,6 +7,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #define TEST_ENABLE_TEMPORARY_TRACKING
 #define EIGEN_CACHEFRIENDLY_PRODUCT_THRESHOLD 8
@@ -72,8 +73,8 @@ void matrixRedux(const MatrixType& m) {
   VERIFY_IS_APPROX(m1.block(r0, c0, r1, c1).real().maxCoeff(), m1.block(r0, c0, r1, c1).real().eval().maxCoeff());
 
   // regression for bug 1090
-  const int R1 = MatrixType::RowsAtCompileTime >= 2 ? MatrixType::RowsAtCompileTime / 2 : 6;
-  const int C1 = MatrixType::ColsAtCompileTime >= 2 ? MatrixType::ColsAtCompileTime / 2 : 6;
+  constexpr int R1 = MatrixType::RowsAtCompileTime >= 2 ? MatrixType::RowsAtCompileTime / 2 : 6;
+  constexpr int C1 = MatrixType::ColsAtCompileTime >= 2 ? MatrixType::ColsAtCompileTime / 2 : 6;
   if (R1 <= rows - r0 && C1 <= cols - c0) {
     VERIFY_IS_APPROX((m1.template block<R1, C1>(r0, c0).sum()), m1.block(r0, c0, R1, C1).sum());
   }

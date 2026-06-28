@@ -27,14 +27,13 @@ function_registration("generated_api_registration") {
     # Different APIs include headers from these targets.
     ":generated_api_json_strings",
     ":generated_api_types",
-
     "//chrome/browser/resources/certificate_manager:mojom",
     "//chrome/common:buildflags",
     "//chrome/common/extensions/api",
     "//components/autofill/core/common/mojom:mojo_types",
     "//components/guest_view/common:mojom",
     "//components/omnibox/browser:buildflags",
-    "//components/paint_preview/buildflags:buildflags",
+    "//components/paint_preview/buildflags",
     "//components/qr_code_generator:bitmap_generator",
     "//components/translate/content/common",
     "//content/public/browser",
@@ -54,11 +53,8 @@ generated_types("generated_api_types") {
   target_prefix = "vivaldi"
   root = "//vivaldi/"
 
-  deps = [
-    "//extensions/common/api",
-  ]
+  deps = [ "//extensions/common/api" ]
 }
-
 
 group("schema") {
   public_deps = [

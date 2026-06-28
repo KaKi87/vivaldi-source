@@ -4,8 +4,11 @@
 
 #import "ios/chrome/browser/composebox/coordinator/composebox_input_plate_coordinator.h"
 
-#import <PhotosUI/PhotosUI.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+
+#import <algorithm>
+#import <iterator>
+#import <set>
 
 #import "base/memory/raw_ptr.h"
 #import "components/application_locale_storage/application_locale_storage.h"
@@ -22,20 +25,25 @@
 #import "ios/chrome/browser/cobrowse/model/cobrowse_browser_agent.h"
 #import "ios/chrome/browser/cobrowse/model/cobrowse_context.h"
 #import "ios/chrome/browser/composebox/coordinator/composebox_cobrowse_omnibox_client.h"
-#import "ios/chrome/browser/composebox/coordinator/composebox_entrypoint.h"
 #import "ios/chrome/browser/composebox/coordinator/composebox_input_plate_mediator.h"
 #import "ios/chrome/browser/composebox/coordinator/composebox_mode_holder.h"
 #import "ios/chrome/browser/composebox/coordinator/composebox_omnibox_client.h"
-#import "ios/chrome/browser/composebox/coordinator/composebox_tab_picker_coordinator.h"
 #import "ios/chrome/browser/composebox/debugger/composebox_debugger_logger.h"
+#import "ios/chrome/browser/composebox/menu/coordinator/composebox_menu_coordinator.h"
 #import "ios/chrome/browser/composebox/model/ios_contextual_search_service_factory.h"
+#import "ios/chrome/browser/composebox/public/composebox_attachment_selection.h"
+#import "ios/chrome/browser/composebox/public/composebox_entrypoint.h"
+#import "ios/chrome/browser/composebox/public/composebox_focus_params.h"
+#import "ios/chrome/browser/composebox/public/composebox_input_item_source.h"
 #import "ios/chrome/browser/composebox/public/composebox_model_option.h"
 #import "ios/chrome/browser/composebox/public/composebox_theme.h"
 #import "ios/chrome/browser/composebox/public/features.h"
+#import "ios/chrome/browser/composebox/shared/coordinator/composebox_attachment_diff.h"
+#import "ios/chrome/browser/composebox/shared/coordinator/composebox_picker_presenter.h"
+#import "ios/chrome/browser/composebox/shared/metrics/composebox_metrics_recorder.h"
+#import "ios/chrome/browser/composebox/shared/ui/composebox_snackbar_presenter.h"
 #import "ios/chrome/browser/composebox/ui/composebox_input_plate_view_controller.h"
 #import "ios/chrome/browser/composebox/ui/composebox_input_plate_view_controller_delegate.h"
-#import "ios/chrome/browser/composebox/ui/composebox_metrics_recorder.h"
-#import "ios/chrome/browser/composebox/ui/composebox_snackbar_presenter.h"
 #import "ios/chrome/browser/drag_and_drop/model/drag_item_util.h"
 #import "ios/chrome/browser/favicon/model/ios_chrome_favicon_loader_factory.h"
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
@@ -89,6 +97,7 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
     ComposeboxEntrypoint entrypoint) {
   switch (entrypoint) {
     case ComposeboxEntrypoint::kNTPAIMButton:
+    case ComposeboxEntrypoint::kNTPPlusButton:
       return contextual_search::ContextualSearchSource::kNewTabPage;
     case ComposeboxEntrypoint::kNTPFakebox:
     case ComposeboxEntrypoint::kOther:
@@ -103,12 +112,13 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
 @interface ComposeboxInputPlateCoordinator () <
     ComposeboxInputPlateMediatorDelegate,
     ComposeboxInputPlateViewControllerDelegate,
+    ComposeboxPickerPresenterDelegate,
+    ComposeboxPickerPresenterDataSource,
+    ComposeboxMenuCoordinatorDelegate,
+    ComposeboxMenuCoordinatorInputPlateDelegate,
     LocationBarModelDelegateWebStateProvider,
     LocationBarURLLoader,
     OmniboxFocusDelegate,
-    PHPickerViewControllerDelegate,
-    UIDocumentPickerDelegate,
-    UIImagePickerControllerDelegate,
     UINavigationControllerDelegate,
     UIViewControllerTransitioningDelegate,
     WebLocationBarDelegate>
@@ -118,8 +128,6 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
   ComposeboxInputPlateViewController* _viewController;
   ComposeboxInputPlateMediator* _mediator;
   id<VoiceSearchController> _voiceSearchController;
-  /// The prewarmed picker as it takes time to appear.
-  PHPickerViewController* _picker;
   /// The entrypoing from which the coordinator was invoked.
   ComposeboxEntrypoint _entrypoint;
   /// Optional query inserted into the omnibox at start.
@@ -133,33 +141,40 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
   std::unique_ptr<LocationBarModelDelegateIOS> _locationBarModelDelegate;
   std::unique_ptr<LocationBarModel> _locationBarModel;
   raw_ptr<contextual_search::ContextualSearchService> _contextualService;
-  ComposeboxTabPickerCoordinator* _tabPickerCoordinator;
   ComposeboxTheme* _theme;
   ComposeboxMetricsRecorder* _metricsRecorder;
   ComposeboxModeHolder* _modeHolder;
   ComposeboxSnackbarPresenter* _snackbarPresenter;
 
-  // Service to check for AI mode eligibility.
-  raw_ptr<AimEligibilityService> _aimEligibilityService;
-  // Subscription for AIM eligibility changes.
-  base::CallbackListSubscription _aimEligibilitySubscription;
+  // The coordinator for the bottom sheet menu.
+  ComposeboxMenuCoordinator* _menuCoorinator;
+
+  // Parameters used to focus and initialize the composebox.
+  ComposeboxFocusParams* _focusParams;
+
+  // The presenter for pickers.
+  ComposeboxPickerPresenter* _pickerPresenter;
 }
 
 - (instancetype)initWithBaseViewController:(UIViewController*)baseViewController
                                    browser:(Browser*)browser
-                                entrypoint:(ComposeboxEntrypoint)entrypoint
-                                     query:(NSString*)query
+                               focusParams:(ComposeboxFocusParams*)focusParams
                                  URLLoader:(id<ComposeboxURLLoader>)URLLoader
                                      theme:(ComposeboxTheme*)theme
                                 modeHolder:(ComposeboxModeHolder*)modeHolder {
   self = [super initWithBaseViewController:baseViewController browser:browser];
   if (self) {
-    _entrypoint = entrypoint;
-    _query = query;
+    _entrypoint = focusParams.entrypoint;
+    _query = focusParams.query;
     _URLLoader = URLLoader;
     _theme = theme;
-    _metricsRecorder = [[ComposeboxMetricsRecorder alloc] init];
+    // If there a shared metrics recorder, reuse it to maintain the same
+    // recording session.
+    _metricsRecorder = focusParams.metricsRecorder
+                           ?: [[ComposeboxMetricsRecorder alloc]
+                                  initWithEntrypoint:_entrypoint];
     _modeHolder = modeHolder;
+    _focusParams = focusParams;
   }
   return self;
 }
@@ -168,6 +183,11 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
   _viewController =
       [[ComposeboxInputPlateViewController alloc] initWithTheme:_theme];
   _viewController.delegate = self;
+  _pickerPresenter = [[ComposeboxPickerPresenter alloc]
+      initWithBaseViewController:_viewController
+                         browser:self.browser];
+  _pickerPresenter.delegate = self;
+  _pickerPresenter.dataSource = self;
 
   if (_entrypoint == ComposeboxEntrypoint::kNTPAIMButton) {
     [_metricsRecorder
@@ -194,13 +214,15 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
         std::move(query_controller_config_params),
         ContextualSearchSourceFromEntrypoint(_entrypoint),
         lens::LensOverlayInvocationSource::kOmniboxContextualQuery);
+    _metricsRecorder.contextualSearchMetricsRecorder =
+        contextualSearchSession->GetMetricsRecorder();
   }
 
   FaviconLoader* faviconLoader =
       IOSChromeFaviconLoaderFactory::GetForProfile(self.profile);
   TemplateURLService* templateURLService =
       ios::TemplateURLServiceFactory::GetForProfile(self.profile);
-  _aimEligibilityService =
+  AimEligibilityService* aimEligibilityService =
       IOSChromeAimEligibilityServiceFactory::GetForProfile(self.profile);
 
   CommandDispatcher* dispatcher = self.browser->GetCommandDispatcher();
@@ -214,7 +236,7 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
                           isIncognito:self.isOffTheRecord
                            modeHolder:_modeHolder
                    templateURLService:templateURLService
-                aimEligibilityService:_aimEligibilityService
+                aimEligibilityService:aimEligibilityService
                           prefService:self.profile->GetPrefs()
                               profile:self.profile
                  cobrowseBrowserAgent:CobrowseBrowserAgent::FromBrowser(
@@ -231,7 +253,6 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
   _mediator.delegate = self;
   _mediator.metricsRecorder = _metricsRecorder;
 
-  [self monitorSearchboxConfig];
 
   _viewController.mutator = _mediator;
   // Mediator is the voice search delegate to load queries in composebox.
@@ -277,25 +298,31 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
   [_omniboxCoordinator.managedViewController
       didMoveToParentViewController:_viewController];
 
+  if (_focusParams) {
+    [_mediator applyFocusParams:_focusParams];
+  }
+
   [_omniboxCoordinator updateOmniboxState];
-  [_omniboxCoordinator focusOmnibox];
+  if (_entrypoint != ComposeboxEntrypoint::kCobrowse) {
+    [_omniboxCoordinator focusOmnibox];
+  }
 }
 
 - (void)stop {
-  _aimEligibilitySubscription = {};
-  _aimEligibilityService = nullptr;
+  if (_menuCoorinator) {
+    [_menuCoorinator stop];
+    _menuCoorinator = nil;
+  }
   [_snackbarPresenter dismissAllSnackbars];
   [_snackbarPresenter stop];
   _snackbarPresenter = nil;
-  if (_tabPickerCoordinator.started) {
-    [_tabPickerCoordinator stop];
-    _tabPickerCoordinator = nil;
-  }
   [_metricsRecorder recordAttachmentButtonsUsageInSession];
+
+  _metricsRecorder.contextualSearchMetricsRecorder = nullptr;
 
   _viewController.mutator = nil;
   _viewController = nil;
-  _picker = nil;
+  _pickerPresenter = nil;
   [_voiceSearchController dismissMicPermissionHelp];
   [_voiceSearchController disconnect];
   _voiceSearchController = nil;
@@ -312,6 +339,7 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
   _locationBar = nullptr;
   _locationBarModel = nullptr;
   _locationBarModelDelegate = nullptr;
+  _focusParams = nullptr;
 }
 
 - (UIViewController*)inputViewController {
@@ -382,6 +410,13 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
                                               }];
 }
 
+- (void)composeboxViewControllerDidCompleteInitialPresentation:
+    (ComposeboxInputPlateViewController*)composeboxViewController {
+  if (_entrypoint == ComposeboxEntrypoint::kNTPPlusButton) {
+    [composeboxViewController showMultimodalMenu];
+  }
+}
+
 - (void)composeboxViewControllerDidTapGalleryButton:
     (ComposeboxInputPlateViewController*)composeboxViewController {
   [_metricsRecorder
@@ -390,8 +425,9 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
     [self showMaxAttachmentSnackbarError];
     return;
   }
-  [self composeboxViewControllerMayShowGalleryPicker:composeboxViewController];
-  [_viewController presentViewController:_picker animated:YES completion:nil];
+
+  [_pickerPresenter
+      presentGalleryPickerWithLimit:[_mediator remainingNumberOfImagesAllowed]];
 }
 
 - (void)composeboxViewControllerDidTapCameraButton:
@@ -402,35 +438,36 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
     [self showMaxAttachmentSnackbarError];
     return;
   }
-  if (![UIImagePickerController
-          isSourceTypeAvailable:UIImagePickerControllerSourceTypeCamera]) {
-    // TODO(crbug.com/40280872): Show an error to the user.
-    return;
-  }
 
-  UIImagePickerController* picker = [[UIImagePickerController alloc] init];
-  picker.delegate = self;
-  picker.sourceType = UIImagePickerControllerSourceTypeCamera;
-  [_viewController presentViewController:picker animated:YES completion:nil];
-}
-
-- (void)composeboxViewControllerMayShowGalleryPicker:
-    (ComposeboxInputPlateViewController*)composeboxViewController {
-  PHPickerConfiguration* config = [[PHPickerConfiguration alloc]
-      initWithPhotoLibrary:PHPhotoLibrary.sharedPhotoLibrary];
-  config.selectionLimit = [_mediator remainingNumberOfImagesAllowed];
-  config.filter = [PHPickerFilter imagesFilter];
-  _picker = [[PHPickerViewController alloc] initWithConfiguration:config];
-  _picker.delegate = self;
+  [_pickerPresenter presentCameraPicker];
 }
 
 - (void)composeboxViewController:
             (ComposeboxInputPlateViewController*)composeboxViewController
     didOpenPlusMenuWithVisibleInternalButtons:
-        (const std::vector<FuseboxAttachmentButtonType>&)
-            visibleInternalButtons {
+        (const std::vector<FuseboxAttachmentButtonType>&)visibleInternalButtons
+                                 uiInputState:(ComposeboxUIInputState*)state {
   [_mediator
-      recordPlusMenuOpenedWithVisibleInternalButtons:visibleInternalButtons];
+      recordPlusMenuOpenedWithVisibleInternalButtons:visibleInternalButtons
+                                        uiInputState:state];
+}
+
+- (void)composeboxViewControllerDidTapPlusButton:
+            (ComposeboxInputPlateViewController*)composeboxViewController
+                                withUIInputState:
+                                    (ComposeboxUIInputState*)state {
+  if (IsComposeboxPlusButtonBottomSheet()) {
+    _menuCoorinator = [[ComposeboxMenuCoordinator alloc]
+        initWithBaseViewController:_viewController
+                           browser:self.browser
+            preselectedAttachments:_mediator.currentAttachmentSelection
+                        inputState:state
+                   metricsRecorder:_metricsRecorder
+                        entrypoint:_entrypoint];
+    _menuCoorinator.inputPlateDelegate = self;
+    _menuCoorinator.delegate = self;
+    [_menuCoorinator start];
+  }
 }
 
 - (void)composeboxViewControllerDidTapFileButton:
@@ -441,18 +478,8 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
     [self showMaxAttachmentSnackbarError];
     return;
   }
-  UIDocumentPickerViewController* picker;
-  if (lens::features::IsLensSendRawFileMediaTypesEnabled()) {
-    picker = [[UIDocumentPickerViewController alloc]
-        initForOpeningContentTypes:@[ UTTypeData ]];
-  } else {
-    picker = [[UIDocumentPickerViewController alloc]
-        initForOpeningContentTypes:@[ UTTypePDF ]];
-  }
 
-  picker.allowsMultipleSelection = NO;
-  picker.delegate = self;
-  [_viewController presentViewController:picker animated:YES completion:nil];
+  [_pickerPresenter presentFilePicker];
 }
 
 - (void)composeboxViewControllerDidTapAttachTabsButton:
@@ -461,7 +488,10 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
     [self showMaxAttachmentSnackbarError];
     return;
   }
-  [self showComposeboxTabPicker];
+
+  [_metricsRecorder
+      recordAttachmentButtonUsed:FuseboxAttachmentButtonType::kTabPicker];
+  [_pickerPresenter presentTabPicker];
 }
 
 - (void)composeboxViewController:
@@ -470,49 +500,24 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
   [_metricsRecorder recordDragAndDropAttempt:type];
 }
 
-- (void)composeboxViewControllerDidTapAIMButton:
-            (ComposeboxInputPlateViewController*)viewController
-                               activationSource:
-                                   (AiModeActivationSource)activationSource {
-  if (_modeHolder.mode == ComposeboxMode::kAIM) {
-    _modeHolder.mode = ComposeboxMode::kRegularSearch;
-  } else {
-    _modeHolder.mode = ComposeboxMode::kAIM;
-    [_metricsRecorder recordAiModeActivationSource:activationSource];
-  }
+- (void)composeboxViewController:
+            (ComposeboxInputPlateViewController*)composeboxViewController
+                      didTapTool:(ComposeboxMode)toolMode
+                activationSource:(AiModeActivationSource)activationSource {
+  [self selectTool:toolMode activationSource:activationSource];
 }
 
-- (void)composeboxViewControllerDidTapImageGenerationButton:
-    (ComposeboxInputPlateViewController*)composeboxViewController {
-  if (_modeHolder.mode == ComposeboxMode::kImageGeneration) {
-    _modeHolder.mode = ComposeboxMode::kRegularSearch;
-  } else {
-    _modeHolder.mode = ComposeboxMode::kImageGeneration;
-  }
+- (void)composeboxViewController:
+            (ComposeboxInputPlateViewController*)composeboxViewController
+                  didSelectModel:(ComposeboxModelOption)modelOption {
+  [_mediator setModelOption:modelOption explicitUserAction:YES];
+  [_metricsRecorder recordModelSelected:modelOption];
 }
 
 - (void)composeboxViewController:
             (ComposeboxInputPlateViewController*)composeboxViewController
                 didTapSendButton:(UIButton*)button {
   [_omniboxCoordinator acceptInput];
-}
-
-- (void)composeboxViewControllerDidTapCanvasButton:
-    (ComposeboxInputPlateViewController*)composeboxViewController {
-  if (_modeHolder.mode == ComposeboxMode::kCanvas) {
-    _modeHolder.mode = ComposeboxMode::kRegularSearch;
-  } else {
-    _modeHolder.mode = ComposeboxMode::kCanvas;
-  }
-}
-
-- (void)composeboxViewControllerDidTapDeepSearchButton:
-    (ComposeboxInputPlateViewController*)composeboxViewController {
-  if (_modeHolder.mode == ComposeboxMode::kDeepSearch) {
-    _modeHolder.mode = ComposeboxMode::kRegularSearch;
-  } else {
-    _modeHolder.mode = ComposeboxMode::kDeepSearch;
-  }
 }
 
 - (void)didFailToAttachDueToIneligibleAttachments:
@@ -560,107 +565,6 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
 
   return GetWebStateForTabWithCriteria(browserList, tabSearchCriteria,
                                        _theme.incognito);
-}
-
-#pragma mark - PHPickerViewControllerDelegate
-
-- (void)picker:(PHPickerViewController*)picker
-    didFinishPicking:(NSArray<PHPickerResult*>*)results {
-  [picker dismissViewControllerAnimated:YES completion:nil];
-  _picker = nil;
-  if (results.count == 0) {
-    return;
-  }
-
-  [_metricsRecorder recordImagesAttached:results.count];
-
-  for (PHPickerResult* result in results) {
-    [_mediator processImageItemProvider:result.itemProvider
-                                assetID:result.assetIdentifier];
-  }
-}
-
-#pragma mark - UIDocumentPickerDelegate
-
-- (void)documentPicker:(UIDocumentPickerViewController*)controller
-    didPickDocumentsAtURLs:(NSArray<NSURL*>*)urls {
-  if (urls.count == 0) {
-    return;
-  }
-
-  [_metricsRecorder recordFilesAttached:urls.count];
-
-  NSURL* selectedURL = urls.firstObject;
-  if (!lens::features::IsLensSendRawFileMediaTypesEnabled()) {
-    [_mediator processFileURL:net::GURLWithNSURL(selectedURL) isPDF:YES];
-    return;
-  }
-
-  NSError* error = nil;
-  UTType* contentType = nil;
-
-  // Accessing the resource should be requested before using and relinquished
-  // when no longer needed.
-  // Revoking the access should be done once the resource is no longer needed,
-  // as requesting access again on a relinquished resource might fail.
-  BOOL accessing = [selectedURL startAccessingSecurityScopedResource];
-  [selectedURL getResourceValue:&contentType
-                         forKey:NSURLContentTypeKey
-                          error:&error];
-
-  auto stopAccessScopedResourcesIfNeeded = ^{
-    if (accessing) {
-      [selectedURL stopAccessingSecurityScopedResource];
-    }
-  };
-
-  if (contentType && !error) {
-    if ([contentType conformsToType:UTTypeImage]) {
-      NSItemProvider* provider =
-          [[NSItemProvider alloc] initWithContentsOfURL:selectedURL];
-      [_mediator processImageItemProvider:provider
-                                  assetID:selectedURL.absoluteString
-                               completion:stopAccessScopedResourcesIfNeeded];
-      return;
-    } else if ([contentType conformsToType:UTTypePDF]) {
-      [_mediator processFileURL:net::GURLWithNSURL(selectedURL)
-                          isPDF:YES
-                     completion:stopAccessScopedResourcesIfNeeded];
-      return;
-    }
-  }
-
-  [_mediator processFileURL:net::GURLWithNSURL(selectedURL)
-                      isPDF:NO
-                 completion:stopAccessScopedResourcesIfNeeded];
-}
-
-#pragma mark - UIImagePickerControllerDelegate
-
-- (void)imagePickerController:(UIImagePickerController*)picker
-    didFinishPickingMediaWithInfo:(NSDictionary<NSString*, id>*)info {
-  __weak __typeof(self) weakSelf = self;
-
-  [picker dismissViewControllerAnimated:YES
-                             completion:^{
-                               [weakSelf focusComposebox];
-                             }];
-
-  UIImage* image = info[UIImagePickerControllerOriginalImage];
-  if (!image) {
-    return;
-  }
-  NSItemProvider* provider = [[NSItemProvider alloc] initWithObject:image];
-  [_mediator processImageItemProvider:provider assetID:nil];
-}
-
-- (void)imagePickerControllerDidCancel:(UIImagePickerController*)picker {
-  __weak __typeof(self) weakSelf = self;
-
-  [picker dismissViewControllerAnimated:YES
-                             completion:^{
-                               [weakSelf focusComposebox];
-                             }];
 }
 
 #pragma mark - ComposeboxInputPlateMediatorDelegate
@@ -735,26 +639,6 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
   return _locationBarModel.get();
 }
 
-#pragma mark - ComposeboxTabPickerCommands
-
-- (void)showComposeboxTabPicker {
-  [_metricsRecorder
-      recordAttachmentButtonUsed:FuseboxAttachmentButtonType::kTabPicker];
-  _tabPickerCoordinator = [[ComposeboxTabPickerCoordinator alloc]
-      initWithBaseViewController:_viewController
-                         browser:self.browser
-                           theme:_theme];
-  _tabPickerCoordinator.debugLogger = self.debugLogger;
-  _tabPickerCoordinator.delegate = _mediator;
-  _tabPickerCoordinator.composeboxTabPickerHandler = self;
-  [_tabPickerCoordinator start];
-}
-
-- (void)hideComposeboxTabPicker {
-  [_tabPickerCoordinator stop];
-  _tabPickerCoordinator = nil;
-}
-
 #pragma mark - OmniboxFocusDelegate
 
 - (void)omniboxDidBecomeFirstResponder {
@@ -776,6 +660,24 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
 }
 
 #pragma mark - Private helpers
+
+/// Updates the active tool mode in the composebox, toggling it off if it's
+/// already active, and records associated metrics.
+- (void)selectTool:(ComposeboxMode)toolMode
+    activationSource:(AiModeActivationSource)activationSource {
+  if (_modeHolder.mode == toolMode) {
+    ComposeboxMode defaultMode = _entrypoint == ComposeboxEntrypoint::kCobrowse
+                                     ? ComposeboxMode::kAIM
+                                     : ComposeboxMode::kRegularSearch;
+    _modeHolder.mode = defaultMode;
+  } else {
+    _modeHolder.mode = toolMode;
+    if (toolMode == ComposeboxMode::kAIM) {
+      [_metricsRecorder recordAiModeActivationSource:activationSource];
+    }
+    [_metricsRecorder recordToolSelected:toolMode];
+  }
+}
 
 - (void)focusComposebox {
   [_omniboxCoordinator focusOmnibox];
@@ -819,8 +721,9 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
   if (!_theme.isTopInputPlate) {
     offset += _viewController.inputHeight + kSnackbarBottomMargin;
   }
-  [_snackbarPresenter
-      showAttachmentLimitForImageGenerationSnackbarWithBottomOffset:offset];
+  [_snackbarPresenter showAttachmentLimitForImageGenerationSnackbar:
+                          kAttachmentLimitForImageGeneration
+                                                   withBottomOffset:offset];
 }
 
 - (void)createSnackbarPresenterIfNeeded {
@@ -831,29 +734,144 @@ contextual_search::ContextualSearchSource ContextualSearchSourceFromEntrypoint(
       [[ComposeboxSnackbarPresenter alloc] initWithBrowser:self.browser];
 }
 
-// Observes the changes in eligibility and sends the searchbox config.
-- (void)monitorSearchboxConfig {
-  if (!_aimEligibilityService) {
+#pragma mark - ComposeboxPickerPresenterDelegate
+
+- (void)composeboxPickerPresenter:(ComposeboxPickerPresenter*)presenter
+                    didPickImages:
+                        (NSArray<ComposeboxPickerImageResult*>*)results {
+  if (results.count == 0) {
     return;
   }
 
-  [self updateSearchboxConfig];
-  __weak __typeof(self) weakSelf = self;
-  _aimEligibilitySubscription =
-      _aimEligibilityService->RegisterEligibilityChangedCallback(
-          base::BindRepeating(^{
-            [weakSelf updateSearchboxConfig];
-          }));
+  [_metricsRecorder recordImagesAttached:results.count];
+
+  for (ComposeboxPickerImageResult* result in results) {
+    [_mediator processImageItemProvider:result.imageProvider
+                                assetID:result.assetID
+                                 source:result.source];
+  }
 }
 
-// Propagates the searchbox config.
-- (void)updateSearchboxConfig {
-  if (!_aimEligibilityService) {
+- (void)composeboxPickerPresenter:(ComposeboxPickerPresenter*)presenter
+             didPickFilesWithURLs:(NSArray<NSURL*>*)urls {
+  if (urls.count == 0) {
     return;
   }
-  const omnibox::SearchboxConfig* config =
-      _aimEligibilityService->GetSearchboxConfig();
-  [_mediator setSearchboxConfig:config];
+
+  [_metricsRecorder recordFilesAttached:urls.count];
+
+  NSURL* selectedURL = urls.firstObject;
+  if (!lens::features::IsLensSendRawFileMediaTypesEnabled()) {
+    [_mediator processFileURL:net::GURLWithNSURL(selectedURL) isPDF:YES];
+    return;
+  }
+
+  NSError* error = nil;
+  UTType* contentType = nil;
+
+  // Accessing the resource should be requested before using and relinquished
+  // when no longer needed.
+  // Revoking the access should be done once the resource is no longer needed,
+  // as requesting access again on a relinquished resource might fail.
+  BOOL accessing = [selectedURL startAccessingSecurityScopedResource];
+  [selectedURL getResourceValue:&contentType
+                         forKey:NSURLContentTypeKey
+                          error:&error];
+
+  auto stopAccessScopedResourcesIfNeeded = ^{
+    if (accessing) {
+      [selectedURL stopAccessingSecurityScopedResource];
+    }
+  };
+
+  if (contentType && !error) {
+    if ([contentType conformsToType:UTTypeImage]) {
+      NSItemProvider* provider =
+          [[NSItemProvider alloc] initWithContentsOfURL:selectedURL];
+      [_mediator processImageItemProvider:provider
+                                  assetID:selectedURL.absoluteString
+                                   source:ComposeboxInputItemSource::kFilePicker
+                               completion:stopAccessScopedResourcesIfNeeded];
+      return;
+    } else if ([contentType conformsToType:UTTypePDF]) {
+      [_mediator processFileURL:net::GURLWithNSURL(selectedURL)
+                          isPDF:YES
+                     completion:stopAccessScopedResourcesIfNeeded];
+      return;
+    }
+  }
+
+  [_mediator processFileURL:net::GURLWithNSURL(selectedURL)
+                      isPDF:NO
+                 completion:stopAccessScopedResourcesIfNeeded];
+}
+
+- (void)composeboxPickerPresenterDidDissmissCamera:
+    (ComposeboxPickerPresenter*)presenter {
+  [self focusComposebox];
+}
+
+- (void)composeboxPickerPresenter:(ComposeboxPickerPresenter*)presenter
+    handleSelectedTabsWithWebStateIDs:
+        (std::set<web::WebStateID>)selectedWebStateIDs
+                    cachedWebStateIDs:
+                        (std::set<web::WebStateID>)cachedWebStateIDs {
+  std::set<web::WebStateID> alreadyProcessedIDs =
+      [_mediator allAttachedWebStateIDs];
+  composebox::TabDiff diff =
+      composebox::ComputeTabDiff(alreadyProcessedIDs, selectedWebStateIDs);
+
+  if (diff.added.size() > 0) {
+    [_metricsRecorder recordTabPickerTabsAttached:diff.added.size()];
+  }
+
+  [_mediator attachSelectedTabsWithWebStateIDs:selectedWebStateIDs
+                             cachedWebStateIDs:cachedWebStateIDs];
+}
+
+#pragma mark - ComposeboxPickerPresenterDataSource
+
+- (std::set<web::WebStateID>)allAttachedWebStateIDsForPresenter:
+    (ComposeboxPickerPresenter*)presenter {
+  return [_mediator allAttachedWebStateIDs];
+}
+
+- (std::set<web::WebStateID>)attachedWebStateIDsInCurrentContextForPresenter:
+    (ComposeboxPickerPresenter*)presenter {
+  return [_mediator attachedWebStateIDsInCurrentContext];
+}
+
+- (NSUInteger)maxTabAttachmentCountForPresenter:
+    (ComposeboxPickerPresenter*)presenter {
+  return [_mediator maxTabAttachmentCount];
+}
+
+#pragma mark - ComposeboxMenuCoordinatorInputPlateDelegate
+
+- (void)composeboxMenuCoordinator:(ComposeboxMenuCoordinator*)coordinator
+                       didTapTool:(ComposeboxMode)toolMode {
+  [self selectTool:toolMode activationSource:AiModeActivationSource::kToolMenu];
+}
+
+- (void)composeboxMenuCoordinator:(ComposeboxMenuCoordinator*)coordinator
+                      didTapModel:(ComposeboxModelOption)modelMode {
+  [_mediator setModelOption:modelMode explicitUserAction:YES];
+  [_metricsRecorder recordModelSelected:modelMode];
+}
+
+- (void)composeboxMenuCoordinator:(ComposeboxMenuCoordinator*)coordinator
+             didUpdateAttachments:(ComposeboxAttachmentSelection*)attachments {
+  if (attachments) {
+    [_mediator updateAttachments:attachments];
+  }
+}
+
+#pragma mark - ComposeboxMenuCoordinatorDelegate
+
+- (void)composeboxMenuCoordinatorDidDismissMenu:
+    (ComposeboxMenuCoordinator*)composeboxMenuCoordinator {
+  [_menuCoorinator stop];
+  _menuCoorinator = nil;
 }
 
 @end

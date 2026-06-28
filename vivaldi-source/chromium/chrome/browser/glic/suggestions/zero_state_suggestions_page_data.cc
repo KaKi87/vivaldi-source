@@ -4,6 +4,7 @@
 
 #include "chrome/browser/glic/suggestions/zero_state_suggestions_page_data.h"
 
+#include "base/check.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros_local.h"
 #include "base/strings/stringprintf.h"
@@ -54,10 +55,8 @@ bool IsEligibleForContextualSuggestions(
 void GetEligibilityAndRunCallback(
     const GURL& url,
     optimization_guide::PageContextEligibility* page_context_eligibility,
-    base::OnceCallback<
-        void(scoped_refptr<
-             const page_content_annotations::RefCountedAnnotatedPageContent>)>
-        callback,
+    base::OnceCallback<void(
+        page_content_annotations::RefCountedAnnotatedPageContentPtr)> callback,
     optimization_guide::AIPageContentResultOrError content) {
   bool is_eligible =
       content.has_value() &&
@@ -251,15 +250,13 @@ void ZeroStateSuggestionsPageData::InitiatePageContentExtraction() {
           profile->IsOffTheRecord(), profile->GetPrefs());
   if (can_request_metadata) {
     optimization_guide_keyed_service_->CanApplyOptimization(
-        web_contents->GetLastCommittedURL(),
-        optimization_guide::proto::GLIC_ZERO_STATE_SUGGESTIONS,
+        url, optimization_guide::proto::GLIC_ZERO_STATE_SUGGESTIONS,
         base::BindOnce(
             &ZeroStateSuggestionsPageData::OnReceivedOptimizationMetadata,
             weak_ptr_factory_.GetWeakPtr()));
   } else {
     optimization_guide_keyed_service_->CanApplyOptimizationOnDemand(
-        {web_contents->GetLastCommittedURL()},
-        {optimization_guide::proto::GLIC_ZERO_STATE_SUGGESTIONS},
+        {url}, {optimization_guide::proto::GLIC_ZERO_STATE_SUGGESTIONS},
         optimization_guide::proto::RequestContext::
             CONTEXT_GLIC_ZERO_STATE_SUGGESTIONS,
         base::BindRepeating(&ZeroStateSuggestionsPageData::
@@ -270,6 +267,14 @@ void ZeroStateSuggestionsPageData::InitiatePageContentExtraction() {
 
 void ZeroStateSuggestionsPageData::GetPageContext(
     PageContextCallback callback) {
+  content::WebContents* web_contents =
+      content::WebContents::FromRenderFrameHost(&(page().GetMainDocument()));
+  if (!IsSamePrimaryPage(web_contents)) {
+    std::move(callback).Run(
+        base::unexpected(PageContextIneligibilityType::kPageContext));
+    return;
+  }
+
   if (work_done()) {
     std::move(callback).Run(ConstructPageContextProto());
     return;
@@ -281,9 +286,7 @@ void ZeroStateSuggestionsPageData::GetPageContext(
 }
 
 void ZeroStateSuggestionsPageData::OnReceivedAnnotatedPageContent(
-    scoped_refptr<
-        const page_content_annotations::RefCountedAnnotatedPageContent>
-        content) {
+    page_content_annotations::RefCountedAnnotatedPageContentPtr content) {
   if (annotated_page_content_done_) {
     return;
   }
@@ -369,6 +372,14 @@ void ZeroStateSuggestionsPageData::GiveUp() {
 }
 
 void ZeroStateSuggestionsPageData::InvokePageContextCallbacksIfComplete() {
+  content::WebContents* web_contents =
+      content::WebContents::FromRenderFrameHost(&(page().GetMainDocument()));
+  if (!IsSamePrimaryPage(web_contents)) {
+    page_context_callbacks_.Notify(
+        base::unexpected(PageContextIneligibilityType::kPageContext));
+    return;
+  }
+
   if (!work_done()) {
     return;
   }
@@ -400,8 +411,13 @@ void ZeroStateSuggestionsPageData::InvokePageContextCallbacksIfComplete() {
 }
 
 const GURL ZeroStateSuggestionsPageData::GetUrl() const {
-  return content::WebContents::FromRenderFrameHost(&(page().GetMainDocument()))
-      ->GetLastCommittedURL();
+  return page().GetMainDocument().GetLastCommittedURL();
+}
+
+bool ZeroStateSuggestionsPageData::IsSamePrimaryPage(
+    content::WebContents* web_contents) const {
+  return web_contents && page().GetMainDocument().IsActive() &&
+         &page() == &web_contents->GetPrimaryPage();
 }
 
 optimization_guide::proto::ZeroStatePageContext

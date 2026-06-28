@@ -21,12 +21,16 @@ import android.text.TextUtils;
 import android.text.style.ReplacementSpan;
 import android.util.AttributeSet;
 import android.util.TypedValue;
+import android.view.ContextMenu;
 import android.view.InputDevice;
 import android.view.KeyEvent;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup.LayoutParams;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.autofill.AutofillManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
@@ -52,10 +56,12 @@ import org.chromium.build.annotations.CheckDiscard;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.toolbar.ToolbarVariationUtils;
 import org.chromium.components.browser_ui.share.ShareHelper;
 import org.chromium.components.browser_ui.util.FirstDrawDetector;
 import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.ui.KeyboardVisibilityDelegate;
+import org.chromium.ui.base.Clipboard;
 import org.chromium.ui.base.KeyNavigationUtil;
 import org.chromium.ui.display.DisplayAndroid;
 import org.chromium.ui.display.DisplayUtil;
@@ -67,6 +73,7 @@ import java.lang.annotation.RetentionPolicy;
 @NullMarked
 public class UrlBar extends AutocompleteEditText {
     private static final String TAG = "UrlBar";
+    private static final String ACCESSIBILITY_WARNING_FORMAT = "%s. %s";
     @VisibleForTesting static final float LINE_HEIGHT_FACTOR = 1.15f;
 
     private static final boolean DEBUG = false;
@@ -105,6 +112,7 @@ public class UrlBar extends AutocompleteEditText {
     private @Nullable UrlBarTextContextMenuDelegate mTextContextMenuDelegate;
     private @Nullable Callback<Integer> mUrlDirectionListener;
     private @Nullable Callback<Boolean> mUrlTextWrappingChangeListener;
+    private @Nullable Runnable mManageSearchEnginesCallback;
 
     private final Rect mClipBounds = new Rect();
 
@@ -134,6 +142,7 @@ public class UrlBar extends AutocompleteEditText {
     // guarantee that the text does contain the span currently as newly set text may have cleared
     // this (and it the value will only be recalculated after the text has been changed).
     private boolean mDidEllipsizeTextHint;
+    private boolean mBoundsEllipsisEnabled;
 
     /**
      * The character index in the displayed text where the origin ends. This is required to ensure
@@ -160,6 +169,12 @@ public class UrlBar extends AutocompleteEditText {
      */
     private @Nullable CharSequence mTextForAutofillServices;
 
+    /**
+     * An optional accessibility warning message that is appended to the UrlBar's content
+     * description when TalkBack is active (e.g., a warning for non-secure connections).
+     */
+    private @Nullable String mAccessibilityWarning;
+
     protected boolean mRequestingAutofillStructure;
 
     /** Delegate used to communicate with the content side and the parent layout. */
@@ -182,6 +197,39 @@ public class UrlBar extends AutocompleteEditText {
 
         /** Called to notify that UrlBar has been touched after focus. */
         void onTouchAfterFocus();
+
+        /**
+         * Called when an editor action is performed on the UrlBar.
+         *
+         * @param actionCode The action code performed.
+         */
+        default void onEditorAction(int actionCode) {}
+
+        /** Returns whether showing the keyboard should be suppressed. */
+        default boolean isKeyboardSuppressed() {
+            return false;
+        }
+
+        /**
+         * Called when the share action is selected from the text context menu.
+         *
+         * @param text The text to be shared.
+         */
+        default void shareText(String text) {}
+
+        /**
+         * Gets potential replacement text to be used instead of the current selected text for
+         * cut/copy actions. If null is returned, the existing text will be cut or copied.
+         *
+         * @param currentText The current displayed text.
+         * @param selectionStart The selection start in the display text.
+         * @param selectionEnd The selection end in the display text.
+         * @return The text to be cut/copied instead of the currently selected text.
+         */
+        default @Nullable String getReplacementCutCopyText(
+                String currentText, int selectionStart, int selectionEnd) {
+            return null;
+        }
     }
 
     /** Delegate that provides the additional functionality to the textual context menus. */
@@ -228,22 +276,34 @@ public class UrlBar extends AutocompleteEditText {
             // - dlig=0 - disable decorative ligatures (sp, Th, ...)
             setFontFeatureSettings("liga=0, clig=0, calt=0, dlig=0");
         }
+
         // Use a global draw instead of View#onDraw in case this View is not visible.
         FirstDrawDetector.waitForFirstDraw(
                 this,
                 () -> {
                     // We have now avoided the first draw problem (see the comments above) so we
-                    // want to
-                    // make the URL bar focusable so that touches etc. activate it.
+                    // want to make the URL bar focusable so that touches etc. activate it.
                     setFocusable(mAllowFocus);
                     setFocusableInTouchMode(mAllowFocus);
+
+                    // Override Android defaults that are applied by the OS as part of the text
+                    // initialization. If applied directly from the constructor - Android will
+                    // revert these settings to what it assumes is right.
+                    // Android does that because the `inputType` is intentionally not set to
+                    // `multiline`, however the moment we do that - Android applies other
+                    // incompatible defaults (and starts wrapping URLs).
+                    setSingleLine(false);
+                    setMaxLines(MULTILINE_EDIT_MAX_LINES);
+                    setHorizontallyScrolling(true);
                 });
 
         setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         int verticalPadding =
                 getResources().getDimensionPixelSize(R.dimen.url_bar_vertical_padding);
         int endPadding = getResources().getDimensionPixelSize(R.dimen.url_bar_end_padding);
-        setPaddingRelative(0, verticalPadding, endPadding, verticalPadding);
+        // Vivaldi Ref: VAB-12212
+        int startPadding = getResources().getDimensionPixelSize(R.dimen.url_bar_start_padding);
+        setPaddingRelative(startPadding, verticalPadding, endPadding, verticalPadding); // Vivaldi
 
         // Always select all content if the focus is triggered by the user.
         // Software triggered focus can apply selection at will, but when focus comes from
@@ -282,11 +342,30 @@ public class UrlBar extends AutocompleteEditText {
         setOnFocusChangeListener(null);
         mTextContextMenuDelegate = null;
         mTextChangeListener = null;
+        mManageSearchEnginesCallback = null;
+    }
+
+    /**
+     * Clears text selection, which also has the side effect of dismissing the Android selection
+     * handles and context menu if showing.
+     */
+    public void clearTextSelection() {
+        if (isFocused()) {
+            int selectionEnd = getSelectionEnd();
+            if (selectionEnd >= 0) {
+                setSelection(selectionEnd);
+            }
+        }
     }
 
     /** Set the delegate to be used for text context menu actions. */
     public void setTextContextMenuDelegate(UrlBarTextContextMenuDelegate delegate) {
         mTextContextMenuDelegate = delegate;
+    }
+
+    /** Set the callback to trigger "Manage search engines" settings shortcut. */
+    public void setManageSearchEnginesCallback(@Nullable Runnable callback) {
+        mManageSearchEnginesCallback = callback;
     }
 
     @Override
@@ -335,6 +414,14 @@ public class UrlBar extends AutocompleteEditText {
             mPendingScroll = false;
         }
         fixupTextDirection();
+
+        if (shouldApplyBoundsEllipsis()) {
+            // While focused for editing, clear all ellipsis overrides so the raw URL stream remains
+            // fully legible. When unfocused, append trailing ellipsis mapping against viewport
+            // limits.
+            setEllipsize(focused ? null : TextUtils.TruncateAt.END);
+            if (focused) clearBoundsEllipsisSpans(getText());
+        }
     }
 
     @Override
@@ -368,16 +455,21 @@ public class UrlBar extends AutocompleteEditText {
         updateUrlBarForMultilineInput();
     }
 
+    /** Sets whether this {@link UrlBar} should enable bounds ellipsis. */
+    public void setBoundsEllipsisEnabled(boolean enabled) {
+        mBoundsEllipsisEnabled = enabled;
+        setEllipsize(shouldApplyBoundsEllipsis() ? TextUtils.TruncateAt.END : null);
+    }
+
+    private boolean shouldApplyBoundsEllipsis() {
+        return mBoundsEllipsisEnabled
+                && ToolbarVariationUtils.isToolbarUiRefactorEnabled(getContext());
+    }
+
     private void updateUrlBarForMultilineInput() {
-        if (mFocused && mAllowMultilineInput) {
-            setSingleLine(false);
-            setMaxLines(MULTILINE_EDIT_MAX_LINES);
-            setHorizontallyScrolling(!mCurrentInputCanBeWrapped);
-        } else {
-            setSingleLine(true);
-            setMaxLines(1);
-            setHorizontallyScrolling(true);
-        }
+        boolean wantWrap = mFocused && mAllowMultilineInput && mCurrentInputCanBeWrapped;
+        if (wantWrap == !isHorizontallyScrollable()) return;
+        setHorizontallyScrolling(!wantWrap);
     }
 
     /**
@@ -418,20 +510,13 @@ public class UrlBar extends AutocompleteEditText {
     public void onWindowFocusChanged(boolean hasWindowFocus) {
         super.onWindowFocusChanged(hasWindowFocus);
         if (DEBUG) Log.i(TAG, "onWindowFocusChanged: " + hasWindowFocus);
-        if (hasWindowFocus) {
-            if (isFocused()) {
-                // Without the call to post(..), the keyboard was not getting shown when the
-                // window regained focus despite this being the final call in the view system
-                // flow.
-                post(
-                        new Runnable() {
-                            @Override
-                            public void run() {
-                                KeyboardVisibilityDelegate.getInstance().showKeyboard(UrlBar.this);
-                            }
-                        });
-            }
-        }
+        if (!hasWindowFocus || !isFocused()) return;
+        if (mUrlBarDelegate != null && mUrlBarDelegate.isKeyboardSuppressed()) return;
+
+        // Without the call to post(..), the keyboard was not getting shown when the
+        // window regained focus despite this being the final call in the view system
+        // flow.
+        post(() -> KeyboardVisibilityDelegate.getInstance().showKeyboard(UrlBar.this));
     }
 
     @Override
@@ -456,7 +541,7 @@ public class UrlBar extends AutocompleteEditText {
         // See crbug.com/410642190
         super.onTextChanged(text, start, lengthBefore, lengthAfter);
 
-        // Due to crbug.com/1103555, Autofill had to be disabled on the UrlBar to work around
+        // Due to crbug.com/40139311, Autofill had to be disabled on the UrlBar to work around
         // an issue on Android Q+. With Autofill disabled, the Autofill compat mode no longer
         // learns of changes to the UrlBar, which prevents it from cancelling the session if
         // the domain changes. We restore this behavior by mimicking the relevant part of
@@ -557,6 +642,14 @@ public class UrlBar extends AutocompleteEditText {
         }
 
         return result;
+    }
+
+    @Override
+    public void onEditorAction(int actionCode) {
+        if (mUrlBarDelegate != null) {
+            mUrlBarDelegate.onEditorAction(actionCode);
+        }
+        super.onEditorAction(actionCode);
     }
 
     /**
@@ -673,69 +766,111 @@ public class UrlBar extends AutocompleteEditText {
         mTextForAutofillServices = text;
     }
 
+    /** Sets the accessibility warning text to append to the TalkBack description. */
+    public void setAccessibilityWarning(@Nullable String warning) {
+        if (TextUtils.equals(mAccessibilityWarning, warning)) return;
+        mAccessibilityWarning = warning;
+        sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
+    }
+
+    @Override
+    public void onInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info) {
+        super.onInitializeAccessibilityNodeInfo(info);
+        if (!TextUtils.isEmpty(mAccessibilityWarning)) {
+            CharSequence text = info.getText();
+            if (text != null) {
+                info.setText(
+                        String.format(ACCESSIBILITY_WARNING_FORMAT, text, mAccessibilityWarning));
+            }
+        }
+    }
+
     @Override
     public boolean onTextContextMenuItem(int id) {
         if (mTextContextMenuDelegate == null) return super.onTextContextMenuItem(id);
 
-        if (id == android.R.id.paste) {
-            String pasteString = mTextContextMenuDelegate.getTextToPaste();
-            if (pasteString != null) {
-                int min = 0;
-                int max = getText().length();
+        boolean isCutOption = false;
+        int selStart = isFocused() ? getSelectionStart() : 0;
+        int selEnd = isFocused() ? getSelectionEnd() : getText().length();
 
-                if (isFocused()) {
-                    final int selStart = getSelectionStart();
-                    final int selEnd = getSelectionEnd();
-
-                    min = Math.max(0, Math.min(selStart, selEnd));
-                    max = Math.max(0, Math.max(selStart, selEnd));
-                }
-
-                Selection.setSelection(getText(), max);
-                getText().replace(min, max, pasteString);
+        switch (id) {
+            case android.R.id.paste:
+                String pasteString = mTextContextMenuDelegate.getTextToPaste();
+                // Forbid pasting to unfocused Omnibox.
+                if (pasteString == null || !isFocused()) return true;
+                Selection.setSelection(getText(), selEnd);
+                getText().replace(selStart, selEnd, pasteString);
                 onPaste();
-            }
-            return true;
-        }
+                return true;
 
-        if ((id == android.R.id.cut || id == android.R.id.copy)) {
-            if (id == android.R.id.cut) {
-                RecordUserAction.record("Omnibox.LongPress.Cut");
-            } else {
-                RecordUserAction.record("Omnibox.LongPress.Copy");
-            }
-            String currentText = getText().toString();
-            String replacementCutCopyText =
-                    mTextContextMenuDelegate.getReplacementCutCopyText(
-                            currentText, getSelectionStart(), getSelectionEnd());
-            if (replacementCutCopyText == null) return super.onTextContextMenuItem(id);
+            case android.R.id.cut:
+                isCutOption = true; // Fall through.
 
-            setIgnoreTextChangesForAutocomplete(true);
-            setText(replacementCutCopyText);
-            setSelection(0, replacementCutCopyText.length());
-            setIgnoreTextChangesForAutocomplete(false);
+            case android.R.id.copy:
+                RecordUserAction.record(
+                        isCutOption ? "Omnibox.LongPress.Cut" : "Omnibox.LongPress.Copy");
 
-            boolean retVal = super.onTextContextMenuItem(id);
+                // Detect and handle a Specific edge case: when the user selection should include
+                // elided text (`https://`, `www` etc).
+                // We intentionally omit the scheme of certain URLs, but we want to ensure these
+                // parts are still present in the copied URL. When the Delegate returns a non-null
+                // replacement text - we use it instead of the selection.
+                String replacementCutCopyText =
+                        mTextContextMenuDelegate.getReplacementCutCopyText(
+                                getText().toString(), selStart, selEnd);
 
-            if (TextUtils.equals(getText(), replacementCutCopyText)) {
-                // Restore the old text if the operation did modify the text.
-                setIgnoreTextChangesForAutocomplete(true);
-                setText(currentText);
+                // No text from the Delegate - let OS handle the action.
+                if (replacementCutCopyText == null) break;
 
-                // Move the cursor to the end.
-                setSelection(getText().length());
-                setIgnoreTextChangesForAutocomplete(false);
-            }
+                Clipboard.getInstance().setText(replacementCutCopyText);
+                if (isCutOption) getText().replace(selStart, selEnd, "");
+                return true;
 
-            return retVal;
-        }
-
-        if (id == android.R.id.shareText) {
-            RecordUserAction.record("Omnibox.LongPress.Share");
-            ShareHelper.recordShareSource(ShareHelper.ShareSourceAndroid.ANDROID_SHARE_SHEET);
+            case android.R.id.shareText:
+                RecordUserAction.record("Omnibox.LongPress.Share");
+                ShareHelper.recordShareSource(ShareHelper.ShareSourceAndroid.ANDROID_SHARE_SHEET);
+                if (mUrlBarDelegate != null) {
+                    String replacementShareText =
+                            mTextContextMenuDelegate != null
+                                    ? mTextContextMenuDelegate.getReplacementCutCopyText(
+                                            getText().toString(), selStart, selEnd)
+                                    : null;
+                    mUrlBarDelegate.shareText(
+                            replacementShareText != null
+                                    ? replacementShareText
+                                    : getText().toString().substring(selStart, selEnd));
+                    return true;
+                }
+                break;
         }
 
         return super.onTextContextMenuItem(id);
+    }
+
+    @Override
+    protected void onCreateContextMenu(ContextMenu menu) {
+        super.onCreateContextMenu(menu);
+        if (mManageSearchEnginesCallback == null
+                || !OmniboxFeatures.sOmniboxSiteSearch.isEnabled()) {
+            return;
+        }
+
+        if (menu.findItem(R.id.url_bar_manage_search_engines) != null) {
+            return;
+        }
+        MenuItem item =
+                menu.add(
+                        Menu.NONE,
+                        R.id.url_bar_manage_search_engines,
+                        Menu.CATEGORY_SECONDARY,
+                        getContext().getString(R.string.manage_search_engines_and_site_search));
+        item.setOnMenuItemClickListener(
+                clickedItem -> {
+                    if (mManageSearchEnginesCallback != null) {
+                        mManageSearchEnginesCallback.run();
+                    }
+                    return true;
+                });
     }
 
     /**
@@ -873,6 +1008,8 @@ public class UrlBar extends AutocompleteEditText {
 
         int measuredWidth = getVisibleMeasuredViewportWidth();
 
+        applyBoundsEllipsis(text, measuredWidth);
+
         // If the origin changes, we should avoid applying this optimization, which could cause us
         // to fail to emphasize the tld in cases where we navigate from, e.g. domain.com to
         // domain.com.sub
@@ -911,6 +1048,58 @@ public class UrlBar extends AutocompleteEditText {
         mPreviousScrollResultXPosition = getScrollX();
         mPreviousScrollWasRtl = currentIsRtl;
         mPreviousScrollOriginEndIndex = mOriginEndIndex;
+    }
+
+    private void clearBoundsEllipsisSpans(Editable text) {
+        int textLength = text.length();
+        BoundsEllipsisSpan[] spans = text.getSpans(0, textLength, BoundsEllipsisSpan.class);
+        if (spans != null && spans.length > 0) {
+            for (BoundsEllipsisSpan span : spans) {
+                text.removeSpan(span);
+            }
+        }
+    }
+
+    /**
+     * Evaluates visible constraints dynamically for long URLs. If character width exceeds available
+     * viewport limits, a BoundsEllipsisSpan overrides trailing overflowing text.
+     */
+    private void applyBoundsEllipsis(Editable text, int measuredWidth) {
+        if (!shouldApplyBoundsEllipsis()) return;
+
+        int textLength = text.length();
+        if (textLength == 0) return;
+
+        Layout textLayout = getLayout();
+        if (textLayout != null) {
+            int ellipsisWidth = (int) textLayout.getPaint().measureText(EllipsisSpan.ELLIPSIS);
+            int cutoffWidth = Math.max(0, measuredWidth - ellipsisWidth);
+            int finalVisibleCharIndex =
+                    textLayout
+                            .getPaint()
+                            .getOffsetForAdvance(
+                                    text, 0, textLength, 0, textLength, false, cutoffWidth);
+
+            BoundsEllipsisSpan[] spans = text.getSpans(0, textLength, BoundsEllipsisSpan.class);
+            if (finalVisibleCharIndex < textLength) {
+                if (spans != null
+                        && spans.length == 1
+                        && text.getSpanStart(spans[0]) == finalVisibleCharIndex
+                        && text.getSpanEnd(spans[0]) == textLength) {
+                    return;
+                }
+                clearBoundsEllipsisSpans(text);
+                text.setSpan(
+                        BoundsEllipsisSpan.INSTANCE,
+                        finalVisibleCharIndex,
+                        textLength,
+                        Editable.SPAN_INCLUSIVE_EXCLUSIVE);
+            } else {
+                if (spans != null && spans.length > 0) {
+                    clearBoundsEllipsisSpans(text);
+                }
+            }
+        }
     }
 
     /** Scrolls the omnibox text to show the very beginning of the text entered. */
@@ -1002,8 +1191,8 @@ public class UrlBar extends AutocompleteEditText {
                     assert MathUtils.areFloatsEqual(horizontal, width) || horizontal > width
                             : "finalVisibleCharIndex is too small: "
                                     + String.valueOf(finalVisibleCharIndexExclusive)
-                                    + ". If discovered locally please update crbug.com/1465967 with"
-                                    + " the url.";
+                                    + ". If discovered locally please update crbug.com/40067648"
+                                    + " with the url.";
                 }
 
                 // To avoid issues where a small portion of the character following
@@ -1031,7 +1220,7 @@ public class UrlBar extends AutocompleteEditText {
 
         final int originEndIndex = Math.min(mOriginEndIndex, urlTextLength);
         if (mOriginEndIndex > urlTextLength) {
-            // If discovered locally, please update crbug.com/859219 with the steps to reproduce.
+            // If discovered locally, please update crbug.com/41398885 with the steps to reproduce.
             assert false
                     : "Attempting to scroll past the end of the URL: "
                             + url
@@ -1152,7 +1341,10 @@ public class UrlBar extends AutocompleteEditText {
             // Confirmation check: be sure we don't re-request layout as a result of something that
             // happens in scrollDisplayText(). However, isLayoutRequested could be true before
             // scrollDisplayText() due to what happened within super.layout(), e.g. clear focus.
-            assert isLayoutRequestedBeforeScrollDisplayText || !isLayoutRequested();
+            // Note: applyBoundsEllipsis() may request layout when adding/removing spans.
+            assert isLayoutRequestedBeforeScrollDisplayText
+                    || !isLayoutRequested()
+                    || shouldApplyBoundsEllipsis();
         }
     }
 
@@ -1168,16 +1360,12 @@ public class UrlBar extends AutocompleteEditText {
 
     @Override
     public @Nullable InputConnection onCreateInputConnection(EditorInfo outAttrs) {
-        // This check is part of a mitigation to to avoid an InputConnection remaining connected to
-        // the UrlBar without it being focused. This can happen the InputMethod framework is
-        // slow/lazy about cleaning up connections. For soft keyboards this is typically harmless,
-        // as hiding the keyboard prevents late input. But with a hardware keyboard attached, the
-        // results can be quite confusing, e.g. inline edits to the current url. To avoid this, we
-        // call restartInput when losing focus which then triggers a call to
-        // onCreateInputConnection; the null return value prevents further keyboard input.
-        if (!mFocused) {
-            return null;
-        }
+        // CAUTION: Avoid returning `null` from this method.
+        // IMF lifecycle is different from android focus. IMF keeps an InputConnection alive
+        // even after the View it is connected to loses focus.
+        // Returning `null` from here will force IMF to bind a "Dummy" input connection
+        // (see https://crbug.com/512199013), which may result in users in select locales
+        // be unable to work with locale-appropriate keyboards.
 
         InputConnection connection = super.onCreateInputConnection(outAttrs);
         if (mUrlBarDelegate == null || !mUrlBarDelegate.allowKeyboardLearning()) {
@@ -1210,9 +1398,10 @@ public class UrlBar extends AutocompleteEditText {
     }
 
     private void limitDisplayableLength() {
-        // To limit displayable length we replace middle portion of the string with ellipsis.
-        // That affects only presentation of the text, and doesn't affect other aspects like
-        // copying to the clipboard, getting text with getText(), etc.
+        // To limit displayable length we replace the middle portion of the string with an ellipsis
+        // (or the end of the string when the toolbar variation is enabled). That affects only
+        // presentation of the text, and doesn't affect other aspects like copying to the clipboard,
+        // getting text with getText(), etc.
         final int maxLength =
                 SysUtils.isLowEndDevice() ? MAX_DISPLAYABLE_LENGTH_LOW_END : MAX_DISPLAYABLE_LENGTH;
 
@@ -1237,18 +1426,29 @@ public class UrlBar extends AutocompleteEditText {
         int spanLeft = text.nextSpanTransition(0, textLength, EllipsisSpan.class);
         if (spanLeft != textLength) return;
 
-        spanLeft = maxLength / 2;
-        text.setSpan(
-                EllipsisSpan.INSTANCE,
-                spanLeft,
-                textLength - spanLeft,
-                Editable.SPAN_INCLUSIVE_EXCLUSIVE);
+        if (shouldApplyBoundsEllipsis() && !mFocused) {
+            // If the toolbar variation is active, append trailing ellipsis at the very end for
+            // unfocused
+            // sessions. Preserves middle-chunk masking for standard focused editing behavior.
+            text.setSpan(
+                    EllipsisSpan.INSTANCE,
+                    maxLength,
+                    textLength,
+                    Editable.SPAN_INCLUSIVE_EXCLUSIVE);
+        } else {
+            spanLeft = maxLength / 2;
+            text.setSpan(
+                    EllipsisSpan.INSTANCE,
+                    spanLeft,
+                    textLength - spanLeft,
+                    Editable.SPAN_INCLUSIVE_EXCLUSIVE);
+        }
     }
 
     @Override
     public Editable getText() {
         if (mRequestingAutofillStructure) {
-            // crbug.com/1109186: mTextForAutofillServices must not be null here, but Autofill
+            // crbug.com/40141623: mTextForAutofillServices must not be null here, but Autofill
             // requests can be triggered before it is initialized.
             return new SpannableStringBuilder(
                     mTextForAutofillServices != null ? mTextForAutofillServices : "");
@@ -1260,7 +1460,7 @@ public class UrlBar extends AutocompleteEditText {
     @Override
     public CharSequence getAccessibilityClassName() {
         // When UrlBar is used as a read-only TextView, force Talkback to pronounce it like
-        // TextView. Otherwise Talkback will say "Edit box, http://...". crbug.com/636988
+        // TextView. Otherwise Talkback will say "Edit box, http://...". crbug.com/40480292
         if (isEnabled()) {
             return super.getAccessibilityClassName();
         } else {
@@ -1327,8 +1527,8 @@ public class UrlBar extends AutocompleteEditText {
      * Span that displays ellipsis instead of the text. Used to hide portion of very large string to
      * get decent performance from TextView.
      */
-    private static class EllipsisSpan extends ReplacementSpan {
-        private static final String ELLIPSIS = "...";
+    /* package */ static class EllipsisSpan extends ReplacementSpan {
+        static final String ELLIPSIS = "...";
 
         public static final EllipsisSpan INSTANCE = new EllipsisSpan();
 
@@ -1357,11 +1557,19 @@ public class UrlBar extends AutocompleteEditText {
         }
     }
 
+    /* package */ static class BoundsEllipsisSpan extends EllipsisSpan {
+        public static final BoundsEllipsisSpan INSTANCE = new BoundsEllipsisSpan();
+    }
+
     /* package */ boolean hasPendingDisplayTextScrollForTesting() {
         return mPendingScroll;
     }
 
     /* package */ void setVisibleTextPrefixHintForTesting(CharSequence hintForTesting) {
         mVisibleTextPrefixHint = hintForTesting;
+    }
+
+    /* package */ @Nullable Runnable getManageSearchEnginesCallbackForTesting() {
+        return mManageSearchEnginesCallback;
     }
 }

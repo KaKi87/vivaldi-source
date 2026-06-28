@@ -12,8 +12,6 @@ import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -23,14 +21,14 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.Px;
 import androidx.appcompat.content.res.AppCompatResources;
-import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.RecyclerView.ItemDecoration;
+import androidx.recyclerview.widget.RecyclerView.OnScrollListener;
 
 import org.chromium.base.Callback;
 import org.chromium.base.CommandLine;
@@ -51,6 +49,7 @@ import org.chromium.chrome.browser.magic_stack.ModuleRegistry;
 import org.chromium.chrome.browser.ntp.NewTabPageLaunchOrigin;
 import org.chromium.chrome.browser.ntp.NewTabPageLayout;
 import org.chromium.chrome.browser.ntp_customization.NtpCustomizationConfigManager;
+import org.chromium.chrome.browser.ntp_customization.NtpCustomizationConfigManager.HomepageStateListener;
 import org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator;
 import org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinatorFactory;
 import org.chromium.chrome.browser.ntp_customization.NtpCustomizationMetricsUtils;
@@ -68,6 +67,7 @@ import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeControllerFactory;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.native_page.TouchEnabledDelegate;
 import org.chromium.chrome.browser.ui.signin.PersonalizedSigninPromoView;
+import org.chromium.chrome.browser.ui.theme.ChromeSemanticColorUtils;
 import org.chromium.chrome.browser.user_education.UserEducationHelper;
 import org.chromium.chrome.browser.xsurface.HybridListRenderer;
 import org.chromium.chrome.browser.xsurface.ProcessScope;
@@ -99,9 +99,6 @@ public class FeedSurfaceCoordinator
                 SwipeRefreshLayout.OnRefreshListener,
                 SurfaceCoordinator,
                 FeedContentFirstLoadWatcher {
-    @Nullable ImageView getRecyclerViewSnapshotOverlayForTesting() {
-        return mRecyclerViewSnapshotOverlay;
-    }
 
     protected final Activity mActivity;
     private final SnackbarManager mSnackbarManager;
@@ -140,12 +137,10 @@ public class FeedSurfaceCoordinator
     private final Profile mProfile;
     private @Nullable FeedSurfaceLifecycleManager mFeedSurfaceLifecycleManager;
     private @Nullable View mSigninPromoView;
-    private final @Nullable ViewGroup mViewportView;
     // Feed RecyclerView/xSurface fields.
     private FeedListContentManager mContentManager;
     private final RecyclerView mRecyclerView;
     private final FeedStreamViewResizer mFeedStreamViewResizer;
-    private @Nullable ImageView mRecyclerViewSnapshotOverlay;
     private @Nullable FeedSurfaceScope mSurfaceScope;
     private @Nullable FeedSurfaceScopeDependencyProviderImpl mDependencyProvider;
     private HybridListRenderer mHybridListRenderer;
@@ -171,9 +166,9 @@ public class FeedSurfaceCoordinator
     private @Nullable ImageButton mNtpCustomizationButton;
     private @Nullable NtpCustomizationConfigManager mNtpCustomizationConfigManager;
     private @Nullable NtpBackgroundImageCoordinator mNtpBackgroundImageCoordinator;
-    private NtpCustomizationConfigManager.@Nullable HomepageStateListener mHomepageStateListener;
-    private RecyclerView.@Nullable ItemDecoration mItemDecoration;
-    private RecyclerView.@Nullable OnScrollListener mOnScrollListener;
+    private @Nullable HomepageStateListener mHomepageStateListener;
+    private @Nullable ItemDecoration mItemDecoration;
+    private @Nullable OnScrollListener mOnScrollListener;
 
     /** Provides the additional capabilities needed for the container view. */
     private class RootView extends FrameLayout {
@@ -193,12 +188,6 @@ public class FeedSurfaceCoordinator
         @Override
         protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
             super.onSizeChanged(width, height, oldWidth, oldHeight);
-            if (oldWidth != 0 && oldHeight != 0 && mRecyclerViewSnapshotOverlay != null) {
-                // TODO(crbug.com/451422517): This is a temporary solution to make resizing on
-                // large screen devices smoother. Remove this once the long term solution is
-                // implemented.
-                handleResize(width, height);
-            }
             if (ChromeFeatureList.isEnabled(ChromeFeatureList.FEED_CONTAINMENT)) {
                 mRecyclerView.post(mRecyclerView::invalidateItemDecorations);
                 updateNtpHeaderMargins();
@@ -206,6 +195,7 @@ public class FeedSurfaceCoordinator
             if (mUseStaggeredLayout) {
                 updateNtpCustomizationButtonVisibility();
             }
+            if (mUiConfig != null) mUiConfig.updateDisplayStyle();
         }
 
         @Override
@@ -239,7 +229,7 @@ public class FeedSurfaceCoordinator
         }
 
         @Override
-        public void onDraw(android.graphics.Canvas canvas) {
+        public void onDraw(Canvas canvas) {
             try (TraceEvent e = TraceEvent.scoped("Feed.RootView.onDraw")) {
                 super.onDraw(canvas);
             }
@@ -282,7 +272,7 @@ public class FeedSurfaceCoordinator
     // TracingAndPerfScrollListener is explicitly not a ScrollListener due to the fact that the
     // ScrollableContainerDelegate could be null if we are tracking scrolling. However for looking
     // at performance metrics of scrolling we always want to know when feed is scrolling.
-    static class TracingAndPerfScrollListener extends RecyclerView.OnScrollListener {
+    static class TracingAndPerfScrollListener extends OnScrollListener {
         @Override
         public void onScrollStateChanged(RecyclerView view, int newState) {
             switch (mPrevState) {
@@ -388,8 +378,6 @@ public class FeedSurfaceCoordinator
      * @param embeddingSurfaceCreatedTimeNs Timestamp of creation of the UI surface.
      * @param swipeRefreshLayout The layout to support pull-to-refresh.
      * @param overScrollDisabled Whether the overscroll effect is disabled.
-     * @param viewportView The view that should be used as a container for viewport measurement
-     *     purposes, or |null| if the view returned by HybridListRenderer is to be used.
      * @param createActionDelegate Factory for creating the implementation of Feed actions.
      * @param tabStripHeightSupplier Supplier for the tab strip height.
      * @param edgeToEdgeControllerSupplier Supplier for the {@link EdgeToEdgeController} instance.
@@ -414,7 +402,6 @@ public class FeedSurfaceCoordinator
             long embeddingSurfaceCreatedTimeNs,
             FeedSwipeRefreshLayout swipeRefreshLayout,
             boolean overScrollDisabled,
-            @Nullable ViewGroup viewportView,
             ActionDelegateFactory createActionDelegate,
             NonNullObservableSupplier<Integer> tabStripHeightSupplier,
             MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
@@ -433,7 +420,6 @@ public class FeedSurfaceCoordinator
         mToolbarSupplier = toolbarSupplier;
         mSwipeRefreshLayout = swipeRefreshLayout;
         mOverScrollDisabled = overScrollDisabled;
-        mViewportView = viewportView;
         mActionDelegate = createActionDelegate.createActionDelegate();
         mEmbeddingSurfaceCreatedTimeNs = embeddingSurfaceCreatedTimeNs;
         mHeaderIndex = 0;
@@ -441,8 +427,7 @@ public class FeedSurfaceCoordinator
         mUseStaggeredLayout = DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity);
         mIsNewTabPageCustomizationV2Enabled =
                 NtpCustomizationUtils.isNtpThemeCustomizationEnabled();
-        mDefaultBackgroundColor =
-                ContextCompat.getColor(mActivity, R.color.home_surface_background_color);
+        mDefaultBackgroundColor = ChromeSemanticColorUtils.getHomeSurfaceBackgroundColor(mActivity);
 
         mRootView = new RootView(mActivity);
         mRootView.setPadding(0, mTabStripHeightSupplier.get(), 0, 0);
@@ -475,15 +460,6 @@ public class FeedSurfaceCoordinator
         } else {
             mRootView.addView(mRecyclerView);
         }
-        // TODO(crbug.com/451422517): This is a temporary solution to prevent NTP flashing.
-        // The snapshot overlay is added to the RootView to cover the RecyclerView during resize.
-        if (ChromeFeatureList.sFluidResize.isEnabled()
-                && DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity)) {
-            mRecyclerViewSnapshotOverlay = new ImageView(mActivity);
-            mRecyclerViewSnapshotOverlay.setVisibility(View.GONE);
-            mRecyclerViewSnapshotOverlay.setScaleType(ImageView.ScaleType.FIT_START);
-            mRootView.addView(mRecyclerViewSnapshotOverlay);
-        }
         if (mSwipeRefreshLayout != null) {
             mSwipeRefreshLayout.addOnRefreshListener(this);
         }
@@ -503,7 +479,7 @@ public class FeedSurfaceCoordinator
         if (mIsNtpCustomizationV2Enabled) {
             mNtpCustomizationConfigManager = NtpCustomizationConfigManager.getInstance();
             mHomepageStateListener =
-                    new NtpCustomizationConfigManager.HomepageStateListener() {
+                    new HomepageStateListener() {
                         @Override
                         public void onBackgroundImageChanged(
                                 Bitmap originalBitmap,
@@ -546,7 +522,7 @@ public class FeedSurfaceCoordinator
 
         if (mNtpHeader != null && ChromeFeatureList.isEnabled(ChromeFeatureList.FEED_CONTAINMENT)) {
             int bottomPadding =
-                    mActivity.getResources().getDimensionPixelSize(R.dimen.feed_header_top_margin);
+                    mActivity.getResources().getDimensionPixelSize(R.dimen.ntp_section_top_margin);
             mNtpHeader.setPadding(
                     mNtpHeader.getPaddingLeft(),
                     mNtpHeader.getPaddingTop(),
@@ -570,58 +546,6 @@ public class FeedSurfaceCoordinator
 
         // Creates streams, initiates content changes.
         mMediator.updateContent();
-    }
-
-    private void handleResize(int newWidth, int newHeight) {
-        if (mRecyclerViewSnapshotOverlay == null) return;
-        Bitmap snapshot = takeRecyclerViewSnapshot(newWidth, newHeight);
-        if (snapshot == null) return;
-
-        mRecyclerViewSnapshotOverlay.setImageBitmap(snapshot);
-
-        mRecyclerViewSnapshotOverlay.setVisibility(View.VISIBLE);
-        mRecyclerView.setVisibility(View.INVISIBLE);
-
-        mHandler.post(
-                () -> {
-                    if (mRecyclerViewSnapshotOverlay == null) return;
-                    mRecyclerView.setVisibility(View.VISIBLE);
-                    mRecyclerViewSnapshotOverlay.setVisibility(View.GONE);
-                    // Recycle the bitmap to free up memory immediately.
-                    Drawable drawable = mRecyclerViewSnapshotOverlay.getDrawable();
-                    if (drawable instanceof BitmapDrawable bitmapDrawable) {
-                        Bitmap bitmap = bitmapDrawable.getBitmap();
-                        if (bitmap != null) {
-                            bitmap.recycle();
-                        }
-                    }
-                    mRecyclerViewSnapshotOverlay.setImageDrawable(null);
-                });
-    }
-
-    private @Nullable Bitmap takeRecyclerViewSnapshot(int newWidth, int newHeight) {
-        int recyclerWidth = newWidth;
-        // The recycler view is padded at the top by the tab strip height.
-        int recyclerHeight = newHeight - mRootView.getPaddingTop();
-
-        if (recyclerWidth <= 0 || recyclerHeight <= 0) {
-            return null;
-        }
-        try {
-            // Manually measure and layout the RecyclerView to the new size.
-            mRecyclerView.measure(
-                    View.MeasureSpec.makeMeasureSpec(recyclerWidth, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(recyclerHeight, View.MeasureSpec.EXACTLY));
-            mRecyclerView.layout(0, 0, recyclerWidth, recyclerHeight);
-
-            Bitmap bitmap =
-                    Bitmap.createBitmap(recyclerWidth, recyclerHeight, Bitmap.Config.ARGB_8888);
-            Canvas canvas = new Canvas(bitmap);
-            ViewUtils.captureBitmap(mRecyclerView, canvas);
-            return bitmap;
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     // Sets the background image for the embedder NTP.
@@ -693,7 +617,8 @@ public class FeedSurfaceCoordinator
                         () -> mProfile,
                         NtpCustomizationCoordinator.BottomSheetType.MAIN,
                         mWindowAndroid,
-                        moduleRegistry)
+                        moduleRegistry,
+                        mSnackbarManager)
                 .showBottomSheet();
         NtpCustomizationMetricsUtils.recordOpenBottomSheetEntry(
                 NtpCustomizationCoordinator.EntryPointType.NEW_TAB_PAGE);
@@ -782,14 +707,16 @@ public class FeedSurfaceCoordinator
         }
 
         mFeedStreamViewResizer.destroy();
+        mContentManager.destroy();
         mUiConfig.destroy();
         mActionDelegate.destroy();
+
+        mObservers.clear();
 
         // Null remaining objects.
         mReliabilityLogger = null;
         mSurfaceScope = null;
         mDependencyProvider = null;
-        mRecyclerViewSnapshotOverlay = null;
     }
 
     /**
@@ -843,10 +770,7 @@ public class FeedSurfaceCoordinator
         manualRefresh();
     }
 
-    /**
-     * Implements SwipeRefreshLayout.OnRefreshListener to be used only for pull
-     * to refresh.
-     */
+    /** Implements SwipeRefreshLayout.OnRefreshListener to be used only for pull to refresh. */
     @Override
     public void onRefresh() {
         manualRefresh();
@@ -887,7 +811,7 @@ public class FeedSurfaceCoordinator
 
     /**
      * @return The {@link FeedSurfaceLifecycleManager} that manages the lifecycle of the {@link
-     *         Stream}.
+     *     Stream}.
      */
     @Nullable FeedSurfaceLifecycleManager getSurfaceLifecycleManager() {
         return mFeedSurfaceLifecycleManager;
@@ -986,7 +910,8 @@ public class FeedSurfaceCoordinator
         // XSurface returns a View, but it should be a RecyclerView.
         RecyclerView view =
                 (RecyclerView)
-                        mHybridListRenderer.bind(mContentManager, mViewportView, gutterPadding);
+                        mHybridListRenderer.bind(
+                                mContentManager, /* viewport= */ null, gutterPadding);
         assumeNonNull(view);
         view.setId(R.id.feed_stream_recycler_view);
         view.setClipToPadding(false);
@@ -1011,7 +936,7 @@ public class FeedSurfaceCoordinator
             view.addItemDecoration(mItemDecoration);
         }
 
-        // Work around https://crbug.com/943873 where default focus highlight shows up after
+        // Work around https://crbug.com/41447943 where default focus highlight shows up after
         // toggling dark mode.
         view.setDefaultFocusHighlightEnabled(false);
         if (mOverScrollDisabled) {
@@ -1024,22 +949,30 @@ public class FeedSurfaceCoordinator
         return view;
     }
 
-    /** @return The {@link RecyclerView} associated with this feed. */
+    /**
+     * @return The {@link RecyclerView} associated with this feed.
+     */
     public RecyclerView getRecyclerView() {
         return mRecyclerView;
     }
 
-    /** @return The {@link FeedSurfaceScope} used to create this feed. */
+    /**
+     * @return The {@link FeedSurfaceScope} used to create this feed.
+     */
     @Nullable FeedSurfaceScope getSurfaceScope() {
         return mSurfaceScope;
     }
 
-    /** @return The {@link HybridListRenderer} used to render this feed. */
+    /**
+     * @return The {@link HybridListRenderer} used to render this feed.
+     */
     HybridListRenderer getHybridListRenderer() {
         return mHybridListRenderer;
     }
 
-    /** @return The {@link FeedListContentManager} managing the contents of this feed. */
+    /**
+     * @return The {@link FeedListContentManager} managing the contents of this feed.
+     */
     FeedListContentManager getContentManager() {
         return mContentManager;
     }
@@ -1053,8 +986,8 @@ public class FeedSurfaceCoordinator
     }
 
     /**
-     * Configures header views and properties for feed:
-     * Adds the feed headers, creates the feed lifecycle manager, adds swipe-to-refresh if needed.
+     * Configures header views and properties for feed: Adds the feed headers, creates the feed
+     * lifecycle manager, adds swipe-to-refresh if needed.
      */
     void setupHeaders(boolean feedEnabled) {
         // Directly add header views to content manager.
@@ -1105,7 +1038,6 @@ public class FeedSurfaceCoordinator
                 mActionDelegate,
                 /* feedContentFirstLoadWatcher= */ this,
                 streamsMediator,
-                /* singleWebFeedParameters= */ null,
                 new FeedSurfaceRendererBridge.Factory() {});
     }
 
@@ -1144,7 +1076,7 @@ public class FeedSurfaceCoordinator
                 int topPadding =
                         mActivity
                                 .getResources()
-                                .getDimensionPixelSize(R.dimen.feed_header_top_margin);
+                                .getDimensionPixelSize(R.dimen.feed_header_top_padding);
                 mSigninPromoView.setPadding(
                         mSigninPromoView.getPaddingLeft(),
                         topPadding,
@@ -1192,7 +1124,7 @@ public class FeedSurfaceCoordinator
             mHeaderView.setVisibility(View.GONE);
         } else {
             mHeaderView.setVisibility(View.VISIBLE);
-            TextView titleView = (TextView) mHeaderView.findViewById(R.id.header_title);
+            TextView titleView = mHeaderView.findViewById(R.id.header_title);
             if (titleView != null) {
                 titleView.setText(headerText);
             }
@@ -1219,9 +1151,9 @@ public class FeedSurfaceCoordinator
      * Initializes things related to the bubbles which will start listening to scroll events to
      * determine whether a bubble should be triggered.
      *
-     * You must stop the IPH with #stopBubbleTriggering before tearing down feed components, e.g.,
-     * on #destroy. This also applies for the case where the feed stream is deleted when disabled
-     * (e.g., by policy).
+     * <p>You must stop the IPH with #stopBubbleTriggering before tearing down feed components,
+     * e.g., on #destroy. This also applies for the case where the feed stream is deleted when
+     * disabled (e.g., by policy).
      */
     void initializeBubbleTriggering() {
         // Don't do anything when there is no feed stream because the bubble isn't needed in

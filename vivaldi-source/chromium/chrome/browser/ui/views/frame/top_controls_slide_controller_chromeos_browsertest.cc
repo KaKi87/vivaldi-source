@@ -710,7 +710,7 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest,
 
   // Add a new tab (index 1), navigate it to the scrollable test page,
   // making it the active tab.
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   NavigateActiveTabToUrl(
       embedded_test_server()->GetURL("/top_controls_scroll.html"));
   ASSERT_EQ(browser()->tab_strip_model()->count(), 2);
@@ -775,7 +775,7 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest, TestClosingATab) {
   // Simulate (Ctrl + T) by inserting a new tab. Expect top-chrome to be fully
   // shown.
   TopControlsShownRatioWaiter waiter(top_controls_slide_controller());
-  chrome::NewTab(browser());
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
   waiter.WaitForRatio(1.f);
   EXPECT_EQ(browser()->tab_strip_model()->active_index(), 1);
   EXPECT_EQ(browser()->tab_strip_model()->count(), 2);
@@ -1034,7 +1034,7 @@ class PageStateUpdateWaiter : content::WebContentsObserver {
 
 // Verifies that we ignore the shown ratios sent from widgets other than that of
 // the main frame (such as widgets of the drop-down menus in web pages).
-// https://crbug.com/891471.
+// https://crbug.com/41418552.
 IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest, TestDropDowns) {
   browser_view()->browser_widget()->Maximize();
   ToggleTabletMode();
@@ -1388,8 +1388,7 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest, TestPermissionBubble) {
                     const permissions::PermissionRequestData&) {};
   auto permission_request = std::make_unique<permissions::PermissionRequest>(
       std::make_unique<permissions::PermissionRequestData>(
-          std::make_unique<permissions::ContentSettingPermissionResolver>(
-              ContentSettingsType::GEOLOCATION),
+          permissions::RequestType::kGeolocation,
           /*user_gesture*/ true, url),
       base::BindRepeating(decided));
   auto* permission_manager =
@@ -1461,7 +1460,7 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest,
                                TopChromeShownState::kFullyHidden);
 }
 
-// Regression test for https://crbug.com/1163276.
+// Regression test for https://crbug.com/40740045.
 IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest,
                        NoCrashOnNewTabWhileScrolling) {
   ToggleTabletMode();

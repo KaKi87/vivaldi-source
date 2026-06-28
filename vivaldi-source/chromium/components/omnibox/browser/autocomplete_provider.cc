@@ -96,6 +96,8 @@ const char* AutocompleteProvider::TypeToString(Type type) {
       return "ContextualSearch";
     case TYPE_TAB_GROUP:
       return "TabGroup";
+    case TYPE_CROSS_DEVICE_TAB:
+      return "CrossDeviceTab";
 
     // Vivaldi
     case TYPE_BOOKMARK_NICKNAME:
@@ -218,6 +220,8 @@ AutocompleteProvider::AsOmniboxEventProviderType() const {
       return metrics::OmniboxEventProto::CONTEXTUAL_SEARCH_PROVIDER;
     case TYPE_TAB_GROUP:
       return metrics::OmniboxEventProto::TAB_GROUP_PROVIDER;
+    case TYPE_CROSS_DEVICE_TAB:
+      return metrics::OmniboxEventProto::CROSS_DEVICE_TAB;
 
     // Vivaldi
     case TYPE_BOOKMARK_NICKNAME:

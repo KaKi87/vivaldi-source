@@ -9,14 +9,12 @@
 <translation id="1598449788754183301">Սովորական/գաղտնի ներդիրներ</translation>
 <translation id="1644574205037202324">Պատմություն</translation>
 <translation id="1829244130665387512">Գտնել էջում</translation>
-<translation id="1910514478706885609">Բացել ներդիրների նոր խմբում</translation>
 <translation id="1925021887439448749">Մուտքագրեք այլ հասցե</translation>
 <translation id="2038563949887743358">Միացնել համակարգչային տարբերակի հայցումը</translation>
 <translation id="208033313373016095">Ընթերցման ռեժիմ վեբ էջերի համար</translation>
 <translation id="2149973817440762519">Խմբագրել էջանիշը</translation>
 <translation id="2306442503286132111">Էջանիշը պահպանված է <ph name="FOLDER_NAME" /> պանակում</translation>
 <translation id="2433507940547922241">Արտաքին տեսք</translation>
-<translation id="2501278716633472235">Գնալ հետ</translation>
 <translation id="2546283357679194313">Քուքիներ և կայքերի տվյալներ</translation>
 <translation id="2633278372998075009">Գաղտնի ներդիրներ</translation>
 <translation id="2650751991977523696">Ֆայլը կրկին ներբեռնե՞լ</translation>
@@ -43,7 +41,6 @@
 <translation id="3700829948786686853">Բարի գալուստ Vivaldi</translation>
 <translation id="3719826155360621982">Գլխավոր էջ</translation>
 <translation id="3738139272394829648">Հպել՝ որոնելու համար</translation>
-<translation id="385051799172605136">Հետ</translation>
 <translation id="3987993985790029246">Պատճենել հղումը</translation>
 <translation id="399014816462153200">Ընթերցված հոդվածներ.</translation>
 <translation id="4121750346708795461">Օգտագործելով այս հավելվածը՝ Դուք համաձայնում եք Vivaldi-ի <ph name="BEGIN_LINK1" />Օգտագործման պայմաններին<ph name="END_LINK1" /> ու <ph name="BEGIN_LINK2" />Գաղտնիության դրույթներին<ph name="END_LINK2" />։</translation>
@@ -63,7 +60,6 @@
 
 Հպումով որոնումը մի ֆունկցիա է, որը հասանելի է միայն երբ Google-ը սահմանված է որպես հիմնական որոնիչ Vivaldi-ում։</translation>
 <translation id="4759238208242260848">Ներբեռնումներ</translation>
-<translation id="4777866634702576038">Ջնջե՞լ ներդիրների խումբը</translation>
 <translation id="4850886885716139402">Դիտել</translation>
 <translation id="4883379392681899581">Լքել գաղտնի ռեժիմը</translation>
 <translation id="4943872375798546930">Արդյունք չկա</translation>
@@ -100,6 +96,7 @@
 <translation id="6909589135458168665">Էջերի նախաբեռնում</translation>
 <translation id="7029995644714925509">Երբ որևէ կայք առաջարկում է գաղտնի կերպով նախաբեռնել հղումներն իրենց էջում, Vivaldi-ն գաղտնագրում և նախաբեռնում է էջերը Google-ի սերվերների միջոցով, առանց քուքիների։ Սա թաքցնում է Ձեր ինքնությունը նախաբեռնվող կայքից։</translation>
 <translation id="706339621163631076">Բրաուզերի գաղտնիության դրույթներ</translation>
+<translation id="7100573672995171864">Կարգավորել և կառավարել Vivaldi-ն</translation>
 <translation id="732145680195464316">Էջանիշը պահպանված է <ph name="PRODUCT_NAME" />-ում</translation>
 <translation id="7324354302972299151">Ուղարկել «Do Not Track» հարցում</translation>
 <translation id="7359002509206457351">Վճարման եղանակների հասանելիություն</translation>

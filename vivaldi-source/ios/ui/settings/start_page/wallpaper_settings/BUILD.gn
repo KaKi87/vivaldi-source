@@ -9,49 +9,46 @@ source_set("wallpaper_notification_constants") {
     "vivaldi_wallpaper_notification_constants.mm",
   ]
 
-  frameworks = [
-    "Foundation.framework",
-  ]
+  frameworks = [ "Foundation.framework" ]
 }
 
 source_set("wallpaper_settings") {
-
   deps = [
     ":wallpaper_notification_constants",
     ":wallpaper_settings_swift",
-    "//base",
-    "//ui/base",
     "resources:assets",
     "resources:wallpaper_assets",
+    "//base",
+    "//ui/base",
   ]
 
   frameworks = [
     "Foundation.framework",
-    "UIKit.framework"
+    "UIKit.framework",
   ]
 }
 
 swift_source_set("wallpaper_settings_swift") {
   bridge_header = "vivaldi_wallpaper_settings_swift_bridge.h"
   sources = [
-    "vivaldi_wallpaper_settings_view_provider.swift",
+    "vivaldi_wallapaper_settings_constants.swift",
     "vivaldi_wallpaper_image_picker.swift",
-    "vivaldi_wallpapers.swift",
-    "vivaldi_wallpaper_settings_view.swift",
-    "vivaldi_wallpaper_thumbnail_image.swift",
-    "vivaldi_wallpaper_thumbnail_modifier.swift",
-    "vivaldi_wallpaper_preview_viewcontroller.swift",
     "vivaldi_wallpaper_navigation_bar.swift",
     "vivaldi_wallpaper_preview_representation.swift",
-    "vivaldi_wallapaper_settings_constants.swift"
+    "vivaldi_wallpaper_preview_viewcontroller.swift",
+    "vivaldi_wallpaper_settings_view.swift",
+    "vivaldi_wallpaper_settings_view_provider.swift",
+    "vivaldi_wallpaper_thumbnail_image.swift",
+    "vivaldi_wallpaper_thumbnail_modifier.swift",
+    "vivaldi_wallpapers.swift",
   ]
 
   deps = [
     ":wallpaper_notification_constants",
     "//base",
+    "//ios/chrome/app/strings",
     "//ui/base",
     "//url",
-    "//ios/chrome/app/strings",
     "//vivaldi/ios/ui/helpers:helpers_swift",
     "//vivaldi/ios/ui/ntp:vivaldi_ntp",
     "//vivaldi/ios/ui/settings/start_page:start_page_constants",

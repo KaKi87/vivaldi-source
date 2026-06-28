@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import 'chrome://resources/cr_components/composebox/file_carousel.js';
-import 'chrome://new-tab-page/strings.m.js';
+import 'chrome://contextual-tasks/strings.m.js';
 
 import type {ComposeboxFile} from 'chrome://resources/cr_components/composebox/common.js';
 import {ContextUploadStatus, InputType} from 'chrome://resources/cr_components/composebox/composebox_query.mojom-webui.js';
@@ -140,7 +140,8 @@ suite('FileCarouselTest', function() {
   });
 
   test('fires carousel-resize event on resize', async () => {
-    const eventPromise = eventToPromise('carousel-resize', fileCarousel);
+    const eventPromise = eventToPromise<CustomEvent<{height: number}>>(
+        'carousel-resize', fileCarousel);
 
     // Trigger the callback
     resizeObserverCallback([], window.ResizeObserver as any);

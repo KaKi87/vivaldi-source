@@ -11,6 +11,7 @@
 #include "chrome/browser/contextual_tasks/contextual_tasks.mojom.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_internals.mojom.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
+//#include "chrome/browser/glic/experimental_opt_in/glic_experimental_opt_in_ui.h"
 //#include "chrome/browser/glic/selection/selection_overlay_untrusted_ui.h"
 #include "chrome/browser/history_clusters/history_clusters_service_factory.h"
 #include "chrome/browser/history_embeddings/history_embeddings_utils.h"
@@ -43,15 +44,20 @@
 #include "chrome/browser/ui/webui/data_sharing/data_sharing_ui.h"
 #include "chrome/browser/ui/webui/downloads/downloads.mojom.h"
 #include "chrome/browser/ui/webui/downloads/downloads_ui.h"
+#include "chrome/browser/ui/webui/drive_picker_host/drive_picker_host.mojom.h"
+#include "chrome/browser/ui/webui/drive_picker_host/drive_picker_host_ui.h"
+#include "chrome/browser/ui/webui/drive_picker_host/untrusted/drive_picker_host_untrusted.mojom.h"
+#include "chrome/browser/ui/webui/drive_picker_host/untrusted/drive_picker_host_untrusted_ui.h"
 #include "chrome/browser/ui/webui/feedback/feedback_ui.h"
 #include "chrome/browser/ui/webui/feedback/report_unsafe_site/report_unsafe_site.mojom.h"
 #include "chrome/browser/ui/webui/history/history_ui.h"
 #include "chrome/browser/ui/webui/infobar_internals/infobar_internals.mojom.h"
 #include "chrome/browser/ui/webui/infobar_internals/infobar_internals_ui.h"
 #include "chrome/browser/ui/webui/metrics_reporter/metrics_reporter_service.h"
+#include "chrome/browser/ui/webui/multistep_filter_internals/multistep_filter_internals.mojom.h"
+#include "chrome/browser/ui/webui/multistep_filter_internals/multistep_filter_internals_ui.h"
 #include "chrome/browser/ui/webui/new_tab_footer/new_tab_footer.mojom.h"
 #include "chrome/browser/ui/webui/new_tab_footer/new_tab_footer_ui.h"
-#include "chrome/browser/ui/webui/new_tab_page/action_chips/action_chips.mojom.h"
 #include "chrome/browser/ui/webui/new_tab_page/composebox/variations/composebox_fieldtrial.h"
 #include "chrome/browser/ui/webui/new_tab_page/new_tab_page.mojom.h"
 #include "chrome/browser/ui/webui/new_tab_page/new_tab_page_ui.h"
@@ -63,12 +69,14 @@
 #include "chrome/browser/ui/webui/omnibox_popup/omnibox_popup_ui.h"
 #include "chrome/browser/ui/webui/on_device_internals/on_device_internals_ui.h"
 #include "chrome/browser/ui/webui/password_manager/password_manager_ui.h"
+#include "chrome/browser/ui/webui/personal_context/personal_context_notice.mojom.h"
+#include "chrome/browser/ui/webui/personal_context/personal_context_notice_ui.h"
 #include "chrome/browser/ui/webui/privacy_sandbox/privacy_sandbox_internals_ui.h"
 #include "chrome/browser/ui/webui/privacy_sandbox/private_state_tokens/private_state_tokens.mojom.h"
 #include "chrome/browser/ui/webui/privacy_sandbox/related_website_sets/related_website_sets.mojom.h"
 #include "chrome/browser/ui/webui/private_ai_internals/private_ai_internals.mojom.h"
 #include "chrome/browser/ui/webui/private_ai_internals/private_ai_internals_ui.h"
-#include "chrome/browser/ui/webui/search_engine_choice/search_engine_choice.mojom.h"  // nogncheck crbug.com/1125897
+#include "chrome/browser/ui/webui/search_engine_choice/search_engine_choice.mojom.h"  // nogncheck crbug.com/40147906
 #include "chrome/browser/ui/webui/search_engine_choice/search_engine_choice_ui.h"
 #include "chrome/browser/ui/webui/settings/settings_ui.h"
 #include "chrome/browser/ui/webui/side_panel/bookmarks/bookmarks_side_panel_ui.h"
@@ -99,13 +107,15 @@
 #include "components/accessibility_annotator/core/logging/accessibility_annotator_internals.mojom.h"
 #include "components/autofill/core/browser/ml_model/logging/autofill_ml_internals.mojom.h"
 #include "components/browser_apis/browser_controls/browser_controls_api.mojom.h"
+#include "components/browser_apis/tab_drag/tab_drag_api.mojom.h"
 #include "components/browser_apis/ui_controllers/toolbar/toolbar_ui_api.mojom.h"
-#include "components/commerce/core/mojom/shopping_service.mojom.h"  // nogncheck crbug.com/1125897
+#include "components/commerce/core/mojom/shopping_service.mojom.h"  // nogncheck crbug.com/40147906
 #include "components/contextual_tasks/public/features.h"
 #include "components/data_sharing/public/features.h"
 #include "components/guest_contents/common/guest_contents.mojom.h"
 #include "components/history_clusters/core/history_clusters_service.h"
 #include "components/lens/lens_features.h"
+#include "components/multistep_filter/core/features.h"
 #include "components/omnibox/browser/searchbox.mojom.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
@@ -113,7 +123,9 @@
 #include "components/privacy_sandbox/privacy_sandbox_features.h"
 #include "components/private_ai/features.h"
 #include "components/search/ntp_features.h"
-#include "components/surface_embed/buildflags/buildflags.h"
+#include "components/surface_embed/browser/surface_embed_host.h"
+#include "components/surface_embed/common/features.h"
+#include "components/surface_embed/common/surface_embed.mojom.h"
 #include "components/sync/base/features.h"
 #include "components/user_education/common/user_education_features.h"
 #include "content/public/browser/render_frame_host.h"
@@ -137,12 +149,13 @@
 #include "ui/webui/resources/cr_components/most_visited/most_visited.mojom.h"
 #include "ui/webui/resources/cr_components/theme_color_picker/theme_color_picker.mojom.h"
 #include "ui/webui/resources/js/browser_command/browser_command.mojom.h"
-#include "ui/webui/resources/js/tracked_element/tracked_element.mojom.h"  // nogncheck crbug.com/1125897
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 #include "chrome/browser/ui/webui/app_home/app_home.mojom.h"
 #include "chrome/browser/ui/webui/app_home/app_home_ui.h"
 #include "chrome/browser/ui/webui/app_settings/web_app_settings_ui.h"
+#include "chrome/browser/ui/webui/intro/intro_ui.h"
+#include "chrome/browser/ui/webui/intro/sign_in_celebration.mojom.h"
 #include "chrome/browser/ui/webui/on_device_translation_internals/on_device_translation_internals_ui.h"
 #include "chrome/browser/ui/webui/signin/history_sync_optin/history_sync_optin.mojom.h"
 #include "chrome/browser/ui/webui/signin/history_sync_optin/history_sync_optin_ui.h"
@@ -189,28 +202,22 @@
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if !defined(OFFICIAL_BUILD)
-#include "chrome/browser/ui/webui/new_tab_page/foo/foo.mojom.h"  // nogncheck crbug.com/1125897
+#include "chrome/browser/ui/webui/new_tab_page/foo/foo.mojom.h"  // nogncheck crbug.com/40147906
 #endif  // defined(OFFICIAL_BUILD)
 
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
+#include "chrome/browser/ui/webui/feature_showcase/feature_showcase.mojom.h"
+#include "chrome/browser/ui/webui/feature_showcase/feature_showcase_ui.h"
+#include "chrome/browser/ui/webui/feature_showcase/password_manager.mojom.h"
 #include "chrome/browser/ui/webui/signin/signout_confirmation/signout_confirmation_ui.h"
-#include "ui/webui/resources/js/batch_upload_promo/batch_upload_promo.mojom.h"
 #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
 
-#if BUILDFLAG(ENABLE_WEBUI_TAB_STRIP)
-#include "chrome/browser/ui/webui/tab_strip/tab_strip_ui.h"
-#endif
+#include "ui/webui/resources/js/batch_upload_promo/batch_upload_promo.mojom.h"
 
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS) && !defined(VIVALDI_BUILD)
 #include "chrome/browser/default_browser/default_browser_features.h"
 #include "chrome/browser/ui/webui/default_browser/default_browser_modal.mojom.h"
 #include "chrome/browser/ui/webui/default_browser/default_browser_modal_ui.h"
-#endif
-
-#if BUILDFLAG(ENABLE_SURFACE_EMBED)
-#include "components/surface_embed/browser/surface_embed_host.h"
-#include "components/surface_embed/common/features.h"
-#include "components/surface_embed/common/surface_embed.mojom.h"
 #endif
 
 namespace chrome::internal {
@@ -235,15 +242,6 @@ void BindMetricsReporterService(
   MetricsReporterService* service =
       MetricsReporterService::GetFromWebContents(web_contents);
   service->BindReceiver(std::move(receiver));
-}
-
-void BindColorChangeListener(
-    content::RenderFrameHost* frame_host,
-    mojo::PendingReceiver<color_change_listener::mojom::PageHandler>
-        pending_receiver) {
-  auto* color_change_handler =
-      ui::ColorChangeHandler::GetOrCreateForCurrentDocument(frame_host);
-  color_change_handler->Bind(std::move(pending_receiver));
 }
 
 }  // namespace
@@ -275,26 +273,11 @@ void PopulateChromeWebUIFrameBindersPartsDesktop(
   }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
-  RegisterWebUIControllerInterfaceBinder<
-      customize_buttons::mojom::CustomizeButtonsHandlerFactory, NewTabPageUI>(
-      map);
-
-  RegisterWebUIControllerInterfaceBinder<
-      new_tab_page::mojom::PageHandlerFactory, NewTabPageUI>(map);
-
   if (user_education::features::GetNtpBrowserPromoType() !=
       user_education::features::NtpBrowserPromoType::kNone) {
     RegisterWebUIControllerInterfaceBinder<
         ntp_promo::mojom::NtpPromoHandlerFactory, NewTabPageUI>(map);
   }
-
-  if (base::FeatureList::IsEnabled(ntp_features::kNtpNextFeatures)) {
-    RegisterWebUIControllerInterfaceBinder<
-        action_chips::mojom::ActionChipsHandlerFactory, NewTabPageUI>(map);
-  }
-
-  RegisterWebUIControllerInterfaceBinder<
-      most_visited::mojom::MostVisitedPageHandlerFactory, NewTabPageUI>(map);
 
   if (HistorySidePanelCoordinator::IsSupported()) {
     RegisterWebUIControllerInterfaceBinder<history::mojom::PageHandler,
@@ -303,7 +286,9 @@ void PopulateChromeWebUIFrameBindersPartsDesktop(
     RegisterWebUIControllerInterfaceBinder<history::mojom::PageHandler,
                                            HistoryUI>(map);
   }
-  if (TabsFromOtherDevicesSidePanelCoordinator::IsSupported()) {
+  if (TabsFromOtherDevicesSidePanelCoordinator::IsSupported(
+          Profile::FromBrowserContext(
+              render_frame_host->GetBrowserContext()))) {
     RegisterWebUIControllerInterfaceBinder<
         history::mojom::ForeignSessionPageHandler, HistoryUI,
         TabsFromOtherDevicesSidePanelUI>(map);
@@ -371,8 +356,14 @@ void PopulateChromeWebUIFrameBindersPartsDesktop(
 
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
   RegisterWebUIControllerInterfaceBinder<
-      batch_upload_promo::mojom::PageHandlerFactory, settings::SettingsUI>(map);
+      feature_showcase::mojom::FeatureShowcasePageHandlerFactory,
+      FeatureShowcaseUI>(map);
+  RegisterWebUIControllerInterfaceBinder<
+      feature_showcase::mojom::PasswordManagerPageHandlerFactory,
+      FeatureShowcaseUI>(map);
 #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
+  RegisterWebUIControllerInterfaceBinder<
+      batch_upload_promo::mojom::PageHandlerFactory, settings::SettingsUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<
       browser_command::mojom::CommandHandlerFactory,
@@ -407,7 +398,8 @@ void PopulateChromeWebUIFrameBindersPartsDesktop(
   RegisterWebUIControllerInterfaceBinder<
       help_bubble::mojom::HelpBubbleHandlerFactory, UserEducationInternalsUI,
       ReadingListUI, NewTabPageUI, CustomizeChromeUI, PasswordManagerUI,
-      HistoryUI, lens::LensOverlayUntrustedUI, lens::LensSidePanelUntrustedUI
+      HistoryUI, lens::LensOverlayUntrustedUI, lens::LensSidePanelUntrustedUI,
+      ContextualTasksUI, ReadAnythingUntrustedUI
 #if !BUILDFLAG(IS_CHROMEOS)
       ,
       ProfilePickerUI
@@ -510,6 +502,10 @@ void PopulateChromeWebUIFrameBindersPartsDesktop(
       content_annotator_internals::ContentAnnotatorInternalsUI>(map);
 
   RegisterWebUIControllerInterfaceBinder<
+      personal_context::notice::mojom::PageHandler,
+      personal_context::notice::PersonalContextNoticeUI>(map);
+
+  RegisterWebUIControllerInterfaceBinder<
       ::mojom::app_service_internals::AppServiceInternalsPageHandler,
       AppServiceInternalsUI>(map);
 
@@ -524,9 +520,6 @@ void PopulateChromeWebUIFrameBindersPartsDesktop(
   map->Add<metrics_reporter::mojom::PageMetricsHost>(
       &BindMetricsReporterService);
 
-  map->Add<color_change_listener::mojom::PageHandler>(&BindColorChangeListener);
-
-#if BUILDFLAG(ENABLE_SURFACE_EMBED)
   if (base::FeatureList::IsEnabled(surface_embed::features::kSurfaceEmbed)) {
     map->Add<surface_embed::mojom::SurfaceEmbedHost>(base::BindRepeating(
         [](content::RenderFrameHost* render_frame_host,
@@ -540,10 +533,14 @@ void PopulateChromeWebUIFrameBindersPartsDesktop(
                                                   std::move(receiver));
         }));
   }
-#endif  // BUILDFLAG(ENABLE_SURFACE_EMBED)
 
   RegisterWebUIControllerInterfaceBinder<::mojom::WebAppInternalsHandler,
                                          WebAppInternalsUI>(map);
+  if (base::FeatureList::IsEnabled(multistep_filter::kMultistepFilter)) {
+    RegisterWebUIControllerInterfaceBinder<
+        multistep_filter_internals::mojom::PageHandlerFactory,
+        multistep_filter_internals::MultistepFilterInternalsUI>(map);
+  }
   if (base::FeatureList::IsEnabled(
           optimization_guide::features::kOptimizationGuideOnDeviceModel)) {
     RegisterWebUIControllerInterfaceBinder<
@@ -595,6 +592,16 @@ void PopulateChromeWebUIFrameBindersPartsDesktop(
         OmniboxPopupUI>(map);
   }
 
+  if (base::FeatureList::IsEnabled(
+          omnibox::kComposeboxDriveContextMenuOption)) {
+    RegisterWebUIControllerInterfaceBinder<
+        drive_picker_host::mojom::DrivePickerHostHandler, DrivePickerHostUI>(
+        map);
+    RegisterWebUIControllerInterfaceBinder<
+        drive_picker_host_untrusted::mojom::PageHandlerFactory,
+        DrivePickerUntrustedHostUI>(map);
+  }
+
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
   RegisterWebUIControllerInterfaceBinder<
       app_management::mojom::PageHandlerFactory, WebAppSettingsUI>(map);
@@ -607,6 +614,8 @@ void PopulateChromeWebUIFrameBindersPartsDesktop(
     RegisterWebUIControllerInterfaceBinder<
         history_sync_optin::mojom::PageHandlerFactory, HistorySyncOptinUI>(map);
   }
+  RegisterWebUIControllerInterfaceBinder<
+      intro::mojom::SignInCelebrationPageHandlerFactory, IntroUI>(map);
   RegisterWebUIControllerInterfaceBinder<::app_home::mojom::PageHandlerFactory,
                                          webapps::AppHomeUI>(map);
 #endif
@@ -649,13 +658,15 @@ void PopulateChromeWebUIFrameInterfaceBrokersTrustedPartsDesktop(
     content::WebUIBrowserInterfaceBrokerRegistry& registry) {
   // Note: The MetricsReporterService & ColorChangeListener are available to all
   // WebUIs in the registry
-  registry
-      .AddGlobal<metrics_reporter::mojom::PageMetricsHost>(
-          base::BindRepeating(&BindMetricsReporterService))
-      .AddGlobal<color_change_listener::mojom::PageHandler>(
-          base::BindRepeating(&BindColorChangeListener));
+  registry.AddGlobal<metrics_reporter::mojom::PageMetricsHost>(
+      base::BindRepeating(&BindMetricsReporterService));
 
   registry.ForWebUI<TabSearchUI>().Add<tab_search::mojom::PageHandlerFactory>();
+
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  registry.ForWebUI<glic::GlicExperimentalOptInUI>()
+      .Add<glic::mojom::ExperimentalOptInPageHandler>();
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   if (base::FeatureList::IsEnabled(ntp_features::kNtpFooter)) {
     registry.ForWebUI<NewTabFooterUI>()
@@ -668,14 +679,18 @@ void PopulateChromeWebUIFrameInterfaceBrokersTrustedPartsDesktop(
       .Add<most_visited::mojom::MostVisitedPageHandlerFactory>()
       .Add<new_tab_page_third_party::mojom::PageHandlerFactory>();
 
+  if (base::FeatureList::IsEnabled(
+          omnibox::kComposeboxDriveContextMenuOption)) {
+    registry.ForWebUI<DrivePickerHostUI>()
+        .Add<drive_picker_host::mojom::DrivePickerHostHandler>();
+  }
+
   registry
       .ForWebUI<settings::SettingsUI>()
 #if !BUILDFLAG(IS_CHROMEOS)
       .Add<theme_color_picker::mojom::ThemeColorPickerHandlerFactory>()
 #endif  // !BUILDFLAG(IS_CHROMEOS)
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
       .Add<batch_upload_promo::mojom::PageHandlerFactory>()
-#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
       .Add<customize_color_scheme_mode::mojom::
                CustomizeColorSchemeModeHandlerFactory>()
       .Add<help_bubble::mojom::HelpBubbleHandlerFactory>();
@@ -686,15 +701,18 @@ void PopulateChromeWebUIFrameInterfaceBrokersTrustedPartsDesktop(
         .Add<bookmark_bar::mojom::PageHandlerFactory>()
         .Add<extensions_bar::mojom::PageHandlerFactory>()
         .Add<searchbox::mojom::PageHandlerFactory>()
+        .Add<tabs_api::mojom::TabDragService>()
         .Add<tabs_api::mojom::TabStripService>()
-        .Add<tracked_element::mojom::TrackedElementHandler>();
+        .Add<tabs_api::mojom::TabStripExperimentService>()
+        .Add<tabs_api::mojom::TabStripUIController>();
   }
 
-  if (features::IsWebUIToolbarEnabled()) {
+  if (features::IsWebUIToolbarEnabled() || base::FeatureList::IsEnabled(
+          features::kWebUIToolbarProcessOverheadExperiment)) {
     registry.ForWebUI<WebUIToolbarUI>()
         .Add<browser_controls_api::mojom::BrowserControlsService>()
         .Add<toolbar_ui_api::mojom::ToolbarUIService>()
-        .Add<tracked_element::mojom::TrackedElementHandler>();
+        .Add<help_bubble::mojom::HelpBubbleHandlerFactory>();
   }
 
   // TODO(crbug.com/452983498): Migrate all remaining
@@ -704,9 +722,6 @@ void PopulateChromeWebUIFrameInterfaceBrokersTrustedPartsDesktop(
 
 void PopulateChromeWebUIFrameInterfaceBrokersUntrustedPartsDesktop(
     content::WebUIBrowserInterfaceBrokerRegistry& registry) {
-  registry.AddGlobal<color_change_listener::mojom::PageHandler>(
-      base::BindRepeating(&BindColorChangeListener));
-
   if (lens::features::IsLensOverlayEnabled()) {
     registry.ForWebUI<lens::LensSidePanelUntrustedUI>()
         .Add<lens::mojom::LensSidePanelPageHandlerFactory>()
@@ -722,7 +737,8 @@ void PopulateChromeWebUIFrameInterfaceBrokersUntrustedPartsDesktop(
         .Add<help_bubble::mojom::HelpBubbleHandlerFactory>()
         .Add<searchbox::mojom::PageHandlerFactory>();
   }
-  registry.ForWebUI<ReadAnythingUntrustedUI>();
+  registry.ForWebUI<ReadAnythingUntrustedUI>()
+      .Add<help_bubble::mojom::HelpBubbleHandlerFactory>();
 
   if (data_sharing::features::IsDataSharingFunctionalityEnabled()) {
     registry.ForWebUI<DataSharingUI>()
@@ -734,16 +750,20 @@ void PopulateChromeWebUIFrameInterfaceBrokersUntrustedPartsDesktop(
                MicrosoftAuthUntrustedDocumentInterfacesFactory>();
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-  if (base::FeatureList::IsEnabled(features::kGlicRegionSelectionNew)) {
-    registry.ForWebUI<glic::SelectionOverlayUntrustedUI>()
-        .Add<glic::selection::SelectionOverlayPageHandlerFactory>();
-  }
+  registry.ForWebUI<glic::SelectionOverlayUntrustedUI>()
+      .Add<glic::selection::SelectionOverlayPageHandlerFactory>();
 
   if (base::FeatureList::IsEnabled(features::kAiOverlayDialog)) {
     registry.ForWebUI<ttc::AiOverlayDialogUntrustedUI>()
         .Add<ai_overlay_dialog::mojom::PageHandlerFactory>();
   }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
+
+  if (base::FeatureList::IsEnabled(
+          omnibox::kComposeboxDriveContextMenuOption)) {
+    registry.ForWebUI<DrivePickerUntrustedHostUI>()
+        .Add<drive_picker_host_untrusted::mojom::PageHandlerFactory>();
+  }
 }
 
 }  // namespace chrome::internal

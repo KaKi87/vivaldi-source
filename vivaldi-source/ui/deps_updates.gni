@@ -3,12 +3,8 @@
 import("//vivaldi/testing/testing.gni")
 
 update_target("//chrome/browser:browser") {
-  public_deps += [
-    "//vivaldi/ui",
-  ]
-  allow_circular_includes_from += [
-    "//vivaldi/ui",
-  ]
+  public_deps += [ "//vivaldi/ui" ]
+  allow_circular_includes_from += [ "//vivaldi/ui" ]
 }
 
 update_target("//chrome/browser/ui:ui") {
@@ -16,11 +12,9 @@ update_target("//chrome/browser/ui:ui") {
     "//vivaldi/components:tabs",
     "//vivaldi/prefs:prefs_files_generated",
     "//vivaldi/ui",
-    "//vivaldi/vivaldi_account:vivaldi_account_manager_factory"
+    "//vivaldi/vivaldi_account:vivaldi_account_manager_factory",
   ]
-  allow_circular_includes_from += [
-    "//vivaldi/ui",
-  ]
+  allow_circular_includes_from += [ "//vivaldi/ui" ]
 
   if (!is_android) {
     deps -= [
@@ -28,43 +22,30 @@ update_target("//chrome/browser/ui:ui") {
       "//chrome/browser/ui/startup/default_browser_prompt",
       "//chrome/browser/ui/startup/default_browser_prompt:impl",
     ]
-    allow_circular_includes_from -= [
-      "//chrome/browser/ui/startup/default_browser_prompt:impl",
-    ]
+    allow_circular_includes_from -=
+        [ "//chrome/browser/ui/startup/default_browser_prompt:impl" ]
   }
   if (is_win || is_mac) {
-    deps -= [
-      "//chrome/browser/ui/startup/default_browser_prompt/pin_infobar",
-    ]
+    deps -= [ "//chrome/browser/ui/startup/default_browser_prompt/pin_infobar" ]
   }
 }
 
 update_target("//chrome/browser/ui/startup:impl") {
   if (is_win || is_mac || is_linux) {
-    deps -= [
-      "//chrome/browser/ui/startup/default_browser_prompt",
-    ]
+    deps -= [ "//chrome/browser/ui/startup/default_browser_prompt" ]
   }
   if (is_win || is_mac) {
-    deps -= [
-      "//chrome/browser/ui/startup/default_browser_prompt/pin_infobar",
-    ]
+    deps -= [ "//chrome/browser/ui/startup/default_browser_prompt/pin_infobar" ]
   }
-  configs += [
-    "//vivaldi/gn/config:release_kind",
-  ]
+  configs += [ "//vivaldi/gn/config:release_kind" ]
 }
 
 if (vivaldi_build_tests) {
   update_target("//chrome/browser/ui/startup:interactive_ui_tests") {
-    deps -= [
-      "//chrome/browser/default_browser"
-    ]
+    deps -= [ "//chrome/browser/default_browser" ]
   }
 }
 
 update_target("//chrome/browser/profiles:profile_util_impl") {
-  sources += [
-    "//vivaldi/ui/webui/nuke_profile_directory_utils.inc"
-  ]
+  sources += [ "//vivaldi/ui/webui/nuke_profile_directory_utils.inc" ]
 }

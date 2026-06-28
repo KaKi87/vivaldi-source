@@ -42,9 +42,6 @@ namespace android_webview {
 
 namespace {
 
-RendererLibraryPrefetchMode g_renderer_library_prefetch_mode =
-    RendererLibraryPrefetchMode::kDefault;
-
 void ClientCertificatesCleared(const JavaRef<jobject>& callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   JNIEnv* env = AttachCurrentThread();
@@ -70,14 +67,6 @@ net::SocketTag GetDefaultSocketTag() {
   uid_t uid = Java_AwContentsStatics_getDefaultTrafficStatsUid(env);
   int32_t tag = Java_AwContentsStatics_getDefaultTrafficStatsTag(env);
   return net::SocketTag(uid, tag);
-}
-
-void SetRendererLibraryPrefetchMode(RendererLibraryPrefetchMode mode) {
-  g_renderer_library_prefetch_mode = mode;
-}
-
-RendererLibraryPrefetchMode GetRendererLibraryPrefetchMode() {
-  return g_renderer_library_prefetch_mode;
 }
 
 // static
@@ -153,14 +142,14 @@ static void JNI_AwContentsStatics_LogCommandLineForDebugging(JNIEnv* env) {
 // static
 static void JNI_AwContentsStatics_LogFlagMetrics(
     JNIEnv* env,
-    const JavaRef<jobjectArray>& jswitches,
-    const JavaRef<jobjectArray>& jfeatures) {
+    const JavaRef<JArray<jstring>>& jswitches,
+    const JavaRef<JArray<jstring>>& jfeatures) {
   std::set<std::string> switches;
-  for (const auto& jswitch : jswitches.ReadElements<jstring>()) {
+  for (const auto& jswitch : jswitches.CreateView(env)) {
     switches.insert(ConvertJavaStringToUTF8(jswitch));
   }
   std::set<std::string> features;
-  for (const auto& jfeature : jfeatures.ReadElements<jstring>()) {
+  for (const auto& jfeature : jfeatures.CreateView(env)) {
     features.insert(ConvertJavaStringToUTF8(jfeature));
   }
 
@@ -183,19 +172,6 @@ static std::string JNI_AwContentsStatics_GetVariationsHeader(JNIEnv* env) {
   if (!headers)
     return "";
   return headers->headers_map.at(variations::mojom::GoogleWebVisibility::ANY);
-}
-
-// static
-static void JNI_AwContentsStatics_SetRendererLibraryPrefetchMode(JNIEnv* env,
-                                                                 int32_t mode) {
-  SetRendererLibraryPrefetchMode(
-      static_cast<RendererLibraryPrefetchMode>(mode));
-}
-
-// static
-static int32_t JNI_AwContentsStatics_GetRendererLibraryPrefetchMode(
-    JNIEnv* env) {
-  return static_cast<int32_t>(GetRendererLibraryPrefetchMode());
 }
 
 // static

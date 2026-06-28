@@ -202,8 +202,9 @@ suite('AppReceivesToolbarChanges', () => {
 
   test('line focus style change updates line focus', async () => {
     chrome.readingMode.isLineFocusEnabled = true;
-    const lineFocus =
-        app.$.containerParent.querySelector<HTMLElement>('#lineFocus');
+    app.updateContent();
+    await microtasksFinished();
+    const lineFocus = app.$.lineFocus;
     assertTrue(!!lineFocus);
 
     let expectedData = LineFocusStyle.UNDERLINE;
@@ -223,6 +224,7 @@ suite('AppReceivesToolbarChanges', () => {
 
   test('line focus style change updates padding', async () => {
     chrome.readingMode.isLineFocusEnabled = true;
+    app.connectedCallback();
     emitEvent(
         app, ToolbarEvent.LINE_FOCUS_MOVEMENT,
         {detail: {data: LineFocusMovement.STATIC}});
@@ -252,16 +254,21 @@ suite('AppReceivesToolbarChanges', () => {
     emitEvent(
         app, ToolbarEvent.LINE_FOCUS_MOVEMENT,
         {detail: {data: LineFocusMovement.CURSOR}});
-    assertFalse(lineFocusController.isStatic());
+    assertEquals(
+        LineFocusMovement.CURSOR,
+        lineFocusController.getCurrentLineFocusMovement());
 
     emitEvent(
         app, ToolbarEvent.LINE_FOCUS_MOVEMENT,
         {detail: {data: LineFocusMovement.STATIC}});
-    assertTrue(lineFocusController.isStatic());
+    assertEquals(
+        LineFocusMovement.STATIC,
+        lineFocusController.getCurrentLineFocusMovement());
   });
 
   test('line focus movement change updates padding', async () => {
     chrome.readingMode.isLineFocusEnabled = true;
+    app.connectedCallback();
     emitEvent(
         app, ToolbarEvent.LINE_FOCUS_STYLE,
         {detail: {data: LineFocusStyle.UNDERLINE}});
@@ -281,6 +288,57 @@ suite('AppReceivesToolbarChanges', () => {
     const padding =
         +window.getComputedStyle(app.$.container).paddingTop.replace('px', '');
     assertLT(0, padding);
+  });
+
+  test('line focus classes update line focus padding', async () => {
+    chrome.readingMode.isLineFocusEnabled = true;
+    app.updateContent();
+    await microtasksFinished();
+    const lineFocus = app.$.lineFocus;
+    assertTrue(!!lineFocus);
+
+    emitEvent(
+        app, ToolbarEvent.LINE_FOCUS_STYLE,
+        {detail: {data: LineFocusStyle.UNDERLINE}});
+    await microtasksFinished();
+    assertTrue(lineFocus.classList.contains('line-mode'));
+    assertEquals('8px', window.getComputedStyle(lineFocus).left);
+    assertEquals('8px', window.getComputedStyle(lineFocus).right);
+
+    emitEvent(
+        app, ToolbarEvent.LINE_FOCUS_STYLE,
+        {detail: {data: LineFocusStyle.SMALL_WINDOW}});
+    await microtasksFinished();
+    assertTrue(lineFocus.classList.contains('window-mode'));
+    assertEquals('0px', window.getComputedStyle(lineFocus).left);
+    assertEquals('0px', window.getComputedStyle(lineFocus).right);
+  });
+
+  test('immersive view updates line focus padding', async () => {
+    chrome.readingMode.isLineFocusEnabled = true;
+    chrome.readingMode.isImmersiveEnabled = true;
+    app = await createApp();
+    app.isImmersiveMode = () => true;
+    app.updateContent();
+    await microtasksFinished();
+    const lineFocus = app.$.lineFocus;
+    assertTrue(!!lineFocus);
+
+    emitEvent(
+        app, ToolbarEvent.LINE_FOCUS_STYLE,
+        {detail: {data: LineFocusStyle.UNDERLINE}});
+    await microtasksFinished();
+    assertTrue(lineFocus.classList.contains('line-mode'));
+    assertEquals('8px', window.getComputedStyle(lineFocus).left);
+    assertEquals('14px', window.getComputedStyle(lineFocus).right);
+
+    emitEvent(
+        app, ToolbarEvent.LINE_FOCUS_STYLE,
+        {detail: {data: LineFocusStyle.SMALL_WINDOW}});
+    await microtasksFinished();
+    assertTrue(lineFocus.classList.contains('window-mode'));
+    assertEquals('0px', window.getComputedStyle(lineFocus).left);
+    assertEquals('0px', window.getComputedStyle(lineFocus).right);
   });
 
   test(
@@ -310,8 +368,7 @@ suite('AppReceivesToolbarChanges', () => {
 
   test('line focus change does nothing with flag disabled', async () => {
     chrome.readingMode.isLineFocusEnabled = false;
-    const lineFocus =
-        app.$.containerParent.querySelector<HTMLElement>('#lineFocus');
+    const lineFocus = app.$.lineFocus;
     assertTrue(!!lineFocus);
 
     emitEvent(

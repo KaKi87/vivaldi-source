@@ -22,8 +22,10 @@ vivaldi_version_full =
           "@VIVALDI_MAJOR@.@VIVALDI_MINOR@.@VIVALDI_NIGHTLY@.$GLOBAL_BUILDNUM",
         ],
         "trim string",
-        [vivaldi_version_path, chrome_version_path]
-      )
+        [
+          vivaldi_version_path,
+          chrome_version_path,
+        ])
 
 chrome_dylib_version =
     exec_script(vivaldi_version_py_path,
@@ -40,8 +42,10 @@ chrome_dylib_version =
                   "PATCH_LO=int($GLOBAL_BUILDNUM)%256",
                 ],
                 "trim string",
-                [vivaldi_version_path, chrome_version_path]
-        )
+                [
+                  vivaldi_version_path,
+                  chrome_version_path,
+                ])
 
 if (is_android && defined(is_vivaldi) && is_vivaldi) {
   if (current_cpu == "arm") {
@@ -56,21 +60,21 @@ if (is_android && defined(is_vivaldi) && is_vivaldi) {
     assert(false, "Unsupported current CPU: " + current_cpu)
   }
 
-  vivaldi_version_code =
-      exec_script(vivaldi_version_py_path,
-                  [
-                    "-f",
-                    rebase_path(vivaldi_version_path, root_build_dir),
-                    "-t",
-                    "@VERSION_ID@",
-                    "-e",
-                    "VERSION_ID=$VERSION_ID_FORMAT % (VIVALDI_NIGHTLY, int($GLOBAL_BUILDNUM)%1000)",
-                  ],
-                  "trim string",
-                  [vivaldi_version_path]
-          )
+  vivaldi_version_code = exec_script(
+          vivaldi_version_py_path,
+          [
+            "-f",
+            rebase_path(vivaldi_version_path, root_build_dir),
+            "-t",
+            "@VERSION_ID@",
+            "-e",
+            "VERSION_ID=$VERSION_ID_FORMAT % (VIVALDI_NIGHTLY, int($GLOBAL_BUILDNUM)%1000)",
+          ],
+          "trim string",
+          [ vivaldi_version_path ])
   if (is_vivaldi_gas) {
     vivaldi_version_code = "1" + vivaldi_version_code
   }
+
   #print("Vivaldi version code: " + vivaldi_version_code)
 }

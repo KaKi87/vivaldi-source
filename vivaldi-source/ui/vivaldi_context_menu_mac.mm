@@ -122,6 +122,7 @@ bool VivaldiContextMenuMac::Show() {
     return false;
 
   menu_controller_ = [[MenuControllerCocoa alloc] initWithModel:menu_model_
+                                                  isContextMenu:true
                                                        delegate:nil];
 
   // Synthesize an event for the click, as there is no certainty that

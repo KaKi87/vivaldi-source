@@ -37,6 +37,7 @@ import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxAttachmentRecyclerViewAdapter.FuseboxAttachmentType;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxMetrics.FuseboxAttachmentButtonType;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.components.contextual_search.ContextUploadErrorType;
 import org.chromium.components.contextual_search.ContextUploadStatus;
 import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.content_public.browser.RenderWidgetHostView;
@@ -51,6 +52,7 @@ public class FuseboxAttachmentModelListUnitTest {
 
     @Mock private ComposeboxQueryControllerBridge mComposeboxQueryControllerBridge;
     @Mock private FuseboxAttachmentModelList.FuseboxAttachmentChangeListener mListener;
+    @Mock private Tab mTab;
 
     private Resources mResources;
     private FuseboxAttachmentModelList mFuseboxAttachmentModelList;
@@ -82,14 +84,16 @@ public class FuseboxAttachmentModelListUnitTest {
                 tab,
                 /* bypassTabCache= */ false,
                 mResources,
-                FuseboxAttachmentButtonType.TAB_PICKER);
+                FuseboxAttachmentButtonType.TAB_PICKER,
+                /* isSuggestedTab= */ false);
     }
 
     private FuseboxAttachment createTabAttachment(int tabId, String token) {
         Tab tab = mock(Tab.class);
         when(tab.getId()).thenReturn(tabId);
         var attachment = createTabAttachment(tab);
-        when(mComposeboxQueryControllerBridge.addTabContextFromCache(tabId)).thenReturn(token);
+        when(mComposeboxQueryControllerBridge.addTabContextFromCache(tabId, false))
+                .thenReturn(token);
         return attachment;
     }
 
@@ -341,8 +345,17 @@ public class FuseboxAttachmentModelListUnitTest {
         assertEquals("uploaded-token", attachment.getToken());
         assertFalse(attachment.isUploadComplete());
 
-        mFuseboxAttachmentModelList.onContextUploadStatusChanged(
-                "uploaded-token", ContextUploadStatus.UPLOAD_SUCCESSFUL);
+        try (var ignored =
+                HistogramWatcher.newBuilder()
+                        .expectIntRecord(
+                                "Omnibox.MobileFusebox.ContextUploadStatus",
+                                ContextUploadStatus.UPLOAD_SUCCESSFUL)
+                        .build()) {
+            mFuseboxAttachmentModelList.onContextUploadStatusChanged(
+                    "uploaded-token",
+                    ContextUploadStatus.UPLOAD_SUCCESSFUL,
+                    ContextUploadErrorType.UNKNOWN);
+        }
         assertTrue(attachment.isUploadComplete());
         verifyNoMoreInteractions(mComposeboxQueryControllerBridge);
     }
@@ -392,10 +405,27 @@ public class FuseboxAttachmentModelListUnitTest {
         assertFalse(preTokenizedAttachment.isUploadComplete());
         assertFalse(uploadedAttachment.isUploadComplete());
 
-        mFuseboxAttachmentModelList.onContextUploadStatusChanged(
-                "pretokenized-token", ContextUploadStatus.UPLOAD_SUCCESSFUL);
-        mFuseboxAttachmentModelList.onContextUploadStatusChanged(
-                "uploaded-token", ContextUploadStatus.UPLOAD_FAILED);
+        try (var ignored =
+                HistogramWatcher.newBuilder()
+                        .expectIntRecord(
+                                "Omnibox.MobileFusebox.ContextUploadStatus",
+                                ContextUploadStatus.UPLOAD_SUCCESSFUL)
+                        .expectIntRecord(
+                                "Omnibox.MobileFusebox.ContextUploadStatus",
+                                ContextUploadStatus.UPLOAD_FAILED)
+                        .expectIntRecord(
+                                "Omnibox.MobileFusebox.ContextUploadError",
+                                ContextUploadErrorType.UNKNOWN)
+                        .build()) {
+            mFuseboxAttachmentModelList.onContextUploadStatusChanged(
+                    "pretokenized-token",
+                    ContextUploadStatus.UPLOAD_SUCCESSFUL,
+                    ContextUploadErrorType.UNKNOWN);
+            mFuseboxAttachmentModelList.onContextUploadStatusChanged(
+                    "uploaded-token",
+                    ContextUploadStatus.UPLOAD_FAILED,
+                    ContextUploadErrorType.UNKNOWN);
+        }
         assertTrue(uploadFailedNotified.get());
 
         assertTrue(preTokenizedAttachment.isUploadComplete());
@@ -459,7 +489,7 @@ public class FuseboxAttachmentModelListUnitTest {
         doReturn(false).when(tab).isFrozen();
         doReturn(webContents).when(tab).getWebContents();
         doReturn(renderWidgetHostView).when(webContents).getRenderWidgetHostView();
-        when(mComposeboxQueryControllerBridge.addTabContext(tab)).thenReturn("token");
+        when(mComposeboxQueryControllerBridge.addTabContext(tab, false)).thenReturn("token");
 
         FuseboxAttachment tabAttachment = createTabAttachment(tab);
         mFuseboxAttachmentModelList.add(tabAttachment);
@@ -478,7 +508,7 @@ public class FuseboxAttachmentModelListUnitTest {
         doReturn(true).when(tab).isIncognitoBranded();
         doReturn(webContents).when(tab).getWebContents();
         doReturn(renderWidgetHostView).when(webContents).getRenderWidgetHostView();
-        when(mComposeboxQueryControllerBridge.addTabContext(tab)).thenReturn("token");
+        when(mComposeboxQueryControllerBridge.addTabContext(tab, false)).thenReturn("token");
 
         FuseboxAttachment tabAttachment = createTabAttachment(tab);
         mFuseboxAttachmentModelList.add(tabAttachment);
@@ -496,8 +526,8 @@ public class FuseboxAttachmentModelListUnitTest {
         doReturn(false).when(tab).isFrozen();
         doReturn(webContents).when(tab).getWebContents();
         doReturn(renderWidgetHostView).when(webContents).getRenderWidgetHostView();
-        when(mComposeboxQueryControllerBridge.addTabContext(tab)).thenReturn("token2");
-        when(mComposeboxQueryControllerBridge.addTabContextFromCache(1)).thenReturn("");
+        when(mComposeboxQueryControllerBridge.addTabContext(tab, false)).thenReturn("token2");
+        when(mComposeboxQueryControllerBridge.addTabContextFromCache(1, false)).thenReturn("");
 
         FuseboxAttachment tabAttachment = createTabAttachment(tab);
         mFuseboxAttachmentModelList.add(tabAttachment);
@@ -514,19 +544,19 @@ public class FuseboxAttachmentModelListUnitTest {
         doReturn(false).when(tab).isFrozen();
         doReturn(webContents).when(tab).getWebContents();
         doReturn(renderWidgetHostView).when(webContents).getRenderWidgetHostView();
-        when(mComposeboxQueryControllerBridge.addTabContextFromCache(1)).thenReturn("token");
+        when(mComposeboxQueryControllerBridge.addTabContextFromCache(1, false)).thenReturn("token");
 
         FuseboxAttachment tabAttachment = createTabAttachment(tab);
         mFuseboxAttachmentModelList.add(tabAttachment);
         assertEquals("token", tabAttachment.getToken());
 
-        when(mComposeboxQueryControllerBridge.addTabContext(tab)).thenReturn("token2");
+        when(mComposeboxQueryControllerBridge.addTabContext(tab, false)).thenReturn("token2");
         mFuseboxAttachmentModelList.onContextUploadStatusChanged(
-                "token", ContextUploadStatus.VALIDATION_FAILED);
+                "token", ContextUploadStatus.VALIDATION_FAILED, ContextUploadErrorType.UNKNOWN);
         assertEquals("token2", tabAttachment.getToken());
 
         mFuseboxAttachmentModelList.onContextUploadStatusChanged(
-                "token2", ContextUploadStatus.VALIDATION_FAILED);
+                "token2", ContextUploadStatus.VALIDATION_FAILED, ContextUploadErrorType.UNKNOWN);
         assertTrue(mFuseboxAttachmentModelList.isEmpty());
     }
 
@@ -621,7 +651,9 @@ public class FuseboxAttachmentModelListUnitTest {
             FuseboxAttachment attachment = createTestAttachment("test");
             mFuseboxAttachmentModelList.add(attachment);
             mFuseboxAttachmentModelList.onContextUploadStatusChanged(
-                    "token1", ContextUploadStatus.UPLOAD_SUCCESSFUL);
+                    "token1",
+                    ContextUploadStatus.UPLOAD_SUCCESSFUL,
+                    ContextUploadErrorType.UNKNOWN);
         }
     }
 
@@ -667,5 +699,22 @@ public class FuseboxAttachmentModelListUnitTest {
 
         mFuseboxAttachmentModelList.removeTabsNotInSet(Set.of());
         assertThat(mFuseboxAttachmentModelList.getAttachedTabIds()).isEmpty();
+    }
+
+    @Test
+    public void testRetryTabUpload_failedSynchronously_removesAttachment() {
+        doReturn(1).when(mTab).getId();
+        doReturn(true).when(mTab).isInitialized();
+        doReturn(false).when(mTab).isFrozen();
+        doReturn(null).when(mTab).getWebContents();
+        when(mComposeboxQueryControllerBridge.addTabContextFromCache(1, false)).thenReturn("token");
+        FuseboxAttachment tabAttachment = createTabAttachment(mTab);
+        mFuseboxAttachmentModelList.add(tabAttachment);
+
+        mFuseboxAttachmentModelList.onContextUploadStatusChanged(
+                "token", ContextUploadStatus.VALIDATION_FAILED, ContextUploadErrorType.UNKNOWN);
+
+        assertTrue(mFuseboxAttachmentModelList.isEmpty());
+        verify(mComposeboxQueryControllerBridge).removeAttachment("token");
     }
 }

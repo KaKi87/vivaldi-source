@@ -20,6 +20,9 @@ import org.chromium.components.bookmarks.BookmarkItem;
 import org.chromium.components.bookmarks.BookmarkType;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -72,23 +75,32 @@ public class TabBookmarker {
     }
 
     /**
-     * Add the specified tab to bookmarks or allows to edit the bookmark if the specified tab is
+     * Add the specified tabs to bookmarks or allows to edit the bookmark if the specified tabs are
      * already bookmarked. If a new bookmark is added, a snackbar will be shown.
      *
-     * @param tabToBookmark The tab that needs to be bookmarked.
+     * @param tabsToBookmark The tabs that need to be bookmarked.
      */
+    public void addOrEditBookmark(final List<Tab> tabsToBookmark) {
+        addOrEditBookmark(tabsToBookmark, BookmarkType.NORMAL, /* fromExplicitTrackUi= */ false);
+    }
+
     public void addOrEditBookmark(final Tab tabToBookmark) {
-        addOrEditBookmark(tabToBookmark, BookmarkType.NORMAL, /* fromExplicitTrackUi= */ false);
+        addOrEditBookmark(Collections.singletonList(tabToBookmark));
     }
 
     /**
-     * Adds the specified tab to the Reading List. Opens a new item if an item was added. Opens UI
+     * Adds the specified tabs to the Reading List. Opens a new item if an item was added. Opens UI
      * for editing the Reading List item if it was already present on the list.
      *
-     * @param tabToAdd The tab that to add to the Reading List.
+     * @param tabsToBookmark The tabs that to add to the Reading List.
      */
+    public void addToReadingList(final List<Tab> tabsToBookmark) {
+        addOrEditBookmark(
+                tabsToBookmark, BookmarkType.READING_LIST, /* fromExplicitTrackUi= */ false);
+    }
+
     public void addToReadingList(final Tab tabToAdd) {
-        addOrEditBookmark(tabToAdd, BookmarkType.READING_LIST, /* fromExplicitTrackUi= */ false);
+        addToReadingList(Collections.singletonList(tabToAdd));
     }
 
     /**
@@ -101,7 +113,10 @@ public class TabBookmarker {
         BookmarkId bookmarkId =
                 assumeNonNull(mBookmarkModelSupplier.get()).getUserBookmarkIdForTab(currentTab);
         if (bookmarkId == null) {
-            addOrEditBookmark(currentTab, BookmarkType.NORMAL, /* fromExplicitTrackUi= */ true);
+            addOrEditBookmark(
+                    Collections.singletonList(currentTab),
+                    BookmarkType.NORMAL,
+                    /* fromExplicitTrackUi= */ true);
         } else {
             // In the case where the bookmark exists, re-show the save flow with price-tracking
             // enabled.
@@ -120,10 +135,10 @@ public class TabBookmarker {
     }
 
     private void addOrEditBookmark(
-            final @Nullable Tab tabToBookmark,
+            final @Nullable List<Tab> tabsToBookmark,
             @BookmarkType int bookmarkType,
             boolean fromExplicitTrackUi) {
-        if (tabToBookmark == null) {
+        if (tabsToBookmark == null) {
             return;
         }
 
@@ -136,28 +151,38 @@ public class TabBookmarker {
 
         bookmarkModel.finishLoadingBookmarkModel(
                 () -> {
-                    // Gives up the bookmarking if the tab is being destroyed.
-                    if (tabToBookmark.isClosing()
-                            || !tabToBookmark.isInitialized()
-                            || mBottomSheetControllerSupplier.get() == null
+                    if (mBottomSheetControllerSupplier.get() == null
                             || mSnackbarManagerSupplier.get() == null) {
                         return;
                     }
+                    List<@Nullable BookmarkItem> currentBookmarkItems =
+                            new ArrayList<>(tabsToBookmark.size());
+                    for (Tab tab : tabsToBookmark) {
+                        // Gives up the bookmarking if any tab is being destroyed.
+                        if (tab.isClosing() || !tab.isInitialized()) {
+                            return;
+                        }
+                        BookmarkId bookmarkId = bookmarkModel.getUserBookmarkIdForTab(tab);
 
-                    BookmarkId bookmarkId = bookmarkModel.getUserBookmarkIdForTab(tabToBookmark);
-                    // Vivaldi - open Edit dialog only if the URL is added as a Normal Bookmark,
-                    // not as a Reading list item.
-                    // Add tab as a new bookmark if it doesn't exist in BookmarkType.NORMAL
-                    if (bookmarkId != null && bookmarkId.getType() == BookmarkType.READING_LIST)
-                        bookmarkId = bookmarkModel.getMostRecentlyAddedUserNormalBookmarkIdForUrl(
-                                tabToBookmark.getOriginalUrl());
-                    if (bookmarkId != null && bookmarkModel.isInsideTrashFolder(bookmarkId))
-                        bookmarkId = null;
-                    BookmarkItem currentBookmarkItem =
-                            bookmarkId == null ? null : bookmarkModel.getBookmarkById(bookmarkId);
+                        // Vivaldi - open Edit dialog only if the URL is added as a Normal Bookmark,
+                        // not as a Reading list item.
+                        // Add tab as a new bookmark if it doesn't exist in BookmarkType.NORMAL
+                        if (bookmarkId != null && bookmarkId.getType() == BookmarkType.READING_LIST)
+                            bookmarkId = bookmarkModel.getMostRecentlyAddedUserNormalBookmarkIdForUrl(
+                                    tab.getOriginalUrl());
+                        if (bookmarkId != null && bookmarkModel.isInsideTrashFolder(bookmarkId))
+                            bookmarkId = null;
+                        // End Vivald
+
+                        currentBookmarkItems.add(
+                                bookmarkId == null
+                                        ? null
+                                        : bookmarkModel.getBookmarkById(bookmarkId));
+                    }
+
                     onBookmarkModelLoaded(
-                            tabToBookmark,
-                            currentBookmarkItem,
+                            tabsToBookmark,
+                            currentBookmarkItems,
                             bookmarkModel,
                             bookmarkType,
                             fromExplicitTrackUi);
@@ -165,36 +190,42 @@ public class TabBookmarker {
     }
 
     private void onBookmarkModelLoaded(
-            final Tab tabToBookmark,
-            @Nullable final BookmarkItem currentBookmarkItem,
+            final List<Tab> tabsToBookmark,
+            final List<@Nullable BookmarkItem> currentBookmarkItems,
             final BookmarkModel bookmarkModel,
             @BookmarkType int bookmarkType,
             boolean fromExplicitTrackUi) {
         BookmarkUtils.addOrEditBookmark(
-                currentBookmarkItem,
+                currentBookmarkItems,
                 bookmarkModel,
-                tabToBookmark,
+                tabsToBookmark,
+                mSnackbarManagerSupplier.get(),
                 mBottomSheetControllerSupplier.get(),
                 mActivity,
                 bookmarkType,
-                (newBookmarkId) -> {
-                    BookmarkId currentBookmarkId =
-                            (currentBookmarkItem == null) ? null : currentBookmarkItem.getId();
-                    // Add offline page for a new bookmark.
-                    if (newBookmarkId != null
-                            && !Objects.equals(newBookmarkId, currentBookmarkId)) {
-                        OfflinePageUtils.saveBookmarkOffline(newBookmarkId, tabToBookmark);
-                    }
-
-                    // Vivaldi
-                    if (SpeedDialUtils.thumbnailsEnabled() && newBookmarkId != null
-                            && bookmarkModel.isInsideSpeedDialFolder(newBookmarkId)) {
-                        ChromeActivity activity = (ChromeActivity) mActivity;
-                        if (newBookmarkId != null)
+                (newBookmarkIds) -> {
+                    if (newBookmarkIds == null) return;
+                    assert tabsToBookmark.size() == newBookmarkIds.size();
+                    for (int i = 0; i < tabsToBookmark.size(); i++) {
+                        BookmarkId newBookmarkId = newBookmarkIds.get(i);
+                        BookmarkItem currentBookmarkItem = currentBookmarkItems.get(i);
+                        BookmarkId currentBookmarkId =
+                                (currentBookmarkItem == null) ? null : currentBookmarkItem.getId();
+                        // Add offline page for a new bookmark.
+                        if (newBookmarkId != null
+                                && !Objects.equals(newBookmarkId, currentBookmarkId)) {
+                            OfflinePageUtils.saveBookmarkOffline(
+                                    newBookmarkId, tabsToBookmark.get(i));
+                        }
+                        // Vivaldi
+                        if (SpeedDialUtils.thumbnailsEnabled() && newBookmarkId != null
+                                && bookmarkModel.isInsideSpeedDialFolder(newBookmarkId)) {
+                            ChromeActivity activity = (ChromeActivity) mActivity;
                             activity.captureThumbnailForSpeedDial(
                                     bookmarkModel, bookmarkModel.getBookmarkById(newBookmarkId));
+                        }
+                        // End vivaldi
                     }
-                    // End vivaldi
                 },
                 fromExplicitTrackUi,
                 mBookmarkManagerOpener,

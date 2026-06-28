@@ -283,3 +283,12 @@ class MockChange(object):
 
     def DescriptionText(self):
         return self._description
+
+    def AffectedSubmodules(self):
+        return []
+
+    def AllLocalSubmodules(self):
+        return set()
+
+    def UpstreamBranch(self):
+        return None

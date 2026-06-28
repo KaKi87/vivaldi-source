@@ -7,6 +7,7 @@ package org.chromium.chrome.browser.ui.signin.fullscreen_signin;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.content.Context;
+import android.graphics.drawable.Drawable;
 
 import androidx.annotation.MainThread;
 import androidx.annotation.StringRes;
@@ -17,10 +18,11 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManager;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
+import org.chromium.chrome.browser.signin.services.BadgeConfig;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
-import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.identitymanager.PrimaryAccountChangeEvent;
+import org.chromium.components.signin.metrics.AccountConsistencyPromoAction;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
 import org.chromium.google_apis.gaia.CoreAccountId;
 import org.chromium.ui.modaldialog.ModalDialogManager;
@@ -34,8 +36,17 @@ import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 public class FullscreenSigninCoordinator implements IdentityManager.Observer {
     /** Delegate for the fullscreen signin MVC. */
     public interface Delegate {
-        /** Notifies when the user clicked the "add account" button. */
+        /**
+         * Notifies when the user clicked the "add account" button.
+         *
+         * @deprecated Use {@link #addAccount(String)} instead.
+         */
+        @Deprecated
+        // TODO(crbug.com/512202548): Remove this method as it is now redundant.
         void addAccount();
+
+        /** Notifies when the user clicked the "add account" button with a specified email. */
+        void addAccount(@Nullable String accountEmail);
 
         /**
          * Notifies when the user accepts the terms of service. Only implemented for the FRE.
@@ -48,6 +59,9 @@ public class FullscreenSigninCoordinator implements IdentityManager.Observer {
         /** Called when the interaction with the page is over and the next page should be shown. */
         void advanceToNextPage();
 
+        /** Aborts the sign-in flow. */
+        void abortFlow();
+
         /** Called to display the device lock page */
         void displayDeviceLockPage(CoreAccountId selectedAccountId);
 
@@ -56,9 +70,7 @@ public class FullscreenSigninCoordinator implements IdentityManager.Observer {
          *
          * @param promoAction the promo action corresponding to the account used to sign in.
          */
-        void recordUserSignInHistograms(
-                @org.chromium.components.signin.metrics.AccountConsistencyPromoAction
-                        int promoAction);
+        void recordUserSignInHistograms(@AccountConsistencyPromoAction int promoAction);
 
         /** Records histograms corresponding to the user dismissing the sign-in screen. */
         void recordSigninDismissedHistograms();
@@ -111,6 +123,7 @@ public class FullscreenSigninCoordinator implements IdentityManager.Observer {
     private final FullscreenSigninMediator mMediator;
     private final Delegate mDelegate;
     @Nullable private IdentityManager mIdentityManager;
+    private boolean mDestroyed;
 
     @Nullable
     private PropertyModelChangeProcessor<PropertyModel, FullscreenSigninView, PropertyKey>
@@ -145,6 +158,8 @@ public class FullscreenSigninCoordinator implements IdentityManager.Observer {
     }
 
     private void onProfileAvailable(ProfileProvider result) {
+        if (mDestroyed) return;
+
         mIdentityManager =
                 IdentityServicesProvider.get().getIdentityManager(result.getOriginalProfile());
         assumeNonNull(mIdentityManager).addObserver(this);
@@ -152,9 +167,11 @@ public class FullscreenSigninCoordinator implements IdentityManager.Observer {
 
     /** Releases the resources used by the coordinator. */
     public void destroy() {
+        mDestroyed = true;
         setView(null);
         if (mIdentityManager != null) {
             mIdentityManager.removeObserver(this);
+            mIdentityManager = null;
         }
         mMediator.destroy();
     }
@@ -162,12 +179,13 @@ public class FullscreenSigninCoordinator implements IdentityManager.Observer {
     /** Implements {@link IdentityManager.Observer}. */
     @Override
     public void onPrimaryAccountChanged(PrimaryAccountChangeEvent eventDetails) {
+        if (mDestroyed) return;
+
         if (mMediator.isContinueOrDismissClicked()) {
             // If the sign-in occurred through this promo, then it is already being handled.
             return;
         }
-        if (eventDetails.getEventTypeFor(ConsentLevel.SIGNIN)
-                == PrimaryAccountChangeEvent.Type.SET) {
+        if (eventDetails.getEventTypeFor() == PrimaryAccountChangeEvent.Type.SET) {
             mDelegate.advanceToNextPage();
         }
     }
@@ -204,6 +222,10 @@ public class FullscreenSigninCoordinator implements IdentityManager.Observer {
         mMediator.onAccountAdded(accountName);
     }
 
+    public void onAddAccountCanceled() {
+        mMediator.onAddAccountCanceled();
+    }
+
     /** Continue the sign-in process with the currently selected account. */
     public void continueSignIn() {
         mMediator.proceedWithSignIn();
@@ -212,5 +234,21 @@ public class FullscreenSigninCoordinator implements IdentityManager.Observer {
     /** Abandon the sign-in process and dismiss the sign-in page. */
     public void cancelSignInAndDismiss() {
         mMediator.dismiss();
+    }
+
+    public Drawable getProfilePictureForTesting() {
+        return mMediator.getProfilePictureForTesting(); // IN-TEST
+    }
+
+    public void setStartAnimationForTesting(boolean start) {
+        mMediator.setStartAnimationForTesting(start); // IN-TEST
+    }
+
+    public @Nullable BadgeConfig getSigninAnimationBadgeConfigForTesting() {
+        return mMediator.getSigninAnimationBadgeConfigForTesting(); // IN-TEST
+    }
+
+    public @Nullable BadgeConfig getContinueButtonBadgeConfigForTesting() {
+        return mMediator.getContinueButtonBadgeConfigForTesting(); // IN-TEST
     }
 }

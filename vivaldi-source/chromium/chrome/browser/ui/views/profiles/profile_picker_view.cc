@@ -46,7 +46,7 @@
 #include "chrome/browser/ui/views/profiles/profile_picker_feature_promo_controller.h"
 #include "chrome/browser/ui/views/profiles/profile_picker_flow_controller.h"
 #include "chrome/browser/ui/views/profiles/profile_picker_glic_flow_controller.h"
-#include "chrome/browser/ui/views/profiles/profile_picker_sign_in_toolbar.h"
+#include "chrome/browser/ui/views/profiles/profile_picker_toolbar.h"
 #include "chrome/browser/ui/webui/signin/profile_picker_ui.h"
 #include "chrome/browser/ui/webui/signin/signin_ui_error.h"
 #include "chrome/browser/ui/webui/signin/signin_url_utils.h"
@@ -130,7 +130,7 @@ class ProfilePickerWidget : public views::Widget {
 // Returns whether the current flow is part of the classic profile picker flow.
 // Checking this should become eventually unnecessary as flows move away from
 // using static calls and global variables, and keep calls to native contained
-// within their own steps. See crbug.com/1359352.
+// within their own steps. See crbug.com/40237338.
 bool IsClassicProfilePickerFlow(const ProfilePicker::Params& params) {
   switch (params.entry_point()) {
     case ProfilePicker::EntryPoint::kAppMenuProfileSubMenuAddNewProfile:
@@ -183,6 +183,20 @@ bool ShouldBuildToolbarWithDontSignInButton(
          switches::kFirstRunDesktopSignInPromoVariation.Get() ==
              switches::FirstRunDesktopSignInPromoVariation::
                  kDontSignInOnGaiaPage;
+}
+
+bool ShouldBuildToolbarWithEffectsControlButton(
+    Profile* profile,
+    ProfilePicker::EntryPoint entry_point) {
+  if (entry_point != ProfilePicker::EntryPoint::kFirstRun) {
+    return false;
+  }
+  const bool is_in_search_engine_screen_region =
+      CHECK_DEREF(regional_capabilities::RegionalCapabilitiesServiceFactory::
+                      GetForProfile(profile))
+          .IsInSearchEngineChoiceScreenRegion();
+  return switches::IsFirstRunDesktopRevampEnabled(
+      is_in_search_engine_screen_region);
 }
 
 }  // namespace
@@ -339,14 +353,14 @@ void ProfilePickerView::NavigationFinishedObserver::DidFinishNavigation(
     // Don't notify if the URL for the finishing navigation does not match.
     // The navigation may have been replaced by a new one. We are mindful to
     // allow redirections, which are necessary for example for Gaia sign-in
-    // pages (see crbug.com/1430681).
+    // pages (see crbug.com/40901873).
     return;
   }
 
   if (navigation_handle->IsErrorPage() &&
       requested_url_.SchemeIs(content::kChromeUIScheme)) {
     // We observed some cases where the navigation to the intended page fails
-    // (see crbug.com/1442159).
+    // (see crbug.com/40910391).
     // Loading the wrong URL may lead to crashes if we are expecting a certain
     // WebUI page to be loaded in the web contents. For these cases we will not
     // notify of the finished navigation to avoid crashing, but this negatively
@@ -501,39 +515,16 @@ void ProfilePickerView::OnLocalProfileInitialized(
   GetProfilePickerFlowController()->SwitchToSignedOutPostIdentityFlow(profile);
 }
 
-void ProfilePickerView::SetNativeToolbarVisible(bool visible) {
-  if (!visible) {
-    toolbar_->SetVisible(false);
-    return;
-  }
-
-  if (toolbar_->children().empty()) {
-    base::RepeatingClosure dont_sign_in_callback;
-    if (ShouldBuildToolbarWithDontSignInButton(
-            Profile::FromBrowserContext(contents_->GetBrowserContext()),
-            params_.entry_point())) {
-      dont_sign_in_callback = base::BindRepeating(
-          &ProfileManagementFlowController::CancelSigninFlow,
-          // Unretained safe because the `flow_controller_` is owned by `this`
-          // and `this` outlives the `toolbar_` (parent view).
-          base::Unretained(flow_controller_.get()));
-    }
-    toolbar_->BuildToolbar(
-        base::BindRepeating(&ProfilePickerView::NavigateBack,
-                            // Binding as Unretained as `this` is the
-                            // `toolbar_`'s parent and outlives it.
-                            base::Unretained(this)),
-        std::move(dont_sign_in_callback));
-  }
-  toolbar_->SetVisible(true);
+void ProfilePickerView::SetNativeToolbarSigninButtonsVisible(bool visible) {
+  CHECK_DEREF(toolbar_).SetSigninButtonsVisible(visible);
 }
 
 void ProfilePickerView::SetNativeToolbarDontSignInButtonVisible(bool visible) {
   CHECK_DEREF(toolbar_).SetDontSignInButtonVisible(visible);
 }
 
-bool ProfilePickerView::IsNativeToolbarVisibleForTesting() const {
-  return toolbar_->GetVisible();
+bool ProfilePickerView::AreNativeToolbarSigninButtonsVisibleForTesting() const {
+  return CHECK_DEREF(toolbar_).AreSigninButtonsVisibleForTesting();  // IN-TEST
 }
 
 SkColor ProfilePickerView::GetPreferredBackgroundColor() const {
@@ -679,6 +670,24 @@ void ProfilePickerView::Init(Profile* picker_profile) {
   // The `FlowController` is created before the widget so it can be used to
   // determine certain aspects of it. E.g. see `GetAccessibleWindowTitle()`.
   flow_controller_ = CreateFlowController(picker_profile, GetClearClosure());
+
+  ProfilePickerToolbar::Builder toolbar_builder(base::BindRepeating(
+      &ProfilePickerView::NavigateBack, base::Unretained(this)));
+  if (ShouldBuildToolbarWithDontSignInButton(picker_profile,
+                                             params_.entry_point())) {
+    toolbar_builder.WithDontSignInButton(base::BindRepeating(
+        &ProfileManagementFlowController::CancelSigninFlow,
+        // Unretained safe because the `flow_controller_` is owned by `this`
+        // and `this` outlives the `toolbar_` (parent view).
+        base::Unretained(flow_controller_.get())));
+  }
+  if (ShouldBuildToolbarWithEffectsControlButton(picker_profile,
+                                                 params_.entry_point())) {
+    // TODO(crbug.com/515028732): Implement the effects control callback.
+    toolbar_builder.WithEffectsControlButton(base::DoNothing());
+  }
+
+  toolbar_ = AddChildView(toolbar_builder.Build());
 
   // The widget is owned by the native widget.
   new ProfilePickerWidget(this);
@@ -891,10 +900,6 @@ void ProfilePickerView::BuildLayout() {
   auto web_view = std::make_unique<views::WebView>();
   web_view->set_allow_accelerators(true);
   web_view_ = AddChildView(std::move(web_view));
-
-  // Toolbar gets built and set visible once it's needed for the signin.
-  toolbar_ = AddChildView(std::make_unique<ProfilePickerSignInToolbar>());
-  SetNativeToolbarVisible(false);
 
   web_contents_attached_subscription_ =
       web_view_->AddWebContentsAttachedCallback(base::BindRepeating(

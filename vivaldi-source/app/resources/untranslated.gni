@@ -27,6 +27,7 @@ template("vivaldi_extract_untranslated") {
                            "source_translations",
                            "vivaldi_translations",
                          ])
+
   # Some of these jobs are memory intensive, use link pool to limit
   # number of parallel jobs (link pool allocates 8 GB to each link job)
   pool = "//build/toolchain:link_pool($default_toolchain)"
@@ -34,35 +35,50 @@ template("vivaldi_extract_untranslated") {
     grit_defines = []
   }
   grit_defines += grit_args
-  _additional_defines =  [
+  _additional_defines = [
     "is_cfm=false",
     "use_blink=$use_blink",
   ]
   foreach(def, chrome_grit_defines + _additional_defines) {
-    grit_defines += ["-D", def]
+    grit_defines += [
+      "-D",
+      def,
+    ]
   }
 
   assert(defined(source_translations))
   if (defined(vivaldi_source)) {
     assert(defined(vivaldi_translations))
-    file_target1= get_path_info(vivaldi_source, "name")
-    file_target2= get_path_info(source, "name")
+    file_target1 = get_path_info(vivaldi_source, "name")
+    file_target2 = get_path_info(source, "name")
     file_target = "${file_target2}.${file_target1}"
   } else {
-    file_target= get_path_info(source, "name")
+    file_target = get_path_info(source, "name")
   }
 
   deps_list = []
   _untranslated_target_prefix = "$root_build_dir/translations/$file_target"
+
   # List of Chromium strings visible in the Vivaldi UI.
   idlist = "//vivaldi/vivapp/bin/gettext/ids.txt"
 
-  foreach(locale, platform_pak_locales + vivaldi_pending_locales + vivaldi_pending_mobile_locales - ["ar-XB", "en-US", "en-XA"] - ["ca@valencia"] + ["ca-valencia"]) {
+  local_remove_ = [
+    "ar-XB",
+    "en-US",
+    "en-XA",
+  ]
+  foreach(locale, vivaldi_supported_locales + local_remove_ - local_remove_) {
+    if (locale == "ca@valencia") {
+      locale = "ca-valencia"
+    }
+
     name = "${target_name}_extract_$locale"
-    deps_list += [":"+name]
+    deps_list += [ ":" + name ]
 
     xtb_sources = []
-    # Vivaldi support locales that Chromium doesn't, exclude ours for source in merge mode
+
+    # Vivaldi support locales that Chromium doesn't, exclude ours for source in
+    # merge mode
     use_source_locale = !defined(vivaldi_source)
     foreach(test_locale, platform_pak_locales) {
       if (test_locale == locale) {
@@ -71,37 +87,40 @@ template("vivaldi_extract_untranslated") {
     }
     if (use_source_locale) {
       corrected_locale = locale
-      if (defined(vivaldi_source) && (!defined(invoker.no_override_locales) || !invoker.no_override_locales)) {
+      if (defined(vivaldi_source) && (!defined(invoker.no_override_locales) ||
+                                      !invoker.no_override_locales)) {
         # Chromium uses "iw" for "he" and "no" for "nb" platform_pak_locales
-        if(locale == "he") {
+        if (locale == "he") {
           corrected_locale = "iw"
         } else if (locale == "nb") {
           corrected_locale = "no"
         }
       }
       xtb_name = "${source_translations}${corrected_locale}.xtb"
-      if (exec_script("//vivaldi/scripts/file_exists.py", [rebase_path(xtb_name, root_build_dir)], "value")) {
-        xtb_sources += [xtb_name]
+      if (exec_script("//vivaldi/scripts/file_exists.py",
+                      [ rebase_path(xtb_name, root_build_dir) ],
+                      "value")) {
+        xtb_sources += [ xtb_name ]
       }
     }
     if (defined(vivaldi_source)) {
-      xtb_sources += ["${vivaldi_translations}$locale.xtb"]
+      xtb_sources += [ "${vivaldi_translations}$locale.xtb" ]
     }
 
     action(name) {
       script = "//vivaldi/app/resources/extract_translations.py"
       inputs = [
-        "//vivaldi/app/resources/vivaldi_resources.py",
-        idlist,
-        source,
-      ] + xtb_sources
-      outputs = [
-        _untranslated_target_prefix+"_$locale.po"
-      ]
+                 "//vivaldi/app/resources/vivaldi_resources.py",
+                 idlist,
+                 source,
+               ] + xtb_sources
+      outputs = [ _untranslated_target_prefix + "_$locale.po" ]
       args = [
-        "--locale", locale,
-        "--vivaldi-file", file_target,
-      ] + grit_defines + extra_grit_defines
+               "--locale",
+               locale,
+               "--vivaldi-file",
+               file_target,
+             ] + grit_defines + extra_grit_defines
       if (defined(vivaldi_source)) {
         inputs += [
           vivaldi_source,
@@ -116,23 +135,25 @@ template("vivaldi_extract_untranslated") {
       }
       args += [
         rebase_path(source, root_build_dir),
-        rebase_path(_untranslated_target_prefix+"_$locale.po", root_build_dir),
+        rebase_path(_untranslated_target_prefix + "_$locale.po",
+                    root_build_dir),
       ]
     }
   }
 
   name = "${target_name}_extract_all"
-  deps_list += [":"+ name]
+  deps_list += [ ":" + name ]
   action(name) {
     script = "//vivaldi/app/resources/extract_translations.py"
     inputs = [
-      idlist,
-      source,
-    ] + xtb_sources
-    outputs = [ _untranslated_target_prefix+".pot" ]
+               idlist,
+               source,
+             ] + xtb_sources
+    outputs = [ _untranslated_target_prefix + ".pot" ]
     args = [
-      "--vivaldi-file", file_target,
-    ] + grit_defines + extra_grit_defines
+             "--vivaldi-file",
+             file_target,
+           ] + grit_defines + extra_grit_defines
     if (defined(vivaldi_source)) {
       inputs += [ vivaldi_source ]
       args += [
@@ -144,7 +165,7 @@ template("vivaldi_extract_untranslated") {
     }
     args += [
       rebase_path(source, root_build_dir),
-      rebase_path(_untranslated_target_prefix+".pot", root_build_dir),
+      rebase_path(_untranslated_target_prefix + ".pot", root_build_dir),
     ]
   }
 

@@ -209,6 +209,7 @@
     "gpu-fyi-cq-mac-arm64": "try/gpu-fyi-cq-mac-arm64/gn-args.json",
     "ios-simulator": "try/ios-simulator/gn-args.json",
     "ios-simulator-full-configs": "try/ios-simulator-full-configs/gn-args.json",
+    "mac-gpu-rel": "try/mac-gpu-rel/gn-args.json",
     "mac-rel": "try/mac-rel/gn-args.json",
     "mac-x64-compile-dbg": "try/mac-x64-compile-dbg/gn-args.json",
     "mac12-arm64-rel": "try/mac12-arm64-rel/gn-args.json",

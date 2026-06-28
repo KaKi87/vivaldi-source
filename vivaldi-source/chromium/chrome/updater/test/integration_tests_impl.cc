@@ -17,6 +17,7 @@
 
 #include "base/base_paths.h"
 #include "base/command_line.h"
+#include "base/containers/to_vector.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -840,12 +841,10 @@ void ExpectAppsUpdateSequence(UpdaterScope scope,
           [](std::vector<base::RepeatingCallback<std::string(bool)>>
                  app_response_providers,
              bool v4) {
-            std::vector<std::string> app_responses;
-            std::ranges::transform(
-                app_response_providers, std::back_inserter(app_responses),
-                [=](base::RepeatingCallback<std::string(bool v4)> provider) {
-                  return provider.Run(v4);
-                });
+            std::vector<std::string> app_responses = base::ToVector(
+                app_response_providers,
+                [v4](const base::RepeatingCallback<std::string(bool)>&
+                         provider) { return provider.Run(v4); });
             return v4 ? GetUpdateResponseV4(app_responses)
                       : GetUpdateResponseV3(app_responses);
           },
@@ -1107,14 +1106,40 @@ void GetAppStates(UpdaterScope updater_scope,
           ASSERT_TRUE(it != std::end(states));
           const base::DictValue* expected = expected_state.GetIfDict();
           ASSERT_TRUE(expected);
-          EXPECT_EQ(it->app_id, *expected->FindString("app_id"));
-          EXPECT_EQ(it->version, *expected->FindString("version"));
-          EXPECT_EQ(it->ap, *expected->FindString("ap"));
-          EXPECT_EQ(it->brand_code, *expected->FindString("brand_code"));
-          EXPECT_EQ(update_client::StringTypeToUTF8(it->brand_path.value()),
-                    *expected->FindString("brand_path"));
-          EXPECT_EQ(update_client::StringTypeToUTF8(it->ecp.value()),
-                    *expected->FindString("ecp"));
+          bool checked_anything = false;
+          if (const std::string* expected_app_id_str =
+                  expected->FindString("app_id")) {
+            EXPECT_EQ(it->app_id, *expected_app_id_str);
+            checked_anything = true;
+          }
+          if (const std::string* expected_version =
+                  expected->FindString("version")) {
+            EXPECT_EQ(it->version, *expected_version);
+            checked_anything = true;
+          }
+          if (const std::string* expected_ap = expected->FindString("ap")) {
+            EXPECT_EQ(it->ap, *expected_ap);
+            checked_anything = true;
+          }
+          if (const std::string* expected_brand_code =
+                  expected->FindString("brand_code")) {
+            EXPECT_EQ(it->brand_code, *expected_brand_code);
+            checked_anything = true;
+          }
+          if (const std::string* expected_brand_path =
+                  expected->FindString("brand_path")) {
+            EXPECT_EQ(update_client::StringTypeToUTF8(it->brand_path.value()),
+                      *expected_brand_path);
+            checked_anything = true;
+          }
+          if (const std::string* expected_ecp = expected->FindString("ecp")) {
+            EXPECT_EQ(update_client::StringTypeToUTF8(it->ecp.value()),
+                      *expected_ecp);
+            checked_anything = true;
+          }
+          EXPECT_TRUE(checked_anything)
+              << "TEST ISSUE: GetAppStates had no expectations for app "
+              << expected_app_id;
         }
         loop.Quit();
       }));
@@ -1640,8 +1665,7 @@ void CallServiceUpdate(UpdaterScope updater_scope,
   service_proxy->Update(
       app_id, install_data_index, UpdateService::Priority::kForeground,
       policy_same_version_update,
-      /*language=*/{},
-      base::BindLambdaForTesting([](const UpdateService::UpdateState&) {}),
+      /*language=*/{}, base::DoNothing(),
       base::BindLambdaForTesting([&](UpdateService::Result result) {
         EXPECT_EQ(result, UpdateService::Result::kSuccess);
         loop.Quit();
@@ -1977,6 +2001,14 @@ void ExpectProxyPacScriptRequest(ScopedServer& test_server) {
       base::StringPrintf(
           "function FindProxyForURL(url, host) { return \"PROXY %s\"; }",
           test_server.host_port_pair().c_str()));
+}
+
+base::FilePath GetNonExistentPath() {
+  base::ScopedTempDir temp_dir;
+  if (!temp_dir.CreateUniqueTempDir()) {
+    return {};
+  }
+  return temp_dir.GetPath().Append(FILE_PATH_LITERAL("non_existent_file"));
 }
 
 }  // namespace updater::test

@@ -23,7 +23,7 @@ class WebState;
 - (web::WebState*)webState;
 
 /// Returns the current input state of the composebox.
-- (contextual_search::InputState)inputState;
+- (std::optional<contextual_search::InputState>)inputState;
 
 /// Returns the current attached suggest input in the composebox.
 - (std::optional<lens::proto::LensOverlaySuggestInputs>)suggestInputs;
@@ -42,6 +42,9 @@ class WebState;
 - (void)omniboxDidChangeText:(const std::u16string&)text
                isSearchQuery:(BOOL)isSearchQuery
          userInputInProgress:(BOOL)userInputInProgress;
+
+/// Returns whether the composebox is awaiting attachment signals to fully load.
+- (BOOL)awaitingAttachmentSignals;
 
 @end
 

@@ -36,7 +36,7 @@ namespace enterprise_connectors {
 class BinaryUploadService;
 class ClipboardRequestHandler;
 class ContentAnalysisDialogController;
-class FilesRequestHandler;
+class FilesRequestHandlerBase;
 class PagePrintRequestHandler;
 
 // A class that performs deep scans of data (for example malicious or sensitive
@@ -258,10 +258,10 @@ class ContentAnalysisDelegate : public ContentAnalysisDelegateBase,
   void ImageRequestCallback(RequestHandlerResult result);
   void PageRequestCallback(RequestHandlerResult result);
 
-  // Callback called after all files are scanned by the FilesRequestHandler.
+  // Callback called after all files are scanned by `files_request_handler_`.
   void FilesRequestCallback(std::vector<RequestHandlerResult> results);
 
-  FilesRequestHandler* GetFilesRequestHandlerForTesting();
+  FilesRequestHandlerBase* GetFilesRequestHandlerForTesting();
 
   const Data& GetDataForTesting() { return data_; }
 
@@ -420,9 +420,11 @@ class ContentAnalysisDelegate : public ContentAnalysisDelegateBase,
   // for every file/text. This is read to ensure `this` isn't deleted too early.
   bool data_uploaded_ = false;
 
+  base::WeakPtr<content::WebContents> web_contents_;
+
   // Responsible for opening and scanning multiple files on parallel threads.
   // Always nullptr for non-file content scanning.
-  std::unique_ptr<FilesRequestHandler> files_request_handler_;
+  std::unique_ptr<FilesRequestHandlerBase> files_request_handler_;
 
   // Responsible for managing the scan of printed pages.
   // Always nullptr for non-print content scanning.
@@ -472,8 +474,6 @@ class ContentAnalysisDelegate : public ContentAnalysisDelegateBase,
   // Custom message for rule.
   ContentAnalysisResponse::Result::TriggeredRule::CustomRuleMessage
       custom_rule_message_;
-
-  base::WeakPtr<content::WebContents> web_contents_;
 
   base::WeakPtrFactory<ContentAnalysisDelegate> weak_ptr_factory_{this};
 };

@@ -7,6 +7,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
 
@@ -34,8 +35,8 @@ void check_extremity_accuracy(const VectorType& v, const typename VectorType::Sc
   typedef typename VectorType::Scalar Scalar;
   typedef typename VectorType::RealScalar RealScalar;
 
-  RealScalar prec = internal::is_same<RealScalar, float>::value ? NumTraits<RealScalar>::dummy_precision() * 10
-                                                                : NumTraits<RealScalar>::dummy_precision() / 10;
+  RealScalar prec = std::is_same<RealScalar, float>::value ? NumTraits<RealScalar>::dummy_precision() * 10
+                                                           : NumTraits<RealScalar>::dummy_precision() / 10;
   Index size = v.size();
 
   if (size < 20) return;
@@ -255,17 +256,17 @@ void nullary_internal_logic() {
   VERIFY((internal::has_nullary_operator<internal::scalar_constant_op<double> >::value));
   VERIFY((!internal::has_unary_operator<internal::scalar_constant_op<double> >::value));
   VERIFY((!internal::has_binary_operator<internal::scalar_constant_op<double> >::value));
-  VERIFY((internal::functor_has_linear_access<internal::scalar_constant_op<double> >::ret));
+  VERIFY((internal::functor_has_linear_access<internal::scalar_constant_op<double> >::value));
 
   VERIFY((!internal::has_nullary_operator<internal::scalar_identity_op<double> >::value));
   VERIFY((!internal::has_unary_operator<internal::scalar_identity_op<double> >::value));
   VERIFY((internal::has_binary_operator<internal::scalar_identity_op<double> >::value));
-  VERIFY((!internal::functor_has_linear_access<internal::scalar_identity_op<double> >::ret));
+  VERIFY((!internal::functor_has_linear_access<internal::scalar_identity_op<double> >::value));
 
   VERIFY((!internal::has_nullary_operator<internal::linspaced_op<float> >::value));
   VERIFY((internal::has_unary_operator<internal::linspaced_op<float> >::value));
   VERIFY((!internal::has_binary_operator<internal::linspaced_op<float> >::value));
-  VERIFY((internal::functor_has_linear_access<internal::linspaced_op<float> >::ret));
+  VERIFY((internal::functor_has_linear_access<internal::linspaced_op<float> >::value));
 
   // Regression unit test for an MSVC bug.
   // Search "nullary_wrapper_workaround_msvc" in CoreEvaluators.h for the details.
@@ -284,12 +285,12 @@ void nullary_internal_logic() {
     VERIFY((internal::has_nullary_operator<internal::scalar_constant_op<float> >::value));
     VERIFY((!internal::has_unary_operator<internal::scalar_constant_op<float> >::value));
     VERIFY((!internal::has_binary_operator<internal::scalar_constant_op<float> >::value));
-    VERIFY((internal::functor_has_linear_access<internal::scalar_constant_op<float> >::ret));
+    VERIFY((internal::functor_has_linear_access<internal::scalar_constant_op<float> >::value));
 
     VERIFY((!internal::has_nullary_operator<internal::linspaced_op<int> >::value));
     VERIFY((internal::has_unary_operator<internal::linspaced_op<int> >::value));
     VERIFY((!internal::has_binary_operator<internal::linspaced_op<int> >::value));
-    VERIFY((internal::functor_has_linear_access<internal::linspaced_op<int> >::ret));
+    VERIFY((internal::functor_has_linear_access<internal::linspaced_op<int> >::value));
   }
 }
 

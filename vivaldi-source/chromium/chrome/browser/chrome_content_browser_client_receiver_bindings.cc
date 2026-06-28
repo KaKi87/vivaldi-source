@@ -63,20 +63,12 @@
 #include "components/performance_manager/public/performance_manager.h"
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS)
-#include "chrome/browser/chromeos/printing/print_preview/print_view_manager_cros.h"
-#include "chrome/browser/chromeos/printing/print_preview/print_view_manager_cros_basic.h"
-#endif
-
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#include "chrome/browser/extensions/chrome_extensions_browser_interface_binders.h"
 #include "content/public/browser/site_instance.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_web_contents_observer.h"
 #include "extensions/browser/extensions_browser_client.h"
-#endif
-
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-#include "chrome/browser/extensions/chrome_extensions_browser_interface_binders.h"
 #endif
 
 #if BUILDFLAG(ENABLE_LIBRARY_CDMS) || BUILDFLAG(IS_WIN)
@@ -102,9 +94,11 @@
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/badging/badge_manager.h"
+#include "chrome/browser/indigo/onboarding/indigo_onboarding_dialog.h"
 #include "chrome/browser/record_replay/chrome_record_replay_client.h"
 #include "chrome/browser/ui/search/search_tab_helper.h"
-#include "chrome/common/record_replay/record_replay.mojom.h"
+#include "chrome/common/indigo/indigo.mojom.h"
+#include "components/record_replay/core/common/record_replay.mojom.h"
 #endif
 
 #if BUILDFLAG(ENABLE_PDF)
@@ -177,6 +171,8 @@ void MaybeCreateSafeBrowsingForRenderer(
       std::move(receiver));
 }
 
+// TODO(crbug.com/486154580): Switch to ENABLE_EXTENSIONS_CORE when safe
+// browsing is better supported on desktop Android.
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 void MaybeCreateExtensionWebRequestReporterForRenderer(
     int process_id,
@@ -247,6 +243,8 @@ void ChromeContentBrowserClient::ExposeInterfacesToRenderer(
                 &ChromeContentBrowserClient::GetSafeBrowsingUrlCheckerDelegate,
                 base::Unretained(this))),
         ui_task_runner);
+// TODO(crbug.com/486154580): Switch to ENABLE_EXTENSIONS_CORE when safe
+// browsing is better supported on desktop Android.
 #if BUILDFLAG(ENABLE_EXTENSIONS)
     registry->AddInterface<safe_browsing::mojom::ExtensionWebRequestReporter>(
         base::BindRepeating(&MaybeCreateExtensionWebRequestReporterForRenderer,
@@ -334,12 +332,13 @@ void ChromeContentBrowserClient::RegisterBrowserInterfaceBindersForFrame(
     return;
   }
 
-  const GURL& site = render_frame_host->GetSiteInstance()->GetSiteURL();
   content::BrowserContext* browser_context =
       render_frame_host->GetProcess()->GetBrowserContext();
   auto* extension = extensions::ExtensionRegistry::Get(browser_context)
                         ->enabled_extensions()
-                        .GetByID(site.GetHost());
+                        .GetByID(render_frame_host->GetSiteInstance()
+                                     ->GetSecurityPrincipal()
+                                     .GetHost());
   if (!extension)
     return;
   extensions::ExtensionsBrowserClient::Get()
@@ -369,7 +368,7 @@ void ChromeContentBrowserClient::
   map->Add<blink::mojom::BadgeService>(&BindBadgeServiceForServiceWorker);
 #endif
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   const GURL& site = service_worker_version_info.scope;
   if (!site.SchemeIs(extensions::kExtensionScheme)) {
     return;
@@ -547,14 +546,16 @@ void ChromeContentBrowserClient::
           },
           &render_frame_host));
 #if BUILDFLAG(ENABLE_PDF)
-  associated_registry.AddInterface<pdf::mojom::PdfHost>(base::BindRepeating(
-      [](content::RenderFrameHost* render_frame_host,
-         mojo::PendingAssociatedReceiver<pdf::mojom::PdfHost> receiver) {
-        pdf::PDFDocumentHelper::BindPdfHost(
-            std::move(receiver), render_frame_host,
-            std::make_unique<ChromePDFDocumentHelperClient>());
-      },
-      &render_frame_host));
+  if (render_frame_host.GetProcess()->IsPdf()) {
+    associated_registry.AddInterface<pdf::mojom::PdfHost>(base::BindRepeating(
+        [](content::RenderFrameHost* render_frame_host,
+           mojo::PendingAssociatedReceiver<pdf::mojom::PdfHost> receiver) {
+          pdf::PDFDocumentHelper::BindPdfHost(
+              std::move(receiver), render_frame_host,
+              std::make_unique<ChromePDFDocumentHelperClient>());
+        },
+        &render_frame_host));
+  }
 #endif  // BUILDFLAG(ENABLE_PDF)
 #if !BUILDFLAG(IS_ANDROID)
   associated_registry.AddInterface<search::mojom::EmbeddedSearchConnector>(
@@ -577,20 +578,6 @@ void ChromeContentBrowserClient::
               headless::HeadlessPrintManager::BindPrintManagerHost(
                   std::move(receiver), render_frame_host);
             } else {
-#if BUILDFLAG(IS_CHROMEOS)
-              if (base::FeatureList::IsEnabled(
-                      ::features::kPrintPreviewCrosPrimary)) {
-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
-                chromeos::PrintViewManagerCros::BindPrintManagerHost(
-                    std::move(receiver), render_frame_host);
-#else
-                chromeos::PrintViewManagerCrosBasic::BindPrintManagerHost(
-                    std::move(receiver), render_frame_host);
-#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
-                return;
-              }
-#endif  // BUILDFLAG(CHROMEOS)
-
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW)
               printing::PrintViewManager::BindPrintManagerHost(
                   std::move(receiver), render_frame_host);
@@ -632,6 +619,20 @@ void ChromeContentBrowserClient::
               },
               &render_frame_host));
 
+#if !BUILDFLAG(IS_ANDROID)
+  if (base::FeatureList::IsEnabled(features::kIndigo)) {
+    associated_registry.AddInterface<chrome::mojom::IndigoOnboardingDialogHost>(
+        base::BindRepeating(
+            [](content::RenderFrameHost* render_frame_host,
+               mojo::PendingAssociatedReceiver<
+                   chrome::mojom::IndigoOnboardingDialogHost> receiver) {
+              indigo::IndigoOnboardingDialog::BindOnboardingDialogHost(
+                  std::move(receiver), render_frame_host);
+            },
+            &render_frame_host));
+  }
+#endif  // !BUILDFLAG(IS_ANDROID)
+
 #ifdef VIVALDI_BUILD
 #if !BUILDFLAG(IS_ANDROID)
   // Vivaldi: Bind DRM monitoring.
@@ -646,7 +647,7 @@ void ChromeContentBrowserClient::
               },
               &render_frame_host));
 #endif
-#endif
+#endif // Vivaldi
 }
 
 void ChromeContentBrowserClient::BindGpuHostReceiver(
@@ -663,6 +664,7 @@ void ChromeContentBrowserClient::BindGpuHostReceiver(
 }
 
 void ChromeContentBrowserClient::BindUtilityHostReceiver(
+    const std::string& service_name,
     mojo::GenericPendingReceiver receiver) {
   if (auto r = receiver.As<metrics::mojom::CallStackProfileCollector>()) {
     metrics::CallStackProfileCollector::Create(std::move(r));
@@ -673,7 +675,7 @@ void ChromeContentBrowserClient::BindUtilityHostReceiver(
           receiver
               .As<chromeos::mojo_service_manager::mojom::ServiceManager>()) {
     ash::mojo_service_manager::EstablishUtilityProcessBridge(
-        std::move(service_manager_receiver));
+        service_name, std::move(service_manager_receiver));
     return;
   }
 #endif

@@ -11,7 +11,7 @@
 #include "base/check_deref.h"
 #include "base/check_op.h"
 #include "base/functional/bind.h"
-#include "base/memory/singleton.h"
+#include "base/no_destructor.h"
 #include "base/time/default_clock.h"
 #include "base/time/default_tick_clock.h"
 #include "base/time/tick_clock.h"
@@ -47,11 +47,9 @@
 #include "chrome/browser/sessions/session_service_utils.h"
 #include "chrome/browser/sync/device_info_sync_service_factory.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/startup/startup_browser_creator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_switches.h"
@@ -89,8 +87,9 @@ class PrimaryProfileServicesShutdownNotifierFactory
     : public BrowserContextKeyedServiceShutdownNotifierFactory {
  public:
   static PrimaryProfileServicesShutdownNotifierFactory* GetInstance() {
-    return base::Singleton<
-        PrimaryProfileServicesShutdownNotifierFactory>::get();
+    static base::NoDestructor<PrimaryProfileServicesShutdownNotifierFactory>
+        instance;
+    return instance.get();
   }
 
   PrimaryProfileServicesShutdownNotifierFactory(
@@ -99,8 +98,7 @@ class PrimaryProfileServicesShutdownNotifierFactory
       const PrimaryProfileServicesShutdownNotifierFactory&) = delete;
 
  private:
-  friend struct base::DefaultSingletonTraits<
-      PrimaryProfileServicesShutdownNotifierFactory>;
+  friend base::NoDestructor<PrimaryProfileServicesShutdownNotifierFactory>;
 
   PrimaryProfileServicesShutdownNotifierFactory()
       : BrowserContextKeyedServiceShutdownNotifierFactory(
@@ -380,14 +378,17 @@ BrowserProcessPlatformPart::browser_policy_connector_ash() {
       g_browser_process->browser_policy_connector());
 }
 
+void BrowserProcessPlatformPart::InitializeTimezoneResolverManager() {
+  CHECK(!timezone_resolver_manager_);
+  timezone_resolver_manager_ =
+      std::make_unique<ash::system::TimeZoneResolverManager>(
+          ash::SystemLocationProvider::GetInstance(),
+          session_manager::SessionManager::Get());
+}
+
 ash::system::TimeZoneResolverManager*
 BrowserProcessPlatformPart::GetTimezoneResolverManager() {
-  if (!timezone_resolver_manager_.get()) {
-    timezone_resolver_manager_ =
-        std::make_unique<ash::system::TimeZoneResolverManager>(
-            ash::SystemLocationProvider::GetInstance(),
-            session_manager::SessionManager::Get());
-  }
+  CHECK(timezone_resolver_manager_);
   return timezone_resolver_manager_.get();
 }
 

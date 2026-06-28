@@ -32,6 +32,7 @@ public class SecurityStatusIcon {
             boolean isSmallDevice,
             boolean skipIconForNeutralState,
             boolean useLockIconForSecureState,
+            boolean isShowingHttpsFirstWarning,
             @Nullable Integer trackerBlockerIcon) { // Vivaldi
         // Vivaldi: We replace the pageInfo icon with VivaldiTrackerBlocker icon in the url bar.
         int validRefreshIcon = trackerBlockerIcon == null ? R.drawable.omnibox_https_valid_refresh
@@ -46,7 +47,9 @@ public class SecurityStatusIcon {
                         ? R.drawable.omnibox_https_valid_lock
                         : validRefreshIcon; // Vivaldi
             case ConnectionSecurityLevel.WARNING:
-                return R.drawable.omnibox_not_secure_warning;
+                return isShowingHttpsFirstWarning
+                        ? R.drawable.omnibox_no_encryption
+                        : R.drawable.omnibox_not_secure_warning;
             case ConnectionSecurityLevel.DANGEROUS:
                 return switch (maliciousContentStatus.get()) {
                     case ConnectionMaliciousContentStatus.MANAGED_POLICY_WARN,

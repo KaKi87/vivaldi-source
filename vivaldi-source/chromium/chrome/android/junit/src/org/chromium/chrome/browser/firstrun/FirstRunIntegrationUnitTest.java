@@ -4,7 +4,6 @@
 
 package org.chromium.chrome.browser.firstrun;
 
-import static org.mockito.Mockito.when;
 import static org.robolectric.Shadows.shadowOf;
 
 import android.app.Activity;
@@ -33,10 +32,7 @@ import org.robolectric.android.controller.ActivityController;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowApplication;
 
-import org.chromium.base.FeatureList;
-import org.chromium.base.FeatureListJni;
 import org.chromium.base.FeatureOverrides;
-import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.RobolectricUtil;
 import org.chromium.base.test.util.Features;
@@ -51,6 +47,7 @@ import org.chromium.chrome.browser.webapps.WebappActivity;
 import org.chromium.chrome.browser.webapps.WebappLauncherActivity;
 import org.chromium.components.webapk.lib.client.WebApkValidator;
 import org.chromium.components.webapk.lib.common.WebApkMetaDataKeys;
+import org.chromium.ui.base.UiAndroidFeatures;
 import org.chromium.webapk.lib.common.WebApkConstants;
 import org.chromium.webapk.test.WebApkTestHelper;
 
@@ -65,8 +62,6 @@ public final class FirstRunIntegrationUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Mock private ChromeBrowserInitializer mChromeBrowserInitializer;
-    @Mock private FeatureList.Natives mFeatureListNatives;
-    @Mock private LibraryLoader mLibraryLoader;
 
     private static final String BROWSER_WINDOW_INTERFACE_MOBILE = "BrowserWindowInterfaceMobile";
     private final List<ActivityController> mActivityControllerList = new ArrayList<>();
@@ -81,13 +76,10 @@ public final class FirstRunIntegrationUnitTest {
 
         ChromeBrowserInitializer.setForTesting(mChromeBrowserInitializer);
 
-        // Library and Feature flags mocks.
-        FeatureListJni.setInstanceForTesting(mFeatureListNatives);
-        when(mFeatureListNatives.isInitialized()).thenReturn(true);
-        LibraryLoader.setLibraryLoaderForTesting(mLibraryLoader);
-        when(mLibraryLoader.isInitialized()).thenReturn(true);
-
         FeatureOverrides.newBuilder().enable(BROWSER_WINDOW_INTERFACE_MOBILE).apply();
+        FeatureOverrides.newBuilder()
+                .enable(UiAndroidFeatures.ANDROID_UPDATE_DISPLAY_FOR_CONTEXT)
+                .apply();
 
         FirstRunStatus.setFirstRunFlowComplete(false);
         WebApkValidator.setDisableValidationForTesting(true);

@@ -1,18 +1,19 @@
-import ("//vivaldi/testing/testing.gni")
+import("//vivaldi/testing/testing.gni")
 
 if (vivaldi_build_tests) {
   update_target("//chrome/test:browser_tests") {
     sources += [
-      "//vivaldi/extensions/api/webview/chrome_web_view_mediastate_apitest.cc",
       "//vivaldi/extensions/api/tabs/tests/tabs_mediastate_apitest.cc",
+      "//vivaldi/extensions/api/webview/chrome_web_view_mediastate_apitest.cc",
     ]
   }
 }
 
 if (!is_android) {
   update_target("//chrome/common:common_lib") {
-    sources -= ["initialize_extensions_client.cc"]
-    sources += ["//vivaldi/extensions/vivaldi_initialize_extensions_client.cc"]
+    sources -= [ "initialize_extensions_client.cc" ]
+    sources +=
+        [ "//vivaldi/extensions/vivaldi_initialize_extensions_client.cc" ]
     deps += [ "//vivaldi/extensions:extensions_client" ]
   }
 }
@@ -31,9 +32,7 @@ update_target("//extensions/renderer:renderer") {
     "//components/lookalikes/core:proto",
     "//vivaldi/extensions:resources",
   ]
-  configs += [
-     "//vivaldi/gn/config:release_kind"
-  ]
+  configs += [ "//vivaldi/gn/config:release_kind" ]
 }
 
 update_template_instance("//chrome/common/extensions/api:api_features") {
@@ -50,32 +49,34 @@ update_template_instance("//chrome/common/extensions/api:manifest_features") {
 
 update_target("//extensions/browser:browser_sources") {
   sources += [
-    "//vivaldi/extensions/vivaldi_extensions_guest_view.cc",
-    "//vivaldi/extensions/vivaldi_extension_prefs.cc",
-    "//vivaldi/extensions/api/events/vivaldi_ui_events_keys.cc",
     "//vivaldi/extensions/api/events/vivaldi_ui_events.h",
+    "//vivaldi/extensions/api/events/vivaldi_ui_events_keys.cc",
     "//vivaldi/extensions/api/extension_action_utils/vivaldi_extension_host.cc",
     "//vivaldi/extensions/api/extension_action_utils/vivaldi_extension_host.h",
+    "//vivaldi/extensions/api/guest_view/parent_tab_user_data.cpp",
+    "//vivaldi/extensions/api/guest_view/parent_tab_user_data.h",
     "//vivaldi/extensions/api/guest_view/vivaldi_web_view_constants.cpp",
     "//vivaldi/extensions/api/guest_view/vivaldi_web_view_constants.h",
     "//vivaldi/extensions/api/guest_view/vivaldi_web_view_guest.cpp",
-    "//vivaldi/extensions/api/guest_view/parent_tab_user_data.cpp",
-    "//vivaldi/extensions/api/guest_view/parent_tab_user_data.h",
+    "//vivaldi/extensions/vivaldi_extension_prefs.cc",
+    "//vivaldi/extensions/vivaldi_extensions_guest_view.cc",
   ]
   deps += [
     "//chrome/browser/ui/webui/tab_search:mojo_bindings",
     "//chrome/common:mojo_bindings",
-    "//components/language_detection/content/common:common",
     "//components/custom_handlers",
+    "//components/language_detection/content/common",
     "//components/security_state/content",
     "//components/sharing_message/proto",
     "//components/translate/content/browser",
     "//third_party/blink/public:blink_headers",
     "//vivaldi/browser:features",
-    #"//vivaldi/extensions/api:apis", # !!!DO NOT!!! re-enable, causes link errors for linux debug builds
+    "//vivaldi/extensions/helper",
+
+    # #"//vivaldi/extensions/api:apis", !!!DO NOT!!! re-enable, causes link
+    # errors for linux debug builds
     "//vivaldi/extensions/schema",
     "//vivaldi/extensions/tools",
-    "//vivaldi/extensions/helper",
     "//vivaldi/prefs:prefs_files_generator",
   ]
 }

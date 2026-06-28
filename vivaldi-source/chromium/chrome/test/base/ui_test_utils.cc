@@ -36,14 +36,11 @@
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/task_manager/providers/web_contents/web_contents_tag.h"
 #include "chrome/browser/task_manager/providers/web_contents/web_contents_tags_manager.h"
 #include "chrome/browser/task_manager/web_contents_tags.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
@@ -54,6 +51,8 @@
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
 #include "chrome/browser/ui/omnibox/omnibox_edit_model.h"
 #include "chrome/browser/ui/omnibox/omnibox_view.h"
@@ -589,7 +588,9 @@ FullscreenWaiter::FullscreenWaiter(BrowserWindowInterface* browser,
       // sequence in nested RunLoop.
       run_loop_(base::RunLoop::Type::kNestableTasksAllowed),
       satisfied_(IsSatisfied()) {
-  observation_.Observe(controller_);
+  subscription_ = controller_->RegisterOnFullscreenStateChanged(
+      base::BindRepeating(&FullscreenWaiter::OnFullscreenStateChanged,
+                          base::Unretained(this)));
 }
 
 FullscreenWaiter::~FullscreenWaiter() = default;
@@ -685,7 +686,8 @@ BrowserDidBecomeActiveWaiter::BrowserDidBecomeActiveWaiter(
       browser->RegisterDidBecomeActive(base::BindRepeating(
           &BrowserDidBecomeActiveWaiter::OnBrowserDidBecomeActive,
           base::Unretained(this)));
-  if (chrome::FindLastActive() == browser &&
+  if (GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser() ==
+          browser &&
       !wait_for_set_last_active_observed_) {
     satisfied_ = true;
   }
@@ -808,15 +810,28 @@ void GetCookies(const GURL& url,
   }
 }
 
-const std::vector<raw_ptr<task_manager::WebContentsTag, VectorExperimental>>&
-GetAllTrackedTags() {
-  return task_manager::WebContentsTagsManager::GetInstance()->tracked_tags();
+const std::vector<raw_ptr<task_manager::WebContentsTag, VectorExperimental>>
+GetAllTrackedTags(bool exclude_web_ui) {
+  auto all_tags =
+      task_manager::WebContentsTagsManager::GetInstance()->tracked_tags();
+  if (!exclude_web_ui) {
+    return all_tags;
+  }
+
+  std::vector<raw_ptr<task_manager::WebContentsTag, VectorExperimental>>
+      filtered_tags;
+  std::ranges::copy_if(
+      all_tags, std::back_inserter(filtered_tags),
+      [](const auto& tag) { return !tag->web_contents()->GetWebUI(); });
+  return filtered_tags;
 }
 
-const std::vector<std::string> GetAllTrackedTagWebContentTitles() {
+const std::vector<std::string> GetAllTrackedTagWebContentTitles(
+    bool exclude_web_ui) {
   std::vector<std::string> titles;
   std::ranges::transform(
-      GetAllTrackedTags(), std::back_inserter(titles), [&](const auto& tag) {
+      GetAllTrackedTags(exclude_web_ui), std::back_inserter(titles),
+      [&](const auto& tag) {
         return base::UTF16ToUTF8(tag->web_contents()->GetTitle());
       });
   return titles;

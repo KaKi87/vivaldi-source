@@ -4,6 +4,7 @@
 
 package org.chromium.chrome.browser.feedback;
 
+import android.accounts.Account;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.os.Bundle;
@@ -25,7 +26,6 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.components.signin.base.CoreAccountInfo;
-import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 
 import java.util.HashMap;
@@ -46,7 +46,8 @@ public abstract class FeedbackCollector<T> implements Runnable {
 
     private final @Nullable String mCategoryTag;
     private final @Nullable String mDescription;
-    private @Nullable String mAccountInUse;
+    private @Nullable Account mAccountInUse;
+    private @Nullable String mAccountEmailInUse;
 
     private List<FeedbackSource> mSynchronousSources;
 
@@ -80,9 +81,9 @@ public abstract class FeedbackCollector<T> implements Runnable {
         IdentityManager identityManager =
                 IdentityServicesProvider.get().getIdentityManager(profile);
         if (identityManager != null) {
-            mAccountInUse =
-                    CoreAccountInfo.getEmailFrom(
-                            identityManager.getPrimaryAccountInfo(ConsentLevel.SIGNIN));
+            CoreAccountInfo accountInfo = identityManager.getPrimaryAccountInfo();
+            mAccountInUse = CoreAccountInfo.getAndroidAccountFrom(accountInfo);
+            mAccountEmailInUse = CoreAccountInfo.getEmailFrom(accountInfo);
         }
 
         // Validation check in case a source is added to the wrong list.
@@ -123,9 +124,18 @@ public abstract class FeedbackCollector<T> implements Runnable {
         return mDescription;
     }
 
-    /** @return The currently signed in account, or null if the user is not signed in. */
-    public @Nullable String getAccountInUse() {
+    /**
+     * @return The currently signed in account, or null if the user is not signed in.
+     */
+    public @Nullable Account getAccountInUse() {
         return mAccountInUse;
+    }
+
+    /**
+     * @return The currently signed in account email, or null if the user is not signed in.
+     */
+    public @Nullable String getAccountEmailInUse() {
+        return mAccountEmailInUse;
     }
 
     /**

@@ -95,8 +95,6 @@ class ExternalAppResolutionCommandTest : public WebAppTest {
   const GURL kWebAppManifestUrl =
       GURL("https://example.com/path/manifest.json");
 
-  using BitmapData = std::map<SquareSizePx, SkBitmap>;
-
   ExternallyManagedAppManager::InstallResult InstallAndWait(
       const ExternalInstallOptions& install_options,
       std::unique_ptr<WebAppDataRetriever> data_retriever = nullptr) {
@@ -126,7 +124,7 @@ class ExternalAppResolutionCommandTest : public WebAppTest {
     manifest->name = u"Example App";
     manifest->short_name = u"App";
     manifest->start_url = kWebAppUrl;
-    manifest->id = GenerateManifestIdFromStartUrlOnly(kWebAppUrl);
+    manifest->id = GenerateManifestIdFromStartUrlOnly(kWebAppUrl).value();
     manifest->display = blink::mojom::DisplayMode::kStandalone;
     return manifest;
   }
@@ -176,7 +174,7 @@ class ExternalAppResolutionCommandTest : public WebAppTest {
 
   void LoadIconsFromDB(const webapps::AppId& app_id,
                        const std::vector<SquareSizePx>& sizes_px) {
-    BitmapData icon_bitmaps;
+    OrderedSizeToBitmap icon_bitmaps;
     WebAppIconManager& icon_manager = provider()->icon_manager();
 
     // We can use this to test if icons of a specific size do not exist in the
@@ -221,7 +219,7 @@ class ExternalAppResolutionCommandTest : public WebAppTest {
       state.manifest_before_default_processing->id = *mock_options.manifest_id;
     } else {
       state.manifest_before_default_processing->id =
-          GenerateManifestIdFromStartUrlOnly(options.install_url);
+          GenerateManifestIdFromStartUrlOnly(options.install_url).value();
     }
 
     state.manifest_before_default_processing->name = u"Manifest Name";
@@ -263,7 +261,7 @@ class ExternalAppResolutionCommandTest : public WebAppTest {
   }
 
  private:
-  base::flat_map<webapps::AppId, BitmapData> app_to_icons_data_;
+  base::flat_map<webapps::AppId, OrderedSizeToBitmap> app_to_icons_data_;
   raw_ptr<MockWebAppUiManager> ui_manager_ = nullptr;
 };
 
@@ -495,7 +493,8 @@ TEST_F(ExternalAppResolutionCommandTest,
   }
 
   // Replace the placeholder with a real app.
-  const webapps::AppId final_app_id = GenerateAppIdFromManifestId(kManifestId);
+  const webapps::AppId final_app_id =
+      GenerateAppIdFromManifestId(webapps::ManifestId(kManifestId));
   options.placeholder_resolution_behavior =
       PlaceholderResolutionBehavior::kCloseAndRelaunch;
   SetPageState(options, {.manifest_id = kManifestId});
@@ -566,7 +565,8 @@ TEST_F(ExternalAppResolutionCommandTest,
   }
 
   // Replace the placeholder with a real app.
-  const webapps::AppId final_app_id = GenerateAppIdFromManifestId(kManifestId);
+  const webapps::AppId final_app_id =
+      GenerateAppIdFromManifestId(webapps::ManifestId(kManifestId));
   options.placeholder_resolution_behavior =
       PlaceholderResolutionBehavior::kCloseAndRelaunch;
   SetPageState(options, {.manifest_id = kManifestId});

@@ -16,7 +16,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import static org.chromium.chrome.browser.preferences.ChromePreferenceKeys.GLIC_AUTO_BROWSE_SETTING_ENABLED;
-import static org.chromium.chrome.browser.preferences.ChromePreferenceKeys.GLIC_BUTTON_PINNED;
 import static org.chromium.chrome.browser.preferences.ChromePreferenceKeys.GLIC_PRECISE_LOCATION_SETTING_ENABLED;
 import static org.chromium.chrome.browser.preferences.ChromePreferenceKeys.GLIC_SHARE_CURRENT_TAB_DEFAULT_ACCESS_ENABLED;
 
@@ -39,8 +38,13 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.Shadows;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Features.DisableFeatures;
+import org.chromium.base.test.util.Features.EnableFeatures;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarButtonVariant;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
 import org.chromium.components.browser_ui.settings.SettingsCustomTabLauncher;
 import org.chromium.components.prefs.PrefChangeRegistrar;
@@ -52,6 +56,12 @@ import org.chromium.ui.base.TestActivity;
 
 /** Unit tests for {@link GlicSettings}. */
 @RunWith(BaseRobolectricTestRunner.class)
+@DisableFeatures({
+    ChromeFeatureList.ANDROID_BOTTOM_BAR,
+    ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL,
+    ChromeFeatureList.GLIC_EXPERIMENTAL_LOCATION
+})
+@EnableFeatures(ChromeFeatureList.ACTOR_LOGIN_PERMISSIONS_UI)
 public class GlicSettingsUnitTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -66,12 +76,21 @@ public class GlicSettingsUnitTest {
     @Mock private PrefService mPrefServiceMock;
     @Mock private SettingsCustomTabLauncher mCustomTabLauncher;
     @Mock private PrefChangeRegistrar.Natives mPrefChangeRegistrarJniMock;
+    @Mock private GlicKeyedServiceFactory.Natives mGlicKeyedServiceFactoryJniMock;
+    @Mock private GlicKeyedService mGlicKeyedServiceMock;
+    @Mock private GlicEnabling.Natives mGlicEnablingJniMock;
 
     @Before
     public void setUp() {
         UserPrefsJni.setInstanceForTesting(mUserPrefsJniMock);
         PrefChangeRegistrarJni.setInstanceForTesting(mPrefChangeRegistrarJniMock);
+        GlicKeyedServiceFactoryJni.setInstanceForTesting(mGlicKeyedServiceFactoryJniMock);
+        GlicEnablingJni.setInstanceForTesting(mGlicEnablingJniMock);
+
         when(mUserPrefsJniMock.get(mProfileMock)).thenReturn(mPrefServiceMock);
+        when(mGlicKeyedServiceFactoryJniMock.getForProfile(mProfileMock))
+                .thenReturn(mGlicKeyedServiceMock);
+        when(mGlicEnablingJniMock.shouldShowWebActuationToggle(any())).thenReturn(true);
         doNothing().when(mCustomTabLauncher).openUrlInCct(any(Context.class), anyString());
 
         mActivityScenarioRule.getScenario().onActivity(activity -> mActivity = activity);
@@ -92,7 +111,7 @@ public class GlicSettingsUnitTest {
         mActivityScenarioRule.getScenario().moveToState(State.STARTED);
 
         assertEquals(
-                mActivity.getString(R.string.settings_glic_button_toggle),
+                mActivity.getString(R.string.glic_setting_label),
                 glicSettings.getPageTitle().get());
 
         return glicSettings;
@@ -112,9 +131,7 @@ public class GlicSettingsUnitTest {
         verify(mCustomTabLauncher)
                 .openUrlInCct(
                         any(),
-                        eq(
-                                mActivity.getString(
-                                        R.string.settings_glic_permissions_activity_button_url)));
+                        eq("https://myactivity.google.com/product/gemini?utm_source=gemini"));
     }
 
     @Test
@@ -122,25 +139,84 @@ public class GlicSettingsUnitTest {
         GlicSettings fragment = launchFragment();
         Preference preference = fragment.findPreference("glic_extensions");
         preference.getOnPreferenceClickListener().onPreferenceClick(preference);
-        verify(mCustomTabLauncher)
-                .openUrlInCct(
-                        any(),
-                        eq(mActivity.getString(R.string.settings_glic_extensions_button_url)));
+        verify(mCustomTabLauncher).openUrlInCct(any(), eq("https://gemini.google.com/apps"));
     }
 
     @Test
-    public void testGlicButtonPinnedInitialState_Enabled() {
-        doTestInitialState(GlicPrefNames.GLIC_PINNED_TO_TABSTRIP, "glic_button", true);
+    public void testGlicButtonPreferenceExists() {
+        GlicSettings fragment = launchFragment();
+        Preference preference = fragment.findPreference("glic_button");
+        assertTrue("Preference glic_button should exist", preference != null);
     }
 
     @Test
-    public void testGlicButtonPinnedInitialState_Disabled() {
-        doTestInitialState(GlicPrefNames.GLIC_PINNED_TO_TABSTRIP, "glic_button", false);
+    public void testGlicButtonPreference_Glic() {
+        ChromeSharedPreferences.getInstance()
+                .writeInt(
+                        ChromePreferenceKeys.ADAPTIVE_TOOLBAR_CUSTOMIZATION_SETTINGS,
+                        AdaptiveToolbarButtonVariant.GLIC);
+        GlicSettings fragment = launchFragment();
+        Preference preference = fragment.findPreference("glic_button");
+        assertEquals(
+                mActivity.getString(R.string.glic_button_entrypoint_pinned_label),
+                preference.getTitle());
+        assertEquals(
+                mActivity.getString(R.string.glic_button_entrypoint_label),
+                preference.getSummary());
     }
 
     @Test
-    public void testGlicButtonPinnedToggle() {
-        doTestToggle(GLIC_BUTTON_PINNED, GlicPrefNames.GLIC_PINNED_TO_TABSTRIP, "glic_button");
+    public void testGlicButtonPreference_NotGlic() {
+        ChromeSharedPreferences.getInstance()
+                .writeInt(
+                        ChromePreferenceKeys.ADAPTIVE_TOOLBAR_CUSTOMIZATION_SETTINGS,
+                        AdaptiveToolbarButtonVariant.AUTO);
+        GlicSettings fragment = launchFragment();
+        Preference preference = fragment.findPreference("glic_button");
+        assertEquals(mActivity.getString(R.string.glic_pin), preference.getTitle());
+        assertEquals(
+                mActivity.getString(R.string.settings_glic_button_toggle_sublabel),
+                preference.getSummary());
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL)
+    public void testGlicButtonPreference_SidePanel_Pinned() {
+        when(mPrefServiceMock.getBoolean(GlicPrefNames.GLIC_PINNED_TO_TABSTRIP)).thenReturn(true);
+        GlicSettings fragment = launchFragment();
+
+        Preference preference = fragment.findPreference("glic_button");
+        assertFalse(
+                "Preference glic_button should be invisible with side panel FF enabled",
+                preference.isVisible());
+
+        ChromeSwitchPreference togglePreference = fragment.findPreference("glic_button_toggle");
+        assertTrue(
+                "Preference glic_button_toggle should be visible with side panel FF enabled",
+                togglePreference.isVisible());
+        assertTrue("Toggle should be checked when Glic is pinned", togglePreference.isChecked());
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL)
+    public void testGlicButtonPreference_SidePanel_Toggle() {
+        when(mPrefServiceMock.getBoolean(GlicPrefNames.GLIC_PINNED_TO_TABSTRIP)).thenReturn(false);
+        GlicSettings fragment = launchFragment();
+
+        ChromeSwitchPreference togglePreference = fragment.findPreference("glic_button_toggle");
+        assertFalse(
+                "Toggle should not be checked when Glic is not pinned",
+                togglePreference.isChecked());
+
+        // Test toggling on
+        togglePreference.getOnPreferenceChangeListener().onPreferenceChange(togglePreference, true);
+        verify(mPrefServiceMock).setBoolean(GlicPrefNames.GLIC_PINNED_TO_TABSTRIP, true);
+
+        // Test toggling off
+        togglePreference
+                .getOnPreferenceChangeListener()
+                .onPreferenceChange(togglePreference, false);
+        verify(mPrefServiceMock).setBoolean(GlicPrefNames.GLIC_PINNED_TO_TABSTRIP, false);
     }
 
     @Test
@@ -164,7 +240,7 @@ public class GlicSettingsUnitTest {
     @Test
     public void testTabAccessPermissionInitialState_Enabled() {
         doTestInitialState(
-                GlicPrefNames.GLIC_TAB_CONTEXT_ENABLED,
+                GlicPrefNames.GLIC_DEFAULT_TAB_CONTEXT_ENABLED,
                 "glic_permissions_default_tab_access",
                 true);
     }
@@ -172,7 +248,7 @@ public class GlicSettingsUnitTest {
     @Test
     public void testTabAccessPermissionInitialState_Disabled() {
         doTestInitialState(
-                GlicPrefNames.GLIC_TAB_CONTEXT_ENABLED,
+                GlicPrefNames.GLIC_DEFAULT_TAB_CONTEXT_ENABLED,
                 "glic_permissions_default_tab_access",
                 false);
     }
@@ -181,32 +257,45 @@ public class GlicSettingsUnitTest {
     public void testTabAccessPermissionToggle() {
         doTestToggle(
                 GLIC_SHARE_CURRENT_TAB_DEFAULT_ACCESS_ENABLED,
-                GlicPrefNames.GLIC_TAB_CONTEXT_ENABLED,
+                GlicPrefNames.GLIC_DEFAULT_TAB_CONTEXT_ENABLED,
                 "glic_permissions_default_tab_access");
     }
 
     @Test
     public void testAutoBrowsePermissionInitialState_Enabled() {
-        doTestInitialState(
-                GlicPrefNames.GLIC_USER_ENABLED_ACTUATION_ON_WEB,
-                "glic_permissions_auto_browse",
-                true);
+        when(mGlicKeyedServiceMock.getUserEnabledActuationOnWeb()).thenReturn(true);
+        GlicSettings fragment = launchFragment();
+        ChromeSwitchPreference preference = fragment.findPreference("glic_permissions_auto_browse");
+        assertTrue(preference.isChecked());
     }
 
     @Test
     public void testAutoBrowsePermissionInitialState_Disabled() {
-        doTestInitialState(
-                GlicPrefNames.GLIC_USER_ENABLED_ACTUATION_ON_WEB,
-                "glic_permissions_auto_browse",
-                false);
+        when(mGlicKeyedServiceMock.getUserEnabledActuationOnWeb()).thenReturn(false);
+        GlicSettings fragment = launchFragment();
+        ChromeSwitchPreference preference = fragment.findPreference("glic_permissions_auto_browse");
+        assertFalse(preference.isChecked());
     }
 
     @Test
     public void testAutoBrowsePermissionToggle() {
-        doTestToggle(
-                GLIC_AUTO_BROWSE_SETTING_ENABLED,
-                GlicPrefNames.GLIC_USER_ENABLED_ACTUATION_ON_WEB,
-                "glic_permissions_auto_browse");
+        when(mGlicKeyedServiceMock.getUserEnabledActuationOnWeb()).thenReturn(false);
+        GlicSettings fragment = launchFragment();
+        ChromeSwitchPreference preference = fragment.findPreference("glic_permissions_auto_browse");
+
+        // Test toggling on
+        preference.getOnPreferenceChangeListener().onPreferenceChange(preference, true);
+        assertTrue(
+                ChromeSharedPreferences.getInstance()
+                        .readBoolean(GLIC_AUTO_BROWSE_SETTING_ENABLED, false));
+        verify(mGlicKeyedServiceMock).setUserEnabledActuationOnWeb(true);
+
+        // Test toggling off
+        preference.getOnPreferenceChangeListener().onPreferenceChange(preference, false);
+        assertFalse(
+                ChromeSharedPreferences.getInstance()
+                        .readBoolean(GLIC_AUTO_BROWSE_SETTING_ENABLED, true));
+        verify(mGlicKeyedServiceMock).setUserEnabledActuationOnWeb(false);
     }
 
     private void doTestToggle(String sharedPrefKey, String profilePrefKey, String viewId) {
@@ -254,5 +343,30 @@ public class GlicSettingsUnitTest {
         // Simulate toggle On
         locationPref.getOnPreferenceChangeListener().onPreferenceChange(locationPref, true);
         verify(mPrefServiceMock).setBoolean("glic.geolocation_enabled", true);
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR)
+    public void testGlicButtonPreference_AndroidBottomBarEnabled() {
+        GlicSettings fragment = launchFragment();
+        Preference preference = fragment.findPreference("glic_button");
+        assertFalse("Preference glic_button should not be visible", preference.isVisible());
+        Preference preferenceCategory = fragment.findPreference("glic_preference_section");
+        assertFalse(
+                "Preference glic_preference_section should not be visible",
+                preferenceCategory.isVisible());
+    }
+
+    @Test
+    public void testEnterpriseMode_MovesToBottom() {
+        when(mGlicEnablingJniMock.isProfileManaged(mProfileMock)).thenReturn(true);
+        when(mGlicEnablingJniMock.isDisabledByPolicy(mProfileMock)).thenReturn(false);
+
+        GlicSettings fragment = launchFragment();
+
+        GlicExtraInfoPreference aiInfoPref = fragment.findPreference("glic_custom_box_preference");
+        assertTrue("Preference glic_custom_box_preference should exist", aiInfoPref != null);
+
+        assertEquals("Order should be 999 for enterprise", 999, aiInfoPref.getOrder());
     }
 }

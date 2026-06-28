@@ -13,10 +13,12 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/trace_event/trace_event.h"
 #include "base/version_info/version_info.h"
+#include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/glic/fre/fre_util.h"
 #include "chrome/browser/glic/fre/glic_fre_page_handler.h"
 #include "chrome/browser/glic/glic_net_log.h"
+#include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/host/auth_controller.h"
 #include "chrome/browser/glic/host/glic_internals_page_handler.h"
 #include "chrome/browser/glic/host/glic_page_handler.h"
@@ -28,7 +30,6 @@
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
 #include "chrome/browser/glic/resources/glic_resources.h"
 #include "chrome/browser/glic/resources/grit/glic_browser_resources.h"
-#include "chrome/browser/glic/shared/webui_shared.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/common/channel_info.h"
@@ -37,8 +38,6 @@
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/branded_strings.h"
 #include "chrome/grit/generated_resources.h"
-#include "chrome/grit/glic_fre_resources.h"
-#include "chrome/grit/glic_fre_resources_map.h"
 #include "chrome/grit/glic_resources.h"
 #include "chrome/grit/glic_resources_map.h"
 #include "components/prefs/pref_service.h"
@@ -162,11 +161,15 @@ GlicUI::GlicUI(content::WebUI* web_ui)
       {"errorNotice", IDS_GLIC_ERROR_NOTICE},
       {"errorNoticeActionButton", IDS_GLIC_ERROR_NOTICE_ACTION_BUTTON},
       {"errorNoticeHeader", IDS_GLIC_ERROR_NOTICE_HEADER},
+      {"showErrorButton", IDS_GLIC_SHOW_ERROR_BUTTON},
       {"ineligibleProfileNotice", IDS_GLIC_INELIGIBLE_PROFILE_NOTICE},
       {"ineligibleProfileNoticeActionButton",
        IDS_GLIC_INELIGIBLE_PROFILE_NOTICE_ACTION_BUTTON},
       {"ineligibleProfileNoticeHeader",
        IDS_GLIC_INELIGIBLE_PROFILE_NOTICE_HEADER},
+      {"ineligibleAccountNotice", IDS_GLIC_INELIGIBLE_ACCOUNT_NOTICE},
+      {"ineligibleAccountNoticeHeader",
+       IDS_GLIC_INELIGIBLE_ACCOUNT_NOTICE_HEADER},
       {"disabledByAdminNotice", IDS_GLIC_DISABLED_BY_ADMIN_NOTICE},
       {"disabledByAdminNoticeCloseButton",
        IDS_GLIC_DISABLED_BY_ADMIN_NOTICE_CLOSE_BUTTON},
@@ -179,10 +182,15 @@ GlicUI::GlicUI(content::WebUI* web_ui)
       {"signInNoticeActionButton", IDS_GLIC_SIGN_IN_NOTICE_ACTION_BUTTON},
       {"signInNoticeHeader", IDS_GLIC_SIGN_IN_NOTICE_HEADER},
       {"unresponsiveMessage", IDS_GLIC_UNRESPONSIVE_MESSAGE},
+      {"locationMismatchNoticeHeader",
+       IDS_GLIC_LOCATION_MISMATCH_NOTICE_HEADER},
+      {"locationMismatchNotice", IDS_GLIC_LOCATION_MISMATCH_NOTICE},
+      {"getHelp", IDS_GLIC_GET_HELP},
   };
 
   content::BrowserContext* browser_context =
       web_ui->GetWebContents()->GetBrowserContext();
+  Profile* profile = Profile::FromBrowserContext(browser_context);
 
   // Set up the chrome://glic source.
   content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
@@ -190,7 +198,30 @@ GlicUI::GlicUI(content::WebUI* web_ui)
 
   // Add required resources.
   webui::SetupWebUIDataSource(source, kGlicResources, IDR_GLIC_GLIC_HTML);
-  ConfigureSharedWebUISource(*source);
+
+  source->AddString("chromeVersion", version_info::GetVersionNumber());
+  source->AddString("chromeChannel",
+                    version_info::GetChannelString(chrome::GetChannel()));
+
+  auto* command_line = base::CommandLine::ForCurrentProcess();
+  const bool is_glic_dev = command_line->HasSwitch(::switches::kGlicDev);
+
+  source->AddBoolean("devMode", is_glic_dev);
+
+  // Set up loading notice timeout values.
+  source->AddInteger("preLoadingTimeMs", features::kGlicPreLoadingTimeMs.Get());
+  source->AddInteger("minLoadingTimeMs", features::kGlicMinLoadingTimeMs.Get());
+  int max_loading_time_ms = features::kGlicMaxLoadingTimeMs.Get();
+  if (is_glic_dev) {
+    // Bump up timeout value, as dev server may be slow.
+    max_loading_time_ms *= 100;
+  }
+  source->AddInteger("maxLoadingTimeMs", max_loading_time_ms);
+
+  source->AddString("glicHeaderRequestTypes",
+                    base::FeatureList::IsEnabled(features::kGlicHeader)
+                        ? features::kGlicHeaderRequestTypes.Get()
+                        : "");
 
 #if !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   auto bindings = web_ui->GetBindings();
@@ -198,10 +229,6 @@ GlicUI::GlicUI(content::WebUI* web_ui)
   web_ui->SetBindings(bindings);
   source->AddResourcePaths(kGuestViewSharedResources);
 #endif  // !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
-
-  for (const auto& resource : kGlicFreResources) {
-    source->AddResourcePath(base::StrCat({"fre/", resource.path}), resource.id);
-  }
 
   // Setup chrome://glic/internals debug UI.
   source->AddResourcePath("internals/", IDR_GLIC_INTERNALS_GLIC_INTERNALS_HTML);
@@ -222,11 +249,22 @@ GlicUI::GlicUI(content::WebUI* web_ui)
   allowlist->RegisterAutoGrantedPermission(source->GetOrigin(),
                                            ContentSettingsType::GEOLOCATION);
 
-  auto* command_line = base::CommandLine::ForCurrentProcess();
-
   source->AddBoolean("loggingEnabled",
                      command_line->HasSwitch(::switches::kGlicHostLogging));
-
+  signin::IdentityManager* identity_manager =
+      IdentityManagerFactory::GetForProfile(profile);
+  const bool is_internal_google_account =
+      identity_manager && IsPrimaryAccountGoogleInternal(*identity_manager);
+  source->AddBoolean("showErrorAllowed", is_internal_google_account ||
+                                             profile->GetPrefs()->GetBoolean(
+                                                 prefs::kGlicShowErrorAllowed));
+#if BUILDFLAG(IS_ANDROID)
+  const bool is_android_mobile =
+      GetGlicFormFactor(ui::GetDeviceFormFactor()) == mojom::FormFactor::kPhone;
+  source->AddBoolean("isAndroidMobile", is_android_mobile);
+#else
+  source->AddBoolean("isAndroidMobile", false);
+#endif
   source->AddInteger("maxInFlightRequests",
                      base::FeatureList::IsEnabled(kGlicMaxInFlightRequests)
                          ? kGlicMaxInFlightRequestLimit.Get()
@@ -259,14 +297,13 @@ GlicUI::GlicUI(content::WebUI* web_ui)
   }
 
   // Allow corp origins for @google accounts.
-  auto* profile = Profile::FromBrowserContext(browser_context);
-  signin::IdentityManager* identity_manager =
-      IdentityManagerFactory::GetForProfile(profile);
-  if (identity_manager && IsPrimaryAccountGoogleInternal(*identity_manager)) {
+  if (is_internal_google_account) {
     allowed_origins += " https://*.corp.google.com";
   }
 
   source->AddString("glicAllowedOrigins", allowed_origins);
+  source->AddString("glicApiAllowedOrigins",
+                    features::kGlicApiAllowedOrigins.Get());
 
   bool reload_after_navigation =
       !command_line->HasSwitch(::switches::kGlicSkipReloadAfterNavigation);
@@ -278,6 +315,9 @@ GlicUI::GlicUI(content::WebUI* web_ui)
 
   source->AddBoolean("enableDebug",
                      base::FeatureList::IsEnabled(features::kGlicDebugWebview));
+
+  source->AddBoolean(
+      "noLoader", base::FeatureList::IsEnabled(features::kGlicNoWebUiLoader));
 
   // Set up for periodic web client responsiveness check and its interval,
   // timeout, and max unresponsive ui time.
@@ -309,10 +349,7 @@ GlicUI::GlicUI(content::WebUI* web_ui)
                     admin_blocked_redirect_patterns);
 
   source->AddString("glicFreURL", GetFreURL(profile).spec());
-  source->AddBoolean(
-      "shouldShowFre",
-      !GlicEnabling::IsTrustFirstOnboardingEnabledForProfile(profile) &&
-          !GlicEnabling::HasConsentedForProfile(profile));
+  source->AddBoolean("shouldShowFre", false);
   source->AddInteger("reloadMaxLoadingTimeMs",
                      features::kGlicReloadMaxLoadingTimeMs.Get());
   source->AddBoolean("caaGuestError", base::FeatureList::IsEnabled(
@@ -320,9 +357,6 @@ GlicUI::GlicUI(content::WebUI* web_ui)
   source->AddBoolean(
       "glicPopupWindowsEnabled",
       base::FeatureList::IsEnabled(features::kGlicPopupWindowsEnabled));
-  source->AddBoolean(
-      "glicWebContentsWarming",
-      base::FeatureList::IsEnabled(features::kGlicWebContentsWarming));
 }
 
 WEB_UI_CONTROLLER_TYPE_IMPL(GlicUI)
@@ -396,15 +430,7 @@ void GlicUI::CreatePageHandler(
   if (!IsProfileEligible()) {
     return;
   }
-  if (!host_) {
-    // Create a Host for tabs navigated to chrome://glic
-    GlicKeyedService* service = GlicKeyedServiceFactory::GetGlicKeyedService(
-        web_ui()->GetWebContents()->GetBrowserContext());
-    if (service) {
-      host_ = service->host_manager().GetOrCreateHostForTab(
-          web_ui()->GetWebContents());
-    }
-  }
+
   if (!host_) {
     // If there is no host yet, wait for a glic host to be associated with this
     // WebUI.

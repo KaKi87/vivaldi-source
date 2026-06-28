@@ -7,6 +7,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #define EIGEN_USE_THREADS
 #include <cstdlib>
@@ -157,10 +158,10 @@ void test_empty_runqueue() {
 void test_stress_runqueue() {
   static const int kEvents = 1 << 18;
   RunQueue<int, 8> q;
-  std::atomic<int> total(0);
+  std::atomic<int64_t> total(0);
   std::vector<std::unique_ptr<std::thread>> threads;
   threads.emplace_back(new std::thread([&q, &total]() {
-    int sum = 0;
+    int64_t sum = 0;
     int pushed = 1;
     int popped = 1;
     while (pushed < kEvents || popped < kEvents) {
@@ -223,7 +224,7 @@ void test_stress_runqueue() {
   VERIFY(total.load() == 0);
 }
 
-EIGEN_DECLARE_TEST(cxx11_runqueue) {
+EIGEN_DECLARE_TEST(threads_runqueue) {
   CALL_SUBTEST_1(test_basic_runqueue());
   CALL_SUBTEST_2(test_empty_runqueue());
   CALL_SUBTEST_3(test_stress_runqueue());

@@ -22,10 +22,6 @@ namespace ui_tools {
 // Returns the currently active WebViewGuest.
 extern extensions::WebViewGuest* GetActiveWebViewGuest();
 
-// Returns the active BrowserWindow, currently used by progress updates to the
-// taskbar on Windows.
-extern VivaldiBrowserWindow* GetActiveAppWindow();
-
 // Return the most recently active main window excluding settings and debug
 // windows.
 extern VivaldiBrowserWindow* GetLastActiveMainWindow();

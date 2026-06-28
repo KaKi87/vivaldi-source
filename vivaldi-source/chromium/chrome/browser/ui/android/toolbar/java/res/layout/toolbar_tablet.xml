@@ -37,7 +37,7 @@ found in the LICENSE file.
         <org.vivaldi.browser.toolbar.PanelButton
             android:id="@+id/panel_button"
             app:tint="@color/default_icon_color_tint_list"
-            style="@style/ToolbarButton"
+            style="@style/ToolbarHoverableButton.AdaptiveDensity"
             android:contentDescription="@string/toolbar_button_panels" />
 
         <org.chromium.ui.widget.ChromeImageButton
@@ -56,6 +56,19 @@ found in the LICENSE file.
             android:tooltipText="@string/accessibility_toolbar_btn_forward"
             app:tint="@color/default_icon_color_tint_list" />
 
+      <!-- Vivaldi -->
+      <org.chromium.chrome.browser.toolbar.home_button.HomeButton
+          android:id="@+id/home_button"
+          style="@style/ToolbarButton"
+          android:src="@drawable/main_toolbar_home"
+          android:contentDescription="@string/accessibility_toolbar_btn_home"
+          android:visibility="gone"
+          app:menuMaxWidth="@dimen/home_button_list_menu_width"
+          app:menuPositionedAtEnd="false"
+          app:menuVerticalOverlapAnchor="false"
+          app:tint="@color/default_icon_color_tint_list"
+          android:layout_marginEnd="@dimen/toolbar_buttons_offset_padding" />
+
         <!-- The src will be set in onFinishInflate. -->
         <org.chromium.ui.widget.ChromeImageButton
             android:id="@+id/refresh_button"
@@ -65,39 +78,37 @@ found in the LICENSE file.
             app:tint="@color/default_icon_color_tint_list"
             style="@style/ToolbarHoverableButton.AdaptiveDensity" />
 
-        <!-- Vivaldi -->
-        <org.chromium.chrome.browser.toolbar.home_button.HomeButton
-            android:id="@+id/home_button"
-            style="@style/ToolbarButton"
-            android:src="@drawable/main_toolbar_home"
-            android:contentDescription="@string/accessibility_toolbar_btn_home"
-            android:visibility="gone"
-            app:menuMaxWidth="@dimen/home_button_list_menu_width"
-            app:menuPositionedAtEnd="false"
-            app:menuVerticalOverlapAnchor="false"
-            app:tint="@color/default_icon_color_tint_list"
-            android:paddingEnd="@dimen/toolbar_buttons_offset_padding" />
-
+    <FrameLayout
+        android:id="@+id/location_bar_holder"
+        android:layout_width="0dp"
+        android:layout_height="@dimen/modern_toolbar_tablet_background_size"
+        android:layout_weight="1"
+        android:layout_gravity="center_vertical"
+        >
         <!-- Vivaldi: Margin changes-->
         <org.chromium.chrome.browser.omnibox.LocationBarTablet
             android:id="@+id/location_bar"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="@dimen/modern_toolbar_tablet_background_size"
-            android:layout_weight="1"
             android:layout_gravity="center_vertical"
             android:background="@drawable/modern_toolbar_tablet_text_box_background"
-			android:layout_marginStart="8dp"
+            android:layout_marginStart="8dp"
             android:layout_marginEnd="8dp"
             android:paddingStart="8dp"
+            android:paddingEnd="0dp"
             android:clipToPadding="false" />
+    </FrameLayout>
 
-        <!-- TODO(crbug.com/433976037): Reset horizontal margins when optional button expands to action chip. -->
+
+
+    <!-- TODO(crbug.com/433976037): Reset horizontal margins when optional button expands to action chip. -->
         <ViewStub
             android:id="@+id/optional_button_stub"
             android:inflatedId="@+id/optional_toolbar_button"
             android:layout="@layout/optional_toolbar_button"
             style="@style/ToolbarHoverableButton.AdaptiveDensity"
             android:paddingStart="8dp"
+            android:layout_marginStart="@dimen/toolbar_buttons_offset_padding"
             android:visibility="gone" />
 
         <ViewStub
@@ -127,7 +138,8 @@ found in the LICENSE file.
             style="@style/ToolbarHoverableButton.AdaptiveDensity"
             android:visibility="visible"
             app:menuMaxWidth="@dimen/tab_switcher_menu_width"
-            app:menuVerticalOverlapAnchor="false" />
+            app:menuVerticalOverlapAnchor="false"
+            android:layout_marginStart="@dimen/toolbar_buttons_offset_padding" />
 
         <!-- Vivaldi -->
         <org.chromium.ui.widget.ChromeImageButton

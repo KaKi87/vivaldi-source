@@ -17,7 +17,6 @@
 #include <vector>
 
 #include "ash/constants/ash_features.h"
-#include "ash/webui/system_apps/public/system_web_app_type.h"
 #include "base/check.h"
 #include "base/check_is_test.h"
 #include "base/containers/fixed_flat_set.h"
@@ -54,6 +53,7 @@
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
 #include "chrome/browser/ui/webui/ash/cloud_upload/cloud_upload_util.h"
 #include "chrome/common/extensions/extension_constants.h"
+#include "chromeos/ash/components/system_web_apps/system_web_app_type.h"
 #include "chromeos/dbus/dlp/dlp_client.h"
 #include "chromeos/dbus/dlp/dlp_service.pb.h"
 #include "chromeos/ui/base/file_icon_util.h"
@@ -103,10 +103,11 @@ std::optional<DlpFileDestination> GetFileDestinationForApp(
       // Expecting `PublisherId()` to return an URL. For web apps this should be
       // the start URL.
       return DlpFileDestination(GURL(app_update.PublisherId()));
-    case apps::AppType::kUnknown:
-    case apps::AppType::kRemote:
     case apps::AppType::kBorealis:
     case apps::AppType::kBruschetta:
+      return DlpFileDestination(data_controls::Component::kCrostini);
+    case apps::AppType::kUnknown:
+    case apps::AppType::kRemote:
       return std::nullopt;
   }
   return std::nullopt;
@@ -731,6 +732,17 @@ DlpFilesControllerAsh::MapFilePathToPolicyComponent(
       file_manager::util::GetCrostiniMountDirectory(profile);
   if (linux_files == file_path || linux_files.IsParent(file_path)) {
     return data_controls::Component::kCrostini;
+  }
+
+  std::string mount_name;
+  std::string file_system_name;
+  std::string full_path;
+  if (file_path.IsAbsolute() &&
+      file_manager::util::ExtractMountNameFileSystemNameFullPath(
+          file_path, &mount_name, &file_system_name, &full_path)) {
+    if (file_manager::util::IsBruschettaMountPointName(mount_name, profile)) {
+      return data_controls::Component::kCrostini;
+    }
   }
 
   return {};

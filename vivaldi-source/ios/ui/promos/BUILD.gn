@@ -1,4 +1,3 @@
-
 # Copyright 2023 Vivaldi Technologies. All rights reserved.
 
 source_set("vivaldi_promo") {
@@ -8,8 +7,8 @@ source_set("vivaldi_promo") {
   ]
 
   deps = [
-    "//base",
     "resources:assets",
+    "//base",
   ]
 
   frameworks = [ "UIKit.framework" ]
@@ -36,7 +35,6 @@ source_set("vivaldi_default_browser_startup_promo") {
   ]
 
   deps = [
-    "//vivaldi/browser:features",
     "//base",
     "//components/prefs",
     "//ios/chrome/app/profile",
@@ -45,6 +43,7 @@ source_set("vivaldi_default_browser_startup_promo") {
     "//ios/chrome/browser/shared/model/application_context",
     "//ios/chrome/browser/shared/model/browser",
     "//ios/chrome/browser/shared/public/commands",
+    "//vivaldi/browser:features",
   ]
 
   frameworks = [

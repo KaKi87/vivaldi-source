@@ -308,14 +308,20 @@ public class HistoryManager
         /* If the current device is LFF device w/ physical keyboard attached,
          * then initialize the search box only; Otherwise initialize the whole toolbar
          */
+        if (ChromeApplicationImpl.isVivaldi() && mToolbar.getMenu() != null) {
+            mToolbar.getMenu().removeItem(R.id.search_menu_id);
+        } else {
         if (!mIsLargeFormFactorDevice) {
-            if (!ChromeApplicationImpl.isVivaldi() || !useBookmarkStyleSearch())
             mToolbar.initializeSearchView(
                     this, R.string.history_manager_search, R.id.search_menu_id);
-            else mToolbar.getMenu().removeItem(R.id.search_menu_id); // Vivaldi
         } else {
             mToolbar.initializeInlineSearchView(this, R.id.search_menu_id);
+            ViewGroup searchBoxContainer =
+                    mToolbar.initializeSearchBoxContainer(
+                            mSelectableListLayout, R.string.history_manager_search);
+            mSelectableListLayout.addInlineSearchBox(searchBoxContainer);
         }
+        } // End !Vivaldi
 
         mToolbar.setInfoMenuItem(R.id.info_menu_id);
         mToolbar.updateInfoMenuItem(shouldShowInfoButton(), shouldShowInfoHeaderIfAvailable());
@@ -332,8 +338,6 @@ public class HistoryManager
         initializeEmptyView();
 
         // Vivaldi
-        ViewStub stub = mSelectableListLayout.findViewById(R.id.empty_state_view_stub);
-        stub.setLayoutResource(R.layout.vivaldi_empty_state_view);
         mEmptyView = mSelectableListLayout.initializeEmptyStateView(R.drawable.history_empty_state,
                 R.string.history_manager_empty_state,
                 mActivity.getResources().getString(
@@ -364,16 +368,13 @@ public class HistoryManager
         mContentManager.maybeQueryApps();
 
         mContentManager.getAdapter().setIsLargeFormFactorDevice(mIsLargeFormFactorDevice);
-        mContentManager.getAdapter().setToolbar(mToolbar);
 
         if (ChromeApplicationImpl.isVivaldi()) {
             mSelectableListLayout.getToolbarShadow().setVisibility(View.GONE);
 
-            if (mContentManager.useBookmarkStyleSearch()) {
-                mContentManager.setSearchTextCallback(this::onSearchTextChanged);
-                mContentManager.setFocusChangeCallback(this::onSearchBoxFocusChange);
-                mContentManager.setClearSearchTextRunnable(this::onClearSearchTextRunnable);
-            }
+            mContentManager.setSearchTextCallback(this::onSearchTextChanged);
+            mContentManager.setFocusChangeCallback(this::onSearchBoxFocusChange);
+            mContentManager.setClearSearchTextRunnable(this::onClearSearchTextRunnable);
         } // End Vivaldi
     }
 
@@ -604,7 +605,7 @@ public class HistoryManager
     @Override
     public void onSearchTextChanged(String query) {
         // Vivaldi
-        if (useBookmarkStyleSearch()) {
+        if (ChromeApplicationImpl.isVivaldi()) {
             onSearchTextChangeCallback(query);
             return;
         } // End Vivaldi
@@ -666,7 +667,7 @@ public class HistoryManager
         // Before the RecyclerView binds its items, LinearLayoutManager#firstVisibleItemPosition()
         // returns {@link RecyclerView#NO_POSITION}. If #findVisibleItemPosition() returns
         // NO_POSITION, the current adapter position should not prevent the info button from being
-        // displayed if all of the other criteria is met. See crbug.com/756249#c3.
+        // displayed if all of the other criteria is met. See crbug.com/41339744#comment4.
         boolean firstAdapterItemScrolledOff =
                 assumeNonNull(layoutManager).findFirstVisibleItemPosition() > 0;
 
@@ -818,11 +819,6 @@ public class HistoryManager
     }
 
     // Vivaldi
-    /** Vivaldi. */
-    public boolean useBookmarkStyleSearch() {
-        return mContentManager != null && mContentManager.useBookmarkStyleSearch();
-    }
-
     /** Vivaldi. */
     public void onSearchTextChangeCallback(String searchText) {
         searchText = searchText == null ? "" : searchText;

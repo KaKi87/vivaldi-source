@@ -44,6 +44,8 @@ public class DeprecatedChromePreferenceKeys {
                 "Chrome.Flags.SafeModeEnabled",
                 "Chrome.Flags.SafeString.*",
                 "Chrome.Flags.SafeValuesVersion",
+                "Chrome.FullscreenSigninPromo.NextShowTime",
+                "Chrome.Glic.ButtonPinned",
                 "Chrome.IsolatedSplits.VersionCode",
                 "Chrome.MultiInstance.ClosedByUser.*",
                 "Chrome.MultiWindow.RestorationMessageShown",
@@ -87,9 +89,14 @@ public class DeprecatedChromePreferenceKeys {
                 "Chrome.Tab.ShowTabGroupCreationDialog",
                 "Chrome.TabTearing.MaxInstancesFailureCount",
                 "Chrome.TabTearing.MaxInstancesFailureStartTimeMs",
+                "Chrome.TipsNotifications.ChannelEnabled",
+                "Chrome.TipsNotifications.OptInShown",
                 "Chrome.UMA.OnPreCreateCounter",
                 "Chrome.UMA.OnResumeCounter",
                 "Chrome.VideoTutorials.ShareUrls",
+                "Chrome.WebFeed.IntroLastShownTimeMs",
+                "Chrome.WebFeed.IntroWebFeedIdShownTimeMs.*",
+                "Chrome.WebFeed.IntroWebFeedIdShownCount.*",
                 "LocaleManager_USR_TYPE",
                 "PersistedNotificationId",
                 "PhysicalWeb.ActivityReferral",
@@ -117,6 +124,7 @@ public class DeprecatedChromePreferenceKeys {
                 "bookmark_search_history",
                 "bottom_toolbar_enabled",
                 "bottom_toolbar_variation",
+                "cache_activity_taskid_enabled",
                 "cellular_experiment",
                 "chrome_home_enabled_date",
                 "chrome_home_info_promo_shown",
@@ -206,6 +214,6 @@ public class DeprecatedChromePreferenceKeys {
     }
 
     static List<KeyPrefix> getPrefixesForTesting() {
-        return Collections.EMPTY_LIST;
+        return Collections.emptyList();
     }
 }

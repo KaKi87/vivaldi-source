@@ -16,7 +16,6 @@
 class AskBeforeHttpDialogController;
 class BookmarkPageActionController;
 class CollaborationMessagingPageActionController;
-class ContextualTasksPageActionController;
 class CookieControlsPageActionController;
 class FileSystemAccessPageActionController;
 class FromGWSNavigationAndKeepAliveRequestObserver;
@@ -41,6 +40,7 @@ class QwacWebContentsObserver;
 class ManagePasswordsPageActionController;
 class BookmarkBarPreloadPipelineManager;
 class NewTabPagePreloadPipelineManager;
+class SearchPromotionNavigationObserver;
 
 namespace skills {
 class SkillsUiTabControllerInterface;
@@ -56,6 +56,7 @@ class ContentAnnotatorTabHelper;
 
 namespace autofill {
 class BubbleManager;
+class OmniboxAutofillPageActionController;
 }  // namespace autofill
 
 namespace actor {
@@ -68,8 +69,9 @@ class ActorUiTabControllerInterface;
 
 namespace commerce {
 class CommerceUiTabHelper;
-class PriceInsightsPageActionViewController;
 class DiscountsPageActionViewController;
+class InStockNotificationManager;
+class PriceInsightsPageActionViewController;
 }  // namespace commerce
 
 namespace enterprise_data_protection {
@@ -85,7 +87,7 @@ class WebContents;
 }  // namespace content
 
 namespace contextual_cueing {
-class ContextualCueingHelper;
+class ContextualCueingWebContentsObserver;
 }  // namespace contextual_cueing
 
 namespace contextual_tasks {
@@ -183,6 +185,7 @@ namespace tabs {
 class ContextHighlightTabFeature;
 class InactiveWindowMouseEventController;
 class TabAlertController;
+class TabAttachmentTracker;
 class TabCreationMetricsController;
 class TabDialogManager;
 class TabInterface;
@@ -230,11 +233,6 @@ class TabFeatures {
 
   commerce::CommerceUiTabHelper* commerce_ui_tab_helper() {
     return commerce_ui_tab_helper_.get();
-  }
-
-  contextual_tasks::ContextualTasksTabVisitTracker*
-  contextual_tasks_tab_visit_tracker() {
-    return contextual_tasks_tab_visit_tracker_.get();
   }
 
   extensions::ExtensionSidePanelManager* extension_side_panel_manager() {
@@ -293,10 +291,6 @@ class TabFeatures {
     return record_replay_client_.get();
   }
 #endif
-
-  lens::TabContextualizationController* tab_contextualization_controller() {
-    return tab_contextualization_controller_.get();
-  }
 
   PwaInstallPageActionController* pwa_install_page_action_controller() {
     return pwa_install_page_action_controller_.get();
@@ -389,6 +383,8 @@ class TabFeatures {
 
   // Responsible for commerce related features.
   std::unique_ptr<commerce::CommerceUiTabHelper> commerce_ui_tab_helper_;
+  std::unique_ptr<commerce::InStockNotificationManager>
+      in_stock_notification_manager_;
 
   // Responsible for updating status indicator of the pinned translate button.
   std::unique_ptr<PinnedTranslateActionListener>
@@ -475,11 +471,6 @@ class TabFeatures {
   std::unique_ptr<tab_groups::CollaborationMessagingTabData>
       collaboration_messaging_tab_data_;
 
-  // Controller to trigger when the contextual task page action chip to
-  // show/hide.
-  std::unique_ptr<ContextualTasksPageActionController>
-      contextual_tasks_page_action_controller_;
-
   // Responsible for managing the "Show Collaboration History" page action.
   std::unique_ptr<CollaborationMessagingPageActionController>
       collaboration_messaging_page_action_controller_;
@@ -524,6 +515,9 @@ class TabFeatures {
 
   std::unique_ptr<ContextHighlightTabFeature> context_highlight_tab_feature_;
 
+  std::unique_ptr<contextual_cueing::ContextualCueingWebContentsObserver>
+      contextual_cueing_web_contents_observer_;
+
   std::unique_ptr<TabUIHelper> tab_ui_helper_;
 
   std::unique_ptr<QwacWebContentsObserver> qwac_web_contents_observer_;
@@ -535,6 +529,10 @@ class TabFeatures {
       tab_creation_metrics_controller_;
 
   std::unique_ptr<autofill::BubbleManager> autofill_bubble_manager_;
+
+  // Responsible for managing the "Autofill payment" page action.
+  std::unique_ptr<autofill::OmniboxAutofillPageActionController>
+      omnibox_autofill_page_action_controller_;
 
   std::unique_ptr<AskBeforeHttpDialogController>
       ask_before_http_dialog_controller_;
@@ -580,6 +578,11 @@ class TabFeatures {
       saas_usage_navigation_observer_;
 #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
 
+#if BUILDFLAG(IS_WIN)
+  std::unique_ptr<SearchPromotionNavigationObserver>
+      search_promotion_navigation_observer_;
+#endif
+
   std::unique_ptr<accessibility_annotator::ContentAnnotatorTabHelper>
       content_annotator_tab_helper_;
 
@@ -591,6 +594,8 @@ class TabFeatures {
   std::unique_ptr<multistep_filter::FilterUiController> filter_ui_controller_;
   std::unique_ptr<multistep_filter::ChromeFilterNavigationObserver>
       filter_navigation_observer_;
+
+  std::unique_ptr<TabAttachmentTracker> tab_attachment_tracker_;
 
   // Must be the last member.
   base::WeakPtrFactory<TabFeatures> weak_factory_{this};

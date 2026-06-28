@@ -47,17 +47,17 @@ class VivaldiAccountPasswordHandler
   void RemoveObserver(Observer* observer);
 
   // Implementing password_manager::PasswordStoreConsumer
-  void OnGetPasswordStoreResults(
-      std::vector<std::unique_ptr<password_manager::PasswordForm>> results)
-      override;
+  void OnGetPasswordStoreResultsOrErrorFrom(
+      password_manager::PasswordStoreInterface* store,
+      password_manager::LoginsResultOrError results_or_error) override;
 
   // Implementing password_manager::PasswordStore::Observer
   void OnLoginsChanged(
       password_manager::PasswordStoreInterface* store,
       const password_manager::PasswordStoreChangeList& changes) override;
   void OnLoginsRetained(password_manager::PasswordStoreInterface* store,
-                        const std::vector<password_manager::PasswordForm>&
-                            retained_passwords) override;
+                        const std::vector<password_manager::StoredCredential>&
+                            retained_credentials) override;
 
  private:
   const raw_ptr<Delegate> delegate_;

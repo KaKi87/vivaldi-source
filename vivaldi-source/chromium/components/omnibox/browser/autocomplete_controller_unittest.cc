@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "base/base64url.h"
 #include "base/json/json_reader.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/utf_string_conversions.h"
@@ -30,16 +31,20 @@
 #include "components/omnibox/browser/fake_tab_matcher.h"
 #include "components/omnibox/browser/keyword_provider.h"
 #include "components/omnibox/browser/omnibox_field_trial.h"
+#include "components/omnibox/browser/search_suggestion_parser.h"
 #include "components/omnibox/browser/test_scheme_classifier.h"
+#include "components/omnibox/browser/zero_suggest_provider.h"
 #include "components/omnibox/common/omnibox_feature_configs.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/search_engines/enterprise/enterprise_search_manager.h"
 #include "components/search_engines/template_url_data.h"
 #include "components/search_engines/template_url_starter_pack_data.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
+#include "net/base/url_util.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/omnibox_proto/answer_type.pb.h"
+#include "third_party/omnibox_proto/chrome_searchbox_stats.pb.h"
 #include "third_party/omnibox_proto/rich_answer_template.pb.h"
 
 using ::testing::ElementsAre;
@@ -2295,8 +2300,7 @@ TEST_F(AutocompleteControllerTest, ShouldRunProvider_StarterPack) {
   }
 
   // Enter keyword mode.
-  controller_.input_.set_keyword_mode_entry_method(
-      metrics::OmniboxEventProto_KeywordModeEntryMethod_TAB);
+  controller_.input_.set_in_keyword_mode(true);
 
   // In @tabs, run search, keyword, and open tab provider only.
   controller_.input_.UpdateText(u"@tabs", 0, {});
@@ -2370,8 +2374,7 @@ TEST_F(AutocompleteControllerTest,
   // In keyword mode, all limit provider params on by default, limit document
   // and history cluster suggestions as well.
   controller_.input_.UpdateText(u"keyword", 0, {});
-  controller_.input_.set_keyword_mode_entry_method(
-      metrics::OmniboxEventProto_KeywordModeEntryMethod_TAB);
+  controller_.input_.set_in_keyword_mode(true);
   excluded_provider_types = {
       AutocompleteProvider::TYPE_OPEN_TAB,
       AutocompleteProvider::TYPE_HISTORY_CLUSTER_PROVIDER,
@@ -2518,8 +2521,7 @@ TEST_F(AutocompleteControllerTest,
   EXPECT_TRUE(controller_.ShouldRunProvider(document_provider.get()));
 
   // Enter keyword mode.
-  controller_.input_.set_keyword_mode_entry_method(
-      metrics::OmniboxEventProto_KeywordModeEntryMethod_TAB);
+  controller_.input_.set_in_keyword_mode(true);
 
   // Aggregator not ran when in site search mode, regardless of
   // `enterprise_search_aggregator_settings.require_shortcut` pref value.
@@ -2708,8 +2710,7 @@ TEST_F(AutocompleteControllerTest,
   controller_.input_ =
       AutocompleteInput(u"@page Summar", metrics::OmniboxEventProto::OTHER,
                         TestSchemeClassifier());
-  controller_.input_.set_keyword_mode_entry_method(
-      metrics::OmniboxEventProto::SPACE_AT_END);
+  controller_.input_.set_in_keyword_mode(true);
 
   SetAutocompleteMatches({CreateContextualSearchMatch(u"Summary"),
                           CreateContextualSearchMatch(u"Summarize this page")});
@@ -2741,9 +2742,23 @@ TEST_F(AutocompleteControllerTest, ContextualQueryAppendsSearchboxStats) {
   turl_data.SetShortName(u"Contextual");
   turl_data.SetKeyword(u"contextual");
   turl_data.SetURL(
-      "https://google.com/search?q={searchTerms}/{google:assistedQueryStats}");
+      "https://google.com/search?q={searchTerms}&{google:assistedQueryStats}");
   controller_.template_url_service_->Add(
       std::make_unique<TemplateURL>(turl_data));
+
+  // Inject zero suggest provider to supply fake experiment stats.
+  scoped_refptr<ZeroSuggestProvider> zero_suggest_provider =
+      base::MakeRefCounted<ZeroSuggestProvider>(provider_client(),
+                                                &controller_);
+  controller_.providers_.push_back(zero_suggest_provider);
+  controller_.zero_suggest_provider_ = zero_suggest_provider.get();
+
+  omnibox::metrics::ChromeSearchboxStats::ExperimentStatsV2 stat;
+  stat.set_type_int(12345);
+  stat.set_string_value("dummy:stat");
+  const_cast<SearchSuggestionParser::ExperimentStatsV2s&>(
+      zero_suggest_provider->experiment_stats_v2s())
+      .push_back(stat);
 
   // Create input with lens searchbox page classification.
   controller_.input_ = AutocompleteInput(u"", metrics::OmniboxEventProto::OTHER,
@@ -2765,18 +2780,30 @@ TEST_F(AutocompleteControllerTest, ContextualQueryAppendsSearchboxStats) {
           controller_.internal_result_.match_at(0)->takeover_action.get());
   EXPECT_EQ(OmniboxActionId::CONTEXTUAL_SEARCH_FULFILLMENT,
             contextual_takover_action_0->ActionId());
-  EXPECT_TRUE(contextual_takover_action_0->get_fulfillment_url_for_testing()
-                  .spec()
-                  .contains("gs_lcrp="));
-  ASSERT_TRUE(controller_.internal_result_.match_at(1)->takeover_action);
-  auto* contextual_takover_action_1 =
-      ContextualSearchFulfillmentAction::FromAction(
-          controller_.internal_result_.match_at(1)->takeover_action.get());
-  EXPECT_EQ(OmniboxActionId::CONTEXTUAL_SEARCH_FULFILLMENT,
-            contextual_takover_action_1->ActionId());
-  EXPECT_TRUE(contextual_takover_action_1->get_fulfillment_url_for_testing()
-                  .spec()
-                  .contains("gs_lcrp="));
+
+  const GURL fulfillment_url =
+      contextual_takover_action_0->get_fulfillment_url_for_testing();
+  EXPECT_TRUE(fulfillment_url.spec().contains("gs_lcrp="));
+
+  // Manually decode and verify the proto contains our specific
+  // ExperimentStatsV2.
+  std::string encoded_proto;
+  EXPECT_TRUE(
+      net::GetValueForKeyInQuery(fulfillment_url, "gs_lcrp", &encoded_proto));
+
+  std::string serialized_proto;
+  EXPECT_TRUE(base::Base64UrlDecode(
+      encoded_proto, base::Base64UrlDecodePolicy::DISALLOW_PADDING,
+      &serialized_proto));
+
+  omnibox::metrics::ChromeSearchboxStats stats;
+  EXPECT_TRUE(stats.ParseFromString(serialized_proto));
+
+  // Confirm experiment stats were included properly into the encoded proto URL.
+  ASSERT_EQ(1, stats.experiment_stats_v2_size());
+  EXPECT_EQ(12345, stats.experiment_stats_v2(0).type_int());
+  // Verify that the ':' colon replacement was enforced logic side.
+  EXPECT_EQ("dummy,stat", stats.experiment_stats_v2(0).string_value());
 }
 
 TEST_F(AutocompleteControllerTest,
@@ -3216,8 +3243,7 @@ TEST_F(AutocompleteControllerTest,
   controller_.input_ =
       AutocompleteInput(u"@page Summar", metrics::OmniboxEventProto::OTHER,
                         TestSchemeClassifier());
-  controller_.input_.set_keyword_mode_entry_method(
-      metrics::OmniboxEventProto::SPACE_AT_END);
+  controller_.input_.set_in_keyword_mode(true);
 
   AutocompleteMatch match1 = CreateContextualSearchMatch(u"Summary");
   match1.suggest_template = omnibox::SuggestTemplateInfo();
@@ -3275,90 +3301,32 @@ TEST_F(AutocompleteControllerTest, SmartComposeClearedWithNewResults) {
 }
 #endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
 
-TEST_F(AutocompleteControllerTest,
-       UpdateMatchDestinationURLWithInvocationSource) {
-  controller_.input_ =
-      AutocompleteInput(u"a", 1u, metrics::OmniboxEventProto::NTP_REALBOX,
-                        TestSchemeClassifier());
 
-  // Setup default search provider keyword.
-  std::u16string default_keyword =
-      controller_.template_url_service_->GetDefaultSearchProvider()->keyword();
+TEST_F(AutocompleteControllerTest, IncludesSmartComposeStatsInAdditionalStats) {
+  omnibox::metrics::SmartComposeStats stats;
+  stats.set_enabled(true);
+  stats.set_shown_count(1);
+  stats.set_accepted_count(2);
+  stats.set_characters_accepted(3);
+  stats.set_shown_length(4);
+  controller_.SetSmartComposeStats(stats);
 
-  AutocompleteMatch search_match = CreateSearchMatch(u"search term");
-  search_match.destination_url =
-      GURL("https://google.com/search?q=search+term");
-  search_match.search_terms_args =
-      std::make_unique<TemplateURLRef::SearchTermsArgs>(u"search term");
-  search_match.keyword = default_keyword;
+  TemplateURLRef::SearchTermsArgs search_terms_args(u"test");
+  controller_.UpdateSearchTermsArgsWithAdditionalSearchboxStats(
+      base::TimeDelta(), search_terms_args);
 
-  AutocompleteMatch url_match = CreateHistoryURLMatch("https://example.com/");
-  url_match.destination_url = GURL("https://example.com/");
-
-  controller_.UpdateMatchDestinationURLWithInvocationSource(&search_match);
-  controller_.UpdateMatchDestinationURLWithInvocationSource(&url_match);
-
-  EXPECT_EQ(search_match.destination_url.spec(),
-            "https://google.com/search?q=search+term&source=chrome.rb");
-
-  // URL match shouldn't be affected because it's not a search match.
-  EXPECT_EQ(url_match.destination_url.spec(), "https://example.com/");
-
-  // Now test Omnibox
-  controller_.input_ = AutocompleteInput(
-      u"a", 1u, metrics::OmniboxEventProto::NTP, TestSchemeClassifier());
-
-  AutocompleteMatch search_match2 = CreateSearchMatch(u"search term");
-  search_match2.destination_url =
-      GURL("https://google.com/search?q=search+term");
-  search_match2.search_terms_args =
-      std::make_unique<TemplateURLRef::SearchTermsArgs>(u"search term");
-  search_match2.keyword = default_keyword;
-  controller_.UpdateMatchDestinationURLWithInvocationSource(&search_match2);
-
-  EXPECT_EQ(search_match2.destination_url.spec(),
-            "https://google.com/search?q=search+term&source=chrome.ob");
-
-  // Keyword match to a NON-DSE site shouldn't be affected.
-  AutocompleteMatch keyword_match = CreateSearchMatch(u"search term");
-  keyword_match.destination_url =
-      GURL("https://wikipedia.org/search?q=search+term");
-  keyword_match.search_terms_args =
-      std::make_unique<TemplateURLRef::SearchTermsArgs>(u"search term");
-  keyword_match.keyword = u"wikipedia";
-
-  TemplateURLData wiki_data;
-  wiki_data.SetShortName(u"Wikipedia");
-  wiki_data.SetKeyword(u"wikipedia");
-  wiki_data.SetURL("https://wikipedia.org/search?q={searchTerms}");
-  controller_.template_url_service_->Add(
-      std::make_unique<TemplateURL>(wiki_data));
-
-  controller_.UpdateMatchDestinationURLWithInvocationSource(&keyword_match);
-
-  EXPECT_EQ(keyword_match.destination_url.spec(),
-            "https://wikipedia.org/search?q=search+term");
-}
-
-TEST_F(AutocompleteControllerTest,
-       UpdateMatchDestinationURLWithInvocationSource_DoesNotAttachToWebsites) {
-  // Check across both Omnibox and Realbox contexts to ensure site navigations
-  // are safe.
-  std::vector<metrics::OmniboxEventProto::PageClassification> classifications =
-      {metrics::OmniboxEventProto::NTP_REALBOX,
-       metrics::OmniboxEventProto::NTP};
-
-  for (auto classification : classifications) {
-    controller_.input_ =
-        AutocompleteInput(u"a", 1u, classification, TestSchemeClassifier());
-
-    // Use a NON-search match type (e.g. history URL navigation).
-    AutocompleteMatch url_match = CreateHistoryURLMatch("https://example.com/");
-    url_match.destination_url = GURL("https://example.com/");
-
-    controller_.UpdateMatchDestinationURLWithInvocationSource(&url_match);
-
-    // The destination URL must remain unmodified.
-    EXPECT_EQ(url_match.destination_url.spec(), "https://example.com/");
-  }
+  ASSERT_TRUE(search_terms_args.searchbox_stats.has_smart_compose_stats());
+  EXPECT_TRUE(
+      search_terms_args.searchbox_stats.smart_compose_stats().enabled());
+  EXPECT_EQ(
+      search_terms_args.searchbox_stats.smart_compose_stats().shown_count(), 1);
+  EXPECT_EQ(
+      search_terms_args.searchbox_stats.smart_compose_stats().accepted_count(),
+      2);
+  EXPECT_EQ(search_terms_args.searchbox_stats.smart_compose_stats()
+                .characters_accepted(),
+            3);
+  EXPECT_EQ(
+      search_terms_args.searchbox_stats.smart_compose_stats().shown_length(),
+      4);
 }

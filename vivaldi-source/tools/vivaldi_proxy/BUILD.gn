@@ -9,9 +9,7 @@ assert(is_win)
 import("//chrome/process_version_rc_template.gni")
 
 process_version_rc_template("vivaldi_proxy_version") {
-  sources = [
-    "vivaldi_proxy.ver",
-  ]
+  sources = [ "vivaldi_proxy.ver" ]
   output = "$target_gen_dir/vivaldi_proxy_version.rc"
 }
 
@@ -22,13 +20,9 @@ executable("vivaldi_proxy") {
     "//chrome/app/version_assembly:chrome_exe_manifest",
   ]
 
-  data_deps = [
-    "//chrome/app/version_assembly:version_assembly_manifest",
-  ]
+  data_deps = [ "//chrome/app/version_assembly:version_assembly_manifest" ]
 
-  sources = [
-    "vivaldi_proxy_main_win.cc",
-  ]
+  sources = [ "vivaldi_proxy_main_win.cc" ]
 
   configs -= [ "//build/config/win:console" ]
   configs += [ "//build/config/win:windowed" ]

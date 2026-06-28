@@ -28,8 +28,7 @@ std::string UpdateReducedChromeProductString(std::string actual_product);
 std::string_view UpdateChromeProductString(std::string_view actual_product);
 
 std::string UpdateChromeFullVersionString(std::string_view actual_product);
-std::string UpdateChromeMajorVersionString(
-    std::string_view actual_product);
+std::string UpdateChromeMajorVersionString(std::string_view actual_product);
 
 class ScopedVivaldiThreadURL {
  public:
@@ -37,7 +36,7 @@ class ScopedVivaldiThreadURL {
   ScopedVivaldiThreadURL(GURL url);
   ~ScopedVivaldiThreadURL();
 
- static std::optional<GURL> GetURLForThread();
+  static std::optional<GURL> GetURLForThread();
 
  private:
   ScopedVivaldiThreadURL(ScopedVivaldiThreadURL&) = delete;

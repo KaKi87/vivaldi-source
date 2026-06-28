@@ -22,12 +22,19 @@
 #import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/chrome/common/ui/util/chrome_button.h"
 #import "ios/chrome/grit/ios_strings.h"
+#import "ui/base/device_form_factor.h"
 #import "ui/base/l10n/l10n_util.h"
 #import "url/gurl.h"
 
 namespace {
+
+// 16pt padding to make the combined padding between attributes and
+// the footer text 24pt.
+constexpr CGFloat kAttributesSectionFooterHeight = 16.0;
+
 typedef NS_ENUM(NSInteger, SectionIdentifier) {
   SectionIdentifierAttributes = kSectionIdentifierEnumZero,
+  SectionIdentifierFooter,
 };
 
 typedef NS_ENUM(NSInteger, ItemType) {
@@ -36,7 +43,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
 }  // namespace
 
 @interface AutofillAIEntityEditTableViewController () <
-    TableViewTextEditItemDelegate>
+    TableViewTextEditItemDelegate,
+    UIPopoverPresentationControllerDelegate>
 @end
 
 @implementation AutofillAIEntityEditTableViewController {
@@ -63,6 +71,9 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
   // Whether `setEditItems:` has completed.
   BOOL _setEditItemsCompleted;
+
+  // The presented popover view controller for selecting dates on iPad.
+  UIViewController* _datePickerPopoverViewController;
 }
 
 #pragma mark - UIViewController
@@ -70,7 +81,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
 - (void)viewDidLoad {
   [super viewDidLoad];
   self.tableView.accessibilityIdentifier = kAutofillAIEntityEditTableViewId;
-  self.shouldShowDeleteButtonInToolbar = YES;
+  self.shouldShowDeleteButtonInToolbar = NO;
+  self.toolbarItems = @[];
   self.tableView.allowsSelectionDuringEditing = YES;
 
   if (self.mode == AutofillAIEntityEditMode::kCreate) {
@@ -87,6 +99,15 @@ typedef NS_ENUM(NSInteger, ItemType) {
   [self validateFields];
 
   [self loadModel];
+
+  // This is used to dismiss date picker UI when the user taps outside of it.
+  UITapGestureRecognizer* tapGesture = [[UITapGestureRecognizer alloc]
+      initWithTarget:self
+              action:@selector(handleTapOutside:)];
+  // This allows the user to both dismiss a date picker and select another field
+  // with a single tap.
+  tapGesture.cancelsTouchesInView = NO;
+  [self.view addGestureRecognizer:tapGesture];
 }
 
 #pragma mark - LegacyChromeTableViewController
@@ -115,7 +136,9 @@ typedef NS_ENUM(NSInteger, ItemType) {
       AutofillAIEntityEditDateItem* dateItem =
           base::apple::ObjCCastStrict<AutofillAIEntityEditDateItem>(item);
       dateItem.editingEnabled = self.tableView.editing;
+      dateItem.hideIcon = !self.tableView.editing;
       dateItem.delegate = self;
+      dateItem.textFieldDelegate = self;
     }
   }
 
@@ -131,7 +154,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
         l10n_util::GetNSString(IDS_IOS_AUTOFILL_AI_SAVED_LOCALLY_FOOTER);
   }
 
-  [model setFooter:footer forSectionWithIdentifier:SectionIdentifierAttributes];
+  [model addSectionWithIdentifier:SectionIdentifierFooter];
+  [model setFooter:footer forSectionWithIdentifier:SectionIdentifierFooter];
 }
 
 #pragma mark - Setup
@@ -139,7 +163,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
 - (void)setupBottomSaveButton {
   _saveButton = [[ChromeButton alloc] initWithStyle:ChromeButtonStylePrimary];
   _saveButton.title =
-      l10n_util::GetNSString(IDS_IOS_SAVE_ENTITY_IN_SETTINGS_BUTTON_TEXT);
+      l10n_util::GetNSString(autofill::GetSaveEntityAcceptButtonStringId());
   _saveButton.translatesAutoresizingMaskIntoConstraints = NO;
   [_saveButton addTarget:self
                   action:@selector(didTapSaveNewEntity)
@@ -274,7 +298,33 @@ typedef NS_ENUM(NSInteger, ItemType) {
   [self.mutator didChangeDate:date forItem:item];
 }
 
+- (void)didDismissDateItem:(AutofillAIEntityEditDateItem*)item {
+  [self dismissDatePicker];
+}
+
 #pragma mark - Actions
+
+- (void)handleTapOutside:(UITapGestureRecognizer*)gesture {
+  if (gesture.state == UIGestureRecognizerStateEnded) {
+    // Whenever a user taps outside of the current field or date picker,
+    // dismiss the date picker.
+    [self dismissDatePicker];
+  }
+}
+
+#pragma mark - Private
+
+// Dismisses the active date picker (popover on iPad, first responder keyboard
+// focus on iPhone).
+- (void)dismissDatePicker {
+  if (_datePickerPopoverViewController) {
+    [_datePickerPopoverViewController dismissViewControllerAnimated:YES
+                                                         completion:nil];
+    _datePickerPopoverViewController = nil;
+  } else {
+    [self.view endEditing:YES];
+  }
+}
 
 - (void)didTapCancel {
   [self.delegate dismissViewController:self];
@@ -377,6 +427,21 @@ typedef NS_ENUM(NSInteger, ItemType) {
             base::apple::ObjCCast<TableViewTextEditCell>(cell);
         [textFieldCell.textField becomeFirstResponder];
       }
+    } else if ([item isKindOfClass:[AutofillAIEntityEditDateItem class]]) {
+      UITableViewCell* cell = [self.tableView cellForRowAtIndexPath:indexPath];
+      if ([cell isKindOfClass:[TableViewTextEditCell class]]) {
+        TableViewTextEditCell* textFieldCell =
+            base::apple::ObjCCast<TableViewTextEditCell>(cell);
+        if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
+          AutofillAIEntityEditDateItem* dateItem =
+              base::apple::ObjCCastStrict<AutofillAIEntityEditDateItem>(item);
+          [self showDatePickerPopoverForItem:dateItem
+                                  sourceView:textFieldCell.textField];
+        } else {
+          [textFieldCell.textField becomeFirstResponder];
+        }
+      }
+      [tableView deselectRowAtIndexPath:indexPath animated:YES];
     }
   }
 }
@@ -386,12 +451,27 @@ typedef NS_ENUM(NSInteger, ItemType) {
   UIView* view = [super tableView:tableView viewForFooterInSection:section];
   NSInteger sectionIdentifier =
       [self.tableViewModel sectionIdentifierForSectionIndex:section];
-  if (sectionIdentifier == SectionIdentifierAttributes) {
+  if (sectionIdentifier == SectionIdentifierFooter) {
     TableViewLinkHeaderFooterView* linkView =
         base::apple::ObjCCast<TableViewLinkHeaderFooterView>(view);
     linkView.delegate = self;
   }
   return view;
+}
+
+- (CGFloat)tableView:(UITableView*)tableView
+    heightForFooterInSection:(NSInteger)section {
+  NSInteger sectionIdentifier =
+      [self.tableViewModel sectionIdentifierForSectionIndex:section];
+  if (sectionIdentifier == SectionIdentifierAttributes) {
+    return kAttributesSectionFooterHeight;
+  }
+  return [super tableView:tableView heightForFooterInSection:section];
+}
+
+- (CGFloat)tableView:(UITableView*)tableView
+    heightForHeaderInSection:(NSInteger)section {
+  return 0;
 }
 
 - (NSIndexPath*)tableView:(UITableView*)tableView
@@ -436,6 +516,51 @@ typedef NS_ENUM(NSInteger, ItemType) {
 - (void)tableViewItemDidEndEditing:
     (TableViewTextEditItem*)tableViewTextEditItem {
   [self validateFields];
+
+  // When a custom date picker is dismissed and editing ends, the date item'
+  // text field must be reconfigured so that the edit icon is shown once again.
+  if ([tableViewTextEditItem
+          isKindOfClass:[AutofillAIEntityEditDateItem class]]) {
+    [self reconfigureCellsForItems:@[ tableViewTextEditItem ]];
+  }
+}
+
+#pragma mark - UITextFieldDelegate
+
+- (BOOL)textFieldShouldBeginEditing:(UITextField*)textField {
+  CGPoint buttonPosition = [textField convertPoint:CGPointZero
+                                            toView:self.tableView];
+  NSIndexPath* indexPath =
+      [self.tableView indexPathForRowAtPoint:buttonPosition];
+  if (indexPath) {
+    TableViewItem* item = [self.tableViewModel itemAtIndexPath:indexPath];
+    if ([item isKindOfClass:[AutofillAIEntityEditDateItem class]]) {
+      AutofillAIEntityEditDateItem* dateItem =
+          base::apple::ObjCCastStrict<AutofillAIEntityEditDateItem>(item);
+      if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET) {
+        [self showDatePickerPopoverForItem:dateItem sourceView:textField];
+        return NO;
+      }
+    }
+  }
+  return YES;
+}
+
+- (BOOL)textField:(UITextField*)textField
+    shouldChangeCharactersInRange:(NSRange)range
+                replacementString:(NSString*)string {
+  // If the text field has a custom input view, block all direct keyboard input.
+  return !textField.inputView;
+}
+
+- (UIMenu*)textField:(UITextField*)textField
+    editMenuForCharactersInRange:(NSRange)range
+                suggestedActions:(NSArray<UIMenuElement*>*)suggestedActions {
+  // If the text field has a custom input view, prevent menu actions such as
+  // "paste", "autofill" or "contacts" from showing up and writing data into the
+  // text field.
+  return [UIMenu menuWithTitle:@""
+                      children:textField.inputView ? @[] : suggestedActions];
 }
 
 #pragma mark - TableViewLinkHeaderFooterItemDelegate
@@ -472,15 +597,15 @@ typedef NS_ENUM(NSInteger, ItemType) {
   return present;
 }
 
-- (autofill::DenseSet<autofill::AttributeType>)missingRequiredFields {
+- (autofill::DenseSet<autofill::AttributeType>)missingFields {
   const autofill::DenseSet<autofill::AttributeType> presentAttributes =
       [self presentAttributes];
-  return [self.mutator getMissingRequiredFieldsFor:presentAttributes];
+  return [self.mutator getMissingImportConstraintsFor:presentAttributes];
 }
 
 - (BOOL)validateFields {
   const autofill::DenseSet<autofill::AttributeType> missingFields =
-      [self missingRequiredFields];
+      [self missingFields];
 
   NSMutableArray<TableViewItem*>* itemsToReconfigure =
       [[NSMutableArray alloc] init];
@@ -514,6 +639,9 @@ typedef NS_ENUM(NSInteger, ItemType) {
           base::apple::ObjCCastStrict<AutofillAIEntityEditDateItem>(item);
       BOOL itemIsValid = !missingFields.contains(
           autofill::AttributeType(dateItem.attributeType));
+      if (!_setEditItemsCompleted) {
+        itemIsValid = YES;
+      }
       if (dateItem.hasValidValueStatus != itemIsValid) {
         dateItem.hasValidValueStatus = itemIsValid;
         [itemsToReconfigure addObject:dateItem];
@@ -548,6 +676,31 @@ typedef NS_ENUM(NSInteger, ItemType) {
     countryItem.editingAccessoryType = UITableViewCellAccessoryNone;
     countryItem.selectionStyle = UITableViewCellSelectionStyleNone;
   }
+}
+
+- (void)showDatePickerPopoverForItem:(AutofillAIEntityEditDateItem*)item
+                          sourceView:(UIView*)sourceView {
+  if (_datePickerPopoverViewController) {
+    [_datePickerPopoverViewController dismissViewControllerAnimated:YES
+                                                         completion:nil];
+  }
+
+  UIViewController* popoverContentController =
+      [item createCustomInputPopoverWithSourceView:sourceView];
+  popoverContentController.popoverPresentationController.delegate = self;
+
+  _datePickerPopoverViewController = popoverContentController;
+
+  [self presentViewController:popoverContentController
+                     animated:YES
+                   completion:nil];
+}
+
+#pragma mark - UIPopoverPresentationControllerDelegate
+
+- (void)popoverPresentationControllerDidDismissPopover:
+    (UIPopoverPresentationController*)popoverPresentationController {
+  _datePickerPopoverViewController = nil;
 }
 
 - (UIButton*)saveButton {

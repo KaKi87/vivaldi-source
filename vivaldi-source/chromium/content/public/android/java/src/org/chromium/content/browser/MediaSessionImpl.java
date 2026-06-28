@@ -46,6 +46,7 @@ public class MediaSessionImpl extends MediaSession {
         return MediaSessionImplJni.get().getMediaSessionFromWebContents(webContents);
     }
 
+    @Override
     public void addObserver(MediaSessionObserver observer) {
         mObservers.addObserver(observer);
         if (mIsSuspended != null) {
@@ -65,6 +66,7 @@ public class MediaSessionImpl extends MediaSession {
         }
     }
 
+    @Override
     public void removeObserver(MediaSessionObserver observer) {
         mObservers.removeObserver(observer);
     }
@@ -195,7 +197,7 @@ public class MediaSessionImpl extends MediaSession {
     }
 
     @NativeMethods
-    interface Natives {
+    public interface Natives {
         void resume(long nativeMediaSessionAndroid);
 
         void suspend(long nativeMediaSessionAndroid);

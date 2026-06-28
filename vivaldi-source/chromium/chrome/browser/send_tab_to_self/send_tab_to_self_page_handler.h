@@ -15,6 +15,7 @@
 #include "components/send_tab_to_self/metrics_util.h"
 #include "components/send_tab_to_self/page_context.h"
 #include "components/send_tab_to_self/send_tab_to_self_entry.h"
+#include "components/send_tab_to_self/send_tab_to_self_model.h"
 #include "components/shared_highlighting/core/common/shared_highlighting_metrics.h"
 #include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -28,11 +29,6 @@ class WebContents;
 }
 
 namespace send_tab_to_self {
-
-enum class SendTabToSelfResult {
-  kSuccess,
-  kFailure,
-};
 
 // Handles the logic for Send Tab to Self on a specific page, including
 // capturing page context (e.g. scroll position) and sending the tab to
@@ -51,11 +47,11 @@ class SendTabToSelfPageHandler
 
   // Sends the tab to the target device, potentially after capturing page
   // context (like scroll position).
-  void SendTabToDevice(const std::string& target_device_guid,
-                       const GURL& url,
-                       const std::string& title,
-                       base::OnceCallback<void(SendTabToSelfResult)>
-                           result_callback = base::NullCallback());
+   void SendTabToDevice(
+       const std::string& target_device_guid,
+       const GURL& url,
+       const std::string& title,
+       base::OnceCallback<void(SendTabToSelfResult)> commit_confirmation);
 
   void SetSelectorGenerationTimeoutForTesting(base::TimeDelta timeout);
 
@@ -69,7 +65,11 @@ class SendTabToSelfPageHandler
   void WebContentsDestroyed() override;
 
   struct PendingRequest {
-    PendingRequest();
+    PendingRequest(
+        const std::string& target_device_guid,
+        const GURL& url,
+        const std::string& title,
+        base::OnceCallback<void(SendTabToSelfResult)> commit_confirmation);
     PendingRequest(PendingRequest&&);
     PendingRequest& operator=(PendingRequest&&);
     ~PendingRequest();
@@ -81,7 +81,7 @@ class SendTabToSelfPageHandler
     PageContext page_context;
     NavigationHistory navigation_history;
     content::GlobalRenderFrameHostId main_frame_id;
-    base::OnceCallback<void(SendTabToSelfResult)> result_callback;
+    base::OnceCallback<void(SendTabToSelfResult)> commit_confirmation;
   };
 
   std::optional<PendingRequest> TakePendingRequest(base::Token request_token);
@@ -94,7 +94,7 @@ class SendTabToSelfPageHandler
 
   void SelectorGenerationTimedOutForRequest(base::Token request_token);
 
-  void CancelPendingRequest(base::Token request_token);
+  void CancelPendingRequests(ScrollPositionGenerationOutcome outcome);
 
   void RequestScrollPositionSelectorAndSendRequest(base::Token request_token,
                                                    PendingRequest request);

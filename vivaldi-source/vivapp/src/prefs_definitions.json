@@ -690,14 +690,6 @@
       "id": 189,
       "merge_method": "none"
     },
-    "vivaldi.privacy.google_component_extensions.web_store": {
-      "id": 190,
-      "merge_method": "none"
-    },
-    "vivaldi.privacy.google_component_extensions.hangout_services": {
-      "id": 191,
-      "merge_method": "none"
-    },
     "vivaldi.quick_commands.open_url_in_new_tab": {
       "id": 192,
       "merge_method": "none"
@@ -2065,6 +2057,33 @@
             "shortcuts": [
               "shift+f7"
             ]
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_TAB_BAR": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_ADDRESS_BAR": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_STATUS_BAR": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_BOOKMARK_BAR": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_PANEL": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_TOP": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_BOTTOM": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_LEFT": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_RIGHT": {
+            "shortcuts": []
           }
         }
       ],
@@ -2910,6 +2929,33 @@
             "shortcuts": [
               "shift+f7"
             ]
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_TAB_BAR": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_ADDRESS_BAR": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_STATUS_BAR": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_BOOKMARK_BAR": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_PANEL": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_TOP": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_BOTTOM": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_LEFT": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_RIGHT": {
+            "shortcuts": []
           }
         }
       ],
@@ -3746,6 +3792,33 @@
             "shortcuts": [
               "shift+f7"
             ]
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_TAB_BAR": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_ADDRESS_BAR": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_STATUS_BAR": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_BOOKMARK_BAR": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_PANEL": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_TOP": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_BOTTOM": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_LEFT": {
+            "shortcuts": []
+          },
+          "COMMAND_TOGGLE_AUTO_HIDE_RIGHT": {
+            "shortcuts": []
           }
         }
       ]
@@ -4635,7 +4708,7 @@
     },
     "homepage": {
       "type": "string",
-      "default": "vivaldi://startpage"
+      "default": "chrome://vivaldi-webui/startpage"
     },
     "homepage_cache": {
       "type": "string",
@@ -4873,13 +4946,7 @@
         "order": {
           "description": "Mail label item order",
           "type": "list",
-          "default": [
-            "$label1",
-            "$label2",
-            "$label3",
-            "$label4",
-            "$label5"
-          ]
+          "default": ["$label1", "$label2", "$label3", "$label4", "$label5"]
         },
         "hide": {
           "description": "Mail label hide items",
@@ -5224,6 +5291,21 @@
         "type": "integer",
         "default": 2
       },
+      "message_attachment_open_folder_path": {
+        "description": "Folder path used to open mail attachment",
+        "type": "file_path",
+        "default": ""
+      },
+      "message_attachment_save_folder_path": {
+        "description": "Folder path used to save mail attachment to",
+        "type": "file_path",
+        "default": ""
+      },
+      "message_attachment_start_save_automatically": {
+        "description": "Automatically download mail attachment to the default attachment folder without asking the user",
+        "type": "boolean",
+        "default": false
+      },
       "message_list_preview_vertical_only": {
         "description": "How many lines to preview in the mail list",
         "type": "boolean",
@@ -5277,6 +5359,11 @@
         "description": "Timestamp when the mail over VPN notice was dismissed VB-114647",
         "type": "double",
         "default": 0.0
+      },
+      "message_text_settings": {
+        "description": "IDs of visible message texts that should be pre-loaded on startup",
+        "type": "dictionary",
+        "default": {}
       }
     },
     "menu": {
@@ -7629,6 +7716,11 @@
       },
       "id": {
         "description": "The actual username obtained from the server",
+        "type": "string",
+        "default": ""
+      },
+      "pending_registration": {
+        "description": "Encrypted pending registration data",
         "type": "string",
         "default": ""
       },

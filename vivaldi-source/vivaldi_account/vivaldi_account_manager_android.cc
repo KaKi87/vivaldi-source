@@ -4,10 +4,10 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
-#include "base/base64.h"
+#include "base/json/json_reader.h"
+#include "base/json/json_writer.h"
 #include "chrome/android/chrome_jni_headers/VivaldiAccountManager_jni.h"
 #include "chrome/browser/profiles/profile_manager.h"
-#include "components/os_crypt/sync/os_crypt.h"
 #include "components/prefs/pref_service.h"
 #include "prefs/vivaldi_pref_names.h"
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
@@ -79,32 +79,26 @@ base::android::ScopedJavaLocalRef<jobject>
 VivaldiAccountManagerAndroid::GetPendingRegistration(
     JNIEnv* env,
     const base::android::JavaRef<jobject>& obj) {
-  const base::Value& pending_registration = profile_->GetPrefs()->GetValue(
+  const std::string& serialized = profile_->GetPrefs()->GetString(
       vivaldiprefs::kVivaldiAccountPendingRegistration);
-
-  const std::string* username =
-      pending_registration.GetDict().FindString(kUsernameKey);
-  const std::string* encoded_password =
-      pending_registration.GetDict().FindString(kPasswordKey);
-  const std::string* recovery_email =
-      pending_registration.GetDict().FindString(kRecoveryEmailKey);
-
-  if (!username || !encoded_password || !recovery_email)
+  if (serialized.empty())
     return nullptr;
 
-  std::string encrypted_password;
-  if (!base::Base64Decode(*encoded_password, &encrypted_password) ||
-      encrypted_password.empty()) {
+  std::optional<base::DictValue> parsed =
+      base::JSONReader::ReadDict(serialized, base::JSON_PARSE_RFC);
+  if (!parsed)
     return nullptr;
-  }
-  std::string password;
-  // Android uses the posix implementation, which is non-blocking.
-  if (!OSCrypt::DecryptString(encrypted_password, &password)) {
+
+  const std::string* username = parsed->FindString(kUsernameKey);
+  const std::string* password = parsed->FindString(kPasswordKey);
+  const std::string* recovery_email = parsed->FindString(kRecoveryEmailKey);
+
+  if (!username || !password || !recovery_email)
     return nullptr;
-  }
+
   return Java_VivaldiAccountManager_populatePendingRegistration(
       env, obj, base::android::ConvertUTF8ToJavaString(env, *username),
-      base::android::ConvertUTF8ToJavaString(env, password),
+      base::android::ConvertUTF8ToJavaString(env, *password),
       base::android::ConvertUTF8ToJavaString(env, *recovery_email));
 }
 
@@ -114,25 +108,21 @@ jboolean VivaldiAccountManagerAndroid::SetPendingRegistration(
     const base::android::JavaRef<jstring>& username,
     const base::android::JavaRef<jstring>& password,
     const base::android::JavaRef<jstring>& recovery_email) {
-  std::string encrypted_password;
-  // Android uses the posix implementation, which is non-blocking.
-  if (!OSCrypt::EncryptString(
-          base::android::ConvertJavaStringToUTF8(env, password),
-          &encrypted_password)) {
-    return false;
-  }
-  std::string encoded_password = base::Base64Encode(encrypted_password);
-  base::Value pending_registration(base::Value::Type::DICT);
-
-  pending_registration.GetDict().Set(
+  base::DictValue pending_registration;
+  pending_registration.Set(
       kUsernameKey, base::android::ConvertJavaStringToUTF8(env, username));
-  pending_registration.GetDict().Set(kPasswordKey, encoded_password);
-  pending_registration.GetDict().Set(
+  pending_registration.Set(
+      kPasswordKey, base::android::ConvertJavaStringToUTF8(env, password));
+  pending_registration.Set(
       kRecoveryEmailKey,
       base::android::ConvertJavaStringToUTF8(env, recovery_email));
 
-  profile_->GetPrefs()->Set(vivaldiprefs::kVivaldiAccountPendingRegistration,
-                            pending_registration);
+  std::string serialized;
+  if (!base::JSONWriter::Write(pending_registration, &serialized))
+    return false;
+
+  profile_->GetPrefs()->SetString(
+      vivaldiprefs::kVivaldiAccountPendingRegistration, serialized);
   return true;
 }
 

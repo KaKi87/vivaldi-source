@@ -194,11 +194,9 @@ void VivaldiContentBrowserClientParts::OverrideWebPreferences(
       // also push it to the renderer
       blink::RendererPreferences* renderer_prefs =
           web_contents->GetMutableRendererPrefs();
-      renderer_prefs->user_agent_override =
-          override_ua_with_metadata;
+      renderer_prefs->user_agent_override = override_ua_with_metadata;
 
       web_contents->SyncRendererPrefs();
-
     }
 
 #endif  // ENABLE_EXTENSIONS

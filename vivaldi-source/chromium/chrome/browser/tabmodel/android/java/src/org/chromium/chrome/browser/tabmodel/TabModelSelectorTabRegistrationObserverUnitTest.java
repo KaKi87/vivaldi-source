@@ -116,9 +116,7 @@ public class TabModelSelectorTabRegistrationObserverUnitTest {
         MockTabModel incognitoTabModel = new MockTabModel(mIncognitoProfile, null);
         incognitoTabModel.setTabRemoverForTesting(createTabRemover(incognitoTabModel));
 
-        selector.initialize(
-                TabModelHolderFactory.createTabModelHolderForTesting(normalTabModel),
-                TabModelHolderFactory.createIncognitoTabModelHolderForTesting(incognitoTabModel));
+        selector.initialize(normalTabModel, incognitoTabModel);
 
         return selector;
     }
@@ -389,6 +387,11 @@ public class TabModelSelectorTabRegistrationObserverUnitTest {
         @Override
         public boolean isTabModelRestored() {
             return true;
+        }
+
+        @Override
+        public @Nullable Profile getProfile(boolean offTheRecord) {
+            return null;
         }
     }
 }

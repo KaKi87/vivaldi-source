@@ -212,6 +212,7 @@ public class AuxiliarySearchBackgroundTask extends NativeBackgroundTask {
                     profile,
                     entryUrl,
                     faviconSize,
+                    /* fallbackToHost= */ true,
                     (bitmap, url) -> {
                         if (bitmap != null) {
                             entriesToFaviconMap.put(entry, bitmap);
@@ -226,15 +227,19 @@ public class AuxiliarySearchBackgroundTask extends NativeBackgroundTask {
 
                             if (!entriesToFaviconMap.isEmpty()) {
                                 int size = entriesToFaviconMap.size();
-                                auxiliarySearchController.onBackgroundTaskStart(
-                                        entries,
+                                auxiliarySearchController.onBackgroundTaskStart(entries,
                                         entriesToFaviconMap,
-                                        (success) -> {
-                                            onTaskFinished(taskFinishedCallback);
-                                            AuxiliarySearchMetrics.recordScheduledDonationResult(
-                                                    success
-                                                            ? DonateResult.SUCCEED
-                                                            : DonateResult.FAILED);
+                                        // Vivaldi Replace lambda with anonymous class to satisfy
+                                        // proguard.
+                                        new Callback<Boolean>() {
+                                            @Override
+                                            public void onResult(Boolean success) {
+                                                onTaskFinished(taskFinishedCallback);
+                                                AuxiliarySearchMetrics.recordScheduledDonationResult(
+                                                        success
+                                                                ? DonateResult.SUCCEED
+                                                                : DonateResult.FAILED);
+                                            }
                                         },
                                         currentTimeMs);
 

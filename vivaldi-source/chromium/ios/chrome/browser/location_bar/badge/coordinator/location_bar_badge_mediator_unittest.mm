@@ -17,6 +17,7 @@
 #import "components/feature_engagement/test/scoped_iph_feature_list.h"
 #import "components/feature_engagement/test/test_tracker.h"
 #import "components/prefs/pref_service.h"
+#import "components/signin/public/base/consent_level.h"
 #import "components/signin/public/identity_manager/account_capabilities_test_mutator.h"
 #import "components/signin/public/identity_manager/identity_test_environment.h"
 #import "components/signin/public/identity_manager/identity_test_utils.h"
@@ -29,8 +30,9 @@
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
 #import "ios/chrome/browser/infobars/model/infobar_badge_tab_helper.h"
 #import "ios/chrome/browser/infobars/model/infobar_manager_impl.h"
-#import "ios/chrome/browser/intelligence/bwg/model/bwg_tab_helper.h"
+#import "ios/chrome/browser/intelligence/bwg/model/gemini_browser_agent.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_service_factory.h"
+#import "ios/chrome/browser/intelligence/bwg/model/gemini_tab_helper.h"
 #import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/location_bar/badge/coordinator/location_bar_badge_mediator_delegate.h"
@@ -151,7 +153,7 @@ class LocationBarBadgeMediatorTest : public PlatformTest {
         {{kPageActionMenu, {}},
          {kAskGeminiChip, {{kAskGeminiChipPrepopulateFloaty, "true"}}},
          {kLocationBarBadgeMigration, {}}},
-        {});
+        {kGeminiCopresence});
 
     iph_feature_list_.InitAndEnableFeatures(
         {feature_engagement::kIPHiOSContextualPanelSampleModelFeature});
@@ -189,6 +191,7 @@ class LocationBarBadgeMediatorTest : public PlatformTest {
     web_state->SetBrowserState(profile_.get());
     web_state->SetCurrentURL(GURL("https://www.google.com"));
     web_state->SetContentsMimeType("text/html");
+    web_state->WasShown();
 
     // Contextual Panel setup.
     std::map<ContextualPanelItemType,
@@ -197,19 +200,21 @@ class LocationBarBadgeMediatorTest : public PlatformTest {
     FakeContextualPanelTabHelper::CreateForWebState(web_state.get(), models);
     InfoBarManagerImpl::CreateForWebState(web_state.get());
     InfobarBadgeTabHelper::CreateForWebState(web_state.get());
-    BwgTabHelper::CreateForWebState(web_state.get());
+    GeminiTabHelper::CreateForWebState(web_state.get());
 
     web_state_list_->InsertWebState(
         std::move(web_state),
         WebStateList::InsertionParams::Automatic().Activate());
+
+    GeminiBrowserAgent::CreateForBrowser(browser_.get());
 
     mediator_ = [[LocationBarBadgeMediator alloc]
         initWithWebStateList:web_state_list_
                      tracker:feature_engagement::TrackerFactory::GetForProfile(
                                  profile_.get())
                  prefService:profile_.get()->GetPrefs()
-               geminiService:GeminiServiceFactory::GetForProfile(
-                                 profile_.get())];
+               geminiService:GeminiServiceFactory::GetForProfile(profile_.get())
+          geminiBrowserAgent:GeminiBrowserAgent::FromBrowser(browser_.get())];
     SignInAndSetCapability(true);
 
     mock_consumer_ = OCMProtocolMock(@protocol(LocationBarBadgeConsumer));
@@ -285,6 +290,11 @@ class LocationBarBadgeMediatorTest : public PlatformTest {
     OCMStub([mock_delegate_ canShowChip:[OCMArg any]]).andReturn(YES);
     EXPECT_CALL(*tracker_, ShouldTriggerHelpUI(testing::_))
         .WillRepeatedly(testing::Return(true));
+  }
+
+  void SetFloatyInvoked(bool invoked) {
+    GeminiBrowserAgent::FromBrowser(browser_.get())->is_floaty_invoked_ =
+        invoked;
   }
 
   web::WebTaskEnvironment task_environment_{
@@ -414,6 +424,22 @@ TEST_F(LocationBarBadgeMediatorTest, TestGeminiChipNotShownIfTooRecent) {
   // Simulate that the timestamp check fails, causing badge to not show.
   AllowGeminiChipToShow(/*show_gemini_chip=*/false, /*trigger_help_ui=*/true,
                         /*badge_is_visible=*/false);
+  [mediator_ updateBadgeConfig:config];
+  EXPECT_OCMOCK_VERIFY(mock_consumer_);
+}
+
+// Tests that the Gemini contextual cue chip is not shown if the floaty is
+// already invoked.
+TEST_F(LocationBarBadgeMediatorTest, TestGeminiChipNotShownIfFloatyInvoked) {
+  SetFloatyInvoked(true);
+
+  AllowGeminiChipToShow(/*show_gemini_chip=*/false, /*trigger_help_ui=*/true,
+                        /*badge_is_visible=*/false);
+
+  LocationBarBadgeConfiguration* config =
+      CreateBadgeConfiguration(LocationBarBadgeType::kGeminiContextualCueChip);
+  config.badgeText = kTestAccessibilityLabel;
+
   [mediator_ updateBadgeConfig:config];
   EXPECT_OCMOCK_VERIFY(mock_consumer_);
 }
@@ -683,6 +709,7 @@ TEST_F(LocationBarBadgeMediatorTest, TestContextualPanelWebStateListChanged) {
 
   auto web_state = std::make_unique<web::FakeWebState>();
   web_state->SetBrowserState(profile_.get());
+  web_state->WasShown();
   std::map<ContextualPanelItemType,
            raw_ptr<ContextualPanelModel>>
       models;

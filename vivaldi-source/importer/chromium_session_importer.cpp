@@ -28,7 +28,7 @@ sessions::IdToSessionTab ChromiumSessionImporter::GetOpenTabs(
       new sessions::CommandStorageBackend(
           task_runner, profile_dir,
           sessions::CommandStorageManager::SessionType::kSessionRestore,
-          std::nullopt);
+          nullptr);
 
   auto unfiltered_cmds = backend->ReadLastSessionCommands().commands;
   auto commands = sessions::VivaldiFilterImportedTabsSessionCommands(

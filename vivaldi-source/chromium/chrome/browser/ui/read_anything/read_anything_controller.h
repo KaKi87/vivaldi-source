@@ -11,6 +11,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "chrome/browser/ui/read_anything/read_anything_enums.h"
+#include "chrome/browser/ui/read_anything/read_anything_hats_survey_controller.h"
 #include "chrome/browser/ui/read_anything/read_anything_immersive_activation_observer.h"
 #include "chrome/browser/ui/read_anything/read_anything_lifecycle_observer.h"
 #include "chrome/browser/ui/read_anything/read_anything_omnibox_controller.h"
@@ -145,7 +146,7 @@ class ReadAnythingController : public tabs::ContentsObservingTabFeature {
   void ToggleUI(ReadAnythingOpenTrigger trigger);
 
   // Toggles between the Immersive Reading Mode UI and the Side Panel UI.
-  void TogglePresentation(bool is_user_initiated = true);
+  void TogglePresentation(bool is_user_initiated);
 
   // Returns the current presentation_state_ of the Reading Mode feature. This
   // refers to the current host of the WebUI, but does not guarantee that the
@@ -184,7 +185,8 @@ class ReadAnythingController : public tabs::ContentsObservingTabFeature {
   // the WebUIContentsWrapper to this controller.
   void TransferWebUiOwnership(
       std::unique_ptr<WebUIContentsWrapperT<ReadAnythingUntrustedUI>>
-          web_ui_wrapper);
+          web_ui_wrapper,
+      PresentationState from_presentation);
 
   // Recreates the WebUI on the next GetOrCreateWebUIWrapper() call. This should
   // be called if Reading mode crashes so that we don't get stuck in a crashed
@@ -202,14 +204,17 @@ class ReadAnythingController : public tabs::ContentsObservingTabFeature {
   void OnSoftNavigation();
 
  private:
-  // Called when the tab will detach.
-  void TabWillDetach(tabs::TabInterface* tab,
-                     tabs::TabInterface::DetachReason reason);
   // Saves the presentation state to the user's preferences.
   void SavePresentationPreference(PresentationState state);
 
+  // Updates the FindBarController's target WebContents if necessary. This
+  // ensures that find-in-page (Cmd-F) targets the IRM overlay when it's open,
+  // rather than the occluded main WebContents.
+  void MaybeUpdateFindBarController();
+
   std::unique_ptr<WebContentsObserverInstance> ra_web_ui_observer_;
   std::unique_ptr<ReadAnythingOmniboxController> omnibox_controller_;
+  std::unique_ptr<ReadAnythingHatsSurveyController> hats_survey_;
 
   // content::WebContentsObserver:
   void PrimaryPageChanged(content::Page& page) override;
@@ -221,8 +226,11 @@ class ReadAnythingController : public tabs::ContentsObservingTabFeature {
   // (e.g. due to being unresponsive).
   void OnRendererCrashed();
 
-  // Helper function to record OnEntryHidden metrics.
-  void RecordEntryHiddenMetrics();
+  // Records OnEntryHidden metrics and returns the calculated session duration
+  // if Reading Mode was successfully shown. Returns std::nullopt if the UI is
+  // closed before being successfully shown or hidden due to an in-progress
+  // presentation mode transition.
+  std::optional<base::TimeDelta> RecordEntryHiddenMetrics();
 
   // Returns the SidePanelUI for the active tab if it can be shown.
   // Otherwise, returns nullptr.
@@ -259,8 +267,8 @@ class ReadAnythingController : public tabs::ContentsObservingTabFeature {
   base::ObserverList<ReadAnythingImmersiveActivationObserver>
       immersive_activation_observers_;
 
-  // Holds subscriptions for TabInterface callbacks.
-  std::vector<base::CallbackListSubscription> tab_subscriptions_;
+  // Holds subscription for TabInterface callbacks.
+  base::CallbackListSubscription tab_did_activate_subscription_;
 
   PresentationState presentation_state_ = PresentationState::kUndefined;
   // When a tab becomes inactive and hides IRM, this is set to true to let us

@@ -190,6 +190,7 @@ AndroidNonZPSSection::AndroidNonZPSSection(
                         {
                             {omnibox::GROUP_SEARCH, 1},
                             {omnibox::GROUP_OTHER_NAVS, 1},
+                            {omnibox::GROUP_STARTER_PACK, 1},
                         },
                         /*is_zps=*/false),
                   // Top Group / above the keyboard.
@@ -197,6 +198,8 @@ AndroidNonZPSSection::AndroidNonZPSSection(
                         {
                             {omnibox::GROUP_SEARCH, 14},
                             {omnibox::GROUP_OTHER_NAVS,
+                             show_only_search_suggestions ? 0 : 14},
+                            {omnibox::GROUP_STARTER_PACK,
                              show_only_search_suggestions ? 0 : 14},
                         },
                         /*is_zps=*/false),
@@ -211,6 +214,8 @@ AndroidNonZPSSection::AndroidNonZPSSection(
                         {
                             {omnibox::GROUP_SEARCH, 14},
                             {omnibox::GROUP_OTHER_NAVS,
+                             show_only_search_suggestions ? 0 : 14},
+                            {omnibox::GROUP_STARTER_PACK,
                              show_only_search_suggestions ? 0 : 14},
                         },
                         /*is_zps=*/false),
@@ -415,6 +420,10 @@ DesktopNTPZpsSection::DesktopNTPZpsSection(
     : ZpsSectionWithLocalHistory(
           limit,
           {
+              Group(1,
+                    {
+                        {omnibox::GROUP_CROSS_DEVICE_TABS, 1},
+                    }),
               Group(
                   42,
                   {
@@ -495,6 +504,10 @@ DesktopSRPZpsSection::DesktopSRPZpsSection(
     : ZpsSection(
           max_suggestions,
           {
+              Group(1,
+                    {
+                        {omnibox::GROUP_CROSS_DEVICE_TABS, 1},
+                    }),
               Group(
                   search_limit,
                   {
@@ -535,6 +548,10 @@ DesktopWebSearchZpsSection::DesktopWebSearchZpsSection(
     size_t contextual_search_limit)
     : Section(limit,
               {
+                  Group(1,
+                        {
+                            {omnibox::GROUP_CROSS_DEVICE_TABS, 1},
+                        }),
                   Group(limit,
                         {
                             {omnibox::GROUP_VISITED_DOC_RELATED, limit},
@@ -662,28 +679,29 @@ DesktopComposeboxZpsSection::DesktopComposeboxZpsSection(
     size_t max_suggestions,
     size_t max_aim_suggestions,
     size_t max_contextual_suggestions)
-    : ZpsSection(max_suggestions,
-                 {
-                     Group(max_suggestions,
-                           {
-                               {omnibox::GROUP_PERSONALIZED_ZERO_SUGGEST,
-                                max_aim_suggestions},
-                               {omnibox::GROUP_MIA_RECOMMENDATIONS,
-                                max_aim_suggestions},
-                           }),
-                     Group(max_suggestions,
-                           {
-                               {omnibox::GROUP_AI_MODE_ZERO_SUGGEST_CANNED,
-                                max_aim_suggestions},
-                           }),
-                     Group(max_suggestions,
-                           {
-                               {omnibox::GROUP_SEARCH, 1},
-                               {omnibox::GROUP_CONTEXTUAL_SEARCH,
-                                max_contextual_suggestions},
-                           }),
-                 },
-                 group_configs) {}
+    : ZpsSectionWithLocalHistory(
+          max_suggestions,
+          {
+              Group(
+                  max_suggestions,
+                  {
+                      {omnibox::GROUP_SEARCH, 1},
+                      {omnibox::GROUP_PERSONALIZED_ZERO_SUGGEST,
+                       max_aim_suggestions},
+                      {omnibox::GROUP_MIA_RECOMMENDATIONS, max_aim_suggestions},
+                  }),
+              Group(max_suggestions,
+                    {
+                        {omnibox::GROUP_AI_MODE_ZERO_SUGGEST_CANNED,
+                         max_aim_suggestions},
+                    }),
+              Group(max_suggestions,
+                    {
+                        {omnibox::GROUP_CONTEXTUAL_SEARCH,
+                         max_contextual_suggestions},
+                    }),
+          },
+          group_configs) {}
 
 ToolbeltSection::ToolbeltSection(const omnibox::GroupConfigMap& group_configs)
     : ZpsSection(1,

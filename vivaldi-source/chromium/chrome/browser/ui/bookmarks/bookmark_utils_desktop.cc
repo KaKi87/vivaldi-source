@@ -26,12 +26,12 @@
 #include "chrome/browser/ui/bookmarks/bookmark_utils.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/incognito_allowed_url.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/simple_message_box.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_menu_utils.h"
@@ -201,7 +201,7 @@ OpenedWebContentsSet OpenAllHelper(
     // there is a URL that is not allowed in incognito mode.
     // In this case we don't set the disposition to `NEW_BACKGROUND_TAB`
     // until we have opened the first URL that can be opened in incognito.
-    // See crbug.com/1349283.
+    // See crbug.com/40855833.
     if (opening_in_new_window) {
       if (!opening_urls_in_incognito || url_allowed_in_incognito) {
         disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
@@ -214,11 +214,19 @@ OpenedWebContentsSet OpenAllHelper(
         Profile::FromBrowserContext(opened_tab->GetBrowserContext());
     if (new_tab_profile->IsIncognitoProfile()) {
       if (!incognito_browser) {
-        incognito_browser = chrome::FindBrowserWithTab(opened_tab);
+        auto* tab_browser =
+            ProfileBrowserCollection::GetForProfile(new_tab_profile)
+                ->FindBrowserWithTab(opened_tab);
+        incognito_browser =
+            tab_browser ? tab_browser->GetBrowserForMigrationOnly() : nullptr;
       }
     } else {
       if (!regular_browser) {
-        regular_browser = chrome::FindBrowserWithTab(opened_tab);
+        auto* tab_browser =
+            ProfileBrowserCollection::GetForProfile(new_tab_profile)
+                ->FindBrowserWithTab(opened_tab);
+        regular_browser =
+            tab_browser ? tab_browser->GetBrowserForMigrationOnly() : nullptr;
       }
     }
 
@@ -669,7 +677,8 @@ void ShowBookmarkTabGroupDialog(
     base::OnceCallback<void(Browser*, const tab_groups::TabGroupId&)>
         on_save_callback) {
   std::vector<BookmarkEditor::EditDetails::BookmarkData> children;
-  GetURLsAndFoldersForTabGroup(browser, tab_group, &children);
+  GetURLsAndFoldersForTabGroup(browser->tab_strip_model(), tab_group,
+                               &children);
 
   ShowBookmarkTabGroupDialogHelper(
       browser, tab_group.visual_data()->title(), std::move(children),
@@ -773,10 +782,9 @@ void GetURLsAndFoldersForTabEntries(
 }
 
 void GetURLsAndFoldersForTabGroup(
-    const Browser* browser,
+    const TabStripModel* tab_strip_model,
     const TabGroup& tab_group,
     std::vector<BookmarkEditor::EditDetails::BookmarkData>* folder_data) {
-  TabStripModel* const tab_strip_model = browser->tab_strip_model();
   const gfx::Range tab_range = tab_group.ListTabs();
 
   for (size_t i = tab_range.start(); i < tab_range.end(); ++i) {
@@ -801,10 +809,9 @@ std::u16string SuggestUniqueTabGroupName(
 
   std::vector<tab_groups::SavedTabGroup> saved_groups =
       tab_group_sync_service->GetAllGroups();
-  base::flat_set<std::u16string> existing_titles;
-  for (const auto& group : saved_groups) {
-    existing_titles.insert(group.title());
-  }
+  auto existing_titles = base::MakeFlatSet<std::u16string>(
+      saved_groups, /*comp=*/{},
+      [&](const auto& group) { return group.title(); });
 
   if (!existing_titles.contains(folder_title)) {
     return folder_title;

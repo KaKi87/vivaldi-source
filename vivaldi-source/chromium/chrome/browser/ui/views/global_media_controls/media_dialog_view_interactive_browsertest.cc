@@ -8,6 +8,7 @@
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "chrome/browser/media/router/chrome_media_router_factory.h"
@@ -403,8 +404,8 @@ class MediaDialogViewBrowserTest : public InProcessBrowserTest {
 
  protected:
   std::unique_ptr<TestWebContentsPresentationManager> presentation_manager_;
-  MediaDialogUiForTest ui_{base::BindRepeating(&InProcessBrowserTest::browser,
-                                               base::Unretained(this))};
+  MediaDialogUiForTest ui_{base::BindLambdaForTesting(
+      [this]() -> BrowserWindowInterface* { return browser(); })};
 
  private:
   // Finds a global_media_controls::MediaItemUIUpdatedView by title.
@@ -652,12 +653,12 @@ IN_PROC_BROWSER_TEST_F(MediaDialogViewBrowserTest, ShowsCastSession) {
 }
 
 #if BUILDFLAG(IS_MAC)
-// https://crbug.com/1224071
+// https://crbug.com/40187901
 #define MAYBE_PictureInPicture DISABLED_PictureInPicture
 #else
 #define MAYBE_PictureInPicture PictureInPicture
 #endif
-// Test is flaky crbug.com/1213256.
+// Test is flaky crbug.com/40768654.
 IN_PROC_BROWSER_TEST_F(MediaDialogViewBrowserTest, MAYBE_PictureInPicture) {
   // Open a tab and play media.
   OpenTestURL();
@@ -697,7 +698,7 @@ IN_PROC_BROWSER_TEST_F(MediaDialogViewBrowserTest,
   ui_.WaitForPictureInPictureButtonVisibility(true);
 }
 
-// Flaky on multiple platforms (crbug.com/1218003,crbug.com/1383904).
+// Flaky on multiple platforms (crbug.com/40771400,crbug.com/40878114).
 IN_PROC_BROWSER_TEST_F(MediaDialogViewBrowserTest,
                        DISABLED_PlayingSessionAlwaysDisplayFirst) {
   OpenTestURL();
@@ -731,8 +732,10 @@ IN_PROC_BROWSER_TEST_F(MediaDialogViewBrowserTest,
   EXPECT_TRUE(IsPlayingSessionDisplayedFirst());
 }
 
-// TODO(crbug.com/40898509): Live captioning not supported on Arm64 Windows.
-#if BUILDFLAG(IS_WIN) && defined(ARCH_CPU_ARM64) || BUILDFLAG(IS_MAC)
+// TODO(crbug.com/40898509): Live captioning not supported on Arm64 Windows or
+// Linux.
+#if (BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)) && defined(ARCH_CPU_ARM64) || \
+    BUILDFLAG(IS_MAC)
 #define MAYBE_LiveCaption DISABLED_LiveCaption
 #else
 #define MAYBE_LiveCaption LiveCaption
@@ -807,11 +810,12 @@ IN_PROC_BROWSER_TEST_F(MediaDialogViewBrowserTest, MAYBE_LiveCaption) {
             GetLiveCaptionTitleLabel()->GetText());
 }
 
-#if (BUILDFLAG(IS_WIN) && defined(ARCH_CPU_ARM64)) || BUILDFLAG(IS_MAC)
-// https://crbug.com/1222873
-// Flaky on all Mac bots: https://crbug.com/1274967
-// TODO(crbug.com/40898509): Renable on WinArm64 when live captioning is
-// enabled.
+#if (BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)) && defined(ARCH_CPU_ARM64) || \
+    BUILDFLAG(IS_MAC)
+// https://crbug.com/40187385
+// Flaky on all Mac bots: https://crbug.com/40807988
+// TODO(crbug.com/40898509): Renable on WinArm64 or Linux Arm64 when live
+// captioning is enabled.
 #define MAYBE_LiveCaptionProgressUpdate DISABLED_LiveCaptionProgressUpdate
 #else
 #define MAYBE_LiveCaptionProgressUpdate LiveCaptionProgressUpdate
@@ -877,10 +881,11 @@ IN_PROC_BROWSER_TEST_F(MediaDialogViewBrowserTest,
             base::UTF16ToUTF8(GetLiveCaptionTitleLabel()->GetText()));
 }
 
-// TODO(crbug.com/1225531, crbug.com/1222873): Flaky.
-// TODO(crbug.com/40898509): Renable on WinArm64 when live captioning is
-// enabled.
-#if (BUILDFLAG(IS_WIN) && defined(ARCH_CPU_ARM64)) || BUILDFLAG(IS_MAC)
+// TODO(crbug.com/40775869, crbug.com/40187385): Flaky.
+// TODO(crbug.com/40898509): Renable on WinArm64 or Linux Arm64 when live
+// captioning is enabled.
+#if (BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)) && defined(ARCH_CPU_ARM64) || \
+    BUILDFLAG(IS_MAC)
 #define MAYBE_LiveCaptionShowLanguage DISABLED_LiveCaptionShowLanguage
 #else
 #define MAYBE_LiveCaptionShowLanguage LiveCaptionShowLanguage

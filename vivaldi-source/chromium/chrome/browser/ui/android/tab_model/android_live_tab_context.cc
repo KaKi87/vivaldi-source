@@ -10,6 +10,9 @@
 #include "base/notimplemented.h"
 #include "base/uuid.h"
 #include "chrome/browser/android/tab_android.h"
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi
+#include "chrome/browser/glic/glic_tab_restore_helper.h"
+#endif // Vivaldi
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
@@ -18,6 +21,7 @@
 #include "components/sessions/content/content_serialized_navigation_builder.h"
 #include "components/sessions/core/session_types.h"
 #include "components/sessions/core/tab_restore_types.h"
+#include "components/split_tabs/split_tab_id.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tab_groups/tab_group_visual_data.h"
 #include "content/public/browser/browser_context.h"
@@ -80,7 +84,14 @@ sessions::LiveTab* AndroidLiveTabContext::GetActiveLiveTab() const {
 
 std::map<std::string, std::string> AndroidLiveTabContext::GetExtraDataForTab(
     int index) const {
-  return std::map<std::string, std::string>();
+  std::map<std::string, std::string> extra_data;
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi
+  TabAndroid* tab_android = tab_model_->GetTabAt(index);
+  if (tab_android) {
+    glic::PopulateGlicExtraData(tab_android, &extra_data);
+  }
+#endif // Vivaldi
+  return extra_data;
 }
 
 std::map<std::string, std::string>
@@ -94,6 +105,13 @@ std::optional<tab_groups::TabGroupId> AndroidLiveTabContext::GetTabGroupForTab(
   return std::optional<tab_groups::TabGroupId>();
 }
 
+std::optional<split_tabs::SplitTabId> AndroidLiveTabContext::GetSplitForTab(
+    int index) const {
+  // Split views are not currently supported on the Android platform. This
+  // function would get the SplitTabId implementation of a given tab.
+  return std::nullopt;
+}
+
 const tab_groups::TabGroupVisualData*
 AndroidLiveTabContext::GetVisualDataForGroup(
     const tab_groups::TabGroupId& group) const {
@@ -102,6 +120,14 @@ AndroidLiveTabContext::GetVisualDataForGroup(
   // Since we never return a group from GetTabGroupForTab(), this should never
   // be called.
   NOTREACHED();
+}
+
+const split_tabs::SplitTabVisualData*
+AndroidLiveTabContext::GetVisualDataForSplit(
+    const split_tabs::SplitTabId& split_id) const {
+  // Split views are not currently supported on the Android platform. This
+  // function would return the visual data of the split (orientation and ratio).
+  return nullptr;
 }
 
 const std::optional<base::Uuid>
@@ -170,6 +196,9 @@ sessions::LiveTab* AndroidLiveTabContext::AddRestoredTab(
   std::unique_ptr<content::WebContents> web_contents =
       content::WebContents::Create(params);
   content::WebContents* raw_web_contents = web_contents.get();
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi
+  glic::RestoreGlicStateFromExtraData(raw_web_contents, tab.extra_data);
+#endif // Vivaldi
   web_contents->GetController().Restore(tab.normalized_navigation_index(),
                                         content::RestoreType::kRestored,
                                         &nav_entries);
@@ -208,6 +237,17 @@ sessions::LiveTab* AndroidLiveTabContext::ReplaceRestoredTab(
       web_contents, session_tab, WindowOpenDisposition::CURRENT_TAB);
   web_contents->GetController().LoadIfNecessary();
   return sessions::ContentLiveTab::GetOrCreateForWebContents(web_contents);
+}
+
+void AndroidLiveTabContext::ReconstructSplit(
+    sessions::LiveTab* leading_tab,
+    sessions::LiveTab* trailing_tab,
+    split_tabs::SplitTabId split_id,
+    const split_tabs::SplitTabVisualData& visual_data) {
+  // Split views are currently not supported on the Android platform.
+  // This function serves as a placeholder to store the logic that would combine
+  // two tabs into a singular SplitView object.
+  NOTIMPLEMENTED();
 }
 
 // Currently does nothing.

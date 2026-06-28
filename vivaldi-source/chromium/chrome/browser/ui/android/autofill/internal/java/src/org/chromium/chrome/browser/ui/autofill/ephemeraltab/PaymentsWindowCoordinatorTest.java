@@ -82,13 +82,40 @@ public class PaymentsWindowCoordinatorTest {
 
         verify(mEphemeralTabCoordinator)
                 .requestOpenSheet(
-                        /* url= */ ISSUER_URL,
-                        /* fullPageUrl= */ null,
-                        /* title= */ TAB_TITLE,
-                        mProfile,
-                        /* canPromoteToNewTab= */ false,
-                        /* shouldHaveContextMenu= */ false);
+                        /* url= */ eq(ISSUER_URL),
+                        /* fullPageUrl= */ any(),
+                        /* title= */ eq(TAB_TITLE),
+                        eq(mProfile),
+                        /* canPromoteToNewTab= */ eq(false),
+                        /* shouldHaveContextMenu= */ eq(false),
+                        /* initiatorOrigin= */ any(),
+                        any(Runnable.class));
         verify(mEphemeralTabCoordinator).addObserver(any(EphemeralTabObserver.class));
+    }
+
+    @Test
+    public void testOpenEphemeralTab_whenDenied_thenCallsBridge() {
+        when(mMerchantWebContents.getTopLevelNativeWindow()).thenReturn(mWindowAndroid);
+        EphemeralTabCoordinatorSupplier.setInstanceForTesting(mEphemeralTabCoordinator);
+        ProfileJni.setInstanceForTesting(mProfileNatives);
+        when(mProfileNatives.fromWebContents(eq(mMerchantWebContents))).thenReturn(mProfile);
+        ArgumentCaptor<Runnable> callbackCaptor = ArgumentCaptor.forClass(Runnable.class);
+
+        mCoordinator.openEphemeralTab(ISSUER_URL, TAB_TITLE, mMerchantWebContents);
+
+        verify(mEphemeralTabCoordinator)
+                .requestOpenSheet(
+                        /* url= */ eq(ISSUER_URL),
+                        /* fullPageUrl= */ any(),
+                        /* title= */ eq(TAB_TITLE),
+                        eq(mProfile),
+                        /* canPromoteToNewTab= */ eq(false),
+                        /* shouldHaveContextMenu= */ eq(false),
+                        /* initiatorOrigin= */ any(),
+                        callbackCaptor.capture());
+
+        callbackCaptor.getValue().run();
+        verify(mPaymentsWindowBridge).onUserDeniedTabOpening();
     }
 
     @Test
@@ -99,12 +126,14 @@ public class PaymentsWindowCoordinatorTest {
 
         verify(mEphemeralTabCoordinator, never())
                 .requestOpenSheet(
-                        /* url= */ ISSUER_URL,
-                        /* fullPageUrl= */ null,
-                        /* title= */ TAB_TITLE,
-                        mProfile,
-                        /* canPromoteToNewTab= */ false,
-                        /* shouldHaveContextMenu= */ false);
+                        /* url= */ eq(ISSUER_URL),
+                        /* fullPageUrl= */ any(),
+                        /* title= */ eq(TAB_TITLE),
+                        eq(mProfile),
+                        /* canPromoteToNewTab= */ eq(false),
+                        /* shouldHaveContextMenu= */ eq(false),
+                        /* initiatorOrigin= */ any(),
+                        any(Runnable.class));
         verify(mEphemeralTabCoordinator, never()).addObserver(any(EphemeralTabObserver.class));
     }
 
@@ -116,12 +145,14 @@ public class PaymentsWindowCoordinatorTest {
 
         verify(mEphemeralTabCoordinator, never())
                 .requestOpenSheet(
-                        /* url= */ ISSUER_URL,
-                        /* fullPageUrl= */ null,
-                        /* title= */ TAB_TITLE,
-                        mProfile,
-                        /* canPromoteToNewTab= */ false,
-                        /* shouldHaveContextMenu= */ false);
+                        /* url= */ eq(ISSUER_URL),
+                        /* fullPageUrl= */ any(),
+                        /* title= */ eq(TAB_TITLE),
+                        eq(mProfile),
+                        /* canPromoteToNewTab= */ eq(false),
+                        /* shouldHaveContextMenu= */ eq(false),
+                        /* initiatorOrigin= */ any(),
+                        any(Runnable.class));
         verify(mEphemeralTabCoordinator, never()).addObserver(any(EphemeralTabObserver.class));
     }
 

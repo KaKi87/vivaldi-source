@@ -7,6 +7,7 @@
 #include <optional>
 
 #include "base/memory/raw_ref.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/time/time.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/tabs/features.h"
@@ -17,16 +18,18 @@
 #include "chrome/browser/ui/views/tabs/dragging/test/mock_tab_drag_context.h"
 #include "chrome/browser/ui/views/tabs/fake_base_tab_strip_controller.h"
 #include "chrome/browser/ui/views/tabs/fake_tab_slot_controller.h"
+#include "chrome/browser/ui/views/tabs/shared/tab_strip_types.h"
 #include "chrome/browser/ui/views/tabs/tab/tab_close_button.h"
 #include "chrome/browser/ui/views/tabs/tab_container_impl.h"
 #include "chrome/browser/ui/views/tabs/tab_group_header.h"
 #include "chrome/browser/ui/views/tabs/tab_group_views.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_layout_helper.h"
-#include "chrome/browser/ui/views/tabs/tab_strip_types.h"
 #include "chrome/browser/ui/views/tabs/tab_style_views.h"
-#include "chrome/grit/generated_resources.h"
 #include "chrome/test/views/chrome_views_test_base.h"
+#include "ui/accessibility/accessibility_features.h"
 #include "ui/accessibility/ax_node_data.h"
+#include "ui/accessibility/platform/browser_accessibility.h"
+#include "ui/accessibility/platform/browser_accessibility_manager.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
 #include "ui/base/dragdrop/drop_target_event.h"
 #include "ui/base/dragdrop/os_exchange_data.h"
@@ -35,6 +38,7 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/events/event.h"
 #include "ui/gfx/animation/animation_test_api.h"
+#include "ui/views/accessibility/tree/widget_ax_manager_test_api.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
@@ -49,6 +53,23 @@ views::View* FindTabView(views::View* view) {
     current = current->parent();
   }
   return current;
+}
+
+ui::AXNodeID AXNodeIDForView(views::View* view) {
+  return static_cast<ui::AXNodeID>(view->GetViewAccessibility().GetUniqueId());
+}
+
+void ExpectBrowserTabIndices(ui::BrowserAccessibility* tab,
+                             int expected_pos_in_set,
+                             int expected_set_size) {
+  ASSERT_NE(tab, nullptr);
+  const std::optional<int> pos_in_set = tab->GetPosInSet();
+  ASSERT_TRUE(pos_in_set.has_value());
+  EXPECT_EQ(expected_pos_in_set, pos_in_set.value());
+
+  const std::optional<int> set_size = tab->GetSetSize();
+  ASSERT_TRUE(set_size.has_value());
+  EXPECT_EQ(expected_set_size, set_size.value());
 }
 
 // An extension of both `TabDragContext` and `TabDragPositionDelegateBase`.
@@ -334,7 +355,7 @@ class TabContainerTest : public ChromeViewsTestBase {
   views::View::Views GetTabSlotViewsInVisualOrder() {
     views::View::Views ordered_views;
 
-    std::optional<tab_groups::TabGroupId> prev_group = std::nullopt;
+    std::optional<tab_groups::TabGroupId> prev_group;
 
     for (int i = 0; i < tab_container_->GetTabCount(); ++i) {
       Tab* tab = tab_container_->GetTabAtModelIndex(i);
@@ -414,6 +435,12 @@ class TabContainerTest : public ChromeViewsTestBase {
   gfx::AnimationTestApi::RenderModeResetter animation_mode_reset_;
 
   int tab_container_width_ = 0;
+};
+
+class TabContainerAccessibilityTreeTest : public TabContainerTest {
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_{
+      features::kAccessibilityTreeForViews};
 };
 
 TEST_F(TabContainerTest, ExitsClosingModeAtStandardWidth) {
@@ -697,6 +724,12 @@ TEST_F(TabContainerTest, DropIndexForDragLocationIsCorrect) {
 }
 
 TEST_F(TabContainerTest, AccessibilityData) {
+  ui::AXNodeData tab_container_data;
+  tab_container_->GetViewAccessibility().GetAccessibleNodeData(
+      &tab_container_data);
+  EXPECT_EQ(ax::mojom::Role::kTabList, tab_container_data.role);
+  EXPECT_TRUE(tab_container_data.HasState(ax::mojom::State::kMultiselectable));
+
   // When adding tabs, indices should be set.
   AddTab(0);
   AddTab(1, std::nullopt, TabActive::kActive);
@@ -710,6 +743,39 @@ TEST_F(TabContainerTest, AccessibilityData) {
 
   MoveTab(1, 0);
   VerifyTabIndices();
+}
+
+TEST_F(TabContainerAccessibilityTreeTest,
+       BrowserAccessibilityExposesTabIndices) {
+  if (!views::ViewAccessibility::IsViewsAccessibilityTreeEnabled()) {
+    GTEST_SKIP() << "ViewsAX not supported on this platform";
+  }
+
+  ASSERT_NE(widget_->ax_manager(), nullptr);
+  views::WidgetAXManagerTestApi api(widget_->ax_manager());
+  api.Enable();
+
+  Tab* const first_tab = AddTab(0);
+  Tab* const second_tab = AddTab(1, std::nullopt, TabActive::kActive);
+  Tab* const third_tab = AddTab(2);
+
+  api.WaitForNextSerialization();
+
+  ui::BrowserAccessibilityManager* const browser_manager =
+      api.ax_tree_manager();
+  ASSERT_NE(browser_manager, nullptr);
+
+  ui::BrowserAccessibility* const browser_tab_container =
+      browser_manager->GetFromID(AXNodeIDForView(tab_container_));
+  ASSERT_NE(browser_tab_container, nullptr);
+  EXPECT_EQ(ax::mojom::Role::kTabList, browser_tab_container->GetRole());
+
+  ExpectBrowserTabIndices(
+      browser_manager->GetFromID(AXNodeIDForView(first_tab)), 1, 3);
+  ExpectBrowserTabIndices(
+      browser_manager->GetFromID(AXNodeIDForView(second_tab)), 2, 3);
+  ExpectBrowserTabIndices(
+      browser_manager->GetFromID(AXNodeIDForView(third_tab)), 3, 3);
 }
 
 TEST_F(TabContainerTest, GetEventHandlerForOverlappingArea) {
@@ -1016,7 +1082,8 @@ TEST_F(TabContainerTest, GroupUnderlineBasics) {
 
 TEST_F(TabContainerTest, UnderlineBoundsTabVisibilityChange) {
   // Validates that group underlines are updated correctly in a single Layout
-  // call when the visibility of tabs in the group change. See crbug.com/1356177
+  // call when the visibility of tabs in the group change. See
+  // crbug.com/40860257
 
   SetTabContainerWidth(200);
   // Add tabs to a single group until the last one is not visible.
@@ -1048,7 +1115,7 @@ TEST_F(TabContainerTest, UnderlineBoundsTabVisibilityChange) {
 TEST_F(TabContainerTest, UnderlineBoundsCollapsedGroupHeaderVisibilityChange) {
   // Validates that group underlines are updated correctly in a single Layout
   // call when the visibility of the group header changes, even if the group is
-  // collapsed. See crbug.com/1374614
+  // collapsed. See crbug.com/40872448
 
   SetTabContainerWidth(200);
   // Create a tab group with one tab and collapse it.
@@ -1476,4 +1543,45 @@ TEST_F(TabContainerTest, ZOrderCacheUpdatesAfterCRUDOperations) {
   container_impl->CompleteAnimationAndLayout();
   container_impl->UpdateZOrderCacheForTesting();
   EXPECT_EQ(container_impl->GetZOrderCacheForTesting().size(), 2u);
+}
+
+TEST_F(TabContainerTest, TabAccessibleNameUpdatesOnGroupTitleChange) {
+  Tab* tab_0 = AddTab(0, std::nullopt, TabActive::kInactive);
+  AddTab(1, std::nullopt, TabActive::kActive);
+  tab_container_->CompleteAnimationAndLayout();
+
+  // Create a tab group and add a tab to it.
+  tab_groups::TabGroupId group = tab_groups::TabGroupId::GenerateNew();
+  AddTabToGroup(0, group);
+  tab_container_->CompleteAnimationAndLayout();
+
+  // Inject a temporary accessibility name. The visual update of the tab group
+  // should trigger an a11y recalculation, clearing this stale value.
+  tab_0->GetViewAccessibility().SetName(u"Tab Name");
+
+  // Get AX Name Before Title Change.
+  ui::AXNodeData initial_ax_data;
+  tab_0->GetViewAccessibility().GetAccessibleNodeData(&initial_ax_data);
+  std::u16string initial_accessible_name =
+      initial_ax_data.GetString16Attribute(ax::mojom::StringAttribute::kName);
+
+  // Update tab group title.
+  tab_groups::TabGroupVisualData old_visuals(
+      u"Untitled Tab Group", tab_groups::TabGroupColorId::kRed, false);
+
+  std::u16string new_group_title = u"Work";
+  tab_groups::TabGroupVisualData new_visuals(
+      new_group_title, tab_groups::TabGroupColorId::kBlue, false);
+
+  // Force OnGroupVisualsChanged notification.
+  auto* container_impl = views::AsViewClass<TabContainerImpl>(tab_container_);
+  container_impl->OnGroupVisualsChanged(group, &old_visuals, &new_visuals);
+
+  // Validate tab name after change.
+  ui::AXNodeData updated_ax_data;
+  tab_0->GetViewAccessibility().GetAccessibleNodeData(&updated_ax_data);
+  std::u16string updated_accessible_name =
+      updated_ax_data.GetString16Attribute(ax::mojom::StringAttribute::kName);
+
+  EXPECT_NE(initial_accessible_name, updated_accessible_name);
 }

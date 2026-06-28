@@ -7,7 +7,7 @@
 #include <string>
 
 #include "base/memory/weak_ptr.h"
-#include "base/observer_list.h"
+#include "components/os_crypt/async/common/encryptor.h"
 #include "components/sync/service/sync_service_impl.h"
 #include "net/http/http_response_headers.h"
 
@@ -34,8 +34,9 @@ class VivaldiSyncServiceImpl : public syncer::SyncServiceImpl {
   /*Implementing vivaldi methods of syncer::SyncService*/
   void ClearSyncData() override;
   bool is_clearing_sync_data() const override { return is_clearing_sync_data_; }
-  std::string GetEncryptionBootstrapTokenForBackup() override;
-  void ResetEncryptionBootstrapTokenFromBackup(
+  std::optional<std::string> GetEncryptionBootstrapTokenForBackup()
+      const override;
+  bool ResetEncryptionBootstrapTokenFromBackup(
       const std::string& token) override;
 
  private:
@@ -43,10 +44,16 @@ class VivaldiSyncServiceImpl : public syncer::SyncServiceImpl {
   void OnEngineInitialized(bool success,
                            bool is_first_time_sync_configure) override;
 
+  void ReceiveEncryptorInstance(
+      scoped_refptr<os_crypt_async::Encryptor> instance) {
+    encryptor_ = instance;
+  }
+
   void OnClearDataComplete(scoped_refptr<net::HttpResponseHeaders> headers);
 
   bool force_local_data_reset_ = false;
   bool is_clearing_sync_data_ = false;
+  scoped_refptr<os_crypt_async::Encryptor> encryptor_;
   std::unique_ptr<network::SimpleURLLoader> clear_data_url_loader_;
 
   base::WeakPtrFactory<VivaldiSyncServiceImpl> weak_factory_;

@@ -39,6 +39,12 @@
 				<true/>
 				<key>SupportsCredentialUpdate</key>
 				<true/>
+				<key>SupportsCredentialExchange</key>
+				<true/>
+				<key>SupportedCredentialExchangeVersions</key>
+				<array>
+					<string>1.0</string>
+				</array>
 			</dict>
       End Vivaldi -->
 			<key>ASCredentialProviderExtensionShowsConfigurationUI</key>

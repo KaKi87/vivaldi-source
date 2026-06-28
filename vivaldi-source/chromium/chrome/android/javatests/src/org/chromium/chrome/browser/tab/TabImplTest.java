@@ -25,6 +25,7 @@ import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.EnableFeatures;
+import org.chromium.base.test.util.RequiresRestart;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tabmodel.TabClosureParams;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
@@ -33,6 +34,7 @@ import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.components.autofill.TestViewStructure;
 import org.chromium.content_public.browser.LoadUrlParams;
+import org.chromium.ui.base.WindowAndroid;
 
 /** Tests for the {@link TabImpl} class. */
 @RunWith(ChromeJUnit4ClassRunner.class)
@@ -82,11 +84,60 @@ public class TabImplTest {
     @Test
     @SmallTest
     @Feature({"Tab"})
+    @EnableFeatures({"LoadAllTabsAtStartup"})
+    @RequiresRestart(
+            "Optimization feature tests require absolute custom flag evaluations and container"
+                    + " resets.")
+    public void testDeferredContentViewInflation() {
+        TabImpl tab = createFrozenTab();
+
+        assertNotNull("WebContents should be initialized early", tab.getWebContents());
+        assertNotNull("ContentView should return lightweight proxy stub", tab.getContentView());
+
+        // Triggering show() unrolls the deferred view layer attachment safely.
+        ThreadUtils.runOnUiThreadBlocking(() -> tab.show(TabSelectionType.FROM_USER));
+
+        assertNotNull("ContentView should be inflated after show()", tab.getContentView());
+        assertFalse(
+                "ContentView should inflate to regular base instance",
+                tab.getContentView()
+                        .getClass()
+                        .getSimpleName()
+                        .contains("DeferredContentViewStub"));
+    }
+
+    @Test
+    @SmallTest
+    @Feature({"Tab"})
+    @EnableFeatures({"LoadAllTabsAtStartup"})
+    @RequiresRestart(
+            "Optimization feature tests require absolute custom flag evaluations and container"
+                    + " resets.")
+    public void testDeferredContentViewInflation_loadIfNeeded() {
+        TabImpl tab = createFrozenTab();
+
+        assertNotNull("WebContents should be initialized early", tab.getWebContents());
+        assertNotNull("ContentView should return lightweight proxy stub", tab.getContentView());
+
+        // Triggering loadIfNeeded() invokes restoration paths that inflate the deferred UI.
+        ThreadUtils.runOnUiThreadBlocking(() -> tab.loadIfNeeded(/* forceBackingSize= */ false));
+
+        assertNotNull("ContentView should be inflated after loadIfNeeded()", tab.getContentView());
+        assertFalse(
+                "ContentView should inflate to regular base instance",
+                tab.getContentView()
+                        .getClass()
+                        .getSimpleName()
+                        .contains("DeferredContentViewStub"));
+    }
+
+    @Test
+    @SmallTest
+    @Feature({"Tab"})
     public void testTabLoadIfNeededEnsuresBackingForMediaCapture() {
         TabImpl tab = createFrozenTab();
 
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> tab.loadIfNeeded(TabLoadIfNeededCaller.MEDIA_CAPTURE_PICKER));
+        ThreadUtils.runOnUiThreadBlocking(() -> tab.loadIfNeeded(/* forceBackingSize= */ true));
 
         ThreadUtils.runOnUiThreadBlocking(() -> assertTrue(tab.hasBacking()));
     }
@@ -247,4 +298,39 @@ public class TabImplTest {
         // Title will be updated asynchronously.
     }
 
+    @Test
+    @SmallTest
+    @Feature({"Tab"})
+    public void testOffscreenRendering() {
+        TabImpl tab = (TabImpl) mActivityTestRule.getActivityTab();
+        WindowAndroid originalWindow = tab.getWindowAndroid();
+        assertNotNull(originalWindow);
+        assertFalse(tab.getIsOffscreenRenderingSupplier().get());
+
+        WindowAndroid testWindow =
+                ThreadUtils.runOnUiThreadBlocking(
+                        () ->
+                                new WindowAndroid(
+                                        mActivityTestRule.getActivity(),
+                                        /* occlusionTrackingAllowed= */ false));
+
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    tab.startOffscreenRendering();
+                    tab.getWebContents().setTopLevelNativeWindow(testWindow);
+                });
+
+        assertTrue(tab.getIsOffscreenRenderingSupplier().get());
+        assertEquals(testWindow, tab.getWebContents().getTopLevelNativeWindow());
+        assertEquals(originalWindow, tab.getWindowAndroid());
+
+        ThreadUtils.runOnUiThreadBlocking(() -> tab.stopOffscreenRendering());
+
+        assertFalse(tab.getIsOffscreenRenderingSupplier().get());
+
+        assertEquals(originalWindow, tab.getWebContents().getTopLevelNativeWindow());
+        assertEquals(originalWindow, tab.getWindowAndroid());
+
+        ThreadUtils.runOnUiThreadBlocking(() -> testWindow.destroy());
+    }
 }

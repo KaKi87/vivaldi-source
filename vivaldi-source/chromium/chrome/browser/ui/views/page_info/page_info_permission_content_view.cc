@@ -42,6 +42,11 @@
 #include "ui/views/controls/separator.h"
 #include "ui/views/layout/flex_layout.h"
 
+DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(PageInfoPermissionContentView,
+                                      kStateLabelElementId);
+DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(PageInfoPermissionContentView,
+                                      kRememberCheckboxElementId);
+
 namespace {
 std::u16string PageInfoSubpageText(ContentSettingsType type) {
   // Without this, the title and toggle accessibility text inside the submenu of
@@ -104,6 +109,7 @@ PageInfoPermissionContentView::PageInfoPermissionContentView(
   state_label_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   state_label_->SetID(
       PageInfoViewFactory::VIEW_ID_PAGE_INFO_PERMISSION_SUBTITLE_LABEL);
+  state_label_->SetProperty(views::kElementIdentifierKey, kStateLabelElementId);
 
   // Add extra details as sublabel.
   std::u16string detail = ui_delegate_->GetPermissionDetail(type);
@@ -123,8 +129,8 @@ PageInfoPermissionContentView::PageInfoPermissionContentView(
         FileSystemAccessPermissionContextFactory::GetForProfileIfExists(
             web_contents->GetBrowserContext());
     if (context) {
-      granted_file_paths = context->GetGrantedPaths(
-          url::Origin::Create(web_contents->GetLastCommittedURL()));
+      granted_file_paths =
+          context->GetGrantedPaths(url::Origin::Create(presenter_->site_url()));
     }
     if (!granted_file_paths.empty()) {
       std::unique_ptr<views::ScrollView> scroll_panel =
@@ -146,6 +152,8 @@ PageInfoPermissionContentView::PageInfoPermissionContentView(
   remember_setting_->SetID(
       PageInfoViewFactory::
           VIEW_ID_PAGE_INFO_PERMISSION_SUBPAGE_REMEMBER_CHECKBOX);
+  remember_setting_->SetProperty(views::kElementIdentifierKey,
+                                 kRememberCheckboxElementId);
   remember_setting_->SetProperty(views::kMarginsKey,
                                  gfx::Insets::TLBR(controls_spacing, 0, 0, 0));
 
@@ -273,8 +281,8 @@ void PageInfoPermissionContentView::SetPermissionInfo(
       remember_setting_->SetVisible(context &&
                                     setting != CONTENT_SETTING_BLOCK);
       remember_setting_->SetChecked(
-          context && context->OriginHasExtendedPermission(url::Origin::Create(
-                         web_contents_->GetLastCommittedURL())));
+          context && context->OriginHasExtendedPermission(
+                         url::Origin::Create(presenter_->site_url())));
     }
   } else {
     auto* info =
@@ -372,8 +380,7 @@ void PageInfoPermissionContentView::ToggleFileSystemExtendedPermissions() {
     return;
   }
   bool checkbox_enabled = remember_setting_->GetChecked();
-  const url::Origin site_origin =
-      url::Origin::Create(web_contents_->GetLastCommittedURL());
+  const url::Origin site_origin = url::Origin::Create(presenter_->site_url());
   bool origin_has_extended_permission =
       context->OriginHasExtendedPermission(site_origin);
 

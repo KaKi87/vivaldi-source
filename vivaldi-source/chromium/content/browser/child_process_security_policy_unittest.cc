@@ -29,6 +29,7 @@
 #include "content/common/features.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/security_principal.h"
 #include "content/public/browser/site_isolation_policy.h"
 #include "content/public/common/bindings_policy.h"
 #include "content/public/common/content_client.h"
@@ -109,23 +110,18 @@ class ChildProcessSecurityPolicyTest
   ChildProcessSecurityPolicyTest()
       : task_environment_(BrowserTaskEnvironment::REAL_IO_THREAD),
         old_browser_client_(nullptr) {
-    // Force committed origin tracking to always be performed, and enable the
-    // enforcements based on that tracking.
     std::vector<base::test::FeatureRefAndParams> enabled_features;
     std::vector<base::test::FeatureRef> disabled_features;
-
-    enabled_features.push_back({features::kCommittedOriginEnforcements, {}});
-    enabled_features.push_back({features::kCommittedOriginTracking, {}});
 
     // Apply test params to run in three modes: kCppOnly, kRustOnly, and
     // kRustAndCpp. kCppOnly should turn off kChildProcessSecurityPolicyRust,
     // while the other two modes should enable it with a proper FeatureParam to
     // set the mode.
     if (GetParam() == RustPolicy::kCppOnly) {
-      disabled_features.push_back(kChildProcessSecurityPolicyRust);
+      disabled_features.push_back(features::kChildProcessSecurityPolicyRust);
     } else {
       enabled_features.push_back(
-          {kChildProcessSecurityPolicyRust,
+          {features::kChildProcessSecurityPolicyRust,
            {{kRustPolicyParam.name, kRustPolicyParam.GetName(GetParam())}}});
     }
 
@@ -409,6 +405,22 @@ TEST_P(ChildProcessSecurityPolicyTest, IsWebSafeSchemeTest) {
   EXPECT_FALSE(p->IsWebSafeScheme(kChromeUIScheme));
 
   p->ClearRegisteredSchemeForTesting("registered-web-safe-scheme");
+}
+
+// Web-safe isolated schemes can be requested but not commit.
+TEST_P(ChildProcessSecurityPolicyTest, IsWebSafeIsolatedSchemeTest) {
+  ChildProcessSecurityPolicyImpl* p =
+      ChildProcessSecurityPolicyImpl::GetInstance();
+
+  // Currently, no web-safe isolated schemes are registered within content/, but
+  // embedders can register them.
+  std::string web_safe_isolated_scheme("registered-web-safe-isolated-scheme");
+  EXPECT_FALSE(p->IsWebSafeScheme(web_safe_isolated_scheme));
+  p->RegisterWebSafeIsolatedScheme(web_safe_isolated_scheme);
+  EXPECT_TRUE(p->IsWebSafeScheme(web_safe_isolated_scheme));
+  EXPECT_FALSE(p->CanCommitSchemeInAnyProcess(web_safe_isolated_scheme));
+
+  p->ClearRegisteredSchemeForTesting(web_safe_isolated_scheme);
 }
 
 TEST_P(ChildProcessSecurityPolicyTest, IsPseudoSchemeTest) {
@@ -1484,9 +1496,9 @@ TEST_P(ChildProcessSecurityPolicyTest, CanAccessDataForOrigin_Origin) {
   }
   auto foo_origin = url::Origin::Create(GURL("http://foo.com"));
 
-  // TODO(crbug.com/40148776): kCommittedOriginEnforcements should stop allowing
-  // a non-opaque committed origin to match an opaque origin, even if the
-  // latter's precursor matches. See TODO in
+  // TODO(crbug.com/40148776): Committed origin enforcements should stop
+  // allowing a non-opaque committed origin to match an opaque origin, even if
+  // the latter's precursor matches. See TODO in
   // SecurityState::MatchesCommittedOrigin().
   auto opaque_with_foo_precursor = foo_origin.DeriveNewOpaqueOrigin();
   foo_origins.push_back(opaque_with_foo_precursor);
@@ -1759,7 +1771,9 @@ TEST_P(ChildProcessSecurityPolicyTest, PdfProcessEnforcements) {
 
   // Create a ProcessLock for a PDF renderer, and lock the kRendererID process
   // to it.
-  UrlInfo pdf_url_info(UrlInfoInit(GURL("https://foo.com")).WithIsPdf(true));
+  UrlInfo pdf_url_info(
+      UrlInfoInit(GURL("https://foo.com"))
+          .WithEmbedderIsolationInfo(EmbedderIsolationInfo::CreateForPdf()));
   scoped_refptr<SiteInstanceImpl> pdf_instance =
       SiteInstanceImpl::CreateForUrlInfo(&browser_context, pdf_url_info,
                                          /*is_guest=*/false,
@@ -3296,19 +3310,20 @@ TEST_P(ChildProcessSecurityPolicyTest, NoBrowsingInstanceIDs_UnlockedProcess) {
     // This is important when this test is run with other tests, as then
     // BrowsingInstanceId will not be '1' in general.
     p->Add(kRendererProcess, &context);
-    p->LockProcess(
-        foo_instance->GetIsolationContext(), kRendererProcess,
-        /*is_process_used=*/false,
-        ProcessLock::CreateAllowAnySite(
-            StoragePartitionConfig::CreateDefault(&context),
-            WebExposedIsolationInfo::CreateNonIsolated(),
-            /*cross_origin_isolation_key=*/std::nullopt, context.UniqueId()));
+    p->LockProcess(foo_instance->GetIsolationContext(), kRendererProcess,
+                   /*is_process_used=*/false,
+                   ProcessLock::CreateAllowAnySite(
+                       StoragePartitionConfig::CreateDefault(&context),
+                       WebExposedIsolationInfo::CreateNonIsolated(),
+                       /*cross_origin_isolation_key=*/std::nullopt,
+                       context.UniqueToken()));
 
     EXPECT_TRUE(foo_instance->HasSite());
     if (ShouldUseDefaultSiteInstanceGroup()) {
       EXPECT_EQ(foo_instance->group(),
                 foo_instance->DefaultSiteInstanceGroupForBrowsingInstance());
-      EXPECT_EQ(foo_instance->GetSiteURL(), foo_url);
+      EXPECT_EQ(foo_instance->GetSecurityPrincipal().GetDeprecatedSiteURL(),
+                foo_url);
     } else {
       EXPECT_TRUE(foo_instance->IsDefaultSiteInstance());
       EXPECT_EQ(foo_instance->GetSiteInfo(),
@@ -3354,7 +3369,7 @@ TEST_P(ChildProcessSecurityPolicyTest, CannotLockUsedProcessToSite) {
       ProcessLock::CreateAllowAnySite(
           StoragePartitionConfig::CreateDefault(&context),
           WebExposedIsolationInfo::CreateNonIsolated(),
-          /*cross_origin_isolation_key=*/std::nullopt, context.UniqueId()));
+          /*cross_origin_isolation_key=*/std::nullopt, context.UniqueToken()));
   EXPECT_TRUE(p->GetProcessLock(kRendererProcess).AllowsAnySite());
   EXPECT_FALSE(p->GetProcessLock(kRendererProcess).IsLockedToSite());
 

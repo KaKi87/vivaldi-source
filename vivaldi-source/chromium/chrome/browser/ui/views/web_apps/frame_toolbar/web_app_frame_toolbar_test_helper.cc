@@ -12,8 +12,10 @@
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/test/test_future.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/views/frame/browser_frame_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/web_apps/frame_toolbar/web_app_frame_toolbar_view.h"
@@ -21,6 +23,7 @@
 #include "chrome/browser/ui/views/web_apps/frame_toolbar/web_app_toolbar_button_container.h"
 #include "chrome/browser/ui/web_applications/test/isolated_web_app_test_utils.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
+#include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_builder.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
@@ -68,7 +71,7 @@ webapps::AppId WebAppFrameToolbarTestHelper::InstallAndLaunchWebApp(
   Browser* app_browser = web_app::LaunchWebAppBrowser(profile, app_id);
   navigation_observer.WaitForNavigationFinished();
 
-  SetViews(app_browser);
+  SetViewFromAppBrowser(app_browser);
   return app_id;
 }
 
@@ -90,7 +93,7 @@ webapps::AppId WebAppFrameToolbarTestHelper::InstallAndLaunchCustomWebApp(
       web_app::LaunchWebAppBrowser(browser->profile(), app_id);
   navigation_observer.WaitForNavigationFinished();
 
-  SetViews(app_browser);
+  SetViewFromAppBrowser(app_browser);
   return app_id;
 }
 
@@ -101,17 +104,33 @@ WebAppFrameToolbarTestHelper::InstallAndLaunchIsolatedWebApp(
   web_app::IsolatedWebAppUrlInfo url_info = iwa->InstallChecked(profile);
   content::RenderFrameHost* app_frame =
       web_app::OpenIsolatedWebApp(profile, url_info.app_id());
-  Browser* app_browser = chrome::FindBrowserWithTab(
-      content::WebContents::FromRenderFrameHost(app_frame));
+  BrowserWindowInterface* app_browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          content::WebContents::FromRenderFrameHost(app_frame));
 
-  SetViews(app_browser);
+  SetViewFromAppBrowser(app_browser);
   return url_info;
 }
 
 void WebAppFrameToolbarTestHelper::LaunchWebAppBrowserAndWait(
     Profile* profile,
     const webapps::AppId& app_id) {
-  SetViews(web_app::LaunchWebAppBrowserAndWait(profile, app_id));
+  SetViewFromAppBrowser(web_app::LaunchWebAppBrowserAndWait(profile, app_id));
+}
+
+void WebAppFrameToolbarTestHelper::ReparentWebContentsIntoAppBrowserAndWait(
+    content::WebContents* contents,
+    const webapps::AppId& app_id) {
+  base::test::TestFuture<content::WebContents*> future;
+  web_app::ReparentWebContentsIntoAppBrowser(contents, app_id,
+                                             future.GetCallback());
+  content::WebContents* reparented_contents = future.Get();
+  CHECK(reparented_contents);
+  BrowserWindowInterface* app_browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          reparented_contents);
+  CHECK(app_browser);
+  SetViewFromAppBrowser(app_browser);
 }
 
 GURL WebAppFrameToolbarTestHelper::
@@ -336,7 +355,12 @@ void WebAppFrameToolbarTestHelper::SetOriginTextLabelForTesting(
   origin_text_view()->label_->SetText(label_text);
 }
 
-void WebAppFrameToolbarTestHelper::SetViews(Browser* app_browser) {
+Browser* WebAppFrameToolbarTestHelper::app_browser() {
+  return app_browser_ ? app_browser_->GetBrowserForMigrationOnly() : nullptr;
+}
+
+void WebAppFrameToolbarTestHelper::SetViewFromAppBrowser(
+    BrowserWindowInterface* app_browser) {
   app_browser_ = app_browser;
   browser_view_ = BrowserView::GetBrowserViewForBrowser(app_browser_);
   views::FrameView* frame_view =

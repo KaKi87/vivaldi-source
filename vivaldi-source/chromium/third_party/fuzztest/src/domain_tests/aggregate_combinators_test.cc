@@ -29,8 +29,6 @@
 #include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/types/optional.h"
-#include "absl/types/span.h"
-#include "absl/types/variant.h"
 #include "./fuzztest/domain_core.h"
 #include "./domain_tests/domain_testing.h"
 #include "./fuzztest/internal/serialization.h"
@@ -275,10 +273,10 @@ TEST(VariantOf, MutateGenerateValidValues) {
 }
 
 TEST(VariantOf, WorksWithACustomVariantType) {
-  auto domain = VariantOf<absl::variant<int, double>>(Arbitrary<int>(),
-                                                      Arbitrary<double>());
+  auto domain = VariantOf<std::variant<int, double>>(Arbitrary<int>(),
+                                                     Arbitrary<double>());
   absl::BitGen bitgen;
-  absl::variant<int, double> v = Value(domain, bitgen).user_value;
+  std::variant<int, double> v = Value(domain, bitgen).user_value;
   EXPECT_THAT(v, AnyOf(VariantWith<int>(_), VariantWith<double>(_)));
 }
 
@@ -292,8 +290,7 @@ TEST(VariantOf, WorksWithStructInnerDomain) {
   auto domain = VariantOf(StructOf<Alternative1>(),
                           StructOf<Alternative2>(Arbitrary<int64_t>()));
   absl::BitGen bitgen;
-  absl::variant<Alternative1, Alternative2> v =
-      Value(domain, bitgen).user_value;
+  std::variant<Alternative1, Alternative2> v = Value(domain, bitgen).user_value;
   EXPECT_THAT(
       v, AnyOf(VariantWith<Alternative1>(_), VariantWith<Alternative2>(_)));
 }
@@ -354,9 +351,9 @@ TEST(OptionalOf, MutateCanMakeValuesOrNull) {
 }
 
 TEST(OptionalOf, WorksWithACustomOptionalType) {
-  auto domain = OptionalOf<absl::optional<int>>(InRange(1, 3));
+  auto domain = OptionalOf<std::optional<int>>(InRange(1, 3));
   absl::BitGen bitgen;
-  absl::optional<int> v = Value(domain, bitgen).user_value;
+  std::optional<int> v = Value(domain, bitgen).user_value;
   EXPECT_THAT(v, AnyOf(absl::nullopt, Optional(_)));
 }
 

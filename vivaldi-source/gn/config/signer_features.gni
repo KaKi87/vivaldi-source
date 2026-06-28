@@ -1,4 +1,3 @@
-
 declare_args() {
   is_full_signer = false
   sign_executables = false

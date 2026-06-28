@@ -114,14 +114,20 @@ CGFloat HorizontalMargin() {
   // The button to access the page action menu.
   PageActionMenuEntrypointView* _pageActionMenuEntrypointView;
 
+  // The layout guide center for this view.
+  LayoutGuideCenter* _layoutGuideCenter;
+
   // Vivaldi
   BOOL _vivaldiDeferPageUpdates;
   // End Vivaldi
 }
 
-- (instancetype)initWithFrame:(CGRect)frame {
-  self = [super initWithFrame:frame];
+- (instancetype)initWithLayoutGuideCenter:
+    (LayoutGuideCenter*)layoutGuideCenter {
+  // Use a non-zero frame to avoid breaking constraints.
+  self = [super initWithFrame:CGRectMake(0, 0, 100, 100)];
   if (self) {
+    _layoutGuideCenter = layoutGuideCenter;
     [self setupViews];
     [self setButtonsForTraitCollection:self.traitCollection];
   }
@@ -533,6 +539,10 @@ CGFloat HorizontalMargin() {
         _pageControl.hidden = NO;
         if (self.page == TabGridPageTabGroups) {
           _overflowMenuButton.hidden = YES;
+        } else if (vivaldi::IsVivaldiRunning() &&
+                   (self.page == TabGridPageRemoteTabs ||
+                    self.page == TabGridPageClosedTabs)) {
+          _overflowMenuButton.hidden = YES; // End Vivaldi
         } else {
           _overflowMenuConstraint.active = YES;
         }
@@ -560,8 +570,15 @@ CGFloat HorizontalMargin() {
         } else {
           if (self.page == TabGridPageTabGroups) {
             _overflowMenuButton.hidden = YES;
+            _searchFirstConstraint.active = YES;
+          } else if (vivaldi::IsVivaldiRunning() &&
+                     (self.page == TabGridPageRemoteTabs ||
+                      self.page == TabGridPageClosedTabs)) {
+            _overflowMenuButton.hidden = YES;
+            _searchFirstConstraint.active = YES;  // End Vivaldi
           } else {
             if (overflowEnabled) {
+              _searchFirstConstraint.active = YES;
               _overflowMenuBeforeDoneConstraint.active = YES;
             } else {
               _editButton.hidden = NO;
@@ -638,11 +655,12 @@ CGFloat HorizontalMargin() {
   [self useUndo:NO];
 
   // The segmented control has an intrinsic size.
-  _pageControl = [[TabGridPageControl alloc] init];
+  _pageControl =
+      [[TabGridPageControl alloc] initWithLayoutGuideCenter:_layoutGuideCenter];
   _pageControl.translatesAutoresizingMaskIntoConstraints = NO;
 
-  LayoutGuideCenter* center = LayoutGuideCenterForBrowser(nil);
-  [center referenceView:_pageControl underName:kTabGridPageControlGuide];
+  [_layoutGuideCenter referenceView:_pageControl
+                          underName:kTabGridPageControlGuide];
   [_pageControl setScrollViewScrolledToEdge:_scrolledToEdge];
 
   _doneButton = [self

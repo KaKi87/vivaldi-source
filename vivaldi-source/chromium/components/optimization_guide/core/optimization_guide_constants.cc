@@ -34,10 +34,6 @@ const char kOptimizationGuideLanguageOverrideHeaderKey[] =
 const base::FilePath::CharType kOptimizationGuideHintStore[] =
     FILE_PATH_LITERAL("optimization_guide_hint_cache_store");
 
-const base::FilePath::CharType
-    kOldOptimizationGuidePredictionModelMetadataStore[] =
-        FILE_PATH_LITERAL("optimization_guide_model_metadata_store");
-
 const base::FilePath::CharType kOptimizationGuideModelStoreDirPrefix[] =
     FILE_PATH_LITERAL("optimization_guide_model_store");
 
@@ -47,7 +43,7 @@ const char kOptimizationGuideModelExecutionDebugLogsHeaderKey[] =
 const base::FilePath::CharType kWeightsFile[] =
     FILE_PATH_LITERAL("weights.bin");
 
-const base::FilePath::CharType kExperimentalCacheFile[] =
+const base::FilePath::CharType kWeightCacheFile[] =
     FILE_PATH_LITERAL("cache.bin");
 
 const base::FilePath::CharType kEncoderCacheFile[] =
@@ -55,6 +51,9 @@ const base::FilePath::CharType kEncoderCacheFile[] =
 
 const base::FilePath::CharType kAdapterCacheFile[] =
     FILE_PATH_LITERAL("adapter_cache.bin");
+
+const base::FilePath::CharType kProgramCacheFile[] =
+    FILE_PATH_LITERAL("program_cache.bin");
 
 const base::FilePath::CharType kTsDataFile[] = FILE_PATH_LITERAL("ts.bin");
 

@@ -15,6 +15,7 @@ import androidx.test.filters.LargeTest;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -23,12 +24,14 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.UseParametersRunnerFactory;
 
+import org.chromium.android_webview.AwBrowserContext;
+import org.chromium.android_webview.AwBrowserContextStore;
 import org.chromium.android_webview.AwContents;
 import org.chromium.android_webview.AwNoVarySearchData;
 import org.chromium.android_webview.AwPrefetchCallback;
 import org.chromium.android_webview.AwPrefetchManager;
 import org.chromium.android_webview.AwPrefetchParameters;
-import org.chromium.base.Log;
+import org.chromium.android_webview.test.util.AwPrefetchTestUtil;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
@@ -36,8 +39,12 @@ import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.HistogramWatcher;
+import org.chromium.content_public.browser.test.util.NavigationControllerUtil;
+import org.chromium.content_public.browser.test.util.NavigationEntrySimple;
 import org.chromium.content_public.common.ContentSwitches;
 import org.chromium.net.test.ServerCertificate;
+import org.chromium.url.GURL;
+import org.chromium.url.Origin;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -82,6 +89,19 @@ public class AwPrefetchTest extends AwParameterizedTest {
                         ServerCertificate.CERT_TEST_NAMES);
 
         mPrefetchUrl = getUrl(BASIC_PREFETCH_RELATIVE_PATH);
+
+        // Inject hints for PrePrefetch by default.
+        final Origin prefetchOrigin = Origin.create(new GURL(mPrefetchUrl));
+        ThreadUtils.runOnUiThreadBlocking(
+                () ->
+                        AwPrefetchTestUtil.setLatestPrefetchInfoForTesting(
+                                prefetchOrigin.toString(), /* javascriptEnabled= */ true));
+    }
+
+    @After
+    public void tearDown() {
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> AwPrefetchTestUtil.clearLatestPrefetchInfoForTesting());
     }
 
     @Test
@@ -533,6 +553,95 @@ public class AwPrefetchTest extends AwParameterizedTest {
     @Test
     @LargeTest
     @Feature({"AndroidWebView"})
+    @CommandLineFlags.Add({
+        ContentSwitches.HOST_RESOLVER_RULES + "=MAP * 127.0.0.1",
+        "enable-features=WebViewSaveStateIncludeHeaders"
+    })
+    public void testPrefetchAndSaveState() throws Throwable {
+        // --- 1. Prepare Prefetch Parameters ---
+        Map<String, String> prefetchExtraHeaders = Map.of("Test-Header1", "1", "Test-Header2", "2");
+        AwNoVarySearchData expectedNoVarySearch =
+                new AwNoVarySearchData(false, false, new String[] {"ts", "uid"}, null);
+        AwPrefetchParameters prefetchParameters =
+                new AwPrefetchParameters(prefetchExtraHeaders, expectedNoVarySearch, true);
+
+        // Create the initial AwContents instance
+        final AwContents awContents =
+                mActivityTestRule
+                        .createAwTestContainerViewOnMainSync(mContentsClient)
+                        .getAwContents();
+
+        // --- 2. Execute Prefetch Request ---
+        TestAwPrefetchCallback prefetchCallback =
+                startPrefetchingAndWait(mPrefetchUrl, prefetchParameters);
+        prefetchCallback.mOnStatusUpdatedHelper.waitForNext(); // Wait for status update
+
+        // --- 3. FIRST CHECK: Nothing saved after ONLY calling prefetch ---
+        InstrumentationRegistry.getInstrumentation()
+                .runOnMainSync(
+                        () -> {
+                            Bundle bundle = new Bundle();
+                            boolean saved = awContents.saveState(bundle);
+                            // State should be false because there is no navigation history yet
+                            Assert.assertFalse(
+                                    "Expected saveState to return false after prefetch only",
+                                    saved);
+                        });
+
+        // --- 4. Navigate (Load Content) ---
+        mActivityTestRule.loadUrlSync(
+                awContents, mContentsClient.getOnPageFinishedHelper(), mPrefetchUrl);
+
+        // --- 5. Verify Server only received one request from the prefetch and that request headers
+        // are present ---
+        Assert.assertEquals(1, mTestServer.getRequestCountForUrl(BASIC_PREFETCH_RELATIVE_PATH));
+        Map<String, String> receivedHeaders =
+                mTestServer.getRequestHeadersForUrl(BASIC_PREFETCH_RELATIVE_PATH);
+        Assert.assertFalse(receivedHeaders.isEmpty());
+        Assert.assertEquals("1", receivedHeaders.get("Test-Header1"));
+        Assert.assertEquals("2", receivedHeaders.get("Test-Header2"));
+        Assert.assertEquals("prefetch", receivedHeaders.get("Sec-Purpose"));
+
+        // --- 6. SECOND CHECK: Navigation entry is saved after calling loadUrl ---
+        // Create a new container view to restore the state into
+        TestAwContentsClient restoredStateContentsClient = new TestAwContentsClient();
+        AwTestContainerView restoredStateTestView =
+                mActivityTestRule.createAwTestContainerViewOnMainSync(restoredStateContentsClient);
+
+        InstrumentationRegistry.getInstrumentation()
+                .runOnMainSync(
+                        () -> {
+                            Bundle bundle = new Bundle();
+
+                            // Now that we've navigated, state should be successfully saved
+                            boolean saved = awContents.saveState(bundle);
+                            Assert.assertTrue("Expected state to be saved after loadUrl", saved);
+
+                            // Verify that we can restore the state to the new view
+                            boolean restored =
+                                    restoredStateTestView.getAwContents().restoreState(bundle);
+                            Assert.assertTrue(
+                                    "Expected state to be successfully restored", restored);
+
+                            // Verify the navigation history was populated
+                            NavigationEntrySimple[] navHistory =
+                                    NavigationControllerUtil.getNavigationHistorySimple(
+                                            restoredStateTestView.getAwContents().getWebContents());
+                            Assert.assertEquals(
+                                    "Restored navigation history should have 1 entry",
+                                    1,
+                                    navHistory.length);
+
+                            NavigationEntrySimple restoredEntry = navHistory[0];
+                            Assert.assertTrue(
+                                    "Prefetch with loadurl does not save headers",
+                                    restoredEntry.getExtraHeaders().isEmpty());
+                        });
+    }
+
+    @Test
+    @LargeTest
+    @Feature({"AndroidWebView"})
     @CommandLineFlags.Add({ContentSwitches.HOST_RESOLVER_RULES + "=MAP * 127.0.0.1"})
     public void testPrefetchAfterNavigationLogging() throws Throwable {
         mActivityTestRule.startBrowserProcess();
@@ -747,6 +856,255 @@ public class AwPrefetchTest extends AwParameterizedTest {
         histogramWatcher.pollInstrumentationThreadUntilSatisfied();
     }
 
+    // Tests that a PrePrefetch is triggered and completed successfully, and successfully served to
+    // a loadUrl.
+    @Test
+    @LargeTest
+    @Feature({"AndroidWebView"})
+    @CommandLineFlags.Add({
+        ContentSwitches.HOST_RESOLVER_RULES + "=MAP * 127.0.0.1",
+        "enable-features=PrefetchOffTheMainThread,WebViewPrefetchOffTheMainThread"
+    })
+    public void testPrePrefetchServedAndConsumed() throws Throwable {
+        String contextName = "TestContext";
+        Origin prefetchOrigin = Origin.create(new GURL(mPrefetchUrl));
+
+        // Create a new context. This triggers a fresh `AwPrefetchManager` creation, which can pick
+        // up pref's hints injected in `SetUp()`.
+        AwBrowserContext context =
+                ThreadUtils.runOnUiThreadBlocking(
+                        () -> AwBrowserContextStore.getNamedContext(contextName, true));
+        AwPrefetchManager prefetchManager = context.getPrefetchManager();
+
+        // PrePrefetch is triggered under the flag enabled.
+        TestAwPrefetchCallback callback =
+                startPrefetchAsyncAndWait(mPrefetchUrl, getAwPrefetchParameters(), prefetchManager);
+
+        callback.mOnStatusUpdatedHelper.waitForNext();
+        Assert.assertEquals(
+                "PrePrefetch should complete successfully.",
+                AwPrefetchCallback.StatusCode.PREFETCH_RESPONSE_COMPLETED,
+                callback.getOnStatusUpdatedHelper().getStatusCode());
+        Assert.assertEquals(
+                "Server should have received one request from the PrePrefetch.",
+                1,
+                mTestServer.getRequestCountForUrl(BASIC_PREFETCH_RELATIVE_PATH));
+
+        // Load the same URL in a WebView.
+        final AwTestContainerView testContainerView =
+                mActivityTestRule.createAwTestContainerViewOnMainSync(
+                        mContentsClient, false, null, context);
+        final AwContents awContents = testContainerView.getAwContents();
+        mActivityTestRule.loadUrlSync(
+                awContents, mContentsClient.getOnPageFinishedHelper(), mPrefetchUrl);
+
+        // Verify that the server did NOT receive a second request, proving the page load
+        // was served from the PrePrefetch, not Prefetch and the loadUrl itself.
+        Assert.assertEquals(
+                "Server should NOT have received a second request.",
+                1,
+                mTestServer.getRequestCountForUrl(BASIC_PREFETCH_RELATIVE_PATH));
+        prefetchManager.setCallbackForTesting(null);
+    }
+
+    /**
+     * Tests that if PrePrefetch fails the request falls back to a standard UI thread Prefetch
+     * request.
+     */
+    @Test
+    @LargeTest
+    @Feature({"AndroidWebView"})
+    @CommandLineFlags.Add({
+        ContentSwitches.HOST_RESOLVER_RULES + "=MAP * 127.0.0.1",
+        "enable-features=PrefetchOffTheMainThread,WebViewPrefetchOffTheMainThread"
+    })
+    public void testPrefetchFallbackWhenPrePrefetchFails() throws Throwable {
+        final String profileName = "TestProfile";
+        final String testUrl = getUrl(BASIC_PREFETCH_RELATIVE_PATH);
+
+        // Intentionally DO NOT inject hints. This guarantees `PrePrefetchService`
+        // will experience a cache miss and return `NO_PREFETCH_KEY`, forcing a fallback.
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> AwPrefetchTestUtil.clearLatestPrefetchInfoForTesting());
+
+        AwBrowserContext context =
+                ThreadUtils.runOnUiThreadBlocking(
+                        () -> AwBrowserContextStore.getNamedContext(profileName, true));
+        AwPrefetchManager prefetchManager = context.getPrefetchManager();
+
+        TestAwPrefetchCallback callback = new TestAwPrefetchCallback();
+        CountDownLatch prefetchStartedLatch = new CountDownLatch(1);
+
+        // Check that the Prefetch was called instead of PrePrefetch.
+        // Note that `WORKER_THREAD_PREFETCH_SUCCESS` represents for both 1) normal
+        // "Prefetch success" (`PrefetchOffTheMainThread` disabled) and 2) PrePrefetch fail but
+        // "Prefetch success" (`PrefetchOffTheMainThread` enabled) currently.
+        HistogramWatcher fallbackHistogramWatcher =
+                HistogramWatcher.newBuilder()
+                        .expectIntRecord(
+                                "Android.WebView.Profile.Prefetch.ApiCallResult",
+                                AwPrefetchManager.ApiCallResult.WORKER_THREAD_PREFETCH_SUCCESS)
+                        .build();
+
+        prefetchManager.startPrefetchRequestAsync(
+                SystemClock.uptimeMillis(),
+                testUrl,
+                getAwPrefetchParameters(),
+                callback,
+                Runnable::run,
+                prefetchKey -> {
+                    callback.setPrefetchKey(prefetchKey);
+                    prefetchStartedLatch.countDown();
+                });
+
+        Assert.assertTrue(
+                "Prefetch should invoke key listener",
+                prefetchStartedLatch.await(5, TimeUnit.SECONDS));
+
+        // Wait for completion.
+        callback.mOnStatusUpdatedHelper.waitForNext();
+        fallbackHistogramWatcher.assertExpected();
+        Assert.assertEquals(
+                "Fallback prefetch should complete successfully.",
+                AwPrefetchCallback.StatusCode.PREFETCH_RESPONSE_COMPLETED,
+                callback.getOnStatusUpdatedHelper().getStatusCode());
+
+        // Load the same URL in a WebView and verify consumption.
+        final AwTestContainerView testContainerView =
+                mActivityTestRule.createAwTestContainerViewOnMainSync(
+                        mContentsClient, false, null, context);
+        final AwContents awContents = testContainerView.getAwContents();
+        mActivityTestRule.loadUrlSync(
+                awContents, mContentsClient.getOnPageFinishedHelper(), testUrl);
+
+        // Verify that the server did NOT receive a second request.
+        Assert.assertEquals(
+                "Server should NOT have received a second request.",
+                1,
+                mTestServer.getRequestCountForUrl(BASIC_PREFETCH_RELATIVE_PATH));
+    }
+
+    /**
+     * Tests that a Prefetch/PrePrefetch request correctly includes the "X-Requested-With" header.
+     */
+    @Test
+    @LargeTest
+    @Feature({"AndroidWebView"})
+    @CommandLineFlags.Add({
+        ContentSwitches.HOST_RESOLVER_RULES + "=MAP * 127.0.0.1",
+        "disable-features=PrefetchOffTheMainThread,WebViewPrefetchOffTheMainThread"
+    })
+    public void testPrefetchHasExpectedXRequestedWithHeader_OMTPrefetchDisabled() throws Throwable {
+        AwPrefetchParameters prefetchParameters = getAwPrefetchParameters();
+
+        AwPrefetchManager prefetchManager =
+                mActivityTestRule.getAwBrowserContext().getPrefetchManager();
+
+        TestAwPrefetchCallback callback =
+                startPrefetchAsyncAndWait(mPrefetchUrl, prefetchParameters, prefetchManager);
+        callback.mOnStatusUpdatedHelper.waitForNext();
+
+        HashMap<String, String> prefetchHeaders =
+                mTestServer.getRequestHeadersForUrl(BASIC_PREFETCH_RELATIVE_PATH);
+        String xRequestedWith = prefetchHeaders.get("X-Requested-With");
+        Assert.assertNotNull("X-Requested-With header should be present", xRequestedWith);
+        Assert.assertEquals(
+                InstrumentationRegistry.getInstrumentation().getTargetContext().getPackageName(),
+                xRequestedWith);
+    }
+
+    @Test
+    @LargeTest
+    @Feature({"AndroidWebView"})
+    @CommandLineFlags.Add({
+        ContentSwitches.HOST_RESOLVER_RULES + "=MAP * 127.0.0.1",
+        "enable-features=PrefetchOffTheMainThread,WebViewPrefetchOffTheMainThread"
+    })
+    public void testPrefetchHasExpectedXRequestedWithHeader_OMTPrefetchEnabled() throws Throwable {
+        String contextName = "TestContext";
+
+        // Create a new context. This triggers a fresh `AwPrefetchManager` creation, which can pick
+        // up pref's hints injected in `SetUp()`.
+        AwBrowserContext context =
+                ThreadUtils.runOnUiThreadBlocking(
+                        () -> AwBrowserContextStore.getNamedContext(contextName, true));
+        AwPrefetchManager prefetchManager = context.getPrefetchManager();
+
+        // PrePrefetch is triggered under the flag enabled.
+        TestAwPrefetchCallback callback =
+                startPrefetchAsyncAndWait(mPrefetchUrl, getAwPrefetchParameters(), prefetchManager);
+        callback.mOnStatusUpdatedHelper.waitForNext();
+
+        HashMap<String, String> prefetchHeaders =
+                mTestServer.getRequestHeadersForUrl(BASIC_PREFETCH_RELATIVE_PATH);
+        String xRequestedWith = prefetchHeaders.get("X-Requested-With");
+        Assert.assertNotNull("X-Requested-With header should be present", xRequestedWith);
+        Assert.assertEquals(
+                InstrumentationRegistry.getInstrumentation().getTargetContext().getPackageName(),
+                xRequestedWith);
+    }
+
+    /**
+     * Tests that the HTTP headers sent by OMT PrePrefetch exactly match the headers sent by a
+     * normal UI-thread Prefetch.
+     */
+    @Test
+    @LargeTest
+    @Feature({"AndroidWebView"})
+    @CommandLineFlags.Add({
+        ContentSwitches.HOST_RESOLVER_RULES + "=MAP * 127.0.0.1",
+        "enable-features=PrefetchOffTheMainThread,WebViewPrefetchOffTheMainThread"
+    })
+    public void testPrePrefetchMatchesNormalPrefetchHeaders() throws Throwable {
+        // Create a new context. This triggers a fresh `AwPrefetchManager` creation, which can pick
+        // up pref's hints injected in `SetUp()`.
+        String contextName = "TestContext";
+        AwBrowserContext context =
+                ThreadUtils.runOnUiThreadBlocking(
+                        () -> AwBrowserContextStore.getNamedContext(contextName, true));
+        AwPrefetchManager prefetchManager = context.getPrefetchManager();
+
+        String prefetchUrlPath = BASIC_PREFETCH_RELATIVE_PATH + "?type=prefetch";
+        String prefetchUrl = getUrl(prefetchUrlPath);
+
+        // 1. Normal Prefetch on UI thread.
+        TestAwPrefetchCallback prefetchCallback = new TestAwPrefetchCallback();
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    int prefetchKey =
+                            prefetchManager.startPrefetchRequest(
+                                    prefetchUrl,
+                                    getAwPrefetchParameters(),
+                                    prefetchCallback,
+                                    Runnable::run);
+                    prefetchCallback.setPrefetchKey(prefetchKey);
+                });
+        prefetchCallback.mOnStatusUpdatedHelper.waitForNext();
+        HashMap<String, String> prefetchHeaders =
+                mTestServer.getRequestHeadersForUrl(prefetchUrlPath);
+
+        // 2. PrePrefetch on worker thread.
+        String prePrefetchUrlPath = BASIC_PREFETCH_RELATIVE_PATH + "?type=preprefetch";
+        String prePrefetchUrl = getUrl(prePrefetchUrlPath);
+
+        // PrePrefetch is triggered under the flag enabled.
+        TestAwPrefetchCallback prePrefetchCallback =
+                startPrefetchAsyncAndWait(
+                        prePrefetchUrl, getAwPrefetchParameters(), prefetchManager);
+        prePrefetchCallback.mOnStatusUpdatedHelper.waitForNext();
+        HashMap<String, String> prePrefetchHeaders =
+                mTestServer.getRequestHeadersForUrl(prePrefetchUrlPath);
+
+        // Verify that both normal Prefetch headers and PrePrefetch headers are equivalent.
+        Assert.assertEquals(
+                "Key sets do not match", prefetchHeaders.keySet(), prePrefetchHeaders.keySet());
+        for (String key : prefetchHeaders.keySet()) {
+            String prefetchVal = prefetchHeaders.get(key);
+            String prePrefetchVal = prePrefetchHeaders.get(key);
+            Assert.assertEquals("Header mismatch for " + key, prefetchVal, prePrefetchVal);
+        }
+    }
+
     private String getUrl(final String relativePath) {
         return mTestServer.getURLWithHostName("a.test", relativePath);
     }
@@ -777,6 +1135,54 @@ public class AwPrefetchTest extends AwParameterizedTest {
                                             url, prefetchParameters, callback, callbackExecutor);
                     callback.setPrefetchKey(prefetchKey);
                 });
+
+        return callback;
+    }
+
+    // Calls `startPrefetchRequestAsync` on worker thread. If `WebViewPrefetchOffTheMainThread`
+    // is enabled, it will start PrePrefetch on worker thread.
+    private TestAwPrefetchCallback startPrefetchAsyncAndWait(
+            String url, AwPrefetchParameters parameters, AwPrefetchManager prefetchManager)
+            throws Exception {
+
+        boolean omtEnabled = AwPrefetchManager.isWebViewPrefetchOffTheMainThreadEnabled();
+
+        HistogramWatcher.Builder builder = HistogramWatcher.newBuilder();
+        if (omtEnabled) {
+            // This histogram is only recorded when the Prefetch is posted on the main thread,
+            // which means that PrePrefetch is failed and fallback to normal prefetch when the flag
+            // is enabled.
+            builder.expectNoRecords(
+                    "Android.WebView.Profile.Prefetch.QueuedPrefetchExecutionDelay");
+        }
+        HistogramWatcher histogramWatcher = builder.build();
+
+        TestAwPrefetchCallback callback = new TestAwPrefetchCallback();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean keyListenerCalledOnWorkerThread = new AtomicBoolean(false);
+
+        prefetchManager.startPrefetchRequestAsync(
+                SystemClock.uptimeMillis(),
+                url,
+                parameters,
+                callback,
+                Runnable::run,
+                prefetchKey -> {
+                    if (!org.chromium.base.ThreadUtils.runningOnUiThread()) {
+                        keyListenerCalledOnWorkerThread.set(true);
+                    }
+                    callback.setPrefetchKey(prefetchKey);
+                    latch.countDown();
+                });
+
+        Assert.assertTrue("Prefetch should start", latch.await(5, TimeUnit.SECONDS));
+
+        if (omtEnabled) {
+            Assert.assertTrue(
+                    "Key listener should be called on worker thread for a PrePrefetch",
+                    keyListenerCalledOnWorkerThread.get());
+            histogramWatcher.assertExpected();
+        }
 
         return callback;
     }
@@ -851,7 +1257,6 @@ public class AwPrefetchTest extends AwParameterizedTest {
 
         @Override
         public void onStatusUpdated(int statusCode, @Nullable Bundle extras) {
-            Log.e("Sayed", "Status code is" + statusCode);
             mOnStatusUpdatedHelper.notifyCalled(statusCode, extras);
         }
 

@@ -8,8 +8,8 @@
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/command_updater.h"
-#include "chrome/browser/glic/glic_pref_names.h"
-#include "chrome/browser/glic/public/glic_enabling.h"
+//#include "chrome/browser/glic/glic_pref_names.h"
+//#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -18,6 +18,7 @@
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_metrics.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "chrome/common/pref_names.h"
@@ -34,6 +35,13 @@
 #if BUILDFLAG(IS_LINUX)
 #include "chrome/common/pref_names.h"
 #endif
+
+#if BUILDFLAG(IS_WIN)
+#include <windows.h>
+
+#include "ui/aura/window.h"
+#include "ui/aura/window_tree_host.h"
+#endif  // BUILDFLAG(IS_WIN)
 
 SystemMenuModelDelegate::SystemMenuModelDelegate(
     ui::AcceleratorProvider* provider,
@@ -67,6 +75,27 @@ bool SystemMenuModelDelegate::IsCommandIdEnabled(int command_id) const {
     return glic::GlicEnabling::IsEnabledForProfile(browser_->profile());
   }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
+#if BUILDFLAG(IS_WIN)
+  if (features::IsMenuSimplificationEnabled()) {
+    BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser_);
+    if (browser_view) {
+      switch (command_id) {
+        case IDC_RESTORE_WINDOW:
+          return browser_view->IsMaximized() || browser_view->IsMinimized();
+        case IDC_MOVE_WINDOW:
+          return !browser_view->IsMaximized();
+        case IDC_SIZE_WINDOW:
+          return !browser_view->IsMaximized() && browser_view->CanResize();
+        case IDC_MINIMIZE_WINDOW:
+          return browser_view->CanMinimize();
+        case IDC_MAXIMIZE_WINDOW:
+          return !browser_view->IsMaximized() && browser_view->CanMaximize();
+      }
+    }
+  }
+#endif  // BUILDFLAG(IS_WIN)
+
   return chrome::IsCommandEnabled(browser_, command_id);
 }
 
@@ -123,12 +152,18 @@ std::u16string SystemMenuModelDelegate::GetLabelForCommandId(
         DCHECK(trs);
         trs->LoadTabsFromLastSession();
         if (!trs->entries().empty()) {
-          if (trs->entries().front()->type ==
-              sessions::tab_restore::Type::WINDOW) {
-            string_id = IDS_REOPEN_WINDOW;
-          } else if (trs->entries().front()->type ==
-                     sessions::tab_restore::Type::GROUP) {
-            string_id = IDS_REOPEN_GROUP;
+          switch (trs->entries().front()->type) {
+            case sessions::tab_restore::Type::WINDOW:
+              string_id = IDS_REOPEN_WINDOW;
+              break;
+            case sessions::tab_restore::Type::GROUP:
+              string_id = IDS_REOPEN_GROUP;
+              break;
+            case sessions::tab_restore::Type::SPLIT:
+              string_id = IDS_REOPEN_SPLIT;
+              break;
+            case sessions::tab_restore::Type::TAB:
+              break;
           }
         }
       }
@@ -219,7 +254,7 @@ void SystemMenuModelDelegate::OnMenuWillShow(ui::SimpleMenuModel* source) {
   CHECK(browser_view);
   CHECK(browser_view->tab_strip_view());
   expand_on_hover_lock_ = browser_view->tab_strip_view()->GetExpandOnHoverLock(
-      ExpandOnHoverLockType::kKeepExpanded);
+      ExpandOnHoverLockType::kKeepCurrentState);
 }
 
 void SystemMenuModelDelegate::MenuClosed(ui::SimpleMenuModel* source) {

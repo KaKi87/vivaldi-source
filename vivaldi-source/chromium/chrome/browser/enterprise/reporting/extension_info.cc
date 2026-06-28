@@ -12,8 +12,8 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/common/extension_set.h"
 #include "extensions/common/manifest.h"
+#include "extensions/common/manifest_handlers/manifest_url_handlers.h"
 #include "extensions/common/manifest_handlers/permissions_parser.h"
-#include "extensions/common/manifest_url_handlers.h"
 #include "extensions/common/permissions/permissions_data.h"
 
 using extensions::mojom::ManifestLocation;
@@ -118,26 +118,26 @@ void AddExtensions(const extensions::ExtensionSet& extensions,
 em::Extension_ExtensionType ConvertExtensionTypeToProto(
     extensions::Manifest::Type extension_type) {
   switch (extension_type) {
-    case extensions::Manifest::TYPE_UNKNOWN:
-    case extensions::Manifest::TYPE_SHARED_MODULE:
+    case extensions::Manifest::Type::kUnknown:
+    case extensions::Manifest::Type::kSharedModule:
       return em::Extension_ExtensionType_TYPE_UNKNOWN;
-    case extensions::Manifest::TYPE_EXTENSION:
+    case extensions::Manifest::Type::kExtension:
       return em::Extension_ExtensionType_TYPE_EXTENSION;
-    case extensions::Manifest::TYPE_THEME:
+    case extensions::Manifest::Type::kTheme:
       return em::Extension_ExtensionType_TYPE_THEME;
-    case extensions::Manifest::TYPE_USER_SCRIPT:
+    case extensions::Manifest::Type::kUserScript:
       return em::Extension_ExtensionType_TYPE_USER_SCRIPT;
-    case extensions::Manifest::TYPE_HOSTED_APP:
+    case extensions::Manifest::Type::kHostedApp:
       return em::Extension_ExtensionType_TYPE_HOSTED_APP;
-    case extensions::Manifest::TYPE_LEGACY_PACKAGED_APP:
+    case extensions::Manifest::Type::kLegacyPackagedApp:
       return em::Extension_ExtensionType_TYPE_LEGACY_PACKAGED_APP;
-    case extensions::Manifest::TYPE_PLATFORM_APP:
+    case extensions::Manifest::Type::kPlatformApp:
       return em::Extension_ExtensionType_TYPE_PLATFORM_APP;
-    case extensions::Manifest::TYPE_LOGIN_SCREEN_EXTENSION:
+    case extensions::Manifest::Type::kLoginScreenExtension:
       return em::Extension_ExtensionType_TYPE_LOGIN_SCREEN_EXTENSION;
-    case extensions::Manifest::TYPE_CHROMEOS_SYSTEM_EXTENSION:
+    case extensions::Manifest::Type::kChromeOSSystemExtension:
       return em::Extension_ExtensionType_TYPE_CHROMEOS_SYSTEM_EXTENSION;
-    case extensions::Manifest::NUM_LOAD_TYPES:
+    case extensions::Manifest::Type::kNumLoadTypes:
       NOTREACHED();
   }
 }

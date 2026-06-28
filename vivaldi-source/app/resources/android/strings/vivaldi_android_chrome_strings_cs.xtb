@@ -9,14 +9,12 @@
 <translation id="1598449788754183301">Přepnout normální/soukromé listy</translation>
 <translation id="1644574205037202324">Historie</translation>
 <translation id="1829244130665387512">Najít na stránce</translation>
-<translation id="1910514478706885609">Otevřít v nové skupině listů</translation>
 <translation id="1925021887439448749">Zadejte vlastní webovou adresu</translation>
 <translation id="2038563949887743358">Zapnout funkci Stránky pro počítač</translation>
 <translation id="208033313373016095">Zobrazení pro čtečku webových stránek</translation>
 <translation id="2149973817440762519">Upravit záložku</translation>
 <translation id="2306442503286132111">Záložka uložena do složky <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Vzhled</translation>
-<translation id="2501278716633472235">Přejít zpět</translation>
 <translation id="2546283357679194313">Cookies a data webu</translation>
 <translation id="2633278372998075009">Soukromé listy</translation>
 <translation id="2650751991977523696">Stáhnout soubor znovu?</translation>
@@ -43,7 +41,6 @@
 <translation id="3700829948786686853">Vítá vás Vivaldi</translation>
 <translation id="3719826155360621982">Domovská stránka</translation>
 <translation id="3738139272394829648">Vyhledání klepnutím</translation>
-<translation id="385051799172605136">Zpět</translation>
 <translation id="3987993985790029246">Kopírovat odkaz</translation>
 <translation id="399014816462153200">Přečtené články:</translation>
 <translation id="4121750346708795461">Používáním této aplikace vyjadřujete souhlas se <ph name="BEGIN_LINK1" />smluvními podmínkami<ph name="END_LINK1" /> a <ph name="BEGIN_LINK2" />zásadami ochrany soukromí<ph name="END_LINK2" /> prohlížeče Vivaldi.</translation>
@@ -63,7 +60,6 @@
 
 Touch to Search je funkce, která je dostupná pouze v případě, že je Google nastaven jako výchozí vyhledávač ve Vivaldi.</translation>
 <translation id="4759238208242260848">Stahování</translation>
-<translation id="4777866634702576038">Smazat skupinu listů?</translation>
 <translation id="4850886885716139402">Zobrazit</translation>
 <translation id="4883379392681899581">Opustit soukromý režim</translation>
 <translation id="4943872375798546930">Žádné výsledky</translation>

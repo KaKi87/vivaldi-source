@@ -223,6 +223,7 @@ const (
 	extensionQUICTransportParams        uint16 = 57
 	extensionTLSFlags                   uint16 = 62
 	extensionCustom                     uint16 = 1234  // not IANA assigned
+	extensionServerPaddingRequest       uint16 = 4832  // not IANA assigned
 	extensionNextProtoNeg               uint16 = 13172 // not IANA assigned
 	extensionApplicationSettingsOld     uint16 = 17513 // not IANA assigned
 	extensionApplicationSettings        uint16 = 17613 // not IANA assigned
@@ -329,7 +330,12 @@ const (
 	signatureEd25519 signatureAlgorithm = 0x0807
 	signatureEd448   signatureAlgorithm = 0x0808
 
-	// draft-ietf-tls-tls13-pkcs1-00
+	// ML-DSA algorithms (draft-ietf-tls-mldsa-02)
+	signatureMLDSA44 signatureAlgorithm = 0x0904
+	signatureMLDSA65 signatureAlgorithm = 0x0905
+	signatureMLDSA87 signatureAlgorithm = 0x0906
+
+	// RFC 9963
 	signatureRSAPKCS1WithSHA256Legacy signatureAlgorithm = 0x0420
 
 	// signatureRSAPKCS1WithMD5AndSHA1 is the internal value BoringSSL uses to
@@ -412,6 +418,7 @@ type ConnectionState struct {
 	PeerApplicationSettingsOld []byte                // the old application settings received from the peer
 	ECHAccepted                bool                  // whether ECH was accepted on this connection
 	SelectedPSK                *Credential           // the selected PSK, if any
+	PeerRawPublicKey           []byte                // the SubjectPublicKeyInfo bytes of a RPK received from the peer
 }
 
 // ClientAuthType declares the policy the server will follow for
@@ -452,6 +459,7 @@ type ClientSessionState struct {
 	localApplicationSettingsOld []byte
 	peerApplicationSettingsOld  []byte
 	resumptionAcrossNames       bool
+	serverRawPublicKey          []byte
 }
 
 // ClientSessionCache is a cache of ClientSessionState objects that can be used
@@ -774,6 +782,10 @@ type Config struct {
 	// server should be marked as compatible with cross-name resumption.
 	ResumptionAcrossNames bool
 
+	// RequestServerPadding, if not nil, configures a client to request the
+	// specified number of bytes of padding from the server.
+	RequestServerPadding *uint16
+
 	// Bugs specifies optional misbehaviour to be used for testing other
 	// implementations.
 	Bugs ProtocolBugs
@@ -871,6 +883,10 @@ type ProtocolBugs struct {
 	// EmptyHelloVerifyRequestCookie, if true, causes a DTLS server to request
 	// an empty cookie in HelloVerifyRequest.
 	EmptyHelloVerifyRequestCookie bool
+
+	// SendLegacyDTLSCookie, if not nil, contains the legacy DTLS 1.2 cookie
+	// to be sent in the ClientHello (not the TLS 1.3 cookie extension).
+	SendLegacyDTLSCookie []byte
 
 	// SkipCertificateStatus, if true, causes the server to skip the
 	// CertificateStatus message. This is legal because CertificateStatus is
@@ -1530,8 +1546,9 @@ type ProtocolBugs struct {
 	// advertise all configured cipher suite values.
 	AdvertiseAllConfiguredCiphers bool
 
-	// EmptyCertificateList, if true, causes the server to send an empty
-	// certificate list in the Certificate message.
+	// EmptyCertificateList, if true, causes the server or client to send an empty
+	// certificate list in the Certificate message. For a TLS 1.2 RawPublicKey
+	// Certificate (RFC 7250), this causes the SubjectPublicKeyInfo to be empty.
 	EmptyCertificateList bool
 
 	// ExpectNewTicket, if true, causes the client to abort if it does not
@@ -2252,7 +2269,7 @@ type ProtocolBugs struct {
 	// exactly the given values.
 	ExpectClientCertificateTypes []CertificateType
 
-	// ExpectServerCertificateTypes, if not nil, causes the server to
+	// ExpectServerCertificateTypes, if not nil, causes the server or client to
 	// expect the server_certificate_type extension sent by the peer to contain
 	// exactly the given values.
 	ExpectServerCertificateTypes []CertificateType
@@ -2261,6 +2278,32 @@ type ProtocolBugs struct {
 	// send a client_certificate_type extension containing the given values.
 	// For a server, this may not contain more than 1 value.
 	SendClientCertificateTypes []CertificateType
+
+	// SendServerCertificateTypes, if not nil, causes the server or client to
+	// send a server_certificate_type extension containing the given values.
+	// For a server, this may not contain more than 1 value.
+	SendServerCertificateTypes []CertificateType
+
+	// SendEmptyCertificateAuthorities, if true, causes a TLS 1.3 client or
+	// server to send an empty certificate_authorities extension, instead of
+	// omitting the extension.
+	SendEmptyCertificateAuthorities bool
+
+	// ExtensionsWithTrailingData specifies a list of extensions to include
+	// trailing data in.
+	// TODO(crbug.com/505803427): Currently only implemented for ClientHello and
+	// CertificateRequest.
+	ExtensionsWithTrailingData []uint16
+
+	// If SendServerPaddingLength, if not nil, sends the amount of padding
+	// specified in the server padding extension. If this is not set, the
+	// server padding extension will not be sent.
+	SendServerPaddingLength *uint16
+
+	// ExpectedServerPadding, if true, will expect that the server sent back
+	// exactly the amount of padding requested by the client through server
+	// padding extension.
+	ExpectedServerPadding bool
 }
 
 func (c *Config) serverInit() {
@@ -2397,13 +2440,27 @@ const (
 	CredentialTypeDelegated
 	CredentialTypeSPAKE2PlusV1
 	CredentialTypePreSharedKey
+	CredentialTypeRawPublicKey
 )
+
+func (c CredentialType) CertificateType() CertificateType {
+	switch c {
+	case CredentialTypeX509, CredentialTypeDelegated:
+		return certTypeX509
+	case CredentialTypeRawPublicKey:
+		return certTypeRawPublicKey
+	default:
+		panic("Unexpected credential type")
+	}
+}
 
 // A Credential is a certificate chain and private key that a TLS endpoint may
 // use to authenticate.
 type Credential struct {
 	Type CredentialType
 	// Certificate is a chain of one or more certificates, leaf first.
+	// For a RawPublicKey credential, this contains exactly one element, which
+	// holds the SubjectPublicKeyInfo data of the raw public key.
 	Certificate [][]byte
 	// RootCertificate is the certificate that issued this chain.
 	RootCertificate []byte

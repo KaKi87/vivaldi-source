@@ -16,10 +16,10 @@ typedef NS_ENUM(NSUInteger, AppBarButtonType) {
 
 // The states for the assistant button.
 enum class AppBarAssistantButtonState {
-  kSignedOut,
-  kAccount,
+  kLens,
   kAsk,
   kAIM,
+  kAccount,
 };
 
 // Consumer of the app bar.
@@ -46,9 +46,13 @@ enum class AppBarAssistantButtonState {
 // Enables or disables the buttons.
 - (void)setButtonsEnabled:(BOOL)enabled;
 
-// Sets the assistant button state and avatar.
+// Sets the assistant button state, whether it is highlighted, and whether it is
+// enabled.
 - (void)setAssistantButtonState:(AppBarAssistantButtonState)state
-                         avatar:(UIImage*)avatar;
+                    highlighted:(BOOL)highlighted
+                        enabled:(BOOL)enabled
+                         avatar:(UIImage*)avatar
+                       signedIn:(BOOL)signedIn;
 
 // Sets whether the incognito mode is active.
 - (void)setIncognito:(BOOL)incognito;

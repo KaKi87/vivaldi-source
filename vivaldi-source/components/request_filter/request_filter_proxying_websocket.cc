@@ -109,8 +109,7 @@ RequestFilterProxyingWebSocket::RequestFilterProxyingWebSocket(
       has_extra_headers_(has_extra_headers || header_client),
       has_security_info_(has_security_info || header_client),
       info_(request_id_generator->Generate(IPC::mojom::kRoutingIdNone, 0),
-            process_id,
-            render_frame_id,
+            content::GlobalRenderFrameHostId(process_id, render_frame_id),
             request,
             content::ContentBrowserClient::URLLoaderFactoryType::
                 kDocumentSubResource,

@@ -34,12 +34,18 @@
 
 #include "dawn/native/WebGPUBackend.h"
 #include "dawn/replay/Replay.h"
-#include "dawn/tests/DawnTest.h"
-#include "dawn/tests/MockCallback.h"
-#include "dawn/utils/ComboRenderBundleEncoderDescriptor.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/TestUtils.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/tests/MockCallback.h"
+#include "src/dawn/utils/ComboRenderBundleEncoderDescriptor.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/TestUtils.h"
+#include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/compiler.h"
+
+#ifdef DAWN_SUPPORTS_GLFW_FOR_WINDOWING
+#include "GLFW/glfw3.h"
+#include "webgpu/webgpu_glfw.h"
+#endif
 
 namespace dawn {
 namespace {
@@ -60,47 +66,84 @@ class CaptureAndReplayTests : public DawnTest {
         DAWN_SUPPRESS_TEST_IF(UsesWire());
     }
 
-    class Capture {
-      public:
-        Capture(const std::string& commandData, const std::string& contentData)
-            : mCommandData(commandData), mContentData(contentData) {}
-
-        std::unique_ptr<replay::Replay> Replay(wgpu::Device device) {
-            std::istringstream commandIStream(mCommandData);
-            std::istringstream contentIStream(mContentData);
-
-            auto capture = replay::Capture::Create(commandIStream, mCommandData.size(),
-                                                   contentIStream, mContentData.size());
-            std::unique_ptr<replay::Replay> replay =
-                replay::Replay::Create(device, std::move(capture));
-
-            bool result = replay->Play();
-            EXPECT_TRUE(result);
-            return replay;
-        }
-
-      private:
-        std::string mCommandData;
-        std::string mContentData;
-    };
-
     class Recorder {
       public:
-        static Recorder CreateAndStart(wgpu::Device device) { return Recorder(device); }
+        static std::unique_ptr<Recorder> CreateAndStart(wgpu::Device device) {
+            auto recorder = std::unique_ptr<Recorder>(new Recorder(device));
+            native::webgpu::StartCapture(device.Get(), recorder->mCommandStream,
+                                         recorder->mContentStream);
+            return recorder;
+        }
 
-        Capture Finish() {
+        void SetSurfaces(std::vector<wgpu::Surface> surfaces) { mSurfaces = std::move(surfaces); }
+
+        void EndCapture() {
+            if (mCapture) {
+                return;
+            }
+
             native::webgpu::EndCapture(mDevice.Get());
-            return Capture(mCommandStream.str(), mContentStream.str());
+            mDevice = nullptr;
+
+            auto commandData = mCommandStream.str();
+            auto contentData = mContentStream.str();
+            std::istringstream commandIStream(commandData);
+            std::istringstream contentIStream(contentData);
+
+            mCapture = replay::Capture::Create(commandIStream, commandData.size(), contentIStream,
+                                               contentData.size());
+        }
+
+        replay::Replay* Replay(wgpu::Device device) {
+            CreateReplay(device);
+            bool result = mReplay->Play();
+            EXPECT_TRUE(result);
+            return mReplay.get();
+        }
+
+        replay::Replay* CreateReplay(wgpu::Device device) {
+            if (!mCapture) {
+                EndCapture();
+            }
+            mReplay = replay::Replay::Create(device, std::move(mCapture));
+
+            if (!mSurfaces.empty()) {
+                mReplay->SetSurfaces(mSurfaces);
+            }
+            return mReplay.get();
+        }
+
+        replay::Capture* GetCapture() {
+            if (mReplay) {
+                return mReplay->GetCapture();
+            }
+            if (!mCapture) {
+                EndCapture();
+            }
+            return mCapture.get();
+        }
+
+        replay::Replay* GetReplay() const {
+            DAWN_ASSERT(mReplay);
+            return mReplay.get();
+        }
+
+        ~Recorder() {
+            if (mDevice != nullptr) {
+                native::webgpu::EndCapture(mDevice.Get());
+            }
         }
 
       private:
-        explicit Recorder(wgpu::Device device) : mDevice(device) {
-            native::webgpu::StartCapture(device.Get(), mCommandStream, mContentStream);
-        }
+        explicit Recorder(wgpu::Device device) : mDevice(device) {}
 
         wgpu::Device mDevice;
+        std::vector<wgpu::Surface> mSurfaces;
         std::ostringstream mCommandStream;
         std::ostringstream mContentStream;
+
+        std::unique_ptr<replay::Capture> mCapture;
+        std::unique_ptr<replay::Replay> mReplay;
     };
 
     wgpu::Buffer CreateBuffer(const char* label,
@@ -174,10 +217,9 @@ TEST_P(CaptureAndReplayTests, Basic) {
     wgpu::Buffer buffer = CreateBuffer(label, 4, wgpu::BufferUsage::CopyDst);
     queue.WriteBuffer(buffer, 0, &myData, sizeof(myData));
 
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
-    ExpectBufferEQ(replay.get(), label, myData);
+    ExpectBufferEQ(replay, label, myData);
 }
 
 // During capture, makes a buffer, puts data in it.
@@ -194,10 +236,9 @@ TEST_P(CaptureAndReplayTests, NonMultipleOf4LabelLength) {
     queue.WriteBuffer(buffer, 0, &myData, sizeof(myData));
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
-    ExpectBufferEQ(replay.get(), label, myData);
+    ExpectBufferEQ(replay, label, myData);
 }
 
 // Before capture, creates a buffer and sets half of it with WriteBuffer.
@@ -217,11 +258,10 @@ TEST_P(CaptureAndReplayTests, StartCaptureAfterBufferCreationWriteBuffer) {
     queue.WriteBuffer(buffer, 4, &myData1, sizeof(myData1));
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     uint8_t expected[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-    ExpectBufferEQ(replay.get(), label, expected);
+    ExpectBufferEQ(replay, label, expected);
 }
 
 // Before capture, creates a buffer and sets half of it with mappedAtCreation.
@@ -233,7 +273,7 @@ TEST_P(CaptureAndReplayTests, StartCaptureAfterBufferCreationMappedAtCreation) {
     const uint8_t myData1[] = {0x55, 0x66, 0x77, 0x88};
 
     wgpu::Buffer buffer = CreateBuffer(label, 8, wgpu::BufferUsage::CopyDst, true);
-    std::memcpy(buffer.GetMappedRange(), myData0, sizeof(myData0));
+    DAWN_UNSAFE_TODO(std::memcpy(buffer.GetMappedRange(), myData0, sizeof(myData0)));
     buffer.Unmap();
 
     // --- capture ---
@@ -242,11 +282,10 @@ TEST_P(CaptureAndReplayTests, StartCaptureAfterBufferCreationMappedAtCreation) {
     queue.WriteBuffer(buffer, 4, &myData1, sizeof(myData1));
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     uint8_t expected[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-    ExpectBufferEQ(replay.get(), label, expected);
+    ExpectBufferEQ(replay, label, expected);
 }
 
 // Before capture, creates a buffer and sets half of it with a compute shader.
@@ -296,11 +335,10 @@ TEST_P(CaptureAndReplayTests, StartCaptureAfterBufferCreationComputeShader) {
     queue.WriteBuffer(buffer, 4, &myData, sizeof(myData));
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     uint8_t expected[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-    ExpectBufferEQ(replay.get(), label, expected);
+    ExpectBufferEQ(replay, label, expected);
 }
 
 // Before capture, creates a buffer and sets half of it with copyBufferToBuffer.
@@ -331,11 +369,10 @@ TEST_P(CaptureAndReplayTests, StartCaptureAfterBufferCreationCopyB2B) {
     queue.WriteBuffer(dstBuffer, 4, &myData2, sizeof(myData2));
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     uint8_t expected[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-    ExpectBufferEQ(replay.get(), dstLabel, expected);
+    ExpectBufferEQ(replay, dstLabel, expected);
 }
 
 // During first capture, makes a buffer, puts data in it.
@@ -354,7 +391,7 @@ TEST_P(CaptureAndReplayTests, TwoCaptures) {
         buffer = CreateBuffer(label, 8, wgpu::BufferUsage::CopyDst);
         queue.WriteBuffer(buffer, 0, &myData1, sizeof(myData1));
 
-        recorder.Finish();
+        recorder->EndCapture();
     }
 
     {
@@ -362,11 +399,10 @@ TEST_P(CaptureAndReplayTests, TwoCaptures) {
 
         queue.WriteBuffer(buffer, 4, &myData2, sizeof(myData2));
 
-        auto capture = recorder.Finish();
-        auto replay = capture.Replay(device);
+        auto replay = recorder->Replay(device);
 
         uint8_t expected[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-        ExpectBufferEQ(replay.get(), label, expected);
+        ExpectBufferEQ(replay, label, expected);
     }
 }
 
@@ -406,11 +442,10 @@ TEST_P(CaptureAndReplayTests, MapWrite) {
         queue.Submit(1, &commands);
     }
 
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
-    ExpectBufferEQ(replay.get(), "srcBuffer", myData2);
-    ExpectBufferEQ(replay.get(), "dstBuffer", myData2);
+    ExpectBufferEQ(replay, "srcBuffer", myData2);
+    ExpectBufferEQ(replay, "dstBuffer", myData2);
 }
 
 // We make 2 buffers before capture. During capture we map one buffer
@@ -444,11 +479,10 @@ TEST_P(CaptureAndReplayTests, CaptureWithMapWriteDuringCapture) {
 
     queue.Submit(1, &commands);
 
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     uint8_t expected[] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-    ExpectBufferEQ(replay.get(), dstLabel, expected);
+    ExpectBufferEQ(replay, dstLabel, expected);
 }
 
 // Capture a buffer with MapRead.
@@ -475,8 +509,7 @@ TEST_P(CaptureAndReplayTests, CaptureWithMapRead) {
 
     queue.Submit(1, &commands);
 
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    recorder->Replay(device);
 
     // We can't use ExpectBufferEQ here because it uses a copy and `dstBuffer`
     // does not have CopySrc. So, let's do it ourselves.
@@ -506,10 +539,9 @@ TEST_P(CaptureAndReplayTests, CaptureCopyBufferToBuffer) {
 
     queue.Submit(1, &commands);
 
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
-    ExpectBufferEQ(replay.get(), "dstBuffer", myData);
+    ExpectBufferEQ(replay, "dstBuffer", myData);
 }
 
 TEST_P(CaptureAndReplayTests, WriteTexture) {
@@ -522,10 +554,9 @@ TEST_P(CaptureAndReplayTests, WriteTexture) {
     const uint8_t myData[] = {0x11, 0x22, 0x33, 0x44};
     WriteFullTexture(texture, wgpu::TextureFormat::R8Unorm, {4}, myData);
 
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
-    ExpectTextureEQ(replay.get(), "myTexture", {4}, myData);
+    ExpectTextureEQ(replay, "myTexture", {4}, myData);
 }
 
 TEST_P(CaptureAndReplayTests, CaptureCopyBufferToTexture) {
@@ -556,10 +587,9 @@ TEST_P(CaptureAndReplayTests, CaptureCopyBufferToTexture) {
 
     queue.Submit(1, &commands);
 
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
-    ExpectTextureEQ(replay.get(), "dstTexture", {4}, myData);
+    ExpectTextureEQ(replay, "dstTexture", {4}, myData);
 }
 
 TEST_P(CaptureAndReplayTests, CaptureCopyTextureToBuffer) {
@@ -592,10 +622,9 @@ TEST_P(CaptureAndReplayTests, CaptureCopyTextureToBuffer) {
 
     queue.Submit(1, &commands);
 
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
-    ExpectBufferEQ(replay.get(), "dstBuffer", myData);
+    ExpectBufferEQ(replay, "dstBuffer", myData);
 }
 
 TEST_P(CaptureAndReplayTests, CaptureCopyTextureToTexture) {
@@ -629,10 +658,9 @@ TEST_P(CaptureAndReplayTests, CaptureCopyTextureToTexture) {
 
     queue.Submit(1, &commands);
 
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
-    ExpectTextureEQ(replay.get(), "dstTexture", {4}, myData);
+    ExpectTextureEQ(replay, "dstTexture", {4}, myData);
 }
 
 // We make 3 textures. Put data in the first one. Copy to the 2nd one.
@@ -694,10 +722,9 @@ TEST_P(CaptureAndReplayTests, CaptureCopyTextureToTextureFromCopyT2TTexture) {
 
     queue.Submit(1, &commands);
 
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
-    ExpectTextureEQ(replay.get(), "dstTexture", {4}, myData);
+    ExpectTextureEQ(replay, "dstTexture", {4}, myData);
 }
 
 // Before capture, creates a texture and sets it in a compute pass as a storage texture.
@@ -765,11 +792,10 @@ TEST_P(CaptureAndReplayTests, CaptureCopyTextureToTextureFromComputeTexture) {
     }
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     utils::RGBA8 expected[] = {{0x11, 0x22, 0x33, 0x44}};
-    ExpectTextureEQ(replay.get(), "dstTexture", {1}, expected);
+    ExpectTextureEQ(replay, "dstTexture", {1}, expected);
 }
 
 // Before capture, creates a texture and sets in a render pass as a render attachment
@@ -819,11 +845,10 @@ TEST_P(CaptureAndReplayTests, CaptureCopyTextureToTextureFromRenderTexture) {
     }
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     utils::RGBA8 expected[] = {{0x11, 0x22, 0x33, 0x44}};
-    ExpectTextureEQ(replay.get(), "dstTexture", {1}, expected);
+    ExpectTextureEQ(replay, "dstTexture", {1}, expected);
 }
 
 // Capture and replay the simplest compute shader.
@@ -869,11 +894,10 @@ TEST_P(CaptureAndReplayTests, CaptureComputeShaderBasic) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     uint8_t expected[] = {0x11, 0x22, 0x33, 0x44};
-    ExpectBufferEQ(replay.get(), label, expected);
+    ExpectBufferEQ(replay, label, expected);
 }
 
 // Capture and replay the simplest compute shader but set the bindGroup
@@ -920,11 +944,10 @@ TEST_P(CaptureAndReplayTests, CaptureComputeShaderBasicSetBindGroupFirst) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     uint8_t expected[] = {0x11, 0x22, 0x33, 0x44};
-    ExpectBufferEQ(replay.get(), label, expected);
+    ExpectBufferEQ(replay, label, expected);
 }
 
 // Capture and replay 2 auto-layout compute pipelines with the same layout
@@ -994,14 +1017,13 @@ TEST_P(CaptureAndReplayTests, CaptureTwoMatchingAutoLayoutComputePipelines) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     uint8_t expected1[] = {0x11, 0x22, 0x33, 0x44};
-    ExpectBufferEQ(replay.get(), "buffer1", expected1);
+    ExpectBufferEQ(replay, "buffer1", expected1);
 
     uint8_t expected2[] = {0x55, 0x66, 0x77, 0x88};
-    ExpectBufferEQ(replay.get(), "buffer2", expected2);
+    ExpectBufferEQ(replay, "buffer2", expected2);
 }
 
 // Capture and replay 2 bindGroups that use implicit bindGroupLayouts from
@@ -1066,11 +1088,10 @@ TEST_P(CaptureAndReplayTests, CaptureTwoAutoLayoutComputePipelinesOneIsBoundButU
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     uint8_t expected[] = {0x55, 0x66, 0x77, 0x88};
-    ExpectBufferEQ(replay.get(), "buffer", expected);
+    ExpectBufferEQ(replay, "buffer", expected);
 }
 
 // Capture and replay the simplest render pass.
@@ -1098,11 +1119,10 @@ TEST_P(CaptureAndReplayTests, CaptureRenderPassBasic) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     utils::RGBA8 expected[] = {{0x11, 0x22, 0x33, 0x44}};
-    ExpectTextureEQ(replay.get(), "myTexture", {1}, expected);
+    ExpectTextureEQ(replay, "myTexture", {1}, expected);
 }
 
 // Capture and replay the a render pass where a texture is rendered into another.
@@ -1162,11 +1182,10 @@ TEST_P(CaptureAndReplayTests, CaptureRenderPassBasicWithBindGroup) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     utils::RGBA8 expected[] = {{0x11, 0x22, 0x33, 0x44}};
-    ExpectTextureEQ(replay.get(), "dstTexture", {1}, expected);
+    ExpectTextureEQ(replay, "dstTexture", {1}, expected);
 }
 
 TEST_P(CaptureAndReplayTests, CaptureRenderPassBasicWithAttributes) {
@@ -1226,11 +1245,10 @@ TEST_P(CaptureAndReplayTests, CaptureRenderPassBasicWithAttributes) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     utils::RGBA8 expected[] = {{0x11, 0x22, 0x33, 0x44}};
-    ExpectTextureEQ(replay.get(), "dstTexture", {1}, expected);
+    ExpectTextureEQ(replay, "dstTexture", {1}, expected);
 }
 
 // Capture and replay a compute shader with an explicit bindGroupLayout
@@ -1291,11 +1309,10 @@ TEST_P(CaptureAndReplayTests, CaptureComputeShaderBasicExplicitBindGroup) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     uint8_t expected[] = {0x11, 0x22, 0x33, 0x44};
-    ExpectBufferEQ(replay.get(), label, expected);
+    ExpectBufferEQ(replay, label, expected);
 }
 
 // Capture and replay a pass that uses a storage texture
@@ -1357,11 +1374,10 @@ TEST_P(CaptureAndReplayTests, CaptureStorageTextureUsageWithExplicitBindGroupLay
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     utils::RGBA8 expected[] = {{0x11, 0x22, 0x33, 0x44}};
-    ExpectTextureEQ(replay.get(), "myTexture", {1}, expected);
+    ExpectTextureEQ(replay, "myTexture", {1}, expected);
 }
 
 // Capture and replay a pass that uses a texture binding with explicit bind group layout.
@@ -1436,11 +1452,10 @@ TEST_P(CaptureAndReplayTests, CaptureTextureUsageWithExplicitBindGroupLayout) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     uint8_t expected[] = {0x11, 0x22, 0x33, 0x44};
-    ExpectBufferEQ(replay.get(), "myBuffer", expected);
+    ExpectBufferEQ(replay, "myBuffer", expected);
 }
 
 // Capture and replay a pass that uses a sampler binding with explicit bind group layout.
@@ -1525,11 +1540,10 @@ TEST_P(CaptureAndReplayTests, CaptureSamplerUsageWithExplicitBindGroupLayout) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     utils::RGBA8 expected[] = {{0x11, 0x22, 0x33, 0x44}};
-    ExpectTextureEQ(replay.get(), "dstTexture", {1}, expected);
+    ExpectTextureEQ(replay, "dstTexture", {1}, expected);
 }
 
 // Capture and replay a pass uses a depth attachment.
@@ -1563,8 +1577,7 @@ TEST_P(CaptureAndReplayTests, CaptureDepthRenderPass) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    recorder->Replay(device);
 
     // We just expect no errors.
 }
@@ -1583,17 +1596,18 @@ class OcclusionExpectation : public detail::Expectation {
         DAWN_ASSERT(size / sizeof(uint64_t) == mExpected.size());
         const uint64_t* actual = static_cast<const uint64_t*>(data);
         for (size_t i = 0; i < size / sizeof(uint64_t); i++) {
-            if (actual[i] == kSentinelValue) {
+            if (DAWN_UNSAFE_TODO(actual[i]) == kSentinelValue) {
                 return testing::AssertionFailure()
                        << "Data[" << i << "] was not written (it kept the sentinel value of "
                        << kSentinelValue << ").\n";
             }
             Result expected = mExpected[i];
-            if (expected == Result::Zero && actual[i] != 0) {
+            if (expected == Result::Zero && DAWN_UNSAFE_TODO(actual[i]) != 0) {
                 return testing::AssertionFailure()
-                       << "Expected data[" << i << "] to be zero, actual: " << actual[i] << ".\n";
+                       << "Expected data[" << i
+                       << "] to be zero, actual: " << DAWN_UNSAFE_TODO(actual[i]) << ".\n";
             }
-            if (expected == Result::NonZero && actual[i] == 0) {
+            if (expected == Result::NonZero && DAWN_UNSAFE_TODO(actual[i]) == 0) {
                 return testing::AssertionFailure()
                        << "Expected data[" << i << "] to be non-zero.\n";
             }
@@ -1685,8 +1699,7 @@ TEST_P(CaptureAndReplayTests, CaptureQuerySetBasic) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     {
         auto qs = replay->GetObjectByLabel<wgpu::QuerySet>("myQuerySet");
@@ -1770,11 +1783,10 @@ TEST_P(CaptureAndReplayTests, CaptureRenderBundleBasic) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     utils::RGBA8 expected[] = {{0x11, 0x22, 0x33, 0x44}};
-    ExpectTextureEQ(replay.get(), "dstTexture", {1}, expected);
+    ExpectTextureEQ(replay, "dstTexture", {1}, expected);
 }
 
 // Test debug commands don't fail.
@@ -1808,8 +1820,7 @@ TEST_P(CaptureAndReplayTests, PushPopInsertDebug) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    recorder->Replay(device);
 
     // just expect no errors.
 }
@@ -1922,8 +1933,7 @@ TEST_P(CaptureAndReplayTests, CaptureSetLabel) {
     view.SetLabel("viewA");
     view.SetLabel("viewB");
 
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     EXPECT_TRUE(replay->GetObjectByLabel<wgpu::BindGroup>("bgA") == nullptr);
     EXPECT_TRUE(replay->GetObjectByLabel<wgpu::BindGroup>("bgB") != nullptr);
@@ -2022,11 +2032,10 @@ TEST_P(CaptureAndReplayTests, CaptureSetBlendConstant) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     utils::RGBA8 expected[] = {{11, 22, 33, 44}};
-    ExpectTextureEQ(replay.get(), "dstTexture", {1}, expected);
+    ExpectTextureEQ(replay, "dstTexture", {1}, expected);
 }
 
 // Capture DispatchIndirect.
@@ -2075,11 +2084,10 @@ TEST_P(CaptureAndReplayTests, CaptureDispatchIndirect) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     uint8_t expected[] = {0x11, 0x22, 0x33, 0x44};
-    ExpectBufferEQ(replay.get(), label, expected);
+    ExpectBufferEQ(replay, label, expected);
 }
 
 // Capture ClearBuffer.
@@ -2102,11 +2110,10 @@ TEST_P(CaptureAndReplayTests, CaptureClearBuffer) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     const uint8_t expected[] = {0x11, 0x11, 0x11, 0x11, 0, 0, 0, 0, 0x33, 0x33, 0x33, 0x33};
-    ExpectBufferEQ(replay.get(), "buf", expected);
+    ExpectBufferEQ(replay, "buf", expected);
 }
 
 TEST_P(CaptureAndReplayTests, SetImmediateComputePass) {
@@ -2172,11 +2179,10 @@ TEST_P(CaptureAndReplayTests, SetImmediateComputePass) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     uint8_t expected[] = {0x11, 0x22, 0x33, 0x44};
-    ExpectBufferEQ(replay.get(), label, expected);
+    ExpectBufferEQ(replay, label, expected);
 }
 
 TEST_P(CaptureAndReplayTests, SetImmediateRenderPass) {
@@ -2239,11 +2245,10 @@ TEST_P(CaptureAndReplayTests, SetImmediateRenderPass) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     const uint32_t expected[] = {0x44332211};
-    ExpectTextureEQ(replay.get(), "dstTexture", {1}, expected);
+    ExpectTextureEQ(replay, "dstTexture", {1}, expected);
 }
 
 // Make sure it does not capture the unmap of a buffer if that unmap is triggered by the buffer
@@ -2256,8 +2261,7 @@ TEST_P(CaptureAndReplayTests, MappedBufferDestroyed) {
         wgpu::Buffer buffer = CreateBuffer("MyBuffer", 4, wgpu::BufferUsage::CopyDst, true);
     }
 
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    recorder->Replay(device);
 
     // just expect no errors
 }
@@ -2376,8 +2380,7 @@ TEST_P(CaptureAndReplayTests, CaptureDepth24Plus) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     // Read the replay version of myTexture in result via compute shader.
     wgpu::Buffer result = CreateBuffer("result", sizeof(float) * kNumLayers,
@@ -2404,7 +2407,7 @@ TEST_P(CaptureAndReplayTests, CaptureDepth24Plus) {
 
     float expected[kNumLayers];
     for (uint32_t i = 0; i < kNumLayers; ++i) {
-        expected[i] = (i + 0.5f) / 6.f;
+        DAWN_UNSAFE_TODO(expected[i]) = (i + 0.5f) / 6.f;
     }
     EXPECT_BUFFER_FLOAT_RANGE_TOLERANCE_EQ(expected, result, 0, 6, 0.05);
 }
@@ -2501,8 +2504,7 @@ TEST_P(CaptureAndReplayTests, BindGroupWithExternalTexture) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    auto replay = recorder->Replay(device);
 
     // Expect no errors.
     // Verify that the bind group exists in the replayed device.
@@ -2578,10 +2580,9 @@ class CaptureAndReplayDrawTests : public CaptureAndReplayTests {
         queue.Submit(1, &commands);
 
         // --- replay ---
-        auto capture = recorder.Finish();
-        auto replay = capture.Replay(device);
+        auto replay = recorder->Replay(device);
 
-        ExpectTextureEQ(replay.get(), "dstTexture", {1}, expected);
+        ExpectTextureEQ(replay, "dstTexture", {1}, expected);
     }
 };
 
@@ -2746,13 +2747,155 @@ TEST_P(CaptureAndReplayTimestampTests, WriteTimestamp) {
     queue.Submit(1, &commands);
 
     // --- replay ---
-    auto capture = recorder.Finish();
-    auto replay = capture.Replay(device);
+    recorder->Replay(device);
 
     // just expect no errors.
 }
 
 DAWN_INSTANTIATE_TEST(CaptureAndReplayTimestampTests, WebGPUBackend());
+
+#ifdef DAWN_SUPPORTS_GLFW_FOR_WINDOWING
+struct GLFWindowDestroyer {
+    void operator()(GLFWwindow* ptr) { glfwDestroyWindow(ptr); }
+};
+
+class CaptureAndReplaySurfaceTests : public CaptureAndReplayTests {
+  protected:
+    void SetUp() override {
+        CaptureAndReplayTests::SetUp();
+
+        // TODO(crbug.com/dawn/2531): Failing on newer Linux/Intel driver version.
+        // However, IsIntel() and IsMesa() don't work with the null backend.
+        DAWN_SUPPRESS_TEST_IF(IsLinux() && IsNull());
+        DAWN_SUPPRESS_TEST_IF(IsLinux() && IsVulkan() && IsIntel() && IsMesa("23.2"));
+
+        // Causes flaky X11 resource exhaustion when run with SwiftShader.
+        DAWN_SUPPRESS_TEST_IF(IsLinux() && IsVulkan() && IsSwiftshader());
+
+        DAWN_TEST_UNSUPPORTED_IF(!glfwInit());
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        mWindow.reset(glfwCreateWindow(1, 1, "CaptureAndReplaySurfaceTests", nullptr, nullptr));
+    }
+
+    void TearDown() override {
+        CaptureAndReplayTests::TearDown();
+
+        mWindow.reset();
+        glfwTerminate();
+    }
+    std::unique_ptr<GLFWwindow, GLFWindowDestroyer> mWindow;
+};
+
+TEST_P(CaptureAndReplaySurfaceTests, TestSurface) {
+    DAWN_SUPPRESS_TEST_IF(IsWARP());
+
+    wgpu::Surface surface = wgpu::glfw::CreateSurfaceForWindow(instance, mWindow.get());
+    surface.SetLabel("mySurface");
+
+    wgpu::SurfaceConfiguration config = {};
+    config.device = device;
+    config.format = wgpu::TextureFormat::BGRA8Unorm;
+    config.usage = wgpu::TextureUsage::RenderAttachment;
+    config.width = 1;
+    config.height = 1;
+    config.presentMode = wgpu::PresentMode::Fifo;
+
+    // --- capture ---
+    auto recorder = Recorder::CreateAndStart(device);
+
+    surface.Configure(&config);
+
+    wgpu::SurfaceTexture surfaceTexture;
+    surface.GetCurrentTexture(&surfaceTexture);
+    wgpu::Texture texture = surfaceTexture.texture;
+    texture.SetLabel("backbuffer");
+
+    surface.Present();
+
+    // --- replay ---
+    recorder->EndCapture();
+
+    // Check surface reflection info
+    auto surfaceInfos = recorder->GetCapture()->GetSurfaceInfos();
+    EXPECT_EQ(surfaceInfos.size(), 1u);
+    EXPECT_EQ(surfaceInfos[0].width, 1u);
+    EXPECT_EQ(surfaceInfos[0].height, 1u);
+
+    wgpu::Surface replaySurface = wgpu::glfw::CreateSurfaceForWindow(instance, mWindow.get());
+
+    recorder->SetSurfaces({replaySurface});
+
+    auto replay = recorder->Replay(device);
+
+    EXPECT_TRUE(replay->GetObjectByLabel<wgpu::Texture>("backbuffer") != nullptr);
+
+    // Explicitly reset the recorder object to release all replayed resources (like Surface)
+    // before the test ends and the device count check is performed.
+    recorder.reset();
+}
+
+TEST_P(CaptureAndReplaySurfaceTests, MultiFrame) {
+    DAWN_SUPPRESS_TEST_IF(IsWARP());
+
+    wgpu::Surface surface = wgpu::glfw::CreateSurfaceForWindow(instance, mWindow.get());
+    surface.SetLabel("mySurface");
+
+    wgpu::SurfaceConfiguration config = {};
+    config.device = device;
+    config.format = wgpu::TextureFormat::BGRA8Unorm;
+    config.usage = wgpu::TextureUsage::RenderAttachment;
+    config.width = 1;
+    config.height = 1;
+    config.presentMode = wgpu::PresentMode::Fifo;
+
+    // --- capture ---
+    auto recorder = Recorder::CreateAndStart(device);
+
+    surface.Configure(&config);
+
+    // Frame 1
+    {
+        wgpu::SurfaceTexture surfaceTexture;
+        surface.GetCurrentTexture(&surfaceTexture);
+        surfaceTexture.texture.SetLabel("backbuffer1");
+        surface.Present();
+    }
+
+    // Frame 2
+    {
+        wgpu::SurfaceTexture surfaceTexture;
+        surface.GetCurrentTexture(&surfaceTexture);
+        surfaceTexture.texture.SetLabel("backbuffer2");
+        surface.Present();
+    }
+
+    // --- replay ---
+    recorder->EndCapture();
+
+    wgpu::Surface replaySurface = wgpu::glfw::CreateSurfaceForWindow(instance, mWindow.get());
+
+    recorder->SetSurfaces({replaySurface});
+    auto replay = recorder->CreateReplay(device);
+
+    // Replay Frame 1
+    EXPECT_EQ(replay->PlayFrame(), dawn::replay::ReplayStatus::Continuing);
+    EXPECT_TRUE(replay->GetObjectByLabel<wgpu::Texture>("backbuffer1") != nullptr);
+    EXPECT_TRUE(replay->GetObjectByLabel<wgpu::Texture>("backbuffer2") == nullptr);
+
+    // Replay Frame 2
+    EXPECT_EQ(replay->PlayFrame(), dawn::replay::ReplayStatus::Continuing);
+    EXPECT_TRUE(replay->GetObjectByLabel<wgpu::Texture>("backbuffer2") != nullptr);
+
+    // No more frames
+    EXPECT_EQ(replay->PlayFrame(), dawn::replay::ReplayStatus::Finished);
+
+    // Explicitly reset the recorder object to release all replayed resources (like Surface)
+    // before the test ends and the device count check is performed.
+    recorder.reset();
+}
+
+DAWN_INSTANTIATE_TEST(CaptureAndReplaySurfaceTests, WebGPUBackend());
+#endif
 
 }  // anonymous namespace
 }  // namespace dawn

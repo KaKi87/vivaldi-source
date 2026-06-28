@@ -25,7 +25,6 @@ import org.chromium.components.browser_ui.widget.ActionConfirmationResult;
 import org.chromium.components.browser_ui.widget.StrictButtonPressController.ButtonClickResult;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.signin.base.CoreAccountInfo;
-import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.sync.DataType;
 import org.chromium.components.sync.SyncService;
@@ -225,12 +224,13 @@ public class ActionConfirmationManager {
         ActionConfirmationDialog dialog =
                 new ActionConfirmationDialog(mContext, mModalDialogManager);
         dialog.show(
-                new ConfirmationDialogParams(mContext)
-                        .withTitle(R.string.stop_actor_task_dialog_title)
-                        .withDescription(R.string.stop_actor_task_dialog_description)
-                        .withPositiveButton(R.string.leave_tab_group_menu_item)
+                new ConfirmationDialogParams.Builder(mContext)
+                        .withTitle(R.string.actor_leave_site_dialog_title)
+                        .withDescription(R.string.actor_leave_site_dialog_description)
+                        .withPositiveButton(R.string.actor_leave_site_dialog_leave_site)
                         .withNegativeButton(R.string.cancel)
-                        .withSupportStopShowing(false),
+                        .withSupportStopShowing(false)
+                        .build(),
                 onDialogInteracted);
     }
 
@@ -273,21 +273,22 @@ public class ActionConfirmationManager {
         ActionConfirmationDialog dialog =
                 new ActionConfirmationDialog(mContext, mModalDialogManager);
         dialog.show(
-                new ConfirmationDialogParams(mContext)
+                new ConfirmationDialogParams.Builder(mContext)
                         .withTitle(titleRes)
                         .withDescription(description)
                         .withPositiveButton(actionRes)
                         .withNegativeButton(R.string.cancel)
-                        .withSupportStopShowing(true),
+                        .withSupportStopShowing(true)
+                        .build(),
                 onDialogInteracted);
     }
 
     private @Nullable CoreAccountInfo getCoreAccountInfo() {
         IdentityServicesProvider identityServicesProvider = IdentityServicesProvider.get();
-        @Nullable
-        IdentityManager identityManager = identityServicesProvider.getIdentityManager(mProfile);
+        @Nullable IdentityManager identityManager =
+                identityServicesProvider.getIdentityManager(mProfile);
         if (identityManager != null) {
-            return identityManager.getPrimaryAccountInfo(ConsentLevel.SIGNIN);
+            return identityManager.getPrimaryAccountInfo();
         } else {
             return null;
         }
@@ -315,12 +316,13 @@ public class ActionConfirmationManager {
         ActionConfirmationDialog dialog =
                 new ActionConfirmationDialog(mContext, mModalDialogManager);
         dialog.show(
-                new ConfirmationDialogParams(mContext)
+                new ConfirmationDialogParams.Builder(mContext)
                         .withTitle(titleRes)
                         .withDescription(desription)
                         .withPositiveButton(actionRes)
                         .withNegativeButton(R.string.cancel)
-                        .withSupportStopShowing(false),
+                        .withSupportStopShowing(false)
+                        .build(),
                 onDialogInteracted);
     }
 
@@ -391,12 +393,13 @@ public class ActionConfirmationManager {
         ActionConfirmationDialog dialog =
                 new ActionConfirmationDialog(mContext, mModalDialogManager);
         dialog.show(
-                new ConfirmationDialogParams(mContext)
+                new ConfirmationDialogParams.Builder(mContext)
                         .withTitle(titleRes)
                         .withDescription(desription)
                         .withPositiveButton(positiveButtonRes)
                         .withNegativeButton(negativeButtonRes)
-                        .withSupportStopShowing(false),
+                        .withSupportStopShowing(false)
+                        .build(),
                 onDialogInteracted);
     }
 

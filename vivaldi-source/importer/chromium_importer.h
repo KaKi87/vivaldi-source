@@ -5,6 +5,8 @@
 
 #include <vector>
 
+#include "base/memory/scoped_refptr.h"
+#include "build/build_config.h"
 #include "base/values.h"
 #include "chrome/utility/importer/importer.h"
 #include "components/password_manager/core/browser/password_form.h"
@@ -15,6 +17,7 @@
 #include "importer/viv_import_result.h"
 
 class ImportedNoteEntry;
+struct ImportedRawPasswordForm;
 
 class ChromiumImporter : public Importer {
  public:
@@ -39,13 +42,13 @@ class ChromiumImporter : public Importer {
   ImportResult ImportExtensions();
   ImportResult ImportTabs(user_data_importer::ImporterType importer_type);
 
-  /// Tries to decrypt and set sign-ons (pwds), if even one fails decrypting, we
-  /// report failure (but set what we can)
-  ImportResult ReadAndParseSignons(
+  /// Reads raw (encrypted) sign-ons from Login Data and populates |forms| with
+  /// un-decrypted forms.  Decryption is deferred to the browser process via the
+  /// AddRawPasswords bridge.
+  ImportResult ReadRawSignons(
       const base::FilePath& sqlite_file,
-      std::vector<user_data_importer::ImportedPasswordForm>* forms,
-      user_data_importer::ImporterType importer_type,
-      bool* failed_decrypt);
+      std::vector<ImportedRawPasswordForm>* forms,
+      user_data_importer::ImporterType importer_type);
 
   ImportResult ReadAndParseHistory(
       const base::FilePath& sqlite_file,

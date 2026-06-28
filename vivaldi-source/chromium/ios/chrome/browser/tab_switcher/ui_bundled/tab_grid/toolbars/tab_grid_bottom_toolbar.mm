@@ -10,6 +10,7 @@
 #import "base/metrics/user_metrics_action.h"
 #import "base/strings/sys_string_conversions.h"
 #import "ios/chrome/browser/keyboard/ui_bundled/UIKeyCommand+Chrome.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
@@ -64,6 +65,9 @@ CGFloat CompactButtonHorizontalPadding() {
 
 }  // namespace
 
+@interface TabGridBottomToolbar () <LayoutStateObserver>
+@end
+
 @implementation TabGridBottomToolbar {
   UIToolbar* _containerToolbar;
   TabGridNewTabButton* _smallNewTabButton;
@@ -94,6 +98,10 @@ CGFloat CompactButtonHorizontalPadding() {
     [self updateLayout];
   }
   return self;
+}
+
+- (void)dealloc {
+  [_layoutState removeObserver:self];
 }
 
 #pragma mark - UIView
@@ -342,6 +350,13 @@ CGFloat CompactButtonHorizontalPadding() {
 
 - (void)setEditButtonEnabled:(BOOL)enabled {
   _editButton.enabled = enabled;
+}
+
+#pragma mark - LayoutStateObserver
+
+- (void)layoutState:(LayoutState*)layoutState
+    didChangeAppBarPosition:(AppBarPosition)appBarPosition {
+  [self updateLayout];
 }
 
 #pragma mark - Private
@@ -659,35 +674,34 @@ CGFloat CompactButtonHorizontalPadding() {
 
   BOOL useCompactLayout = [self shouldUseCompactLayout];
   BOOL hideToolbar;
+
 #if defined(VIVALDI_BUILD)
   hideToolbar = (!useCompactLayout && (self.page == TabGridPageRemoteTabs ||
         self.page == TabGridPageClosedTabs ||
         self.page == TabGridPageTabGroups));
 #else // Vivaldi
-  if (base::FeatureList::IsEnabled(kTabRecallNewTabGroupButton)) {
-    hideToolbar = self.mode == TabGridMode::kSearch;
-  } else {
-    hideToolbar = self.mode == TabGridMode::kSearch ||
-                  (!useCompactLayout && (self.page == TabGridPageTabGroups));
-  }
+  hideToolbar = self.mode == TabGridMode::kSearch;
 #endif // End Vivaldi
 
-  if (IsChromeNextIaEnabled() &&
-      ui::GetDeviceFormFactor() != ui::DEVICE_FORM_FACTOR_TABLET) {
+  BOOL appBarAvailable =
+      self.layoutState.appBarPosition != AppBarPosition::kNone;
+  if (IsChromeNextIaEnabled() && appBarAvailable) {
     // If the App Bar is available (iPhone), the bottom toolbar buttons should
     // be hidden in the Tab Grid's non-selection states.
     hideToolbar =
         self.mode == TabGridMode::kSearch || self.mode == TabGridMode::kNormal;
   }
 
+  _viewTopConstraint.active = NO;
+
   if (hideToolbar) {
     self.hidden = YES;
     [self updateBackgroundVisibility];
+    [self invalidateIntrinsicContentSize];
     return;
   }
 
   self.hidden = NO;
-  _viewTopConstraint.active = NO;
 
   if (self.mode == TabGridMode::kSelection) {
     _closeTabsButton.hidden = NO;
@@ -698,23 +712,19 @@ CGFloat CompactButtonHorizontalPadding() {
     _viewTopConstraint.active = YES;
     _containerToolbar.hidden = NO;
     [self updateBackgroundVisibility];
+    [self invalidateIntrinsicContentSize];
     return;
   }
 
   if (useCompactLayout) {
-#if defined(VIVALDI_BUILD)
-    if (self.page == TabGridPageRemoteTabs ||
-        self.page == TabGridPageClosedTabs ||
-        self.page == TabGridPageTabGroups) {
-#else
     if (self.page == TabGridPageTabGroups) {
-#endif // End Vivaldi
-
       _doneButton.hidden = NO;
-
-      if (base::FeatureList::IsEnabled(kTabRecallNewTabGroupButton)) {
-        _smallNewTabButton.hidden = NO;
-      }
+      _smallNewTabButton.hidden = NO;
+    } else if (IsVivaldiRunning() &&
+               (self.page == TabGridPageRemoteTabs ||
+                self.page == TabGridPageClosedTabs)) {
+      _doneButton.hidden = NO;
+      _smallNewTabButton.hidden = YES;
     } else if (self.isInTabGroupView) {
       _smallNewTabButton.hidden = NO;
     } else {
@@ -733,6 +743,7 @@ CGFloat CompactButtonHorizontalPadding() {
     _viewTopConstraint.active = YES;
     _containerToolbar.hidden = NO;
     [self updateBackgroundVisibility];
+    [self invalidateIntrinsicContentSize];
     return;
   }
 
@@ -742,6 +753,7 @@ CGFloat CompactButtonHorizontalPadding() {
   _viewTopConstraint.active = YES;
   _containerToolbar.hidden = YES;
   [self updateBackgroundVisibility];
+  [self invalidateIntrinsicContentSize];
 }
 
 // Returns YES if the `_largeNewTabButton` is showing on the toolbar.
@@ -902,6 +914,20 @@ CGFloat CompactButtonHorizontalPadding() {
   }
   _hideScrolledToEdgeBackground = hideScrolledToEdgeBackground;
   [self updateBackgroundVisibility];
+}
+
+- (void)setLayoutState:(LayoutState*)layoutState {
+  if (_layoutState == layoutState) {
+    return;
+  }
+  if (_layoutState) {
+    [_layoutState removeObserver:self];
+  }
+  _layoutState = layoutState;
+  if (_layoutState) {
+    [_layoutState addObserver:self];
+  }
+  [self updateLayout];
 }
 
 @end

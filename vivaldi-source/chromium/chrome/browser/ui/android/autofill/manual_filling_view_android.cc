@@ -22,7 +22,6 @@
 #include "chrome/browser/keyboard_accessory/android/accessory_sheet_data.h"
 #include "chrome/browser/keyboard_accessory/android/accessory_sheet_enums.h"
 #include "chrome/browser/keyboard_accessory/android/manual_filling_controller.h"
-#include "chrome/browser/keyboard_accessory/android/manual_filling_controller_impl.h"
 #include "chrome/browser/password_manager/chrome_password_manager_client.h"
 #include "components/password_manager/core/browser/credential_cache.h"
 #include "components/password_manager/core/browser/password_form.h"
@@ -183,6 +182,11 @@ ScopedJavaGlobalRef<jobject> ConvertAccessorySheetDataToJavaObject(
   return j_tab_data;
 }
 
+bool IsLargeFormFactor(content::WebContents* web_contents) {
+  return Java_ManualFillingComponentBridge_isLargeFormFactor(
+      base::android::AttachCurrentThread(), web_contents->GetJavaWebContents());
+}
+
 }  // namespace
 
 ManualFillingViewAndroid::ManualFillingViewAndroid(
@@ -251,6 +255,11 @@ void ManualFillingViewAndroid::ShowAccessorySheetTab(
         base::android::AttachCurrentThread(), obj, static_cast<int>(tab_type));
   }
 }
+
+bool ManualFillingViewAndroid::IsLargeFormFactor() const {
+  return ::IsLargeFormFactor(web_contents_);
+}
+
 void ManualFillingViewAndroid::OnAccessoryActionAvailabilityChanged(
     ShouldShowAction shouldShowAction,
     autofill::AccessoryAction action) {
@@ -358,7 +367,7 @@ static void JNI_ManualFillingComponentBridge_NotifyFocusedFieldTypeForTesting(
     const base::android::JavaRef<jobject>& j_web_contents,
     int64_t j_focused_field_id,
     int32_t j_available) {
-  ManualFillingControllerImpl::GetOrCreate(
+  ManualFillingController::GetOrCreate(
       content::WebContents::FromJavaWebContents(j_web_contents))
       ->NotifyFocusedInputChanged(
           autofill::FieldRendererId(j_focused_field_id),
@@ -376,7 +385,7 @@ JNI_ManualFillingComponentBridge_SignalAutoGenerationStatusForTesting(
 
   // Bypass the generation controller when sending this status to the UI to
   // avoid setup overhead, since its logic is currently not needed for tests.
-  ManualFillingControllerImpl::GetOrCreate(web_contents)
+  ManualFillingController::GetOrCreate(web_contents)
       ->OnAccessoryActionAvailabilityChanged(
           ManualFillingController::ShouldShowAction(j_available),
           autofill::AccessoryAction::GENERATE_PASSWORD_AUTOMATIC);

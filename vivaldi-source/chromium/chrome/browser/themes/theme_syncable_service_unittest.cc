@@ -32,7 +32,6 @@
 #include "chrome/browser/extensions/test_extension_system.h"
 #include "chrome/browser/prefs/browser_prefs.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/search/background/ntp_custom_background_service_constants.h"
 #include "chrome/browser/themes/test/theme_service_changed_waiter.h"
 #include "chrome/browser/themes/theme_helper.h"
 #include "chrome/browser/themes/theme_service.h"
@@ -55,6 +54,7 @@
 #include "components/sync/test/sync_change_processor_wrapper_for_test.h"
 #include "components/sync_preferences/pref_service_syncable.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
+#include "components/themes/ntp_custom_background_service_constants.h"
 #include "components/themes/pref_names.h"
 #include "content/public/test/browser_task_environment.h"
 #include "extensions/browser/disable_reason.h"
@@ -64,7 +64,7 @@
 #include "extensions/browser/pending_extension_manager.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest_constants.h"
-#include "extensions/common/manifest_url_handlers.h"
+#include "extensions/common/manifest_handlers/manifest_url_handlers.h"
 #include "extensions/common/permissions/api_permission_set.h"
 #include "extensions/common/permissions/permission_set.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -928,7 +928,7 @@ class RealThemeSyncableServiceTest
   scoped_refptr<extensions::Extension> theme_extension_;
 };
 
-// Regression test for crbug.com/1409996.
+// Regression test for crbug.com/40062785.
 TEST_F(RealThemeSyncableServiceTest, ProcessSyncThemeChange_DisabledExtension) {
   // Set up theme service to use custom theme.
   {

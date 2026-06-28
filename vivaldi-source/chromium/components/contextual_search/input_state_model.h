@@ -28,6 +28,13 @@ using omnibox::ModelMode;
 using omnibox::SearchboxConfig;
 using omnibox::ToolMode;
 
+enum class DriveConsentState {
+  kNotReady = 0,
+  kRestricted = 1,
+  kConsent = 2,
+  kNotConsent = 3
+};
+
 // Manages the state of composebox inputs including tools, models, and
 // multimodal inputs.
 class InputStateModel {
@@ -40,11 +47,16 @@ class InputStateModel {
       contextual_search::ContextualSearchSessionHandle& session_handle,
       const SearchboxConfig& config,
       const GURL& active_url,
-      bool is_off_the_record);
+      bool is_off_the_record,
+      bool browser_identity_matches_aim_identity);
   InputStateModel(
       const InputStateModel& other,
       contextual_search::ContextualSearchSessionHandle& new_session_handle);
   virtual ~InputStateModel();
+
+  base::WeakPtr<InputStateModel> AsWeakPtr() {
+    return weak_ptr_factory_.GetWeakPtr();
+  }
 
   // Returns the current input types from the session handle.
   static std::vector<InputType> GetCurrentInputTypes(
@@ -61,7 +73,7 @@ class InputStateModel {
 
   // Set a new model.
   void setActiveModel(ModelMode model);
-  void UpdateModelFromUrl(const GURL& url);
+  void UpdateStateFromUrl(const GURL& url);
 
   // Called when an input of type `InputType` is added or deleted.
   void OnContextChanged();
@@ -73,11 +85,18 @@ class InputStateModel {
   void SetPermanentlyDisabledInputTypes(
       const std::vector<InputType>& input_types);
 
+  // Sets the checked Drive consent state.
+  void SetDriveConsentState(DriveConsentState state);
+
   // Gets additional query params for the current state.
   std::map<std::string, std::string> GetAdditionalQueryParams();
 
   // Returns the current state.
   const InputState& GetInputState() const;
+
+  contextual_search::ContextualSearchSessionHandle* session_handle() const {
+    return session_handle_.get();
+  }
 
   // Methods for testing.
   void set_state_for_testing(const InputState& state) { state_ = state; }
@@ -109,6 +128,9 @@ class InputStateModel {
   // user preference from enterprise policy.
   bool IsSearchContentSharingEnabled() const;
 
+  // Helper to check if the Drive input type is supported.
+  bool IsDriveSupported() const;
+
   // Returns the rule for a given `model`.
   const omnibox::ModelRule* GetModelRule(ModelMode model) const;
 
@@ -123,6 +145,8 @@ class InputStateModel {
 
   raw_ptr<const PrefService> pref_service_ = nullptr;
   const bool is_off_the_record_;
+  const bool browser_identity_matches_aim_identity_;
+  GURL current_url_;
 
   // Stores tools that are permanently disabled by an external trigger and must
   // persist through state updates. Persists after Initialize() is called.
@@ -130,6 +154,10 @@ class InputStateModel {
   // Stores input_types that are permanently disabled by an external trigger and
   // must persist through state updates. Persists after Initialize() is called.
   std::vector<InputType> permanently_disabled_input_types_;
+
+  DriveConsentState drive_consent_state_ = DriveConsentState::kNotReady;
+
+  base::WeakPtrFactory<InputStateModel> weak_ptr_factory_{this};
 };
 
 }  // namespace contextual_search

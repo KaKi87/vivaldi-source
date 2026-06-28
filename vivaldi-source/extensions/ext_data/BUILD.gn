@@ -1,0 +1,11 @@
+source_set("ext_data") {
+  sources = [
+    "tab_positioning_helper.cc",
+    "tab_positioning_helper.h",
+  ]
+
+  public_deps = [
+    "//chrome/common/extensions/api",
+    "//vivaldi/components/ext_data",
+  ]
+}

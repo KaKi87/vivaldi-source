@@ -49,23 +49,36 @@
         }
       },
       {
+        "id": "PrefStoreType",
+        "type": "string",
+        "enum": [
+          "managed",
+          "supervisedUser",
+          "extension",
+          "commandLine",
+          "user",
+          "recommended",
+          "default"
+        ],
+        "description": "The preference store controlling the current value, in priority order."
+      },
+      {
         "id": "PreferenceValue",
         "type": "object",
-        "description": "Preference with its values.",
+        "description": "Preference with its current value and the store controlling it.",
         "properties": {
           "value": {
             "type": "any",
-            "optional": true,
-            "description": "Preference value or none if it's using the default value."
+            "description": "The current effective pref value."
           },
           "defaultValue": {
             "type": "any",
-            "description": "Default value of the pref."
+            "optional": true,
+            "description": "The recommended value if one exists, otherwise the factory default. Only present when store is 'user'."
           },
-          "managed": {
-            "type": "boolean",
-            "description": "The preference is managed by an enterprise.",
-            "optional": true
+          "store": {
+            "$ref": "PrefStoreType",
+            "description": "The preference store controlling the current value."
           }
         }
       }

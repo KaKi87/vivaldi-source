@@ -126,9 +126,8 @@ public class PermissionDialogDelegate {
         return mEmbeddedPromptVariant != EmbeddedPromptVariant.UNINITIALIZED;
     }
 
-    public boolean shouldShowLocationPrecisionSelector() {
-        return PermissionDialogDelegateJni.get()
-                .shouldShowLocationPrecisionSelector(mNativeDelegatePtr);
+    public @GeolocationPromptType int getGeolocationPromptType() {
+        return PermissionDialogDelegateJni.get().getGeolocationPromptType(mNativeDelegatePtr);
     }
 
     public boolean isTablet() {
@@ -293,7 +292,7 @@ public class PermissionDialogDelegate {
         mDrawableId = iconId;
         mMessageText = message;
         for (int i = 0; i + 1 < boldedRanges.length; i += 2) {
-            mBoldedRanges.add(new Pair(boldedRanges[i], boldedRanges[i + 1]));
+            mBoldedRanges.add(new Pair<>(boldedRanges[i], boldedRanges[i + 1]));
         }
         mPositiveButtonText = positiveButtonText;
         mNegativeButtonText = negativeButtonText;
@@ -319,7 +318,7 @@ public class PermissionDialogDelegate {
         mDrawableId = iconId;
         mBoldedRanges.clear();
         for (int i = 0; i + 1 < boldedRanges.length; i += 2) {
-            mBoldedRanges.add(new Pair(boldedRanges[i], boldedRanges[i + 1]));
+            mBoldedRanges.add(new Pair<>(boldedRanges[i], boldedRanges[i + 1]));
         }
         mPositiveButtonText = positiveButtonText;
         mNegativeButtonText = negativeButtonText;
@@ -359,6 +358,6 @@ public class PermissionDialogDelegate {
         @LocationAccuracy
         int getInitialGeolocationAccuracySelection(long nativePermissionDialogDelegate);
 
-        boolean shouldShowLocationPrecisionSelector(long nativePermissionDialogDelegate);
+        int getGeolocationPromptType(long nativePermissionDialogDelegate);
     }
 }

@@ -12,6 +12,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/common/actor.mojom.h"
 #include "chrome/common/actor/action_result.h"
+#include "components/actor/public/mojom/actor_types.mojom.h"
 #include "components/sessions/core/session_id.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/page_navigator.h"
@@ -65,6 +66,14 @@ void TabManagementTool::Invoke(ToolCallback callback) {
   if (!browser_window_interface) {
     PostResponseTask(std::move(callback_),
                      MakeResult(mojom::ActionResultCode::kWindowWentAway));
+    return;
+  }
+
+  if (browser_window_interface->GetProfile() != &tool_delegate().GetProfile()) {
+    PostResponseTask(std::move(callback_),
+                     MakeResult(mojom::ActionResultCode::kWindowWentAway,
+                                /*requires_page_stabilization=*/false,
+                                "Cross-profile access denied."));
     return;
   }
 
@@ -161,7 +170,8 @@ void TabManagementTool::UpdateTaskAfterInvoke(ActorTask& task,
                                               mojom::ActionResultPtr result,
                                               ToolCallback callback) const {
   if (action_ == kCreate && target_tab_) {
-    task.AddTab(*target_tab_, std::move(callback));
+    task.AddTab(*target_tab_, /*stop_task_on_detach=*/true,
+                std::move(callback));
   } else {
     std::move(callback).Run(std::move(result));
   }

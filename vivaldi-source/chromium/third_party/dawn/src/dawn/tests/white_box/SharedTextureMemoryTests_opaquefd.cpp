@@ -32,12 +32,13 @@
 #include <utility>
 #include <vector>
 
-#include "dawn/native/vulkan/DeviceVk.h"
-#include "dawn/native/vulkan/FencedDeleter.h"
-#include "dawn/native/vulkan/PhysicalDeviceVk.h"
-#include "dawn/native/vulkan/ResourceMemoryAllocatorVk.h"
-#include "dawn/native/vulkan/UtilsVulkan.h"
-#include "dawn/tests/white_box/SharedTextureMemoryTests.h"
+#include "src/dawn/native/vulkan/DeviceVk.h"
+#include "src/dawn/native/vulkan/FencedDeleter.h"
+#include "src/dawn/native/vulkan/PhysicalDeviceVk.h"
+#include "src/dawn/native/vulkan/ResourceMemoryAllocatorVk.h"
+#include "src/dawn/native/vulkan/UtilsVulkan.h"
+#include "src/dawn/tests/white_box/SharedTextureMemoryTests.h"
+#include "src/utils/compiler.h"
 
 namespace dawn::native::vulkan {
 namespace {
@@ -465,7 +466,7 @@ TEST_P(SharedTextureMemoryOpaqueFDValidationTest, ViewFormatRequirements) {
         }
         {
             // Passing the second is invalid.
-            imageFormatListInfo.pViewFormats = vkFormats.data() + 1;
+            imageFormatListInfo.pViewFormats = DAWN_UNSAFE_TODO(vkFormats.data() + 1);
             imageFormatListInfo.viewFormatCount = 1;
 
             CreateSharedTextureMemoryHelperImpl(

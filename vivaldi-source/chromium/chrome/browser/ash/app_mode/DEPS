@@ -39,7 +39,6 @@ include_rules = [
   "+chrome/browser/extensions/install_tracker_factory.h",
   "+chrome/browser/extensions/updater/extension_updater.h",
   "+chrome/browser/extensions/updater/extension_updater_factory.h",
-  "+chrome/browser/extensions/webstore_install_helper.h",
   "+chrome/browser/net",
   "+chrome/browser/policy",
   "+chrome/browser/profiles",
@@ -86,7 +85,6 @@ specific_include_rules = {
     "+chrome/browser/ui/browser_window/public",
   ],
   "kiosk_troubleshooting_tools_browsertest\\.cc": [
-    "+chrome/browser/ui/browser_finder.h",
     "+chrome/browser/ui/browser_window/public",
     "+chrome/browser/ui/views/task_manager_view.h",
   ],

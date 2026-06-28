@@ -13,18 +13,18 @@ source_set("invalidations") {
 
   deps = [
     "//base",
-    "//vivaldi/vivaldi_account"
+    "//vivaldi/vivaldi_account",
   ]
 
-  if(!is_ios) {
+  if (!is_ios) {
     sources += [
       "invalidations/vivaldi_sync_invalidations_service_factory.cc",
       "invalidations/vivaldi_sync_invalidations_service_factory.h",
     ]
     deps += [
-      "//chrome/common:buildflags",
       "//chrome/browser:browser_process",
       "//chrome/browser/profiles:profile",
+      "//chrome/common:buildflags",
       "//components/keyed_service/content",
       "//components/prefs",
       "//content/public/common",
@@ -42,8 +42,8 @@ static_library("factory") {
       "note_sync_service_factory.h",
     ]
     deps = [
-      "//components/keyed_service/core",
       "//components/keyed_service/content",
+      "//components/keyed_service/core",
       "//vivaldi/sync/notes:sync_notes",
     ]
 
@@ -67,10 +67,10 @@ source_set("browser") {
     "vivaldi_device_info_utils.h",
     "vivaldi_sync_auth_manager.cc",
     "vivaldi_sync_auth_manager.h",
-    "vivaldi_sync_ui_helpers.cc",
-    "vivaldi_sync_ui_helpers.h",
     "vivaldi_sync_service_impl.cc",
     "vivaldi_sync_service_impl.h",
+    "vivaldi_sync_ui_helpers.cc",
+    "vivaldi_sync_ui_helpers.h",
   ]
   deps = [
     ":factory",
@@ -86,17 +86,11 @@ source_set("browser") {
     "//vivaldi/components/notes:browser",
     "//vivaldi/prefs:prefs_files_generator",
   ]
-  public_deps = [
-    "//components/sync/protocol",
-  ]
-  allow_circular_includes_from = [
-    "//vivaldi/components/notes:browser",
-  ]
+  public_deps = [ "//components/sync/protocol" ]
+  allow_circular_includes_from = [ "//vivaldi/components/notes:browser" ]
 
   if (is_android) {
-    deps += [
-      "//chrome/android:jni_headers",
-    ]
+    deps += [ "//chrome/android:jni_headers" ]
 
     sources += [
       "//vivaldi/sync/vivaldi_sync_service_android.cc",
@@ -109,14 +103,11 @@ source_set("browser") {
       "//vivaldi/extensions",
       "//vivaldi/extensions/api:apis",
     ]
-    allow_circular_includes_from += [
-      "//vivaldi/extensions/api:apis",
-    ]
+    allow_circular_includes_from += [ "//vivaldi/extensions/api:apis" ]
   }
 
-  if(!is_ios) {
-    sources += [
-    ]
+  if (!is_ios) {
+    sources += []
     deps += [
       ":invalidations",
       "//chrome/browser/ui",
@@ -127,15 +118,13 @@ source_set("browser") {
       "//vivaldi/sync/notes:sync_notes",
       "//vivaldi/vivaldi_account",
     ]
-    public_deps += [
-      "//content/public/common",
-    ]
+    public_deps += [ "//content/public/common" ]
   } else {
     deps += [
       "//components/keyed_service/ios",
-      "//vivaldi/ios/vivaldi_account",
       "//vivaldi/ios/notes",
       "//vivaldi/ios/sync:invalidations",
+      "//vivaldi/ios/vivaldi_account",
     ]
   }
 }

@@ -9,6 +9,7 @@
 #include "ash/constants/ash_pref_names.h"
 #include "ash/constants/ash_switches.h"
 #include "ash/public/cpp/login_accelerators.h"
+#include "ash/strings/grit/ash_strings.h"
 #include "base/check_deref.h"
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
@@ -929,7 +930,7 @@ IN_PROC_BROWSER_TEST_F(DemoSetupArcSupportedTest, OfflineDemoModeUnavailable) {
   test::OobeJS().ExpectDisabledPath(kNetworkNextButton);
 }
 
-// Flaky. https://crbug.com/1453362.
+// Flaky. https://crbug.com/40916392.
 IN_PROC_BROWSER_TEST_F(DemoSetupArcSupportedTest,
                        DISABLED_ClickNetworkOnNetworkScreen) {
   TriggerDemoModeOnWelcomeScreen();
@@ -1301,7 +1302,7 @@ class DemoSetupVariantCountryCodeRegionTest : public DemoSetupArcSupportedTest {
   }
 };
 
-// Flaky test: crbug.com/1340982, crbug.com/1147265
+// Flaky test: crbug.com/40850762, crbug.com/40730610
 IN_PROC_BROWSER_TEST_F(DemoSetupVariantCountryCodeRegionTest,
                        DISABLED_VariantCountryCodeRegionDefaultCountryIsSet) {
   // Simulate successful online setup.
@@ -1353,8 +1354,8 @@ class DemoSetupVirtualSetRegionCodeTest : public DemoSetupArcSupportedTest {
   }
 };
 
-// Flake on ASAN: crbug.com/1340618
-// Flake on Linux Chrome OS: crbug.com/1351186
+// Flake on ASAN: crbug.com/40850488
+// Flake on Linux Chrome OS: crbug.com/40856996
 #if defined(ADDRESS_SANITIZER) || !defined(NDEBUG) || BUILDFLAG(IS_CHROMEOS)
 #define MAYBE_VirtualSetCountryCodeRegionPlaceholderIsSet \
   DISABLED_VirtualSetCountryCodeRegionPlaceholderIsSet

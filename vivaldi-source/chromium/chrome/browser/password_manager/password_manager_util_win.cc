@@ -21,6 +21,7 @@
 
 #include "base/containers/heap_array.h"
 #include "base/containers/span.h"
+#include "base/logging.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/hang_watcher.h"
 #include "base/threading/scoped_thread_priority.h"
@@ -193,7 +194,7 @@ void PasswordCheckPrefs::Write(PrefService* local_state) {
 
 int64_t GetPasswordLastChanged(const WCHAR* username) {
   // Mitigate the issues caused by loading DLLs on a background thread
-  // (http://crbug/973868).
+  // (http://crbug.com/41464781).
   SCOPED_MAY_LOAD_LIBRARY_AT_BACKGROUND_PRIORITY();
 
   LPUSER_INFO_1 user_info = nullptr;
@@ -245,7 +246,7 @@ bool CheckBlankPasswordWithPrefs(const WCHAR* username,
 
   if (need_recheck) {
     // Mitigate the issues caused by loading DLLs on a background thread
-    // (http://crbug/973868).
+    // (http://crbug.com/41464781).
     SCOPED_MAY_LOAD_LIBRARY_AT_BACKGROUND_PRIORITY();
 
     HANDLE handle = INVALID_HANDLE_VALUE;

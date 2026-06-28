@@ -4,10 +4,13 @@
 
 #include "chrome/credential_provider/gaiacp/gcp_utils.h"
 
+#include <algorithm>
+#include <array>
 #include <string_view>
 
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
+#include "base/containers/span.h"
 #include "base/process/launch.h"
 #include "base/strings/strcat.h"
 #include "base/strings/strcat_win.h"
@@ -70,7 +73,7 @@ class GcpProcHelperTest : public ::testing::Test {
   bool TestPipe(const base::win::ScopedHandle::Handle& reading,
                 const base::win::ScopedHandle::Handle& writing);
 
-  void StripCrLf(char* buffer);
+  void StripCrLf(base::span<char> buffer);
 
   FakeOSUserManager fake_os_user_manager_;
 };
@@ -86,29 +89,34 @@ void GcpProcHelperTest::CreateHandle(base::win::ScopedHandle* handle) {
 bool GcpProcHelperTest::TestPipe(
     const base::win::ScopedHandle::Handle& reading,
     const base::win::ScopedHandle::Handle& writing) {
-  char input_buffer[8];
-  char output_buffer[8];
-  UNSAFE_TODO(strcpy_s(input_buffer, std::size(input_buffer), "hello"));
-  const DWORD kExpectedDataLength = strlen(input_buffer) + 1;
+  std::array<char, 8> input_buffer = {};
+  std::array<char, 8> output_buffer = {};
+  base::span(input_buffer).first(6u).copy_from(std::to_array("hello"));
+  const DWORD kExpectedDataLength = strlen(input_buffer.data()) + 1;
 
   // Make sure what is written can be read.
   DWORD written;
-  EXPECT_TRUE(::WriteFile(writing, input_buffer, kExpectedDataLength, &written,
-                          nullptr));
+  EXPECT_TRUE(::WriteFile(writing, input_buffer.data(), kExpectedDataLength,
+                          &written, nullptr));
   EXPECT_EQ(kExpectedDataLength, written);
 
   DWORD read;
-  EXPECT_TRUE(ReadFile(reading, output_buffer, std::size(output_buffer), &read,
-                       nullptr));
+  EXPECT_TRUE(ReadFile(reading, output_buffer.data(), std::size(output_buffer),
+                       &read, nullptr));
   EXPECT_EQ(kExpectedDataLength, read);
-  return UNSAFE_TODO(strcmp(input_buffer, output_buffer)) == 0;
+  return std::string_view(input_buffer.data()) ==
+         std::string_view(output_buffer.data());
 }
 
-void GcpProcHelperTest::StripCrLf(char* buffer) {
-  for (char* p = UNSAFE_TODO(buffer + strlen(buffer) - 1); p >= buffer;
-       UNSAFE_TODO(--p)) {
-    if (*p == '\n' || *p == '\r')
-      *p = 0;
+void GcpProcHelperTest::StripCrLf(base::span<char> buffer) {
+  // Find the NUL terminator or use full size if not found.
+  auto it = std::ranges::find(buffer, '\0');
+  auto content =
+      buffer.first(static_cast<size_t>(std::distance(buffer.begin(), it)));
+  for (char& c : content) {
+    if (c == '\n' || c == '\r') {
+      c = 0;
+    }
   }
 }
 
@@ -181,13 +189,13 @@ TEST_F(GcpProcHelperTest, CreatePipeForChildProcess_ParentReads) {
   ASSERT_TRUE(writing.is_valid());
 
   DWORD flags;
-  ASSERT_TRUE(::GetHandleInformation(reading.Get(), &flags));
+  ASSERT_TRUE(::GetHandleInformation(reading.get(), &flags));
   ASSERT_EQ(0u, flags & HANDLE_FLAG_INHERIT);
-  ASSERT_TRUE(::GetHandleInformation(writing.Get(), &flags));
+  ASSERT_TRUE(::GetHandleInformation(writing.get(), &flags));
   ASSERT_EQ(static_cast<DWORD>(HANDLE_FLAG_INHERIT),
             flags & HANDLE_FLAG_INHERIT);
 
-  EXPECT_TRUE(TestPipe(reading.Get(), writing.Get()));
+  EXPECT_TRUE(TestPipe(reading.get(), writing.get()));
 }
 
 TEST_F(GcpProcHelperTest, CreatePipeForChildProcess_ChildReads) {
@@ -199,13 +207,13 @@ TEST_F(GcpProcHelperTest, CreatePipeForChildProcess_ChildReads) {
   ASSERT_TRUE(writing.is_valid());
 
   DWORD flags;
-  ASSERT_TRUE(::GetHandleInformation(reading.Get(), &flags));
+  ASSERT_TRUE(::GetHandleInformation(reading.get(), &flags));
   ASSERT_EQ(static_cast<DWORD>(HANDLE_FLAG_INHERIT),
             flags & HANDLE_FLAG_INHERIT);
-  ASSERT_TRUE(::GetHandleInformation(writing.Get(), &flags));
+  ASSERT_TRUE(::GetHandleInformation(writing.get(), &flags));
   ASSERT_EQ(0u, flags & HANDLE_FLAG_INHERIT);
 
-  EXPECT_TRUE(TestPipe(reading.Get(), writing.Get()));
+  EXPECT_TRUE(TestPipe(reading.get(), writing.get()));
 }
 
 TEST_F(GcpProcHelperTest, CreatePipeForChildProcess_ParentReadsNul) {
@@ -217,7 +225,7 @@ TEST_F(GcpProcHelperTest, CreatePipeForChildProcess_ParentReadsNul) {
   ASSERT_TRUE(writing.is_valid());  // Writes to nul:
 
   DWORD flags;
-  ASSERT_TRUE(::GetHandleInformation(writing.Get(), &flags));
+  ASSERT_TRUE(::GetHandleInformation(writing.get(), &flags));
   ASSERT_EQ(static_cast<DWORD>(HANDLE_FLAG_INHERIT),
             flags & HANDLE_FLAG_INHERIT);
 }
@@ -231,7 +239,7 @@ TEST_F(GcpProcHelperTest, CreatePipeForChildProcess_ChildReadsNul) {
   ASSERT_FALSE(writing.is_valid());
 
   DWORD flags;
-  ASSERT_TRUE(::GetHandleInformation(reading.Get(), &flags));
+  ASSERT_TRUE(::GetHandleInformation(reading.get(), &flags));
   ASSERT_EQ(static_cast<DWORD>(HANDLE_FLAG_INHERIT),
             flags & HANDLE_FLAG_INHERIT);
 }
@@ -259,7 +267,7 @@ TEST_F(GcpProcHelperTest, InitializeStdHandles_ParentToChild) {
   ASSERT_NE(INVALID_HANDLE_VALUE, startupinfo.GetInfo()->hStdError);
 
   EXPECT_TRUE(TestPipe(startupinfo.GetInfo()->hStdInput,
-                       parent_handles.hstdin_write.Get()));
+                       parent_handles.hstdin_write.get()));
 }
 
 TEST_F(GcpProcHelperTest, InitializeStdHandles_ChildToParent) {
@@ -284,7 +292,7 @@ TEST_F(GcpProcHelperTest, InitializeStdHandles_ChildToParent) {
   ASSERT_NE(nullptr, startupinfo.GetInfo()->hStdError);
   ASSERT_NE(INVALID_HANDLE_VALUE, startupinfo.GetInfo()->hStdError);
 
-  EXPECT_TRUE(TestPipe(parent_handles.hstdout_read.Get(),
+  EXPECT_TRUE(TestPipe(parent_handles.hstdout_read.get(),
                        startupinfo.GetInfo()->hStdOutput));
 }
 
@@ -311,8 +319,8 @@ TEST_F(GcpProcHelperTest, InitializeStdHandles_ParentChildBirectional) {
   ASSERT_NE(INVALID_HANDLE_VALUE, startupinfo.GetInfo()->hStdError);
 
   EXPECT_TRUE(TestPipe(startupinfo.GetInfo()->hStdInput,
-                       parent_handles.hstdin_write.Get()));
-  EXPECT_TRUE(TestPipe(parent_handles.hstdout_read.Get(),
+                       parent_handles.hstdin_write.get()));
+  EXPECT_TRUE(TestPipe(parent_handles.hstdout_read.get(),
                        startupinfo.GetInfo()->hStdOutput));
 }
 
@@ -337,7 +345,7 @@ TEST_F(GcpProcHelperTest, InitializeStdHandles_SomeHandlesChildToParent) {
   ASSERT_NE(INVALID_HANDLE_VALUE, startupinfo.GetInfo()->hStdOutput);
   ASSERT_EQ(::GetStdHandle(STD_ERROR_HANDLE), startupinfo.GetInfo()->hStdError);
 
-  EXPECT_TRUE(TestPipe(parent_handles.hstdout_read.Get(),
+  EXPECT_TRUE(TestPipe(parent_handles.hstdout_read.get(),
                        startupinfo.GetInfo()->hStdOutput));
 }
 
@@ -363,7 +371,7 @@ TEST_F(GcpProcHelperTest, InitializeStdHandles_SomeHandlesParentToChild) {
   ASSERT_EQ(::GetStdHandle(STD_ERROR_HANDLE), startupinfo.GetInfo()->hStdError);
 
   EXPECT_TRUE(TestPipe(startupinfo.GetInfo()->hStdInput,
-                       parent_handles.hstdin_write.Get()));
+                       parent_handles.hstdin_write.get()));
 }
 
 TEST_F(GcpProcHelperTest, InitializeStdHandles_SomeHandlesBidirectional) {
@@ -388,8 +396,8 @@ TEST_F(GcpProcHelperTest, InitializeStdHandles_SomeHandlesBidirectional) {
   ASSERT_EQ(::GetStdHandle(STD_ERROR_HANDLE), startupinfo.GetInfo()->hStdError);
 
   EXPECT_TRUE(TestPipe(startupinfo.GetInfo()->hStdInput,
-                       parent_handles.hstdin_write.Get()));
-  EXPECT_TRUE(TestPipe(parent_handles.hstdout_read.Get(),
+                       parent_handles.hstdin_write.get()));
+  EXPECT_TRUE(TestPipe(parent_handles.hstdout_read.get(),
                        startupinfo.GetInfo()->hStdOutput));
 }
 
@@ -418,12 +426,12 @@ TEST_F(GcpProcHelperTest, InitializeStdHandles_NamedPipe) {
   // The child's stdin should be a handle to a named pipe. The parent
   // should be able to write to it.
   EXPECT_TRUE(TestPipe(startupinfo.GetInfo()->hStdInput,
-                       parent_handles.hstdin_write.Get()));
-  EXPECT_TRUE(TestPipe(parent_handles.hstdin_write.Get(),
+                       parent_handles.hstdin_write.get()));
+  EXPECT_TRUE(TestPipe(parent_handles.hstdin_write.get(),
                        startupinfo.GetInfo()->hStdInput));
 
   // stdout and stderr are regular pipes.
-  EXPECT_TRUE(TestPipe(parent_handles.hstdout_read.Get(),
+  EXPECT_TRUE(TestPipe(parent_handles.hstdout_read.get(),
                        startupinfo.GetInfo()->hStdOutput));
 }
 
@@ -449,14 +457,15 @@ TEST_F(GcpProcHelperTest, WaitForProcess) {
 
   // Write to stdin of the child process.
   const int kBufferSize = 16;
-  char input_buffer[kBufferSize];
-  UNSAFE_TODO(strcpy_s(input_buffer, std::size(input_buffer), "hello"));
-  const DWORD kExpectedDataLength = strlen(input_buffer) + 1;
+  std::array<char, kBufferSize> input_buffer = {};
+  base::span(input_buffer).first(6u).copy_from(std::to_array("hello"));
+  const DWORD kExpectedDataLength = strlen(input_buffer.data()) + 1;
   DWORD written;
-  ASSERT_TRUE(::WriteFile(parent_handles.hstdin_write.Get(), input_buffer,
-                          kExpectedDataLength, &written, nullptr));
+  ASSERT_TRUE(::WriteFile(parent_handles.hstdin_write.get(),
+                          input_buffer.data(), kExpectedDataLength, &written,
+                          nullptr));
   ASSERT_EQ(kExpectedDataLength, written);
-  ASSERT_TRUE(FlushFileBuffers(parent_handles.hstdin_write.Get()));
+  ASSERT_TRUE(FlushFileBuffers(parent_handles.hstdin_write.get()));
   parent_handles.hstdin_write.Close();
 
   //  Close all child handles that the parent is still holding onto, to ensure
@@ -465,12 +474,12 @@ TEST_F(GcpProcHelperTest, WaitForProcess) {
   startupinfo.Shutdown();
 
   DWORD exit_code;
-  char output_buffer[kBufferSize];
+  std::array<char, kBufferSize> output_buffer = {};
   EXPECT_EQ(S_OK, WaitForProcess(process.Handle(), parent_handles, &exit_code,
-                                 output_buffer, kBufferSize));
+                                 output_buffer.data(), kBufferSize));
   EXPECT_EQ(0u, exit_code);
   StripCrLf(output_buffer);
-  EXPECT_STREQ(input_buffer, output_buffer);
+  EXPECT_STREQ(input_buffer.data(), output_buffer.data());
 }
 
 TEST_F(GcpProcHelperTest, GetCommandLineForEntrypoint) {

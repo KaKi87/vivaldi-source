@@ -6,7 +6,10 @@
 #define CHROME_BROWSER_AI_AI_MANAGER_H_
 
 #include <optional>
+#include <string>
 
+#include "base/feature_list.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
@@ -22,9 +25,11 @@
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/render_widget_host_observer.h"
 #include "content/public/browser/weak_document_ptr.h"
+#include "mojo/public/cpp/base/proto_wrapper.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "mojo/public/cpp/bindings/remote_set.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-shared.h"
 #include "services/on_device_model/public/mojom/download_observer.mojom-forward.h"
 #include "third_party/blink/public/mojom/ai/ai_common.mojom-forward.h"
 #include "third_party/blink/public/mojom/ai/ai_language_model.mojom-forward.h"
@@ -34,6 +39,12 @@
 namespace base {
 class SupportsUserData;
 }  // namespace base
+
+// Feature flag for enabling foundational models in the AI API, requires the
+// field param kModelVersionParam to specify the model version. Example:
+// --enable-features=AIApiFoundationalModel:model_version=v4
+BASE_DECLARE_FEATURE(kAIApiFoundationalModel);
+extern const char kModelVersionParam[];
 
 namespace content {
 class RenderFrameHost;
@@ -50,6 +61,14 @@ class AIManager : public base::SupportsUserData::Data,
   using AILanguageModelOrCreationError =
       base::expected<std::unique_ptr<AILanguageModel>,
                      blink::mojom::AIManagerCreateClientError>;
+
+  // Resolves the feature configuration (represented by the `ProtoWrapper`) and
+  // the specific API options into a use case string. This is useful for
+  // features that have multiple use cases mapped to the same `OnDeviceFeature`,
+  // but with different configurations.
+  using UseCaseResolver = base::OnceCallback<std::optional<std::string>(
+      const std::optional<mojo_base::ProtoWrapper>&)>;
+
   AIManager(content::BrowserContext* browser_context,
             content::RenderFrameHost* rfh);
   AIManager(const AIManager&) = delete;
@@ -70,40 +89,71 @@ class AIManager : public base::SupportsUserData::Data,
   void CreateLanguageModel(
       mojo::PendingRemote<blink::mojom::AIManagerCreateLanguageModelClient>
           client,
-      blink::mojom::AILanguageModelCreateOptionsPtr options) override;
+      blink::mojom::AILanguageModelCreateOptionsPtr options,
+      mojo::PendingRemote<on_device_model::mojom::DownloadObserver> monitor)
+      override;
   void GetLanguageModelParams(GetLanguageModelParamsCallback callback) override;
   void CanCreateWriter(blink::mojom::AIWriterCreateOptionsPtr options,
                        CanCreateWriterCallback callback) override;
   void CreateWriter(
       mojo::PendingRemote<blink::mojom::AIManagerCreateWriterClient> client,
-      blink::mojom::AIWriterCreateOptionsPtr options) override;
+      blink::mojom::AIWriterCreateOptionsPtr options,
+      mojo::PendingRemote<on_device_model::mojom::DownloadObserver> monitor)
+      override;
   void CanCreateSummarizer(blink::mojom::AISummarizerCreateOptionsPtr options,
                            CanCreateSummarizerCallback callback) override;
   void CreateSummarizer(
       mojo::PendingRemote<blink::mojom::AIManagerCreateSummarizerClient> client,
-      blink::mojom::AISummarizerCreateOptionsPtr options) override;
+      blink::mojom::AISummarizerCreateOptionsPtr options,
+      mojo::PendingRemote<on_device_model::mojom::DownloadObserver> monitor)
+      override;
   void CanCreateRewriter(blink::mojom::AIRewriterCreateOptionsPtr options,
                          CanCreateRewriterCallback callback) override;
   void CreateRewriter(
       mojo::PendingRemote<blink::mojom::AIManagerCreateRewriterClient> client,
-      blink::mojom::AIRewriterCreateOptionsPtr options) override;
+      blink::mojom::AIRewriterCreateOptionsPtr options,
+      mojo::PendingRemote<on_device_model::mojom::DownloadObserver> monitor)
+      override;
   void CanCreateProofreader(blink::mojom::AIProofreaderCreateOptionsPtr options,
                             CanCreateProofreaderCallback callback) override;
   void CreateProofreader(
       mojo::PendingRemote<blink::mojom::AIManagerCreateProofreaderClient>
           client,
-      blink::mojom::AIProofreaderCreateOptionsPtr options) override;
-  void AddModelDownloadProgressObserver(
-      mojo::PendingRemote<on_device_model::mojom::DownloadObserver>
-          observer_remote) override;
+      blink::mojom::AIProofreaderCreateOptionsPtr options,
+      mojo::PendingRemote<on_device_model::mojom::DownloadObserver> monitor)
+      override;
+  void CanCreateClassifier(blink::mojom::AIClassifierCreateOptionsPtr options,
+                           CanCreateClassifierCallback callback) override;
+  void CreateClassifier(
+      mojo::PendingRemote<blink::mojom::AIManagerCreateClassifierClient> client,
+      blink::mojom::AIClassifierCreateOptionsPtr options,
+      mojo::PendingRemote<on_device_model::mojom::DownloadObserver> monitor)
+      override;
 
   // Check whether optimization guide supports the feature matching `capability`
   // and modalities specified by `capabilities`; yields a result to `callback`.
   void CanCreateSession(optimization_guide::mojom::OnDeviceFeature capability,
                         on_device_model::Capabilities capabilities,
                         CanCreateLanguageModelCallback callback);
+  void CanCreateSession(const std::string& use_case_string,
+                        on_device_model::Capabilities capabilities,
+                        CanCreateLanguageModelCallback callback);
+  // Check whether optimization guide supports the feature matching `capability`
+  // and resolves the use case from the configuration specified by
+  // `FeatureConfigProto` with `UseCaseResolver`; yields a result to `callback`.
+  template <typename FeatureConfigProto>
+  void CanCreateSessionWithConfig(
+      optimization_guide::mojom::OnDeviceFeature capability,
+      on_device_model::Capabilities capabilities,
+      CanCreateLanguageModelCallback callback,
+      UseCaseResolver resolver);
 
-  bool IsBuiltInAIAPIsEnabledByPolicy();
+  // Similar to above, but uses the default `UseCaseResolver`.
+  template <typename FeatureConfigProto>
+  void CanCreateSessionWithConfig(
+      optimization_guide::mojom::OnDeviceFeature capability,
+      on_device_model::Capabilities capabilities,
+      CanCreateLanguageModelCallback callback);
 
   // Returns true if `options` uses only `supported` languages, false otherwise.
   // Logs errors and warnings and initializes empty output languages as needed.
@@ -115,8 +165,32 @@ class AIManager : public base::SupportsUserData::Data,
       const base::flat_set<std::string>& default_supported);
 
  private:
+  base::OnceCallback<void(std::unique_ptr<optimization_guide::OnDeviceSession>)>
+  CreateSummarizerSessionCallback(
+      blink::mojom::AISummarizerCreateOptionsPtr options,
+      mojo::PendingRemote<blink::mojom::AIManagerCreateSummarizerClient>
+          client);
+
+  // Checks if features are allowed by enterprise policy and user preferences.
+  // Returns `std::nullopt` if the checks pass, otherwise a failing result.
+  std::optional<blink::mojom::ModelAvailabilityCheckResult>
+  GetPrefBlockedResult();
+
+  // Checks if the feature is blocked by permissions policy.
+  bool IsPermissionsPolicyBlocked(
+      network::mojom::PermissionsPolicyFeature feature);
+
+  // Checks if the feature is blocked by permissions policy, enterprise policy,
+  // or user settings.
+  bool IsBlocked(std::optional<network::mojom::PermissionsPolicyFeature>
+                     feature = std::nullopt);
+
   void OnModelPathValidationComplete(const base::FilePath& model_path,
                                      bool is_valid_path);
+
+  // Validates the overridden on-device model path if one is configured via
+  // switch.
+  void StartModelPathValidationIfOverrideSet();
 
   // Creates an `AILanguageModel`, as a new session. Clones are created
   // internally within the `AILanguageModel` object.
@@ -141,6 +215,12 @@ class AIManager : public base::SupportsUserData::Data,
       std::optional<optimization_guide::mojom::ModelUnavailableReason> reason,
       std::optional<optimization_guide::mojom::ModelNotSupportedDetailedReason>
           detailed_reason);
+
+  void FinishCanCreateSessionWithConfig(
+      on_device_model::Capabilities capabilities,
+      CanCreateLanguageModelCallback callback,
+      UseCaseResolver resolver,
+      std::optional<mojo_base::ProtoWrapper> wrapper);
 
   template <typename ContextBoundObjectType,
             typename ContextBoundObjectReceiverInterface,
@@ -174,6 +254,7 @@ class AIManager : public base::SupportsUserData::Data,
   void MaybeLogExperimentalLanguageWarning(
       const std::string_view api_name,
       const base::flat_set<std::string>& default_supported_languages);
+  void MaybeLogSpeedPreferenceMarkdownWarning();
 
   // |model_broker_client_| is keeping |CanCreateLanguageModel| callbacks alive
   // until it is destroyed, so we need to ensure those callbacks are safely
@@ -195,6 +276,7 @@ class AIManager : public base::SupportsUserData::Data,
   bool did_log_missing_output_language_warning_ = false;
   bool did_log_unsupported_language_error_ = false;
   bool did_log_experimental_language_warning_ = false;
+  bool did_log_speed_preference_markdown_warning_ = false;
 
   // Features that have attempted initialization in this session.
   base::flat_set<optimization_guide::mojom::OnDeviceFeature> tried_init_;

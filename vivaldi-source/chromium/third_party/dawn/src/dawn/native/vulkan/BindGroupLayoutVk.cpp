@@ -25,22 +25,22 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "dawn/native/vulkan/BindGroupLayoutVk.h"
+#include "src/dawn/native/vulkan/BindGroupLayoutVk.h"
 
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
-#include "dawn/common/MatchVariant.h"
-#include "dawn/common/Range.h"
-#include "dawn/common/ityp_vector.h"
-#include "dawn/native/CacheKey.h"
-#include "dawn/native/vulkan/DescriptorSetAllocator.h"
-#include "dawn/native/vulkan/DeviceVk.h"
-#include "dawn/native/vulkan/FencedDeleter.h"
-#include "dawn/native/vulkan/PhysicalDeviceVk.h"
-#include "dawn/native/vulkan/SamplerVk.h"
-#include "dawn/native/vulkan/UtilsVulkan.h"
-#include "dawn/native/vulkan/VulkanError.h"
+#include "src/dawn/common/MatchVariant.h"
+#include "src/dawn/common/Range.h"
+#include "src/dawn/common/ityp_vector.h"
+#include "src/dawn/native/CacheKey.h"
+#include "src/dawn/native/vulkan/DescriptorSetAllocator.h"
+#include "src/dawn/native/vulkan/DeviceVk.h"
+#include "src/dawn/native/vulkan/FencedDeleter.h"
+#include "src/dawn/native/vulkan/PhysicalDeviceVk.h"
+#include "src/dawn/native/vulkan/SamplerVk.h"
+#include "src/dawn/native/vulkan/UtilsVulkan.h"
+#include "src/dawn/native/vulkan/VulkanError.h"
 
 namespace dawn::native::vulkan {
 
@@ -119,7 +119,7 @@ ResultOrError<VulkanStaticBindings> ComputeVulkanStaticBindings(
             // samplers with the correct YCbCr sampler when JITing pipelines.
             if (auto it = staticSamplerSpecializations.find(bindingIndex);
                 it != staticSamplerSpecializations.end()) {
-                DAWN_ASSERT(samplerLayout.use == StaticSamplerUse::InternalForExternalTexture);
+                DAWN_CHECK(samplerLayout.use == StaticSamplerUse::InternalForExternalTexture);
                 DAWN_TRY_ASSIGN(sampler, Sampler::Create(device, it->second));
             }
 
@@ -138,7 +138,7 @@ ResultOrError<VulkanStaticBindings> ComputeVulkanStaticBindings(
                 // the maximum number of planes that an external format can have here. The number
                 // of overall YCbCr descriptors will be relatively small and these pools are not an
                 // overall bottleneck on memory usage.
-                DAWN_ASSERT(bindingInfo.arraySize == BindingIndex(1));
+                DAWN_CHECK(bindingInfo.arraySize == BindingIndex(1));
                 descriptorCount = 3;
             }
         }
@@ -251,7 +251,7 @@ MaybeError BindGroupLayout::Initialize() {
     DAWN_TRY(CheckVkSuccess(device->fn.CreateDescriptorSetLayout(device->GetVkDevice(), &createInfo,
                                                                  nullptr, &*mHandle),
                             "CreateDescriptorSetLayout"));
-    mSpecializations.insert({{}, mHandle});
+    mSpecializations->insert({{}, mHandle});
 
     SetLabelImpl();
 
@@ -260,8 +260,15 @@ MaybeError BindGroupLayout::Initialize() {
 
 ResultOrError<VkDescriptorSetLayout> BindGroupLayout::GetOrCreateSpecializedHandle(
     const Specialization& specialization) {
-    if (auto it = mSpecializations.find(specialization); it != mSpecializations.end()) {
-        return it->second;
+    if (auto specialized = mSpecializations.ConstUse(
+            [&](auto specializations) -> std::optional<VkDescriptorSetLayout> {
+                if (auto it = specializations->find(specialization); it != specializations->end()) {
+                    return it->second;
+                }
+                return std::nullopt;
+            });
+        specialized) {
+        return *specialized;
     }
 
     Device* device = ToBackend(GetDevice());
@@ -282,8 +289,14 @@ ResultOrError<VkDescriptorSetLayout> BindGroupLayout::GetOrCreateSpecializedHand
                                                                  nullptr, &*specialized),
                             "CreateDescriptorSetLayout"));
 
-    mSpecializations.insert({specialization, specialized});
-    return specialized;
+    return mSpecializations.Use([&](auto specializations) -> ResultOrError<VkDescriptorSetLayout> {
+        auto [it, inserted] = specializations->insert({specialization, specialized});
+        if (!inserted) {
+            device->fn.DestroyDescriptorSetLayout(device->GetVkDevice(), specialized, nullptr);
+            return it->second;
+        }
+        return specialized;
+    });
 }
 
 void BindGroupLayout::DestroyImpl(DestroyReason reason) {
@@ -293,10 +306,12 @@ void BindGroupLayout::DestroyImpl(DestroyReason reason) {
 
     // DescriptorSetLayout aren't used by execution on the GPU and can be deleted at any time,
     // so we can destroy mHandle immediately instead of using the FencedDeleter.
-    for (auto& [_, handle] : mSpecializations) {
-        device->fn.DestroyDescriptorSetLayout(device->GetVkDevice(), handle, nullptr);
-    }
-    mSpecializations.clear();
+    mSpecializations.Use([&](auto specializations) {
+        for (auto& [_, handle] : *specializations) {
+            device->fn.DestroyDescriptorSetLayout(device->GetVkDevice(), handle, nullptr);
+        }
+        specializations->clear();
+    });
 
     // Handled in the loop above already.
     mHandle = VK_NULL_HANDLE;

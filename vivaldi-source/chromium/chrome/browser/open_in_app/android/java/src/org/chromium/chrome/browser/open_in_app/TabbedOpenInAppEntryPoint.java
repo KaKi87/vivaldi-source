@@ -9,6 +9,7 @@ import static org.chromium.build.NullUtil.assertNonNull;
 import android.content.Context;
 import android.graphics.drawable.Drawable;
 
+import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -19,7 +20,6 @@ import org.chromium.chrome.browser.tab.Tab;
 @NullMarked
 public class TabbedOpenInAppEntryPoint extends OpenInAppEntryPoint {
     private final OmniboxChipManager mOmniboxChipManager;
-    private boolean mShowingChip;
 
     /**
      * Constructor for this class.
@@ -53,29 +53,14 @@ public class TabbedOpenInAppEntryPoint extends OpenInAppEntryPoint {
                             ? mContext.getString(R.string.open_in_app_desc, openInAppInfo.appName)
                             : text;
 
-            mOmniboxChipManager.placeChip(
-                    text,
-                    icon,
-                    desc,
-                    openInAppInfo.action,
-                    new OmniboxChipManager.ChipCallback() {
-                        @Override
-                        public void onChipHidden() {
-                            mShowingChip = false;
-                        }
+            Runnable chipAction =
+                    () -> {
+                        RecordHistogram.recordBooleanHistogram(
+                                "Android.OpenInApp.Clicked.OmniboxChip", true);
+                        openInAppInfo.action.run();
+                    };
 
-                        @Override
-                        public void onChipShown() {
-                            mShowingChip = true;
-                        }
-                    });
+            mOmniboxChipManager.placeChip(text, icon, desc, chipAction);
         }
-    }
-
-    @Override
-    public OpenInAppDelegate.@Nullable OpenInAppInfo getOpenInAppInfoForMenuItem() {
-        if (mShowingChip) return null;
-
-        return super.getOpenInAppInfoForMenuItem();
     }
 }

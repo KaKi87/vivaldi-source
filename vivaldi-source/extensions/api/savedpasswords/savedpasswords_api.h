@@ -3,16 +3,13 @@
 #ifndef EXTENSIONS_API_SAVEDPASSWORDS_SAVEDPASSWORDS_API_H_
 #define EXTENSIONS_API_SAVEDPASSWORDS_SAVEDPASSWORDS_API_H_
 
-#include <memory>
 #include <string>
-#include <vector>
+#include "base/memory/scoped_refptr.h"
+#include "base/memory/weak_ptr.h"
 
-#include "base/memory/ref_counted.h"
 #include "components/password_manager/core/browser/password_store/password_store.h"
 #include "components/password_manager/core/browser/password_store/password_store_consumer.h"
-#include "content/public/browser/web_ui.h"
 #include "extensions/browser/extension_function.h"
-#include "extensions/schema/savedpasswords.h"
 
 namespace extensions {
 
@@ -30,9 +27,9 @@ class SavedpasswordsGetListFunction
   ResponseAction Run() override;
 
   // PasswordStoreConsumer
-  void OnGetPasswordStoreResults(
-      std::vector<std::unique_ptr<password_manager::PasswordForm>> results)
-      override;
+  void OnGetPasswordStoreResultsOrErrorFrom(
+      password_manager::PasswordStoreInterface* store,
+      password_manager::LoginsResultOrError results_or_error) override;
 
   base::WeakPtrFactory<SavedpasswordsGetListFunction> weak_ptr_factory_{this};
 };
@@ -51,9 +48,9 @@ class SavedpasswordsRemoveFunction
   ResponseAction Run() override;
 
   // PasswordStoreConsumer
-  void OnGetPasswordStoreResults(
-      std::vector<std::unique_ptr<password_manager::PasswordForm>> results)
-      override;
+  void OnGetPasswordStoreResultsOrErrorFrom(
+      password_manager::PasswordStoreInterface* store,
+      password_manager::LoginsResultOrError results_or_error) override;
 
   size_t id_to_remove_;
   scoped_refptr<password_manager::PasswordStoreInterface> password_store_;
@@ -84,9 +81,9 @@ class SavedpasswordsGetFunction
 
   ResponseAction Run() override;
 
-  void OnGetPasswordStoreResults(
-      std::vector<std::unique_ptr<password_manager::PasswordForm>> results)
-      override;
+  void OnGetPasswordStoreResultsOrErrorFrom(
+      password_manager::PasswordStoreInterface* store,
+      password_manager::LoginsResultOrError results_or_error) override;
 
   std::string username_;
 

@@ -75,6 +75,24 @@ std::string_view GetToastName(ToastId toast_id) {
       return "MultistepFilterSuggestionRecent";
     case ToastId::kSkillSavedWithoutInvokeButton:
       return "SkillSavedWithoutInvokeButton";
+    case ToastId::kSendTabToSelfTabOpened:
+      return "SendTabToSelfOpened";
+    case ToastId::kSendTabToSelfTabsOpenedInBackground:
+      return "SendTabToSelfTabsOpenedInBackground";
+    case ToastId::kSendTabToSelfSuccess:
+      return "SendTabToSelfSuccess";
+    case ToastId::kSendTabToSelfFailure:
+      return "SendTabToSelfFailure";
+    case ToastId::kSendTabToSelfSuccessThrottled:
+      return "SendTabToSelfSuccessThrottled";
+    case ToastId::kReportUnsafeSiteConfirmation:
+      return "ReportUnsafeSiteConfirmation";
+    case ToastId::kDefaultBrowserUpdateSuccess:
+      return "DefaultBrowserUpdateSuccess";
+    case ToastId::kSendTabToSelfNoInternetConnection:
+      return "SendTabToSelfNoInternetConnection";
+    case ToastId::kIndigoInvokeError:
+      return "IndigoInvokeError";
   }
 
   NOTREACHED();

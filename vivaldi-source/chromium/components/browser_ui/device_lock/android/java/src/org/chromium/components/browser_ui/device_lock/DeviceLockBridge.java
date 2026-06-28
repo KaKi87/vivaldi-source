@@ -44,6 +44,8 @@ public class DeviceLockBridge {
         // Vivaldi
         if (BuildConfig.IS_OEM_GAS_BUILD && VivaldiDeviceLockUtils.isDeviceSecure())
             return true;
+        // Vivaldi AUTO-343: Mercedes has an external profile lock; treat as passed.
+        if (BuildConfig.IS_OEM_MERCEDES_BUILD) return true;
         // End Vivaldi
 
         return ContextUtils.getAppSharedPreferences()
@@ -83,6 +85,8 @@ public class DeviceLockBridge {
         // Vivaldi
         if (BuildConfig.IS_OEM_GAS_BUILD && VivaldiDeviceLockUtils.isDeviceSecure())
             return true;
+        // Vivaldi AUTO-343: Mercedes has an external profile lock; treat as secure.
+        if (BuildConfig.IS_OEM_MERCEDES_BUILD) return true;
 
         return ((KeyguardManager)
                         ContextUtils.getApplicationContext()

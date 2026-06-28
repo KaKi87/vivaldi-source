@@ -18,6 +18,9 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.IBinder;
+
+import androidx.browser.customtabs.CustomTabsIntent;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -43,11 +46,17 @@ public class LaunchIntentDispatcherTest {
     @Mock private SessionDataHolder mSessionDataHolder;
     @Mock private SessionHandler mSessionHandler;
     @Mock private ActivityManager mActivityManager;
+    @Mock IntentHandler.Natives mIntentHandlerNativeMock;
+    @Mock ExternalIntentUrlChecker.Natives mExternalIntentUrlCheckerNativeMock;
 
     private Activity mActivity;
 
     @Before
     public void setUp() {
+        ExternalIntentUrlCheckerJni.setInstanceForTesting(mExternalIntentUrlCheckerNativeMock);
+        doReturn(true).when(mExternalIntentUrlCheckerNativeMock).validateUrl(any());
+        IntentHandlerJni.setInstanceForTesting(mIntentHandlerNativeMock);
+
         mActivity = Robolectric.buildActivity(Activity.class).get();
         mActivity.setTheme(R.style.Theme_BrowserUI_DayNight);
 
@@ -58,9 +67,7 @@ public class LaunchIntentDispatcherTest {
     @Test
     public void testDispatchToCustomTabActivity_DelegatesToExistingHandler() {
         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"));
-        intent.putExtra(
-                androidx.browser.customtabs.CustomTabsIntent.EXTRA_SESSION,
-                (android.os.IBinder) null);
+        intent.putExtra(CustomTabsIntent.EXTRA_SESSION, (IBinder) null);
 
         doReturn(mSessionHandler).when(mSessionDataHolder).getActiveHandlerForIntent(any());
         doReturn(true).when(mSessionHandler).handleIntent(any());
@@ -80,9 +87,7 @@ public class LaunchIntentDispatcherTest {
     @Test
     public void testDispatchToCustomTabActivity_StartsNewActivityIfNoHandler() {
         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"));
-        intent.putExtra(
-                androidx.browser.customtabs.CustomTabsIntent.EXTRA_SESSION,
-                (android.os.IBinder) null);
+        intent.putExtra(CustomTabsIntent.EXTRA_SESSION, (IBinder) null);
 
         doReturn(null).when(mSessionDataHolder).getActiveHandlerForIntent(any());
 

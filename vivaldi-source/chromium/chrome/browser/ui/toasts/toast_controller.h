@@ -16,8 +16,6 @@
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/timer/timer.h"
-#include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
-#include "chrome/browser/ui/exclusive_access/fullscreen_observer.h"
 #include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "ui/base/models/image_model.h"
@@ -31,6 +29,10 @@ enum class ToastId;
 namespace content {
 class Page;
 class WebContents;
+}
+
+namespace tabs {
+class TabInterface;
 }
 
 namespace toasts {
@@ -48,8 +50,12 @@ class Widget;
 
 struct ToastParams {
   explicit ToastParams(ToastId id);
+
+  // As a build param, keep move only.
   ToastParams(ToastParams&& other) noexcept;
   ToastParams& operator=(ToastParams&& other) noexcept;
+  ToastParams(const ToastParams&) = delete;
+  ToastParams& operator=(const ToastParams&) = delete;
   ~ToastParams();
 
   ToastId toast_id;
@@ -66,7 +72,6 @@ struct ToastParams {
 // can be displayed at a time. Subsequent calls to MaybeShowToast() will dismiss
 // the current toast and automatically display the requested one.
 class ToastController : public views::WidgetObserver,
-                        public FullscreenObserver,
                         public OmniboxTabHelper::Observer,
                         public content::WebContentsObserver {
  public:
@@ -78,6 +83,11 @@ class ToastController : public views::WidgetObserver,
   // if none.
   static ToastController* MaybeGetForWebContents(
       content::WebContents* web_contents);
+
+  // Returns the controller for the browser that owns `tab_interface`, or
+  // nullptr if none.
+  static ToastController* MaybeGetForTabInterface(
+      tabs::TabInterface* tab_interface);
 
   void Init();
   bool IsShowingToast() const;
@@ -132,8 +142,8 @@ class ToastController : public views::WidgetObserver,
   void UpdateToastWidgetVisibility(bool show_toast_widget);
   bool ShouldRenderToastOverWebContents();
 
-  // FullscreenObserver:
-  void OnFullscreenStateChanged() override;
+  // Called when the browser window's fullscreen state changes.
+  void OnFullscreenStateChanged();
 
   const raw_ptr<BrowserWindowInterface> browser_window_interface_;
   const raw_ptr<const ToastRegistry> toast_registry_;
@@ -144,9 +154,8 @@ class ToastController : public views::WidgetObserver,
   base::OneShotTimer toast_close_timer_;
   bool is_omnibox_popup_showing_ = false;
 
-  // Observer to check for browser window entering fullscreen.
-  base::ScopedObservation<FullscreenController, FullscreenObserver>
-      fullscreen_observation_{this};
+  // Subscription to be notified when the browser window enters fullscreen.
+  base::CallbackListSubscription fullscreen_subscription_;
 
   // Observer to check when the toast is destroyed.
   base::ScopedObservation<views::Widget, views::WidgetObserver> toast_observer_{

@@ -43,6 +43,7 @@
 #include "services/network/public/cpp/p2p_socket_type.h"
 #include "services/network/throttling/network_conditions.h"
 #include "services/network/throttling/throttling_controller.h"
+#include "services/network/throttling/throttling_p2p_network_interceptor.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/webrtc/rtc_base/time_utils.h"
@@ -1363,6 +1364,7 @@ class P2PSocketUdpWithInterceptorTest : public P2PSocketUdpTest {
  public:
   P2PSocketUdpWithInterceptorTest()
       : P2PSocketUdpTest(base::UnguessableToken::Create()),
+        throttling_client_id_(base::UnguessableToken::Create()),
         throttling_token_(
             ScopedThrottlingToken::MaybeCreate(net_log_with_source_.source().id,
                                                devtools_token_)) {}
@@ -1386,7 +1388,7 @@ class P2PSocketUdpWithInterceptorTest : public P2PSocketUdpTest {
 
   void SetNetworkState(NetworkState state) {
     ThrottlingController::SetConditions(
-        *devtools_token_,
+        *devtools_token_, throttling_client_id_,
         {{{},
           NetworkConditions{state.offline, state.latency.InMillisecondsF(), 0.0,
                             0.0, state.packet_loss, state.packet_queue_length,
@@ -1394,7 +1396,8 @@ class P2PSocketUdpWithInterceptorTest : public P2PSocketUdpTest {
   }
 
   void RemoveThrottling() {
-    ThrottlingController::SetConditions(*devtools_token_, {});
+    ThrottlingController::SetConditions(*devtools_token_, throttling_client_id_,
+                                        {});
   }
 
   void AdvanceClock(base::TimeDelta delta) {
@@ -1404,6 +1407,7 @@ class P2PSocketUdpWithInterceptorTest : public P2PSocketUdpTest {
   }
 
  protected:
+  base::UnguessableToken throttling_client_id_;
   std::unique_ptr<network::ScopedThrottlingToken> throttling_token_;
 };
 
@@ -1677,6 +1681,25 @@ TEST_F(P2PSocketUdpWithInterceptorTest, ReceivePacketDelayed) {
   EXPECT_CALL(*this, SinglePacketReceptionHelper(_, SpanEq(packet), _));
   AdvanceClock(base::Milliseconds(2000));
   EXPECT_EQ(2U, received_packets_.size());
+}
+
+TEST_F(P2PSocketUdpWithInterceptorTest, ReentrantDestructionSend) {
+  // Enable throttling.
+  SetNetworkState({.latency = base::Milliseconds(100)});
+
+  // Send a packet, which starts the retry timer.
+  webrtc::AsyncSocketPacketOptions options;
+  std::vector<uint8_t> packet;
+  CreateRandomPacket(&packet);
+  socket_impl_->Send(packet, P2PPacketInfo(dest1_, options, 0));
+
+  // Mark the socket for destruction.
+  socket_delegate_.ExpectDestruction(std::move(socket_impl_));
+  socket_ = nullptr;
+
+  // Advance clock past the retry delay, which will call OnSendNetworkTimer(),
+  // DoSend() and DestroySocket() synchronously.
+  AdvanceClock(base::Milliseconds(100));
 }
 
 // Verify that when `SendTo()` returns `ERR_NO_BUFFER_SPACE`, the packet is

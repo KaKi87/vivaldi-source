@@ -403,6 +403,7 @@
 <translation id="2618015542787108131">كثيب رملي</translation>
 <translation id="2619761439309613843">إعادة التحميل يوميًا</translation>
 <translation id="2620436844016719705">النظام</translation>
+<translation id="2626848494898563581">‏يتعذَّر الوصول إلى خدمات Google</translation>
 <translation id="2637303424821734920">الإذن غير مفعَّل: للاطّلاع على حالة الطقس المحلي، يجب <ph name="BEGIN_LINK" />تفعيل إذن الوصول إلى الموقع الجغرافي للنظام<ph name="END_LINK" /></translation>
 <translation id="2638662041295312666">صورة الملف الشخصي</translation>
 <translation id="2640549051766135490">تمّ اختيار ألبوم <ph name="TITLE" /> <ph name="DESC" /></translation>
@@ -1183,6 +1184,7 @@
 <translation id="6234024205316847054">عرض المخططات</translation>
 <translation id="6243280677745499710">المحدّدة حاليًا</translation>
 <translation id="6250316632541035980">لحم مقدّد وبيض</translation>
+<translation id="6262413940100821797">مستلِم غير معروف</translation>
 <translation id="6265268291107409527">المفتاح الذي تم اختياره: <ph name="KEYS" />. <ph name="ASSIGN_INSTRUCTION" /></translation>
 <translation id="6275224645089671689">السهم المتّجه لليمين</translation>
 <translation id="6278428485366576908">المظهر</translation>
@@ -1512,7 +1514,7 @@
 <translation id="7683228889864052081">التدرّج اللوني في إضاءة لوحة المفاتيح</translation>
 <translation id="7690294790491645610">تأكيد كلمة المرور الجديدة</translation>
 <translation id="7696506367342213250">تلال طينية</translation>
-<translation id="7701040980221191251">لا يوجد</translation>
+<translation id="7701040980221191251">ما مِن بيانات</translation>
 <translation id="7705524343798198388">VPN</translation>
 <translation id="7716280709122323042">WPA3</translation>
 <translation id="7718231387947923843">إضاءة لوحة المفاتيح</translation>

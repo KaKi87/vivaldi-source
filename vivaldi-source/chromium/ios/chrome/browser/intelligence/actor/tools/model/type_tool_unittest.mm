@@ -12,8 +12,8 @@
 #import "base/types/expected.h"
 #import "components/optimization_guide/proto/features/actions_data.pb.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/actor_tool.h"
-#import "ios/chrome/browser/intelligence/actor/tools/model/actor_tool_error.h"
 #import "ios/chrome/browser/intelligence/actor/tools/model/type_tool_java_script_feature.h"
+#import "ios/chrome/browser/intelligence/actor/tools/public/actor_tool_types.h"
 #import "ios/chrome/browser/shared/model/browser/browser_list.h"
 #import "ios/chrome/browser/shared/model/browser/browser_list_factory.h"
 #import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
@@ -26,9 +26,6 @@
 #import "testing/platform_test.h"
 
 namespace actor {
-
-using ToolExecutionCallback = ActorTool::ToolExecutionCallback;
-using ToolExecutionResult = ActorTool::ToolExecutionResult;
 
 class TypeToolTest : public PlatformTest {
  public:
@@ -53,12 +50,11 @@ TEST_F(TypeToolTest, Create_MissingTabId) {
   action.mutable_type()->set_mode(
       optimization_guide::proto::TypeAction::APPEND);
 
-  base::expected<std::unique_ptr<TypeTool>, ActorToolError> result =
+  base::expected<std::unique_ptr<TypeTool>, ToolExecutionResult> result =
       TypeTool::Create(action.type(), profile_.get());
 
   EXPECT_FALSE(result.has_value());
-  EXPECT_EQ(ActorToolErrorCode::kCreationMissingRequiredFields,
-            result.error().code);
+  EXPECT_EQ(result.error().code(), mojom::ActionResultCode::kArgumentsInvalid);
 }
 
 TEST_F(TypeToolTest, Create_NoWebStateForTabId) {
@@ -68,11 +64,10 @@ TEST_F(TypeToolTest, Create_NoWebStateForTabId) {
   action.mutable_type()->set_mode(
       optimization_guide::proto::TypeAction::APPEND);
 
-  base::expected<std::unique_ptr<TypeTool>, ActorToolError> result =
+  base::expected<std::unique_ptr<TypeTool>, ToolExecutionResult> result =
       TypeTool::Create(action.type(), profile_.get());
   EXPECT_FALSE(result.has_value());
-  EXPECT_EQ(ActorToolErrorCode::kCreationTargetTabNotFound,
-            result.error().code);
+  EXPECT_EQ(result.error().code(), mojom::ActionResultCode::kTabWentAway);
 }
 
 TEST_F(TypeToolTest, Create_MissingText) {
@@ -88,12 +83,11 @@ TEST_F(TypeToolTest, Create_MissingText) {
       optimization_guide::proto::TypeAction::APPEND);
   action.mutable_type()->mutable_target()->set_content_node_id(123);
 
-  base::expected<std::unique_ptr<TypeTool>, ActorToolError> result =
+  base::expected<std::unique_ptr<TypeTool>, ToolExecutionResult> result =
       TypeTool::Create(action.type(), profile_.get());
 
   EXPECT_FALSE(result.has_value());
-  EXPECT_EQ(ActorToolErrorCode::kCreationMissingRequiredFields,
-            result.error().code);
+  EXPECT_EQ(result.error().code(), mojom::ActionResultCode::kArgumentsInvalid);
 }
 
 TEST_F(TypeToolTest, Create_MissingMode) {
@@ -108,12 +102,11 @@ TEST_F(TypeToolTest, Create_MissingMode) {
   action.mutable_type()->set_text("test");
   action.mutable_type()->mutable_target()->set_content_node_id(123);
 
-  base::expected<std::unique_ptr<TypeTool>, ActorToolError> result =
+  base::expected<std::unique_ptr<TypeTool>, ToolExecutionResult> result =
       TypeTool::Create(action.type(), profile_.get());
 
   EXPECT_FALSE(result.has_value());
-  EXPECT_EQ(ActorToolErrorCode::kCreationMissingRequiredFields,
-            result.error().code);
+  EXPECT_EQ(result.error().code(), mojom::ActionResultCode::kArgumentsInvalid);
 }
 
 TEST_F(TypeToolTest, Create_MissingTarget) {
@@ -130,12 +123,65 @@ TEST_F(TypeToolTest, Create_MissingTarget) {
   action.mutable_type()->set_mode(
       optimization_guide::proto::TypeAction::APPEND);
 
-  base::expected<std::unique_ptr<TypeTool>, ActorToolError> result =
+  base::expected<std::unique_ptr<TypeTool>, ToolExecutionResult> result =
       TypeTool::Create(action.type(), profile_.get());
 
   EXPECT_FALSE(result.has_value());
-  EXPECT_EQ(ActorToolErrorCode::kCreationMissingRequiredFields,
-            result.error().code);
+  EXPECT_EQ(result.error().code(), mojom::ActionResultCode::kArgumentsInvalid);
+}
+
+TEST_F(TypeToolTest, Create_NodeIdWithoutDocumentIdentifier_Invalid) {
+  optimization_guide::proto::Action action;
+  auto web_state = std::make_unique<web::FakeWebState>();
+  web_state->SetBrowserState(profile_.get());
+  int tab_id = web_state->GetUniqueIdentifier().identifier();
+  browser_->GetWebStateList()->InsertWebState(
+      std::move(web_state),
+      WebStateList::InsertionParams::AtIndex(0).Activate());
+
+  action.mutable_type()->set_tab_id(tab_id);
+  action.mutable_type()->set_text("test");
+  action.mutable_type()->set_mode(
+      optimization_guide::proto::TypeAction::APPEND);
+
+  optimization_guide::proto::ActionTarget* target =
+      action.mutable_type()->mutable_target();
+  target->set_content_node_id(123);
+  // Omit document_identifier
+
+  base::expected<std::unique_ptr<TypeTool>, ToolExecutionResult> result =
+      TypeTool::Create(action.type(), profile_.get());
+
+  EXPECT_FALSE(result.has_value());
+  EXPECT_EQ(result.error().code(), mojom::ActionResultCode::kArgumentsInvalid);
+}
+
+TEST_F(TypeToolTest, Create_BothTargetingTypes_Invalid) {
+  optimization_guide::proto::Action action;
+  auto web_state = std::make_unique<web::FakeWebState>();
+  web_state->SetBrowserState(profile_.get());
+  int tab_id = web_state->GetUniqueIdentifier().identifier();
+  browser_->GetWebStateList()->InsertWebState(
+      std::move(web_state),
+      WebStateList::InsertionParams::AtIndex(0).Activate());
+
+  action.mutable_type()->set_tab_id(tab_id);
+  action.mutable_type()->set_text("test");
+  action.mutable_type()->set_mode(
+      optimization_guide::proto::TypeAction::APPEND);
+
+  optimization_guide::proto::ActionTarget* target =
+      action.mutable_type()->mutable_target();
+  target->mutable_coordinate()->set_x(50);
+  target->mutable_coordinate()->set_y(50);
+  target->set_content_node_id(123);
+  target->mutable_document_identifier()->set_serialized_token("dummy");
+
+  base::expected<std::unique_ptr<TypeTool>, ToolExecutionResult> result =
+      TypeTool::Create(action.type(), profile_.get());
+
+  EXPECT_FALSE(result.has_value());
+  EXPECT_EQ(result.error().code(), mojom::ActionResultCode::kArgumentsInvalid);
 }
 
 TEST_F(TypeToolTest, Execute_WebStateDestroyed_ReturnsError) {
@@ -147,7 +193,7 @@ TEST_F(TypeToolTest, Execute_WebStateDestroyed_ReturnsError) {
       browser_->GetWebStateList()->GetWebStateAt(web_state_index);
 
   optimization_guide::proto::Action action;
-  auto* type_action = action.mutable_type();
+  optimization_guide::proto::TypeAction* type_action = action.mutable_type();
   type_action->set_tab_id(
       inserted_web_state->GetUniqueIdentifier().identifier());
   type_action->mutable_target()->mutable_coordinate()->set_x(50);
@@ -155,7 +201,8 @@ TEST_F(TypeToolTest, Execute_WebStateDestroyed_ReturnsError) {
   type_action->set_text("test");
   type_action->set_mode(optimization_guide::proto::TypeAction::APPEND);
 
-  auto create_result = TypeTool::Create(action.type(), profile_.get());
+  base::expected<std::unique_ptr<TypeTool>, ToolExecutionResult> create_result =
+      TypeTool::Create(action.type(), profile_.get());
   ASSERT_TRUE(create_result.has_value());
   std::unique_ptr<TypeTool> tool = std::move(create_result.value());
 
@@ -165,9 +212,8 @@ TEST_F(TypeToolTest, Execute_WebStateDestroyed_ReturnsError) {
   tool->Execute(future.GetCallback());
 
   ToolExecutionResult result = future.Get();
-  EXPECT_FALSE(result.has_value());
-  EXPECT_EQ(ActorToolErrorCode::kExecutionMissingDependencies,
-            result.error().code);
+  EXPECT_FALSE(result.IsOk());
+  EXPECT_EQ(result.code(), mojom::ActionResultCode::kTabWentAway);
 }
 
 TEST_F(TypeToolTest, Execute_NoWebFramesManager_ReturnsError) {
@@ -183,7 +229,7 @@ TEST_F(TypeToolTest, Execute_NoWebFramesManager_ReturnsError) {
       browser_->GetWebStateList()->GetWebStateAt(web_state_index);
 
   optimization_guide::proto::Action action;
-  auto* type_action = action.mutable_type();
+  optimization_guide::proto::TypeAction* type_action = action.mutable_type();
   type_action->set_tab_id(
       inserted_web_state->GetUniqueIdentifier().identifier());
   type_action->mutable_target()->mutable_coordinate()->set_x(50);
@@ -191,7 +237,8 @@ TEST_F(TypeToolTest, Execute_NoWebFramesManager_ReturnsError) {
   type_action->set_text("test");
   type_action->set_mode(optimization_guide::proto::TypeAction::APPEND);
 
-  auto create_result = TypeTool::Create(action.type(), profile_.get());
+  base::expected<std::unique_ptr<TypeTool>, ToolExecutionResult> create_result =
+      TypeTool::Create(action.type(), profile_.get());
   ASSERT_TRUE(create_result.has_value());
   std::unique_ptr<TypeTool> tool = std::move(create_result.value());
 
@@ -199,9 +246,8 @@ TEST_F(TypeToolTest, Execute_NoWebFramesManager_ReturnsError) {
   tool->Execute(future.GetCallback());
 
   ToolExecutionResult result = future.Get();
-  EXPECT_FALSE(result.has_value());
-  EXPECT_EQ(ActorToolErrorCode::kExecutionMissingDependencies,
-            result.error().code);
+  EXPECT_FALSE(result.IsOk());
+  EXPECT_EQ(result.code(), mojom::ActionResultCode::kFrameWentAway);
 }
 
 TEST_F(TypeToolTest, Execute_NoMainFrame_ReturnsError) {
@@ -226,7 +272,7 @@ TEST_F(TypeToolTest, Execute_NoMainFrame_ReturnsError) {
       browser_->GetWebStateList()->GetWebStateAt(web_state_index);
 
   optimization_guide::proto::Action action;
-  auto* type_action = action.mutable_type();
+  optimization_guide::proto::TypeAction* type_action = action.mutable_type();
   type_action->set_tab_id(
       inserted_web_state->GetUniqueIdentifier().identifier());
   type_action->mutable_target()->mutable_coordinate()->set_x(50);
@@ -234,7 +280,8 @@ TEST_F(TypeToolTest, Execute_NoMainFrame_ReturnsError) {
   type_action->set_text("test");
   type_action->set_mode(optimization_guide::proto::TypeAction::APPEND);
 
-  auto create_result = TypeTool::Create(action.type(), profile_.get());
+  base::expected<std::unique_ptr<TypeTool>, ToolExecutionResult> create_result =
+      TypeTool::Create(action.type(), profile_.get());
   ASSERT_TRUE(create_result.has_value());
   std::unique_ptr<TypeTool> tool = std::move(create_result.value());
 
@@ -242,9 +289,30 @@ TEST_F(TypeToolTest, Execute_NoMainFrame_ReturnsError) {
   tool->Execute(future.GetCallback());
 
   ToolExecutionResult result = future.Get();
-  EXPECT_FALSE(result.has_value());
-  EXPECT_EQ(ActorToolErrorCode::kExecutionMissingDependencies,
-            result.error().code);
+  EXPECT_FALSE(result.IsOk());
+  EXPECT_EQ(result.code(), mojom::ActionResultCode::kFrameWentAway);
+}
+
+TEST_F(TypeToolTest, GetToolType) {
+  optimization_guide::proto::Action action;
+  auto web_state = std::make_unique<web::FakeWebState>();
+  web_state->SetBrowserState(profile_.get());
+  int tab_id = web_state->GetUniqueIdentifier().identifier();
+  browser_->GetWebStateList()->InsertWebState(
+      std::move(web_state),
+      WebStateList::InsertionParams::AtIndex(0).Activate());
+
+  action.mutable_type()->set_tab_id(tab_id);
+  action.mutable_type()->set_text("test");
+  action.mutable_type()->set_mode(
+      optimization_guide::proto::TypeAction::APPEND);
+  action.mutable_type()->mutable_target()->mutable_coordinate()->set_x(50);
+  action.mutable_type()->mutable_target()->mutable_coordinate()->set_y(50);
+
+  base::expected<std::unique_ptr<TypeTool>, ToolExecutionResult> result =
+      TypeTool::Create(action.type(), profile_.get());
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result.value()->GetToolType(), ToolType::kType);
 }
 
 }  // namespace actor

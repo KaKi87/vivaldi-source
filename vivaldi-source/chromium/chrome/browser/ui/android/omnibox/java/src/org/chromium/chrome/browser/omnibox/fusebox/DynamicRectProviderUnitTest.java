@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.content.res.Resources;
+import android.graphics.Rect;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -24,6 +25,8 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.chrome.browser.omnibox.R;
+import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.PopupState;
 import org.chromium.ui.widget.RectProvider;
 
 /** Unit tests for {@link DynamicRectProvider}. */
@@ -45,13 +48,13 @@ public class DynamicRectProviderUnitTest {
 
     @Test
     public void testSetPopupState_notObserved_doesNotProxy() {
-        mDynamicRectProvider.setPopupState(FuseboxProperties.PopupState.FLOATING);
+        mDynamicRectProvider.setPopupState(PopupState.FLOATING);
         verify(mFloatingDelegate, never()).startObserving(any());
     }
 
     @Test
     public void testStartObserving_proxiesToCurrentDelegate() {
-        mDynamicRectProvider.setPopupState(FuseboxProperties.PopupState.FLOATING);
+        mDynamicRectProvider.setPopupState(PopupState.FLOATING);
         mDynamicRectProvider.startObserving(mObserver);
         verify(mFloatingDelegate).startObserving(any());
     }
@@ -59,15 +62,15 @@ public class DynamicRectProviderUnitTest {
     @Test
     public void testSetPopupState_observed_switchesDelegates() {
         mDynamicRectProvider.startObserving(mObserver);
-        mDynamicRectProvider.setPopupState(FuseboxProperties.PopupState.FLOATING);
-        mDynamicRectProvider.setPopupState(FuseboxProperties.PopupState.BOTTOM);
+        mDynamicRectProvider.setPopupState(PopupState.FLOATING);
+        mDynamicRectProvider.setPopupState(PopupState.BOTTOM);
         verify(mFloatingDelegate).stopObserving();
         verify(mBottomDelegate).startObserving(any());
     }
 
     @Test
     public void testStopObserving_stopsProxying() {
-        mDynamicRectProvider.setPopupState(FuseboxProperties.PopupState.FLOATING);
+        mDynamicRectProvider.setPopupState(PopupState.FLOATING);
         mDynamicRectProvider.startObserving(mObserver);
         mDynamicRectProvider.stopObserving();
         verify(mFloatingDelegate).stopObserving();
@@ -75,7 +78,7 @@ public class DynamicRectProviderUnitTest {
 
     @Test
     public void testStartObserving_redundant_doesNotChurn() {
-        mDynamicRectProvider.setPopupState(FuseboxProperties.PopupState.FLOATING);
+        mDynamicRectProvider.setPopupState(PopupState.FLOATING);
         mDynamicRectProvider.startObserving(mObserver);
         mDynamicRectProvider.startObserving(mObserver);
         verify(mFloatingDelegate, times(1)).startObserving(any());
@@ -84,14 +87,14 @@ public class DynamicRectProviderUnitTest {
     @Test
     public void testSetPopupState_redundant_doesNotChurn() {
         mDynamicRectProvider.startObserving(mObserver);
-        mDynamicRectProvider.setPopupState(FuseboxProperties.PopupState.FLOATING);
-        mDynamicRectProvider.setPopupState(FuseboxProperties.PopupState.FLOATING);
+        mDynamicRectProvider.setPopupState(PopupState.FLOATING);
+        mDynamicRectProvider.setPopupState(PopupState.FLOATING);
         verify(mFloatingDelegate, times(1)).startObserving(any());
     }
 
     @Test
     public void testStopObserving_redundant_doesNotChurn() {
-        mDynamicRectProvider.setPopupState(FuseboxProperties.PopupState.FLOATING);
+        mDynamicRectProvider.setPopupState(PopupState.FLOATING);
         mDynamicRectProvider.startObserving(mObserver);
         mDynamicRectProvider.stopObserving();
         mDynamicRectProvider.stopObserving();
@@ -100,28 +103,22 @@ public class DynamicRectProviderUnitTest {
 
     @Test
     public void testGetPopupWidth_floating() {
-        org.mockito.Mockito.when(
-                        mResources.getDimensionPixelSize(
-                                org.chromium.chrome.browser.omnibox.R.dimen.fusebox_popup_width))
-                .thenReturn(500);
-        int width =
-                mDynamicRectProvider.getPopupWidth(
-                        FuseboxProperties.PopupState.FLOATING, mResources);
+        when(mResources.getDimensionPixelSize(R.dimen.fusebox_popup_width)).thenReturn(500);
+        int width = mDynamicRectProvider.getPopupWidth(PopupState.FLOATING, mResources);
         assertEquals(500, width);
     }
 
     @Test
     public void testGetPopupWidth_bottom() {
-        android.graphics.Rect rect = new android.graphics.Rect(0, 0, 300, 0);
+        Rect rect = new Rect(0, 0, 300, 0);
         when(mBottomDelegate.getRect()).thenReturn(rect);
-        int width =
-                mDynamicRectProvider.getPopupWidth(FuseboxProperties.PopupState.BOTTOM, mResources);
+        int width = mDynamicRectProvider.getPopupWidth(PopupState.BOTTOM, mResources);
         assertEquals(300, width);
     }
 
     @Test
     public void testGetRect_nullDelegate_returnsEmptyRect() {
-        android.graphics.Rect rect = mDynamicRectProvider.getRect();
+        Rect rect = mDynamicRectProvider.getRect();
         assertTrue(rect.isEmpty());
     }
 }

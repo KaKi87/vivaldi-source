@@ -291,7 +291,7 @@ void VivaldiFrameServiceImpl::InsertText(const std::string& text) {
   blink::WebLocalFrame* frame = render_frame_->GetWebFrame();
   const std::vector<ui::ImeTextSpan> ime_text_spans;
   frame->GetInputMethodController()->CommitText(
-      blink::WebString::FromUTF8(text), ime_text_spans, blink::WebRange(), 0);
+      blink::WebString::FromUtf8(text), ime_text_spans, blink::WebRange(), 0);
 }
 
 void VivaldiFrameServiceImpl::ResumeParser() {

@@ -25,15 +25,20 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <string>
 #include <vector>
 
-#include "dawn/common/Assert.h"
-#include "dawn/common/Constants.h"
-#include "dawn/common/Math.h"
-#include "dawn/tests/DawnTest.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/common/Assert.h"
+#include "src/dawn/common/Constants.h"
+#include "src/dawn/common/Math.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/WGPUHelpers.h"
 
 namespace dawn {
 namespace {
@@ -236,9 +241,12 @@ TEST_P(BindGroupTests, ReusedUBO) {
     };
     wgpu::Buffer buffer =
         utils::CreateBufferFromData(device, &data, sizeof(data), wgpu::BufferUsage::Uniform);
-    wgpu::BindGroup bindGroup = utils::MakeBindGroup(
+    wgpu::BindGroup bindGroup = utils::MakeBindGroup(  //
         device, pipeline.GetBindGroupLayout(0),
-        {{0, buffer, 0, sizeof(Data::transform)}, {1, buffer, 256, sizeof(Data::color)}});
+        {
+            {0, buffer, 0, sizeof(Data::transform)},
+            {1, buffer, 256, sizeof(Data::color)},
+        });
 
     wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
     wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPass.renderPassInfo);
@@ -395,12 +403,12 @@ TEST_P(BindGroupTests, MultipleBindLayouts) {
             return fragmentUbo1.color + fragmentUbo2.color;
         })");
 
-    utils::ComboRenderPipelineDescriptor textureDescriptor;
-    textureDescriptor.vertex.module = vsModule;
-    textureDescriptor.cFragment.module = fsModule;
-    textureDescriptor.cTargets[0].format = renderPass.colorFormat;
+    utils::ComboRenderPipelineDescriptor pipelineDesc;
+    pipelineDesc.vertex.module = vsModule;
+    pipelineDesc.cFragment.module = fsModule;
+    pipelineDesc.cTargets[0].format = renderPass.colorFormat;
 
-    wgpu::RenderPipeline pipeline = device.CreateRenderPipeline(&textureDescriptor);
+    wgpu::RenderPipeline pipeline = device.CreateRenderPipeline(&pipelineDesc);
 
     struct Data {
         float transform[4];
@@ -410,7 +418,6 @@ TEST_P(BindGroupTests, MultipleBindLayouts) {
     DAWN_ASSERT(offsetof(Data, color) == 256);
 
     std::vector<Data> data;
-    std::vector<wgpu::Buffer> buffers;
     std::vector<wgpu::BindGroup> bindGroups;
 
     data.push_back({{1.0f, 0.0f, 0.0f, 0.0f}, {0}, {0.0f, 1.0f, 0.0f, 1.0f}});
@@ -420,10 +427,13 @@ TEST_P(BindGroupTests, MultipleBindLayouts) {
     for (int i = 0; i < 2; i++) {
         wgpu::Buffer buffer =
             utils::CreateBufferFromData(device, &data[i], sizeof(Data), wgpu::BufferUsage::Uniform);
-        buffers.push_back(buffer);
-        bindGroups.push_back(utils::MakeBindGroup(device, pipeline.GetBindGroupLayout(0),
-                                                  {{0, buffers[i], 0, sizeof(Data::transform)},
-                                                   {1, buffers[i], 256, sizeof(Data::color)}}));
+        buffer.SetLabel(absl::StrFormat("buffer_%d", i).c_str());
+        bindGroups.push_back(utils::MakeBindGroup(  //
+            device, pipeline.GetBindGroupLayout(0),
+            {
+                {0, buffer, 0, sizeof(Data::transform)},
+                {1, buffer, 256, sizeof(Data::color)},
+            }));
     }
 
     wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
@@ -2078,11 +2088,6 @@ void DoMaxBindingsPerBindGroupTest(const wgpu::Device& device,
 
 // Test with storage buffers as buffers take the most space in the frontend BindGroup.
 TEST_P(BindGroupTests, MaxBindingsPerBindGroupVisibility_StorageBuffer) {
-    // TODO(https://issues.chromium.org/491082532): Fails on OpenGL, likely because the buffers with
-    // visibility none are still being bound in the GL backend, causing a GL_INVALID_VALUE because
-    // the index is too large in glBindBufferRange.
-    DAWN_SUPPRESS_TEST_IF(IsOpenGL() || IsOpenGLES());
-
     wgpu::BindGroupLayoutEntry bglEntry = {
         .binding = 0,
         .visibility = wgpu::ShaderStage::None,
@@ -2109,11 +2114,6 @@ TEST_P(BindGroupTests, MaxBindingsPerBindGroupVisibility_StorageBuffer) {
 }
 // Test with external textures as they expand to take multiple entries in the frontend bindgroup.
 TEST_P(BindGroupTests, MaxBindingsPerBindGroupVisibility_ExternalTexture) {
-    // TODO(https://issues.chromium.org/491082532): Fails on OpenGL, likely because the buffers with
-    // visibility none are still being bound in the GL backend, causing a GL_INVALID_VALUE because
-    // the index is too large in glBindBufferRange.
-    DAWN_SUPPRESS_TEST_IF(IsOpenGL() || IsOpenGLES());
-
     wgpu::ExternalTextureBindingLayout etLayout = {};
     wgpu::BindGroupLayoutEntry bglEntry = {
         .nextInChain = &etLayout,

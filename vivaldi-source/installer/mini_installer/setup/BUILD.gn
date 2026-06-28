@@ -11,12 +11,12 @@ import("//vivaldi/gn/config/product.gni")
 if (is_win) {
   executable("setup") {
     sources = [
+      "//vivaldi/installer/win/setup/setup.rc",
+      "//vivaldi/installer/win/setup/setup_resource.h",
       "setup_main.cc",
       "setup_main.h",
       "uninstall.cc",
       "uninstall.h",
-      "//vivaldi/installer/win/setup/setup.rc",
-      "//vivaldi/installer/win/setup/setup_resource.h",
     ]
 
     configs -= [
@@ -44,11 +44,11 @@ if (is_win) {
       "//components/version_info",
       "//content/public/common:static_switches",
       "//rlz:rlz_lib_no_network",
+      "//ui/gfx",
+      "//url",
       "//vivaldi/app:vivaldi_icon",
       "//vivaldi/installer/mini_installer/util:with_rc_strings",
       "//vivaldi/installer/win:dpi_aware_exe_manifest",
-      "//ui/gfx:gfx",
-      "//url",
     ]
 
     libs = [
@@ -59,12 +59,19 @@ if (is_win) {
       "Dwmapi.lib",
       "UxTheme.lib",
       "Ddraw.lib",
-      "gdiplus.lib"
+      "gdiplus.lib",
     ]
   }
 
   static_library("lib") {
     sources = [
+      "//vivaldi/installer/util/vivaldi_install_dialog.cc",
+      "//vivaldi/installer/util/vivaldi_install_dialog.h",
+      "//vivaldi/installer/util/vivaldi_progress_dialog.cc",
+      "//vivaldi/installer/util/vivaldi_progress_dialog.h",
+      "//vivaldi/installer/util/vivaldi_setup_util.cc",
+      "//vivaldi/installer/util/vivaldi_setup_util.h",
+      "//vivaldi/installer/vivaldi_behaviors.cc",
       "archive_patch_helper.cc",
       "archive_patch_helper.h",
       "brand_behaviors.h",
@@ -100,13 +107,6 @@ if (is_win) {
       "update_active_setup_version_work_item.h",
       "user_hive_visitor.cc",
       "user_hive_visitor.h",
-      "//vivaldi/installer/util/vivaldi_install_dialog.cc",
-      "//vivaldi/installer/util/vivaldi_install_dialog.h",
-      "//vivaldi/installer/util/vivaldi_progress_dialog.cc",
-      "//vivaldi/installer/util/vivaldi_progress_dialog.h",
-      "//vivaldi/installer/util/vivaldi_setup_util.cc",
-      "//vivaldi/installer/util/vivaldi_setup_util.h",
-      "//vivaldi/installer/vivaldi_behaviors.cc",
     ]
 
     public_deps = [
@@ -142,12 +142,11 @@ if (is_win) {
     } else {
       color = "#30c27c"
     }
-    defines = ["VIVALDI_RELEASE_BACKGROUND_COLOR=\"$color\""]
+    defines = [ "VIVALDI_RELEASE_BACKGROUND_COLOR=\"$color\"" ]
   }
 
   process_version_rc_template("setup_exe_version") {
-    template_file =
-        "//vivaldi/installer/win/setup/setup_exe_version.rc.version"
+    template_file = "//vivaldi/installer/win/setup/setup_exe_version.rc.version"
     output = "$target_gen_dir/setup_exe_version.rc"
   }
 }

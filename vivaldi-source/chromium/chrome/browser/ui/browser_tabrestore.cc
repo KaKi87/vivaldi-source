@@ -121,6 +121,8 @@ std::unique_ptr<WebContents> CreateRestoredTab(
   if (viv_ext_data) {
     ::vivaldi::TabExtData::RestoreArgs args;
     args.foreign = viv_ext_data->foreign;
+    args.ext_id_salt = viv_ext_data->ext_id_salt;
+    args.workspace_as_tabs = viv_ext_data->workspace_as_tabs;
     ext_data->Restore(*viv_ext_data->ext_data, args);
   }
 
@@ -271,7 +273,7 @@ WebContents* AddRestoredTabImpl(std::unique_ptr<WebContents> web_contents,
         // that space. Since the session restore process shows and activates
         // windows itself, activating windows here should be safe to skip.
         // Cautiously apply only to Windows and MacOS, for now
-        // (https://crbug.com/1019048).
+        // (https://crbug.com/40105184).
         !from_session_restore;
 #else
         true;

@@ -58,6 +58,7 @@ import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Restriction;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.RecentlyClosedEntriesManager;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
@@ -67,7 +68,6 @@ import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
 import org.chromium.chrome.test.util.ChromeRenderTestRule;
@@ -222,7 +222,7 @@ public class RecentTabsPageTest {
         final String title = group.getTitle();
         waitForView(title);
 
-        ImageView iconView = (ImageView) mPage.getView().findViewById(R.id.row_icon);
+        ImageView iconView = mPage.getView().findViewById(R.id.row_icon);
         assertNotNull(iconView.getBackground());
         assertEquals(View.VISIBLE, iconView.getVisibility());
         assertThat(iconView.getBackground(), instanceOf(GradientDrawable.class));
@@ -272,7 +272,7 @@ public class RecentTabsPageTest {
         waitForViewToDisappear(groupString);
 
         // Check that the remaining show history row item does not have an icon visible.
-        ImageView iconView = (ImageView) mPage.getView().findViewById(R.id.row_icon);
+        ImageView iconView = mPage.getView().findViewById(R.id.row_icon);
         assertEquals(View.GONE, iconView.getVisibility());
     }
 

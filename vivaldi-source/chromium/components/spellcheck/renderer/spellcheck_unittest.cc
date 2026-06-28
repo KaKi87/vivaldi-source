@@ -1504,6 +1504,8 @@ TEST_F(SpellCheckTest, DictionaryFiles) {
 
   base::FilePath hunspell = GetHunspellDirectory();
   for (size_t i = 0; i < spellcheck_languages.size(); ++i) {
+    if(spellcheck_languages[i] == "is") continue; // Vivaldi
+
     base::FilePath dict =
         spellcheck::GetVersionedFileName(spellcheck_languages[i], hunspell);
     EXPECT_TRUE(base::PathExists(dict)) << dict.value() << " not found";

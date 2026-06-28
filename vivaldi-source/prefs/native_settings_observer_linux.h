@@ -4,6 +4,7 @@
 #define PREFS_NATIVE_SETTINGS_OBSERVER_LINUX_H_
 
 #include "prefs/native_settings_observer.h"
+#include "ui/native_theme/native_theme.h"
 
 class Profile;
 
@@ -13,6 +14,8 @@ class NativeSettingsObserverLinux : public NativeSettingsObserver {
  public:
   explicit NativeSettingsObserverLinux(Profile* profile);
   ~NativeSettingsObserverLinux() override = default;
+  static void HandleThemeChange(
+      ui::NativeTheme::PreferredColorScheme color_scheme);
 };
 
 }  // namespace vivaldi

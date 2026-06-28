@@ -51,6 +51,7 @@
 #include "content/common/frame.mojom-forward.h"
 #include "content/common/input/synthetic_gesture.h"
 #include "content/common/input/synthetic_gesture_controller.h"
+#include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/render_process_host_observer.h"
 #include "content/public/browser/render_process_host_priority_client.h"
 #include "content/public/browser/render_widget_host.h"
@@ -189,7 +190,8 @@ class CONTENT_EXPORT RenderWidgetHostImpl
       RenderWidgetHostDelegate* delegate,
       base::SafeRef<SiteInstanceGroup> site_instance_group,
       int32_t routing_id,
-      bool hidden);
+      bool hidden,
+      GlobalRenderFrameHostId popup_creator_frame_id);
 
   RenderWidgetHostImpl(const RenderWidgetHostImpl&) = delete;
   RenderWidgetHostImpl& operator=(const RenderWidgetHostImpl&) = delete;
@@ -227,6 +229,8 @@ class CONTENT_EXPORT RenderWidgetHostImpl
     owner_delegate_ = owner_delegate;
   }
 
+  bool IsPinchToZoomEnabled() const;
+
   RenderWidgetHostOwnerDelegate* owner_delegate() { return owner_delegate_; }
 
   AgentSchedulingGroupHost& agent_scheduling_group() {
@@ -239,6 +243,8 @@ class CONTENT_EXPORT RenderWidgetHostImpl
 
   // RenderWidgetHost implementation.
   const viz::FrameSinkId& GetFrameSinkId() override;
+  std::optional<GlobalRenderFrameHostId> GetPopupCreatorFrameId()
+      const override;
   void UpdateTextDirection(base::i18n::TextDirection direction) override;
   void NotifyTextDirection() override;
   void Focus() override;
@@ -251,7 +257,7 @@ class CONTENT_EXPORT RenderWidgetHostImpl
       const input::NativeWebKeyboardEvent& key_event) override;
   void ForwardGestureEvent(
       const blink::WebGestureEvent& gesture_event) override;
-  RenderProcessHost* GetProcess() override;
+  RenderProcessHost* GetProcess() const override;
   int GetRoutingID() final;
   RenderWidgetHostViewBase* GetView() override;
   const RenderWidgetHostViewBase* GetView() const override;
@@ -280,6 +286,11 @@ class CONTENT_EXPORT RenderWidgetHostImpl
   float GetDeviceScaleFactor() override;
   std::optional<cc::TouchAction> GetAllowedTouchAction() override;
   void WriteIntoTrace(perfetto::TracedValue context) override;
+
+  // blink::mojom::FrameWidgetHost:
+  void AutoscrollEnd() override;
+
+  // RenderWidgetHost:
   // |drop_data| must have been filtered. The embedder should call
   // FilterDropData before passing the drop data to RWHI.
   void DragTargetDragEnter(const DropData& drop_data,
@@ -322,6 +333,7 @@ class CONTENT_EXPORT RenderWidgetHostImpl
       const ui::mojom::MenuSourceType source_type) override;
   void InsertVisualStateCallback(VisualStateCallback callback) override;
   void SetHungRendererDelay(const base::TimeDelta& delay) override;
+  void SetReadyForInputCallbackForTesting(base::OnceClosure callback);
 
   // RenderProcessHostPriorityClient implementation.
   RenderProcessHostPriorityClient::Priority GetPriority() override;
@@ -400,13 +412,17 @@ class CONTENT_EXPORT RenderWidgetHostImpl
   void OnInputEventAckTimeout(base::TimeTicks ack_timeout_ts) override;
   void RendererIsResponsive() override;
   void DidOverscroll(blink::mojom::DidOverscrollParamsPtr params) override;
+  void OnInputRouterActive() override;
+
+  // Called when the InputRouter in the Viz process becomes active.
+  void OnVizInputRouterActive();
 
   // Update the stored set of visual properties for the renderer. If 'propagate'
   // is true, the new properties will be sent to the renderer process.
   bool UpdateVisualProperties(bool propagate);
 
   // Notification that the screen info has changed.
-  void NotifyScreenInfoChanged();
+  void NotifyScreenInfoChanged(bool ignore_ack = true);
 
   // Forces redraw in the renderer and when the update reaches the browser.
   // grabs snapshot from the compositor.
@@ -847,6 +863,7 @@ class CONTENT_EXPORT RenderWidgetHostImpl
 #endif  // BUILDFLAG(IS_WIN)
       ) override;
   bool IsAutoscrollInProgress() override;
+  void OnAutoscrollTargetResolved(bool success);
   void SetMouseCapture(bool capture) override;
   void SetAutoscrollSelectionActiveInMainFrame(
       bool autoscroll_selection) override;
@@ -944,6 +961,13 @@ class CONTENT_EXPORT RenderWidgetHostImpl
   widget_host_receiver_for_testing() {
     return blink_widget_host_receiver_;
   }
+
+  bool has_initial_frame_sink_for_testing() const {
+    return initial_frame_sink_pipes_ &&
+           initial_frame_sink_pipes_->receiver.is_valid();
+  }
+
+  bool is_hidden_for_testing() const { return is_hidden_; }
 
   std::optional<blink::VisualProperties> LastComputedVisualProperties() const;
 
@@ -1085,7 +1109,9 @@ class CONTENT_EXPORT RenderWidgetHostImpl
                        base::SafeRef<SiteInstanceGroup> site_instance_group,
                        int32_t routing_id,
                        bool hidden,
-                       bool renderer_initiated_creation);
+                       bool renderer_initiated_creation,
+                       std::optional<GlobalRenderFrameHostId>
+                           popup_creator_frame_id = std::nullopt);
   // ---------------------------------------------------------------------------
   // The following method is overridden by RenderViewHost to send upwards to
   // its delegate.
@@ -1152,6 +1178,16 @@ class CONTENT_EXPORT RenderWidgetHostImpl
   friend class RenderViewHostTester;
   friend class TestRenderViewHost;
 
+  struct InitialFrameSinkPipes {
+    InitialFrameSinkPipes();
+    ~InitialFrameSinkPipes();
+    InitialFrameSinkPipes(InitialFrameSinkPipes&&);
+    InitialFrameSinkPipes& operator=(InitialFrameSinkPipes&&);
+    mojo::PendingReceiver<viz::mojom::CompositorFrameSink> receiver;
+    mojo::PendingRemote<viz::mojom::CompositorFrameSinkClient> client;
+    mojo::PendingRemote<blink::mojom::RenderInputRouterClient> viz_rir_client;
+  };
+
   // Tell this object to destroy itself. If |also_delete| is specified, the
   // destructor is called as well.
   void Destroy(bool also_delete);
@@ -1187,7 +1223,6 @@ class CONTENT_EXPORT RenderWidgetHostImpl
       blink::mojom::IntrinsicSizingInfoPtr sizing_info) override;
   void AutoscrollStart(const gfx::PointF& position) override;
   void AutoscrollFling(const gfx::Vector2dF& velocity) override;
-  void AutoscrollEnd() override;
 
   // When the RenderWidget is destroyed and recreated, this resets states in the
   // browser to match the clean start for the renderer side.
@@ -1251,6 +1286,7 @@ class CONTENT_EXPORT RenderWidgetHostImpl
 
   void SetupRenderInputRouter();
   void SetupInputRouter();
+  void MaybeNotifyReadyForInput();
 
   // Start intercepting system keyboard events.
   void LockKeyboard();
@@ -1444,7 +1480,11 @@ class CONTENT_EXPORT RenderWidgetHostImpl
   std::vector<SuppressShowingImeCallback> suppress_showing_ime_callbacks_;
 
   // Input event callbacks.
-  base::ObserverList<RenderWidgetHost::InputEventObserver>::Unchecked
+  // TODO(crbug.com/512323406): Make observer list non-reentrant.
+  base::ObserverList<
+      RenderWidgetHost::InputEventObserver,
+      /*check_empty=*/false,
+      base::ObserverListReentrancyPolicy::kAllowReentrancyUntriaged>::Unchecked
       input_event_observers_;
 
 #if BUILDFLAG(IS_ANDROID)
@@ -1478,7 +1518,11 @@ class CONTENT_EXPORT RenderWidgetHostImpl
   // the Char event generated by alt-2 may also activate a HTML element if its
   // accesskey happens to be "2", then the user may get confused when switching
   // back to the original tab, because the content may already have changed.
-  bool suppress_events_until_keydown_ = false;
+  // Key code of the RawKeyDown event that was handled by
+  // PreHandleKeyboardEvent(). Used to suppress only follow-up events for
+  // that specific key, not events for other keys (e.g. modifier keyups).
+  // Zero means no suppression is active.
+  int suppress_events_key_code_ = 0;
 
   bool pointer_lock_raw_movement_ = false;
   // Stores the keyboard keys to lock while waiting for a pending lock request.
@@ -1495,6 +1539,8 @@ class CONTENT_EXPORT RenderWidgetHostImpl
   // True when the cursor has entered the autoscroll mode. A GSB is not
   // necessarily sent yet.
   bool autoscroll_in_progress_ = false;
+  bool autoscroll_targeting_pending_ = false;
+  std::optional<gfx::Vector2dF> pending_autoscroll_fling_velocity_;
 
   // TODO(crbug.com/40263900): The gesture controller can cause synchronous
   // destruction of the page (sending a click to the tab close button). Since
@@ -1624,6 +1670,11 @@ class CONTENT_EXPORT RenderWidgetHostImpl
   bool view_is_frame_sink_id_owner_{false};
 
   std::unique_ptr<CompositorMetricRecorder> compositor_metric_recorder_;
+  base::OnceClosure ready_for_input_callback_for_testing_;
+
+  std::optional<InitialFrameSinkPipes> initial_frame_sink_pipes_;
+
+  std::optional<GlobalRenderFrameHostId> popup_creator_frame_id_;
 
   // NOTE(david@vivaldi.com): |device_emulation_active_| indicates if the device
   // emulation is active for this specific RenderWidgetHostImpl.

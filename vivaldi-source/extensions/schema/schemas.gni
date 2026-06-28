@@ -20,7 +20,6 @@ schema_sources = [
   "doh_functions.json",
   "editcommand.json",
   "history_private.json",
-  "omnibox_private.json",
   "import_data.json",
   "infobars.json",
   "mail_private.json",
@@ -29,6 +28,7 @@ schema_sources = [
   "menubar_menu.json",
   "mousegestures.json",
   "notes.json",
+  "omnibox_private.json",
   "page_actions.json",
   "pip_private.json",
   "prefs.json",
@@ -53,11 +53,8 @@ schema_sources = [
 ]
 
 if (!vivaldi_disable_sparkle) {
-  schema_sources += [
-    "autoupdate.json",
-  ]
+  schema_sources += [ "autoupdate.json" ]
 }
-
 
 uncompiled_sources = []
 

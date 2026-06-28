@@ -15,6 +15,7 @@
 #include "base/test/test_future.h"
 #include "base/threading/thread_restrictions.h"
 #include "chrome/browser/ui/web_applications/web_app_browsertest_base.h"
+#include "chrome/browser/web_applications/model/web_app_icon_types.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
 #include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
 #include "chrome/browser/web_applications/test/web_app_icon_test_utils.h"
@@ -22,7 +23,6 @@
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_icon_generator.h"
 #include "chrome/browser/web_applications/web_app_icon_manager.h"
-#include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
@@ -71,10 +71,10 @@ class InstallFromSyncCommandTest : public WebAppBrowserTestBase {
   // Get the primary icon for `app_id` of `size` from the disk.
   SkBitmap GetAppIconOfSize(const webapps::AppId& app_id, int size) {
     WebAppProvider* web_app_provider = WebAppProvider::GetForTest(profile());
-    base::test::TestFuture<SizeToBitmap> test_future;
+    base::test::TestFuture<OrderedSizeToBitmap> test_future;
     web_app_provider->icon_manager().ReadIconAndResize(
         app_id, IconPurpose::ANY, size, test_future.GetCallback());
-    SizeToBitmap bitmaps = test_future.Take();
+    OrderedSizeToBitmap bitmaps = test_future.Take();
     CHECK(bitmaps.contains(size));
     return bitmaps[size];
   }

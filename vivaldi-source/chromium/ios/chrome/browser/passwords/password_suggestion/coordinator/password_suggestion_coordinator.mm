@@ -199,8 +199,7 @@ constexpr char kUmaActionPrefix[] =
 - (NSString*)userEmail {
   AuthenticationService* authService =
       AuthenticationServiceFactory::GetForProfile(self.profile);
-  id<SystemIdentity> authenticatedIdentity =
-      authService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
+  id<SystemIdentity> authenticatedIdentity = authService->GetPrimaryIdentity();
 
   return authenticatedIdentity.userEmail;
 }
@@ -335,13 +334,11 @@ constexpr char kUmaActionPrefix[] =
 
 - (NSArray<UISheetPresentationControllerDetent*>*)detents {
   // Custom sized detents for modals are available from iOS 16.
-  if (@available(iOS 18, *)) {
-    if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
-      // As of iOS 18, the modal on iPad no longer appears near the bottom
-      // edge and should not be expandable (i.e. large detent should not
-      // be an option).
-      return @[ [self preferredHeightDetent] ];
-    }
+  if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+    // As of iOS 18, the modal on iPad no longer appears near the bottom
+    // edge and should not be expandable (i.e. large detent should not
+    // be an option).
+    return @[ [self preferredHeightDetent] ];
   }
   // Having the large detent as an option makes the modal expandable to
   // the maximum size.
@@ -352,14 +349,9 @@ constexpr char kUmaActionPrefix[] =
 }
 
 - (BOOL)isEdgeAttachedInCompactHeight {
-  if (@available(iOS 18, *)) {
-    // This specifically affects the iPad mini format, so the bottom
-    // sheet does not attach to the bottom edge like it does on iPhone.
-    if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
-      return NO;
-    }
-  }
-  return YES;
+  // This specifically affects the iPad mini format, so the bottom
+  // sheet does not attach to the bottom edge like it does on iPhone.
+  return UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPad;
 }
 
 // Refocuses the field that was blurred to show the payments suggestion

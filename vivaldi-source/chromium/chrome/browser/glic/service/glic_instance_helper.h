@@ -5,16 +5,23 @@
 #ifndef CHROME_BROWSER_GLIC_SERVICE_GLIC_INSTANCE_HELPER_H_
 #define CHROME_BROWSER_GLIC_SERVICE_GLIC_INSTANCE_HELPER_H_
 
+#include <memory>
 #include <optional>
 
 #include "base/callback_list.h"
+#include "build/build_config.h"
 #include "chrome/browser/glic/public/glic_instance.h"
-#include "chrome/browser/glic/service/metrics/glic_instance_helper_metrics.h"
 #include "chrome/browser/glic/service/metrics/metrics_types.h"
-#include "components/tabs/public/tab_interface.h"
 #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 
+#if BUILDFLAG(IS_ANDROID)
+#include "base/android/scoped_java_ref.h"
+#endif
+
 namespace glic {
+
+class GlicInstanceHelperMetrics;
+enum class DaisyChainFirstAction;
 
 // Attaches a InstanceId to a TabInterface. An instance of this class is
 // created by and owned by TabFeatures.
@@ -29,6 +36,7 @@ class GlicInstanceHelper {
    public:
     virtual const InstanceId& id() const = 0;
     virtual std::optional<std::string> conversation_id() const = 0;
+    virtual std::string conversation_title() const = 0;
   };
 
   explicit GlicInstanceHelper(tabs::TabInterface* tab);
@@ -38,6 +46,7 @@ class GlicInstanceHelper {
   void SetBoundInstance(Instance* instance);
 
   std::optional<std::string> GetConversationId() const;
+  std::string GetConversationTitle() const;
 
   void OnPinnedByInstance(Instance* instance);
   void OnUnpinnedByInstance(Instance* instance);
@@ -50,14 +59,26 @@ class GlicInstanceHelper {
   base::CallbackListSubscription SubscribeToDestruction(
       base::RepeatingCallback<void(tabs::TabInterface*)> callback);
 
+#if BUILDFLAG(IS_ANDROID)
+  base::android::ScopedJavaLocalRef<jobject> GetJavaObject();
+  void OnConversationTitleChanged();
+#endif
+
  private:
   raw_ptr<Instance> bound_instance_ = nullptr;
   base::flat_set<raw_ptr<Instance>> pinned_instances_;
-  GlicInstanceHelperMetrics metrics_;
   raw_ptr<tabs::TabInterface> tab_;
+  std::unique_ptr<GlicInstanceHelperMetrics> metrics_;
   ui::ScopedUnownedUserData<GlicInstanceHelper> scoped_unowned_user_data_;
   base::RepeatingCallbackList<void(tabs::TabInterface*)>
       on_destroy_callback_list_;
+
+#if BUILDFLAG(IS_ANDROID)
+  void InitJavaObject();
+  void NotifyJavaInstanceTitleChanged();
+
+  base::android::ScopedJavaGlobalRef<jobject> java_ref_;
+#endif
 };
 
 }  // namespace glic

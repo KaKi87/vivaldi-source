@@ -1300,6 +1300,9 @@ class BookmarkBridge {
         void exportBookmarks(long nativeBookmarkBridge, BookmarkBridge caller, String filePath);
 
         void importBookmarks(long nativeBookmarkBridge, BookmarkBridge caller, String filePath);
+
+        boolean isSeparator(long nativeBookmarkBridge, BookmarkBridge caller, long id);
+
     }
 
     /** Vivaldi */
@@ -1420,6 +1423,15 @@ class BookmarkBridge {
      */
     public boolean isChildOfTrashNode(BookmarkId id) {
         return BookmarkBridgeJni.get().isChildOfTrashNode(
+                mNativeBookmarkBridge, BookmarkBridge.this, id.getId());
+    }
+
+    /**
+     * Vivaldi
+     * Returns true if node is a separator.
+     */
+    public boolean isSeparator(BookmarkId id) {
+        return BookmarkBridgeJni.get().isSeparator(
                 mNativeBookmarkBridge, BookmarkBridge.this, id.getId());
     }
 

@@ -91,6 +91,8 @@ std::ostream& operator<<(std::ostream& out,
       return out << "kWaitingForBookmarksImportOnFirstRun";
     case ProfileKeepAliveOrigin::kSkillsDialog:
       return out << "kSkillsDialog";
+    case ProfileKeepAliveOrigin::kWebAppDatabaseCorruptionRecovery:
+      return out << "kWebAppDatabaseCorruptionRecovery";
   }
   NOTREACHED();
 }

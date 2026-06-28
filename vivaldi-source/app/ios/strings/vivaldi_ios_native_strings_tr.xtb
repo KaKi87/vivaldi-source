@@ -354,6 +354,7 @@ engellendi</translation>
 <translation id="495421405224926623">Kullanım Koşullarını ve Gizlilik Politikasını okudum ve kabul ediyorum</translation>
 <translation id="497942794017668482">İzleyiciler ve Reklamlar Engelleniyor</translation>
 <translation id="4983968022327077496">Kuruluşunuz gizli olarak gezinmenizi gerektiriyor. Gizli modda sekmeler kaydedilmez. <ph name="BEGIN_LINK" />Daha fazla bilgi edinin<ph name="END_LINK" /></translation>
+<translation id="4991261712398289852">İki Seviyeli</translation>
 <translation id="4993477362660748586">Senkronizasyon</translation>
 <translation id="500392125908657603">Adres Alanı Seçenekleri</translation>
 <translation id="5037761343305489956">Nota kopyalandı</translation>
@@ -622,6 +623,7 @@ Düzeltmek için ayarları açın.</translation>
 <translation id="8289933454364510719">Üst veya Alt</translation>
 <translation id="8304044605002588416">Başlangıç Sayfasını Özelleştir düğmesi</translation>
 <translation id="8304538706952727936">Büyük Teknolojiden Kurtulun</translation>
+<translation id="8316087354921793295">Senkronizasyon etkin olduğunda verileriniz Vivaldi hesabınıza kaydedilecek.</translation>
 <translation id="8323167517179506834">URL yazın</translation>
 <translation id="8326104954595890674">Yeni Özel Sekme</translation>
 <translation id="8329813750766387010">Güncellendi: <ph name="DATE" /></translation>
@@ -666,6 +668,7 @@ Düzeltmek için ayarları açın.</translation>
 <translation id="8786689981011401964">Duvar kağıtları</translation>
 <translation id="8804164990146287819">Gizlilik Politikası</translation>
 <translation id="8805346136361295421">Sayfada Bul'u Gizle</translation>
+<translation id="8806518325449247164">Reklam ve izleme araçları içermeyen premium arama</translation>
 <translation id="8818152010000655963">Duvar Kağıdı</translation>
 <translation id="8819841443522803117">Varsayılan tarayıcınızı değiştirmenin zamanı geldi mi? Vivaldi'yi seçin.</translation>
 <translation id="8820817407110198400">Yer imleri</translation>
@@ -698,7 +701,6 @@ engellendi</translation>
 <translation id="9157459516617966251">Bağlantıyı Düzenle</translation>
 <translation id="9157539936604258187">Bağlantıyı Aç</translation>
 <translation id="9165758833825521812">Okuyucu Görünümü</translation>
-<translation id="9171713938468458286">İki seviyeli</translation>
 <translation id="9195659219948942754">Senkronize edilen verileri Vivaldi Hesabınızda kullanmaya devam edin</translation>
 <translation id="9195802773917252923">Yer İmi Takma Adlarını Etkinleştir</translation>
 <translation id="9212737146310746733">Farsça (<ph name="ORIGIN" />)</translation>

@@ -110,7 +110,7 @@
 <translation id="322254490661677575">Google アカウントで Chrome のデータを使用して保存するには、パスフレーズを入力してください。</translation>
 <translation id="3303503998967553377">iOS で Chrome アクションを使用する</translation>
 <translation id="3348862487678490430">Chrome にリーディング リストの項目を追加する</translation>
-<translation id="3357827134511189025">Chrome の自動入力を使用して、保存したパスワードとパスキーですべてのアプリからログイン</translation>
+<translation id="3357827134511189025">Chrome の自動入力で、どのアプリでも保存済みのパスワードやパスキーでログイン</translation>
 <translation id="3360031466389132716">{THRESHOLD,plural, =1{Chrome を {THRESHOLD} 分間使用しなかった場合に行われます。}other{Chrome を {THRESHOLD} 分間使用しなかった場合に行われます。}}</translation>
 <translation id="3367797402528056312">Chrome の設定を完了しましょう</translation>
 <translation id="3371064404604898522">Chrome を既定のブラウザに設定する</translation>
@@ -341,6 +341,7 @@ Chrome を使いやすくするためにデータを使用するその他の設�
 <translation id="840168496893712993">アドオンが原因でChromeがクラッシュしました。アドオンをアンインストールしてみてください。</translation>
 <translation id="8413500425974960807">Chrome のヒント: Chrome をドックに移動</translation>
 <translation id="8413795581997394485">危険だと認識されているサイト、ダウンロード、拡張機能から保護します。ユーザーがサイトにアクセスすると、Chrome はユーザーの IP アドレスを隠すプライバシー サーバーを介して、URL の一部を難読化して Google に送信します。サイトで不審な動作が検出された場合は、URL 全体とページ コンテンツの一部も送信されます。</translation>
+<translation id="8447479329557998927">Chrome では、Google マップを使用して、経路やマップのリンクに関するローカル情報を表示しています</translation>
 <translation id="84594714173170813">Google アカウントの Chrome データを引き続き使用してください</translation>
 <translation id="8491300088149538575"><ph name="EMAIL" /> としてログインしています。
 

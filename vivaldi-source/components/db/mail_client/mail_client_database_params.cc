@@ -16,6 +16,6 @@ MailClientDatabaseParams::MailClientDatabaseParams(
     const base::FilePath& mail_client_databse_dir)
     : mail_client_databse_dir(mail_client_databse_dir) {}
 
-MailClientDatabaseParams ::~MailClientDatabaseParams() {}
+MailClientDatabaseParams::~MailClientDatabaseParams() {}
 
 }  // namespace mail_client

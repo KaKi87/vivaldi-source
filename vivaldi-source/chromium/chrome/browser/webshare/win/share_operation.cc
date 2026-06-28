@@ -26,6 +26,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/webshare/share_service_impl.h"
 #include "chrome/browser/webshare/win/show_share_ui_for_window_operation.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/web_contents.h"
@@ -230,7 +231,9 @@ class DataWriterFileStreamWriter final : public storage::FileStreamWriter {
 
 // Represents an ongoing operation of writing to an IOutputStream.
 class OutputStreamWriteOperation
-    : public base::RefCountedThreadSafe<OutputStreamWriteOperation> {
+    : public base::RefCountedThreadSafe<
+          OutputStreamWriteOperation,
+          content::BrowserThread::DeleteOnIOThread> {
  public:
   OutputStreamWriteOperation(
       content::BrowserContext::BlobContextGetter blob_context_getter,
@@ -257,9 +260,23 @@ class OutputStreamWriteOperation
   }
 
  private:
-  friend class base::RefCountedThreadSafe<OutputStreamWriteOperation>;
+  friend class base::RefCountedThreadSafe<
+      OutputStreamWriteOperation,
+      content::BrowserThread::DeleteOnIOThread>;
+  friend struct content::BrowserThread::DeleteOnThread<
+      content::BrowserThread::IO>;
+  friend class base::DeleteHelper<OutputStreamWriteOperation>;
 
-  ~OutputStreamWriteOperation() = default;
+  ~OutputStreamWriteOperation() {
+    // Though at the time of this writing the only thing this class owns that
+    // needs to be destroyed on the IO thread is the FileWriterDelegate (because
+    // it owns a BlobReader, which owns a BlobDataSnapshot, which must be
+    // destroyed on the IO thread), this class is largely IO-centric, so to
+    // protect against future changes that may modify what needs to be destroyed
+    // on the IO thread we broadly enforce the class as a whole is always
+    // destroyed there.
+    DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
+  }
 
   void WriteStreamOnIOThread() {
     DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
@@ -383,6 +400,14 @@ void ShareOperation::Run(SharedFiles files,
   // the operation.
   if (!web_contents_) {
     Complete(blink::mojom::ShareError::CANCELED);
+    return;
+  }
+
+  // If the tab is no longer active, return permission denied.
+  tabs::TabInterface* tab_interface =
+      tabs::TabInterface::MaybeGetFromContents(web_contents_.get());
+  if (tab_interface && !tab_interface->IsActivated()) {
+    Complete(blink::mojom::ShareError::PERMISSION_DENIED);
     return;
   }
 

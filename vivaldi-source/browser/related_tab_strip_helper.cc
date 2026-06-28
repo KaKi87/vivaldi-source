@@ -6,91 +6,23 @@
 #include <string>
 #include <vector>
 
-#include "app/vivaldi_apptools.h"
+#include "base/logging.h"
 #include "base/uuid.h"
 #include "browser/tab_probe.h"
-#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
-#include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/ext_data/tab_ext_data.h"
-#include "components/prefs/pref_service.h"
+#include "components/ext_data/tab_positioning_params.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "content/public/browser/web_contents.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
-#include "ui/base/page_transition_types.h"
 
 #include "browser/tab_strip_sanitizer.h"
 
 namespace vivaldi {
 namespace {
-static const char* kTabsNewPlacement = "vivaldi.tabs.new_placement";
-
-// This code could be useful, keeping it here commented out just in case we
-// need it in the future.
-#if 0
-static const char* kWindowSorting = "vivaldi.panels.window.sorting";
-static const char* kSortField = "sortField";
-static const char* kRelatedSorting = "related";
-
-std::optional<bool> IsRelatedSorting(PrefService* prefs) {
-  const PrefService::Preference* sorting_pref =
-      prefs->FindPreference(kWindowSorting);
-  if (!sorting_pref)
-    return std::nullopt;
-
-  auto* value = sorting_pref->GetValue();
-  if (!value)
-    return std::nullopt;
-
-  auto* dict = value->GetIfDict();
-  if (!dict)
-    return std::nullopt;
-
-  auto* s = dict->FindString(kSortField);
-  if (!s)
-    return std::nullopt;
-
-  return *s == kRelatedSorting;
-}
-#endif
-
-// Copy value from ext_data to another ext_data.
-void CopyExtData(content::WebContents* target_contents,
-                 ::vivaldi::TabExtKey key,
-                 const TabExtData* ext_data) {
-  if (!target_contents)
-    return;
-
-  CHECK(ext_data);
-
-  const base::Value* source_value = ext_data->Get(key);
-  if (source_value) {
-    TabExtData::Get(target_contents)->Set(key, *source_value);
-  } else {
-    TabExtData::Get(target_contents)->Remove(key);
-  }
-}
-std::optional<vivaldi::TabPlacingStrategy> GetPlacementStrategy(
-    PrefService* prefs) {
-  const PrefService::Preference* placement_pref =
-      prefs->FindPreference(kTabsNewPlacement);
-  if (!placement_pref)
-    return std::nullopt;
-
-  auto* value = placement_pref->GetValue();
-  if (!value)
-    return std::nullopt;
-
-  std::optional<int> placement = value->GetIfInt();
-  if (!placement)
-    return std::nullopt;
-
-  return ::vivaldi::TabPlacingStrategy(*placement);
-}
-
 // Normalizes a map of deleted nodes to their former parents.
 //
 // Each entry in `reparents` represents a node that was deleted:
@@ -164,6 +96,8 @@ std::optional<int> GetLastInTreeInternal(int index,
   if (!root_id)
     return std::nullopt;
 
+  std::optional<std::string> group = tab_probe::GetGroupId(*info);
+
   int last = index;
   int i = index + 1;
   while (i < tab_strip->count()) {
@@ -174,6 +108,10 @@ std::optional<int> GetLastInTreeInternal(int index,
       i++;
       continue;
     }
+
+    // Expand only within the group.
+    if (info && tab_probe::GetGroupId(*info) != group)
+      break;
 
     std::optional<std::string> parent_id =
         info ? tab_probe::GetParentExtId(*info) : std::nullopt;
@@ -193,56 +131,6 @@ std::optional<int> GetLastInTreeInternal(int index,
     }
   }
   return last;
-}
-
-// Choose the tab position for the "After Related Tabs" option.
-std::optional<int> GetLastRelated(int index,
-                                  TabStripModel* tab_strip,
-                                  bool within_group = false) {
-  std::optional<TabProbe> probe = tab_probe::TabLookup(index, tab_strip);
-  if (!probe)
-    return std::nullopt;
-
-  std::optional<std::string> ext_id = tab_probe::GetExtId(*probe);
-  std::optional<std::string> group = tab_probe::GetGroupId(*probe);
-
-  if (!ext_id)
-    return std::nullopt;
-
-  for (;;) {
-    std::optional<TabProbe> next_probe = tab_probe::GetNext(*probe);
-
-    if (!next_probe)
-      break;
-
-    std::optional<TabProbe> after_next = tab_probe::GetNext(*next_probe);
-
-    // The tab after next is a child.
-    if (after_next && tab_probe::GetExtId(*next_probe) ==
-                          tab_probe::GetParentExtId(*after_next)) {
-      break;
-    }
-
-    if (within_group && tab_probe::GetGroupId(*next_probe) != group)
-      break;
-
-    auto parent = tab_probe::GetParentExtId(*next_probe);
-
-    if (!parent || *parent != *ext_id)
-      break;
-
-    CHECK(probe->index < next_probe->index);
-    probe = next_probe;
-  }
-
-  return probe->index;
-}
-
-std::optional<int> GetLastRelated(const TabProbe& probe,
-                                  bool within_group = false) {
-  std::optional<int> last =
-      GetLastRelated(probe.index, probe.tab_strip_model, within_group);
-  return last.value_or(probe.index);
 }
 
 }  // namespace
@@ -377,52 +265,6 @@ void HandleOrphans(TabStripModel* tab_strip_model,
 
 void HandleGroups(TabStripModel* tab_strip_model,
                   const TabStripModelChange& change) {
-  if (change.type() == TabStripModelChange::kInserted) {
-    auto* insert = change.GetInsert();
-
-    for (auto& insert_tab : insert->contents) {
-      content::WebContents* contents = insert_tab.contents;
-      CHECK(contents);
-
-      TabExtData* ext = TabExtData::Get(contents);
-      WeakExtData* weak_ext = ext->GetWeakExtData();
-
-      CHECK(ext);
-      CHECK(weak_ext);
-
-      if (weak_ext->forced_parent_id) {
-        ext->Set(TabExtKey::kParentExtId, *weak_ext->forced_parent_id);
-      }
-
-      if (weak_ext->workspace_id) {
-        ext->Set(TabExtKey::kWorkspaceId, *weak_ext->workspace_id);
-      }
-
-      std::optional<std::string> group;
-
-      if (weak_ext->stack_with_related) {
-        std::optional<TabProbe> probe = tab_probe::TabLookup(insert_tab.index, tab_strip_model);
-        if (probe) {
-          std::optional<TabProbe> prev = tab_probe::GetNext(*probe, true);
-          if (prev) {
-            TabExtData* prev_ext = TabExtData::Get(prev->contents);
-            group = prev_ext->GetGroupId();
-            if (!group) {
-              group = base::Uuid::GenerateRandomV4().AsLowercaseString();
-              prev_ext->Set(TabExtKey::kGroupId, *group);
-            }
-          }
-        }
-      } else if (weak_ext->create_in_group_request) {
-        group = weak_ext->create_in_group_request;
-      }
-
-      if (group) {
-        ext->Set(TabExtKey::kGroupId, *group);
-      }
-    }
-  }
-
   std::vector<std::pair<content::WebContents*, int>> tab_contents;
 
   if (change.type() == TabStripModelChange::kInserted) {
@@ -450,37 +292,32 @@ void HandleGroups(TabStripModel* tab_strip_model,
 
     std::optional<std::string> group_id;
 
+    std::optional<TabProbe> probe =
+        tab_probe::TabLookup(index, tab_strip_model);
+
+    if (!probe)
+      continue;
+
+    TabExtData* group_origin = nullptr;
+
     // The tab before.
-    std::optional<TabProbe> up =
-        tab_probe::TabLookup(index - 1, tab_strip_model);
+    std::optional<TabProbe> up = tab_probe::GetNext(*probe, true);
     auto group_up = up ? tab_probe::GetGroupId(*up) : std::nullopt;
 
     // The tab after
-    std::optional<TabProbe> down =
-        tab_probe::TabLookup(index + 1, tab_strip_model);
+    std::optional<TabProbe> down = tab_probe::GetNext(*probe);
     auto group_down = down ? tab_probe::GetGroupId(*down) : std::nullopt;
-
-    TabProbe* used_probe = nullptr;
 
     if (group_up) {
       if (group_down && group_up == group_down) {
-        group_id = group_down;
-        if (down)
-          used_probe = &(*down);
+        group_origin = TabExtData::Get(down->contents);
       } else if (parent_id && up && tab_probe::GetExtId(*up) == parent_id) {
-        group_id = group_up;
-        used_probe = &(*up);
+        group_origin = TabExtData::Get(up->contents);
       }
     }
 
-    if (group_id) {
-      ext->Set(::vivaldi::TabExtKey::kGroupId, *group_id);
-      if (used_probe) {
-        TabExtData* ext_data = TabExtData::Get(used_probe->contents);
-        // kFixedGroupTitle and kGroupColor set together with the group.
-        CopyExtData(affected.first, TabExtKey::kFixedGroupTitle, ext_data);
-        CopyExtData(affected.first, TabExtKey::kGroupColor, ext_data);
-      }
+    if (group_origin) {
+      ext->JoinGroup(*group_origin);
     }
   }
 
@@ -492,7 +329,6 @@ void HandleGroups(TabStripModel* tab_strip_model,
     vivaldi::SanitizeGroups(tab_strip_model);
   }
 }
-
 
 std::vector<int> GetTabIdsFromExtIds(const std::vector<std::string>& ext_ids) {
   std::vector<int> tab_ids;
@@ -520,173 +356,6 @@ std::vector<int> GetTabIdsFromExtIds(const std::vector<std::string>& ext_ids) {
     }
   }
   return tab_ids;
-}
-
-namespace {
-bool IsVivaldiDecidingIndex(int add_types) {
-  if ((add_types & ADD_INHERIT_OPENER) != 0)
-    return true;
-
-  if ((add_types & ADD_FORCE_INDEX) != 0)
-    return false;
-
-  return true;
-}
-
-std::optional<std::string> GetParentForNewTab(TabStripModel* tab_strip,
-                                              content::WebContents* contents) {
-  namespace tab_probe = ::vivaldi::tab_probe;
-
-  std::optional<::vivaldi::TabProbe> prev =
-      tab_probe::TabLookup(tab_strip->active_index(), tab_strip);
-
-  if (!prev) {
-    return std::nullopt;
-  }
-
-  std::optional<::vivaldi::TabProbe> next = tab_probe::GetNext(*prev);
-
-  if (next && tab_probe::GetExtId(*prev) == tab_probe::GetParentExtId(*next)) {
-    return tab_probe::GetExtId(*prev);
-  }
-
-  return ::vivaldi::TabExtData::Get(prev->contents)->GetParentExtId();
-}
-}  // namespace
-
-std::optional<int> DetermineInsertionIndex(TabStripModel* tab_strip,
-                                           content::WebContents* contents,
-                                           int add_types,
-                                           ui::PageTransition transition,
-                                           TabSource source) {
-  if (!::vivaldi::IsVivaldiRunning()) {
-    return std::nullopt;
-  }
-
-  // Here we have all the information to decide where to
-  // place the tab, so we don't need to move the tab back and
-  // forth in JS.
-  CHECK(tab_strip);
-  CHECK(contents);
-
-  std::optional<TabProbe> active_probe =
-      tab_probe::TabLookup(tab_strip->active_index(), tab_strip);
-
-  if (!active_probe) {
-    return std::nullopt;
-  }
-
-  content::WebContents* active_contents = active_probe->contents;
-  const TabExtData* active_ext = TabExtData::Get(active_contents);
-  TabExtData* ext = TabExtData::Get(contents);
-  ::vivaldi::WeakExtData* new_contents_weak_ext = ext->GetWeakExtData();
-
-  if (!ext->HasWorkspaceIdSet()) {
-    // Nobody has decided workspaceId for this tab. Take it from the active
-    // tab.
-    ext->Set(TabExtKey::kWorkspaceId, active_ext->GetWorkspaceId().value_or(0));
-  }
-
-  Profile* profile = tab_strip->profile();
-  PrefService* prefs = profile->GetPrefs();
-
-  CHECK(new_contents_weak_ext);
-  const bool creating = new_contents_weak_ext->creating;
-
-  if (creating) {
-    new_contents_weak_ext->creating = false;
-    auto parent = GetParentForNewTab(tab_strip, contents);
-    if (parent) {
-     ext->Set(TabExtKey::kParentExtId, *parent);
-    }
-  }
-
-  if (new_contents_weak_ext->create_in_group_request) {
-    // TODO: this probably can be done over transition.
-    std::pair<int, int> range = tab_probe::GetGroupRange(
-        tab_strip, *new_contents_weak_ext->create_in_group_request);
-    return range.second + 1;
-  }
-
-  if (!creating) {
-    if (!IsVivaldiDecidingIndex(add_types)) {
-      return std::nullopt;
-    }
-  }
-
-  // In vivaldi, the tab placement position is determined based on the
-  // preferences/settings.
-  std::optional<vivaldi::TabPlacingStrategy> placing_strategy;
-
-  if (source == TabSource::kExternalApp) {
-    // Tab from the external app will always open the last in the tabstrip.
-    placing_strategy = TabPlacingStrategy::kAlwaysLast;
-  } else {
-    placing_strategy = GetPlacementStrategy(prefs);
-  }
-
-  if (!placing_strategy)
-    return std::nullopt;
-
-  if (creating) {  // Ctrl+T case
-    switch (*placing_strategy) {
-      // The "After Active Tab" rule applies for a new tab created by Ctrl+T,
-      // but "After Related Tabs" does not. In this case we let Chromium
-      // decide the new tab position itself. (It will basically create the tab
-      // at the end of the tab strip.) This weird exception is here because we
-      // want the same behavior as the original Google Chrome, and we call the
-      // option "After Related Tabs".
-      case TabPlacingStrategy::kDirectRightOfCurrent:
-        break;
-      default:
-        return std::nullopt;
-    }
-  }
-
-  switch (*placing_strategy) {
-    case TabPlacingStrategy::kRightOfCurrent: {  // After Related Tabs
-      std::optional<int> last_in_tree = GetLastRelated(*active_probe);
-      if (last_in_tree)
-        return *last_in_tree + 1;
-      return std::nullopt;
-    }
-    case TabPlacingStrategy::kDirectRightOfCurrent:  // After Active Tab
-      return tab_strip->active_index() + 1;
-    case TabPlacingStrategy::kAlwaysLast:  // As Last Tab
-      return tab_strip->count();
-    case TabPlacingStrategy::kOpenInTabstackWithRelated:  // As Tab Stack with
-                                                          // Related Tab
-      // Do not group with pinned tab
-      if (!tab_probe::IsPinned(*active_probe)) {
-        new_contents_weak_ext->stack_with_related = true;
-        std::optional<int> last = GetLastRelated(*active_probe, true);
-        if (last)
-          return *last + 1;
-        return std::nullopt;
-      }
-
-      break;
-  }
-  return tab_strip->active_index() + 1;
-}
-
-std::optional<int> DetermineDuplicateIndex(TabStripModel* tab_strip,
-                                           content::WebContents* origin,
-                                           content::WebContents* contents,
-                                           int add_type) {
-  if (!::vivaldi::IsVivaldiRunning()) {
-    return std::nullopt;
-  }
-
-  // TODO: this is a little simplistic. We may want to introduce settings for
-  // where the duplicate should appear and what parent it should get. However,
-  // this is the most intuitive way of doing this.
-  TabExtData* origin_ext = TabExtData::Get(origin);
-  ::vivaldi::WeakExtData* weak_ext =
-      TabExtData::Get(contents)->GetWeakExtData();
-  weak_ext->workspace_id = origin_ext->GetWorkspaceId();
-  weak_ext->forced_parent_id = origin_ext->GetExtId();
-  return std::nullopt;
 }
 
 VivaldiSanitizerGuard::VivaldiSanitizerGuard(TabStripModel* tab_strip) {

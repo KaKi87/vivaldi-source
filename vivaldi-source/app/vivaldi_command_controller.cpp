@@ -7,6 +7,8 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "extensions/buildflags/buildflags.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -24,9 +26,11 @@ namespace vivaldi {
 
 void SetVivaldiScrollType(int scrollType) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  Browser* browser = chrome::FindLastActive();
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
   if (browser) {
-    extensions::VivaldiUtilitiesAPI::ScrollType(browser->profile(), scrollType);
+    extensions::VivaldiUtilitiesAPI::ScrollType(browser->GetProfile(),
+                                                scrollType);
   }
 #endif
 }

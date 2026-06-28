@@ -19,6 +19,7 @@
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/color/color_provider.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
@@ -92,7 +93,9 @@ void DownloadBubblePrimaryView::MaybeAddOtrInfoRow(Browser* browser) {
   info_icon->SetBorder(
       views::CreateEmptyBorder(GetLayoutInsets(DOWNLOAD_ICON)));
   info_icon->SetImage(ui::ImageModel::FromVectorIcon(
-      views::kInfoIcon, kColorDownloadBubbleInfoIcon,
+      features::IsRoundedIconsEnabled() ? views::kInfoIcon
+                                        : views::kInfoOldIcon,
+      kColorDownloadBubbleInfoIcon,
       GetLayoutConstant(LayoutConstant::kDownloadIconSize)));
 
   auto* info_label =
@@ -103,7 +106,7 @@ void DownloadBubblePrimaryView::MaybeAddOtrInfoRow(Browser* browser) {
   info_label->SetHorizontalAlignment(gfx::HorizontalAlignment::ALIGN_LEFT);
   info_label->SetMultiLine(true);
 
-  // As noted in https://crbug.com/1340937#c3, the layout
+  // As noted in https://crbug.com/40230500#comment4, the layout
   // seems to have an issue with multi-line labels. As a workaround, give the
   // label the fixed size width.
   const int side_margin = GetLayoutInsets(DOWNLOAD_ROW).width();

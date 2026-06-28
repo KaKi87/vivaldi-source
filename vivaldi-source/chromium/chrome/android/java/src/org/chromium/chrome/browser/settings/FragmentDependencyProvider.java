@@ -261,7 +261,12 @@ public class FragmentDependencyProvider extends FragmentManager.FragmentLifecycl
         }
         if (fragment instanceof HomeOfTransactionsFragment) {
             ((HomeOfTransactionsFragment) fragment)
-                    .setModalDialogManagerSupplier(mModalDialogManagerSupplier);
+                    .setDependencies(
+                            mModalDialogManagerSupplier,
+                            mWindowAndroidSupplier,
+                            mActivityResultTracker,
+                            mBottomSheetControllerSupplier,
+                            mSnackbarManagerSupplier);
         }
     }
 }

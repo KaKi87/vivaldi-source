@@ -36,25 +36,24 @@ static_library("notes") {
   deps = [
     "//base",
     "//base:i18n",
+
     #"//chrome:strings",
     #"//chrome/common/importer:interfaces",
-    "//components/keyed_service/core:core",
+    "//components/keyed_service/core",
     "//skia",
     "//third_party/icu",
-    "//ui/base:base",
-    "//url:url",
+    "//ui/base",
+    "//url",
     "//vivaldi/app:vivaldi_native_resources",
-    "//vivaldi/sync/notes:sync_notes",
     "//vivaldi/sync/file_sync",
+    "//vivaldi/sync/notes:sync_notes",
   ]
-  if(is_android) {
-    deps += [
-      "//chrome/android:chrome_jni_headers",
-    ]
+  if (is_android) {
+    deps += [ "//chrome/android:chrome_jni_headers" ]
   }
-  if(!is_ios) {
+  if (!is_ios) {
     deps += [
-      "//components/keyed_service/content:content",
+      "//components/keyed_service/content",
       "//content/public/browser",
       "//vivaldi/app:vivaldi_unscaled_native_resources",
     ]
@@ -63,11 +62,10 @@ static_library("notes") {
     #"//chrome/browser",
     "//components/bookmarks/browser",
     "//components/sync/protocol",
+
     #"//vivaldi/sync",
   ]
-  allow_circular_includes_from = [
-    "//vivaldi/sync/notes:sync_notes",
-  ]
+  allow_circular_includes_from = [ "//vivaldi/sync/notes:sync_notes" ]
 }
 
 static_library("factory") {
@@ -78,8 +76,8 @@ static_library("factory") {
     ]
 
     deps = [
-      "//components/keyed_service/core",
       "//components/keyed_service/content",
+      "//components/keyed_service/core",
       "//vivaldi/sync:factory",
     ]
   }
@@ -105,10 +103,10 @@ static_library("browser") {
   }
   if (is_android) {
     sources += [
+      "notes_bridge.cc",
       "notes_bridge.h",
-      "notes_bridge.cc"
     ]
-  } else if (!is_ios) { #! is_android
+  } else if (!is_ios) {  #! is_android
     sources += [
       "notes_submenu_observer.cc",
       "notes_submenu_observer.h",
@@ -117,7 +115,7 @@ static_library("browser") {
 
   deps = [
     ":factory",
-    "//base:base",
+    "//base",
     "//base:i18n",
     "//components/keyed_service/core",
     "//components/prefs",
@@ -129,11 +127,9 @@ static_library("browser") {
     "//components/bookmarks/browser",
   ]
   if (!is_android && !is_ios) {
-    deps += [
-      "//ui/views",
-    ]
+    deps += [ "//ui/views" ]
   }
-  if(!is_ios) {
+  if (!is_ios) {
     deps += [
       "//chrome:strings",
       "//components/keyed_service/content",
@@ -143,22 +139,16 @@ static_library("browser") {
       "//vivaldi/sync/notes:sync_notes",
     ]
   }
-  allow_circular_includes_from = [
-    ":notes",
-  ]
-  if(!is_ios) {
-    allow_circular_includes_from += [
-      "//vivaldi/sync/notes:sync_notes",
-    ]
+  allow_circular_includes_from = [ ":notes" ]
+  if (!is_ios) {
+    allow_circular_includes_from += [ "//vivaldi/sync/notes:sync_notes" ]
   }
 }
 
 if (vivaldi_build_tests) {
   source_set("unit_tests") {
     testonly = true
-    sources = [
-      "notes_codec_unittest.cc"
-    ]
+    sources = [ "notes_codec_unittest.cc" ]
     deps = [
       "//base",
       "//skia",

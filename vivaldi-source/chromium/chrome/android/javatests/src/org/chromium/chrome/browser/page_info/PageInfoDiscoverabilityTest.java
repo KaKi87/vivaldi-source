@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
+import org.chromium.base.CallbackUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplierImpl;
@@ -32,6 +33,7 @@ import org.chromium.base.test.params.ParameterSet;
 import org.chromium.base.test.params.ParameterizedRunner;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.DisableLeakChecks;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.browsing_data.BrowsingDataBridge;
@@ -39,6 +41,7 @@ import org.chromium.chrome.browser.browsing_data.BrowsingDataType;
 import org.chromium.chrome.browser.browsing_data.TimePeriod;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.omnibox.LocationBarDataProvider;
+import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator;
 import org.chromium.chrome.browser.omnibox.status.PageInfoIphController;
 import org.chromium.chrome.browser.omnibox.status.PermissionStatusHandler;
 import org.chromium.chrome.browser.omnibox.status.StatusMediator;
@@ -68,6 +71,7 @@ import java.util.List;
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 // TODO(crbug.com/344672094): Failing when batched, batch this again.
+@DisableLeakChecks("crbug.com/512492968 (PermissionStatusHandler)")
 public class PageInfoDiscoverabilityTest {
     @ClassRule
     public static final PermissionTestRule sPermissionTestRule = new PermissionTestRule();
@@ -137,10 +141,6 @@ public class PageInfoDiscoverabilityTest {
                                     ContentSettingsType
                                             .FEDERATED_IDENTITY_IDENTITY_PROVIDER_REGISTRATION,
                                     false));
-            parameters.add(
-                    new ParameterSet()
-                            .name("RequestType.kLocalNetworkAccess")
-                            .value(ContentSettingsType.LOCAL_NETWORK_ACCESS, true));
             parameters.add(
                     new ParameterSet()
                             .name("RequestType.kLocalNetwork")
@@ -249,14 +249,17 @@ public class PageInfoDiscoverabilityTest {
                             new StatusMediator(
                                     mModel,
                                     mContext,
-                                    /* isTablet= */ false,
                                     mLocationBarDataProvider,
                                     mPermissionDialogController,
                                     mTemplateUrlServiceSupplier,
                                     ObservableSuppliers.createNonNull(mProfile),
                                     mPageInfoIphController,
                                     sPermissionTestRule.getActivity().getWindowAndroid(),
-                                    /* pageInfoAction= */ null);
+                                    /* pageInfoAction= */ null,
+                                    ObservableSuppliers.createNonNull(
+                                            FuseboxCoordinator.FuseboxState.DISABLED),
+                                    CallbackUtils.emptyRunnable(),
+                                    ObservableSuppliers.createNullable());
                     mPermissionStatusHandler = mMediator.getPermissionStatusHandlerForTesting();
                 });
     }

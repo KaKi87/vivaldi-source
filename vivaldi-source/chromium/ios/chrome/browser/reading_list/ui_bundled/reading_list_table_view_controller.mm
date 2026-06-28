@@ -908,6 +908,10 @@ BOOL IsAllSelected(NSUInteger selected_unread_count,
         promoConfigurator:(SigninPromoViewConfigurator*)promoConfigurator
             promoDelegate:(id<SigninPromoViewDelegate>)promoDelegate
                 promoText:(NSString*)promoText {
+  if (self.editing) {
+    [self exitEditingModeAnimated:NO];
+  }
+
   if (promoEnabled) {
     CHECK(![self.tableViewModel
         hasSectionForSectionIdentifier:kSectionIdentifierSignInPromo]);
@@ -1450,7 +1454,9 @@ BOOL IsAllSelected(NSUInteger selected_unread_count,
     [self updateSearchHeaderVisibilityForHasItems:NO];
   } // End Vivaldi
 
-  UIImage* emptyImage = [UIImage imageNamed:@"reading_list_empty"];
+  UIImage* emptyImage = [UIImage imageNamed:IsChromeNextIaEnabled()
+                                                ? @"reading_list_empty"
+                                                : @"reading_list_empty_legacy"];
 
   if (vivaldi::IsVivaldiRunning())
     emptyImage =

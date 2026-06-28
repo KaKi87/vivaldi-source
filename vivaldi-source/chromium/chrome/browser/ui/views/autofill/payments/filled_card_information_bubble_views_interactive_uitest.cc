@@ -21,7 +21,6 @@
 #include "chrome/browser/ui/views/autofill/payments/filled_card_information_icon_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
-#include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -237,7 +236,7 @@ IN_PROC_BROWSER_TEST_P(FilledCardInformationBubbleViewsInteractiveUiTest,
 }
 
 // Invokes the bubble and verifies the bubble is dismissed upon page navigation.
-// Flaky on macOS, Linux, and Win. crbug.com/1254101
+// Flaky on macOS, Linux, and Win. crbug.com/40794138
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
 #define MAYBE_DismissBubbleUponNavigation DISABLED_DismissBubbleUponNavigation
 #else
@@ -542,6 +541,7 @@ IN_PROC_BROWSER_TEST_P(FilledCardInformationBubbleViewsInteractiveUiTest,
 
 IN_PROC_BROWSER_TEST_P(FilledCardInformationBubbleViewsInteractiveUiTest,
                        IconViewAccessibleName) {
+  ShowBubble();
   EXPECT_EQ(
       GetIconView()->GetViewAccessibility().GetCachedName(),
       l10n_util::GetStringUTF16(

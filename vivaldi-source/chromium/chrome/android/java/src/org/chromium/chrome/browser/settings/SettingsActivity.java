@@ -52,6 +52,7 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.build.annotations.RequiresNonNull;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeBaseAppCompatActivity;
+import org.chromium.chrome.browser.auxiliary_search.AuxiliarySearchControllerFactory;
 import org.chromium.chrome.browser.back_press.BackPressHelper;
 import org.chromium.chrome.browser.back_press.BackPressHelper.OnKeyDownHandler;
 import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsVisibilityDelegate;
@@ -107,6 +108,7 @@ import java.util.Locale;
 import java.util.Map;
 
 // Vivaldi
+import static org.chromium.chrome.browser.appearance.settings.AppearanceSettingsFragment.PREF_UI_THEME;
 import static org.chromium.chrome.browser.privacy.settings.PrivacySettings.PREF_CAN_MAKE_PAYMENT;
 import static org.chromium.chrome.browser.privacy.settings.PrivacySettings.PREF_WEBRTC_BROADCAST_IP;
 import static org.chromium.chrome.browser.privacy.settings.PrivacySettings.WEBRTC_IP_HANDLING_POLICY_DEFAULT;
@@ -294,6 +296,14 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
         // recreate a fragment, and a fragment might depend on the native library.
         ChromeBrowserInitializer.getInstance().handleSynchronousStartup();
         mProfile = ProfileManager.getLastUsedRegularProfile();
+
+        // Initialize the singleton for the Settings UI context to prevent NullPointerException
+        // when checking isEnabledAndDeviceCompatible() during search index generation.
+        // This is needed because SettingsActivity can be launched independently (from Android
+        // notifications or launcher shortcuts) without a preceding ChromeTabbedActivity to
+        // initialize the tablet state in AuxiliarySearchControllerFactory.
+        AuxiliarySearchControllerFactory.getInstance()
+                .setIsTablet(DeviceFormFactor.isNonMultiDisplayContextOnTablet(this));
 
         if (savedInstanceState == null && isMultiColumnSettingEnabled()) {
             String fragmentName = getIntent().getStringExtra(EXTRA_SHOW_FRAGMENT);
@@ -518,7 +528,7 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
                         /* listenToActivityState= */ true,
                         mIntentRequestTracker,
                         getInsetObserver(),
-                        /* trackOcclusion= */ true));
+                        /* occlusionTrackingAllowed= */ true));
 
         if (isContainmentEnabled()) {
             int backgroundColor = SemanticColorUtils.getSettingsBackgroundColor(this);
@@ -537,7 +547,7 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
             if (startTime > 0) mStartTime = startTime;
         } else if (isForMainSettings()) {
             mStartTime = SystemClock.elapsedRealtime();
-            RecordUserAction.record("Android.Settings.Opened");
+            RecordHistogram.recordBooleanHistogram("Settings.Opened", true);
         }
 
         // Vivaldi
@@ -901,7 +911,8 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
                         KeyboardVisibilityDelegate.getInstance(),
                         () -> sheetContainer,
                         () -> 0,
-                        /* desktopWindowStateManager= */ null);
+                        /* desktopWindowStateManager= */ null,
+                        getInsetObserver());
         mBottomSheetControllerSupplier.set(mManagedBottomSheetController);
     }
 
@@ -947,7 +958,10 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
     @Override
     protected void onStart() {
         super.onStart();
-        // GlicHelper.maybeShowGlicTaskInProgressSnackbar(this, mProfile, this); Vivaldi
+        // if (ChromeFeatureList.sGlicShowTaskInProgressSnackbar.getValue()) { // Vivaldi
+        //     GlicHelper.maybeShowGlicTaskInProgressSnackbar(
+        //             this, mProfile, this, GlicHelper.Caller.SETTINGS_ACTIVITY);
+        // } // Vivaldi
     }
 
     @Override
@@ -1099,10 +1113,6 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
         if (!mStartTimeSaved && isForMainSettings()) {
             long timeSpent = SystemClock.elapsedRealtime() - mStartTime;
             RecordHistogram.recordLongTimesHistogram("Settings.SessionDuration", timeSpent);
-            if (mSearchCoordinator != null && mSearchCoordinator.searchCompleted()) {
-                RecordHistogram.recordLongTimesHistogram(
-                        "Settings.SessionDuration.SearchCompleted", timeSpent);
-            }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM
                 && mAppHeaderCoordinator != null) {
@@ -1650,7 +1660,7 @@ public class SettingsActivity extends ChromeBaseAppCompatActivity
                         return true;
                     });
                     break;
-                    case MainSettings.PREF_UI_THEME:
+                    case PREF_UI_THEME:
                         preference.getExtras()
                                 .putInt(
                                         ThemeSettingsFragment.KEY_THEME_SETTINGS_ENTRY,

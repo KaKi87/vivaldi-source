@@ -21,7 +21,7 @@ bundle_js("bundle_js_document_blocked_interstitial") {
 }
 
 source_set("interstitial") {
-  sources= [
+  sources = [
     "document_blocked_controller_client.cc",
     "document_blocked_controller_client.h",
     "document_blocked_interstitial.cc",
@@ -31,13 +31,13 @@ source_set("interstitial") {
   ]
   deps = [
     "//chrome/common:buildflags",
-    "//components/site_engagement/core/mojom:mojo_bindings",
     "//components/security_interstitials/core/common/mojom",
+    "//components/site_engagement/core/mojom:mojo_bindings",
     "//content/public/browser",
     "//vivaldi/app:resources",
-    "//vivaldi/components/ad_blocker/public/content"
+    "//vivaldi/components/ad_blocker/public/content",
   ]
-  if(!is_android) {
+  if (!is_android) {
     deps += [
       "//extensions/browser:cws_item_service_proto",
       "//extensions/common/api",

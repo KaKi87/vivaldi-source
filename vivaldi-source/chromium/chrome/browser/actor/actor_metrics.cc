@@ -4,6 +4,7 @@
 
 #include "chrome/browser/actor/actor_metrics.h"
 
+#include <string_view>
 #include <utility>
 
 #include "base/metrics/histogram_functions.h"
@@ -11,11 +12,13 @@
 #include "base/notreached.h"
 #include "base/strings/strcat.h"
 #include "chrome/browser/actor/actor_task.h"
+#include "components/actor/public/mojom/actor_types.mojom.h"
 #include "components/optimization_guide/proto/features/actions_data.pb.h"
 
 namespace actor {
 
 namespace {
+
 std::string_view ToString(ActorTask::StoppedReason stopped_reason) {
   switch (stopped_reason) {
     case ActorTask::StoppedReason::kStoppedByUser:
@@ -34,9 +37,22 @@ std::string_view ToString(ActorTask::StoppedReason stopped_reason) {
       return "NewChat";
     case ActorTask::StoppedReason::kUserLoadedPreviousChat:
       return "PreviousChat";
+    case ActorTask::StoppedReason::kUserNavigatedAway:
+      return "UserNavigatedAway";
   }
   NOTREACHED();
 }
+
+std::string_view ToString(ApcSource source) {
+  switch (source) {
+    case ApcSource::kActor:
+      return "Actor";
+    case ApcSource::kGlic:
+      return "Glic";
+  }
+  NOTREACHED();
+}
+
 }  // namespace
 
 void RecordActorTaskStateTransitionActionCount(size_t action_count,
@@ -133,12 +149,11 @@ void RecordDownloadSaveAsDialogTriggered(bool success) {
   base::UmaHistogramBoolean("Actor.Download.SaveAsDialogTriggered", success);
 }
 
-void RecordActorNavigationGatingListSize(size_t allow_list_size,
-                                         size_t confirmed_list_size) {
-  base::UmaHistogramCounts1000("Actor.NavigationGating.AllowListSize",
-                               allow_list_size);
-  base::UmaHistogramCounts1000("Actor.NavigationGating.ConfirmedListSize2",
-                               confirmed_list_size);
+void RecordApcComparisonIdentical(ApcSource source, bool identical) {
+  base::UmaHistogramBoolean(
+      base::StrCat({"Actor.PageContext.APC.Comparison.", ToString(source),
+                    ".IsIdenticalToPreviousFetch"}),
+      identical);
 }
 
 void RecordScriptToolActionResultCode(

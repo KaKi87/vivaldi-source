@@ -5,7 +5,6 @@
 #include "chrome/browser/web_applications/test/os_integration_test_override_impl.h"
 
 #include <algorithm>
-#include <map>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -37,6 +36,7 @@
 #include "base/types/expected.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/web_applications/model/web_app_icon_types.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_test_override.h"
 #include "chrome/browser/web_applications/os_integration/web_app_file_handler_registration.h"
 #include "chrome/browser/web_applications/os_integration/web_app_shortcut.h"
@@ -44,7 +44,6 @@
 #include "chrome/browser/web_applications/web_app.h"
 #include "chrome/browser/web_applications/web_app_icon_generator.h"
 #include "chrome/browser/web_applications/web_app_icon_manager.h"
-#include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "components/webapps/common/web_app_id.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -74,7 +73,6 @@
 #include <shellapi.h>
 
 #include "base/command_line.h"
-#include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_split.h"
@@ -136,12 +134,12 @@ std::optional<SkBitmap> IconManagerReadIconForSize(
   if (!icon_manager.HasIcons(app_id, IconPurpose::ANY, {size_px})) {
     return std::nullopt;
   }
-  std::optional<SkBitmap> result = std::nullopt;
+  std::optional<SkBitmap> result;
   base::RunLoop run_loop;
   icon_manager.ReadTrustedIconsWithFallbackToManifestIcons(
       app_id, {size_px}, IconPurpose::ANY,
       base::BindLambdaForTesting([&](IconMetadataFromDisk icon_metadata) {
-        SizeToBitmap icon_bitmaps = std::move(icon_metadata.icons_map);
+        OrderedSizeToBitmap icon_bitmaps = std::move(icon_metadata.icons_map);
         CHECK(icon_bitmaps.contains(size_px));
         result = icon_bitmaps[size_px];
         run_loop.Quit();
@@ -585,6 +583,11 @@ bool OsIntegrationTestOverrideImpl::IsShortcutCreated(
 #endif
 }
 
+bool OsIntegrationTestOverrideImpl::IsAppPinnedToTaskbar(
+    const webapps::AppId& app_id) const {
+  return taskbar_pinned_apps_.contains(app_id);
+}
+
 bool OsIntegrationTestOverrideImpl::HasOsIntegrationResourcesDirectory(
     Profile* profile,
     const webapps::AppId& app_id) {
@@ -744,6 +747,16 @@ void OsIntegrationTestOverrideImpl::DeleteShortcutsMenuJumpListEntryForApp(
     const std::wstring& app_user_model_id) {
   jump_list_entry_map_.erase(app_user_model_id);
   shortcut_menu_apps_registered_.erase(app_user_model_id);
+}
+
+void OsIntegrationTestOverrideImpl::RecordPinAppToTaskbar(
+    const webapps::AppId& app_id) {
+  taskbar_pinned_apps_.insert(app_id);
+}
+
+void OsIntegrationTestOverrideImpl::RecordUnpinAppFromTaskbar(
+    const webapps::AppId& app_id) {
+  taskbar_pinned_apps_.erase(app_id);
 }
 
 base::FilePath OsIntegrationTestOverrideImpl::desktop() {

@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
 #include <unsupported/Eigen/MatrixFunctions>
@@ -194,6 +195,15 @@ void testMapRef(const MatrixType& A) {
   Y = X.sinh() + Rc.sinh() + Mc.sinh();
 }
 
+template <typename MatrixType>
+void testMatrixLogarithmSingular() {
+  // Regression test for bug #1613: log() of a singular matrix used to
+  // hang because sqrt(0) = 0 is a fixed point of the inverse-scaling loop
+  // in matrix_log_compute_big(). The implementation now returns NaN.
+  MatrixType A = MatrixType::Zero(5, 5);
+  VERIFY(A.log().array().isNaN().all());
+}
+
 EIGEN_DECLARE_TEST(matrix_function) {
   CALL_SUBTEST_1(testMatrixType(Matrix<float, 1, 1>()));
   CALL_SUBTEST_2(testMatrixType(Matrix3cf()));
@@ -207,4 +217,7 @@ EIGEN_DECLARE_TEST(matrix_function) {
   CALL_SUBTEST_2(testMapRef(Matrix3cf()));
   CALL_SUBTEST_3(testMapRef(MatrixXf(8, 8)));
   CALL_SUBTEST_7(testMapRef(MatrixXd(13, 13)));
+
+  CALL_SUBTEST_3(testMatrixLogarithmSingular<MatrixXf>());
+  CALL_SUBTEST_7(testMatrixLogarithmSingular<MatrixXd>());
 }

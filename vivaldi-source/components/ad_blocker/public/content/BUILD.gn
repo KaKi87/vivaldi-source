@@ -12,15 +12,13 @@ static_library("content") {
     "adblock_tab_state_and_logs.h",
   ]
 
-  public_deps = [
-    "//vivaldi/components/ad_blocker/public/core",
-  ]
+  public_deps = [ "//vivaldi/components/ad_blocker/public/core" ]
 
   deps = [
     "//base",
-    "//content/public/browser",
     "//components/keyed_service/core",
+    "//content/public/browser",
     "//url",
-    "//vivaldi/components/ad_blocker/public/content/mojom:mojom",
+    "//vivaldi/components/ad_blocker/public/content/mojom",
   ]
 }

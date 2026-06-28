@@ -9,8 +9,8 @@
 
 #include <string>
 
-#include "remoting/base/session_options.h"
-#include "remoting/base/session_policies.h"
+#include "base/functional/callback_forward.h"
+#include "base/memory/weak_ptr.h"
 #include "remoting/base/source_location.h"
 #include "remoting/protocol/message_pipe.h"
 #include "remoting/protocol/network_settings.h"
@@ -19,12 +19,16 @@
 
 namespace remoting {
 class DesktopCapturer;
+class FifoBufferWriter;
+class SessionOptions;
+struct SessionPolicies;
 }  // namespace remoting
 
 namespace remoting::protocol {
 
 class AudioSource;
 class AudioStream;
+struct AudioSampleInfo;
 class ClientStub;
 class ClipboardStub;
 class HostStub;
@@ -73,6 +77,11 @@ class ConnectionToClient {
     virtual void OnIncomingDataChannel(const std::string& channel_name,
                                        std::unique_ptr<MessagePipe> pipe) = 0;
 
+    // Called when the format of the incoming audio stream changes.
+    virtual void OnIncomingAudioFormatChanged(
+        const AudioSampleInfo& info,
+        base::OnceCallback<void(bool)> done) = 0;
+
    protected:
     virtual ~EventHandler() = default;
   };
@@ -104,6 +113,9 @@ class ConnectionToClient {
   // client.
   virtual std::unique_ptr<AudioStream> StartAudioStream(
       std::unique_ptr<AudioSource> audio_source) = 0;
+
+  // Sets the SPSC audio writer to inject low-latency playout PCM audio.
+  virtual void SetAudioWriter(std::unique_ptr<FifoBufferWriter> writer) = 0;
 
   // The client stubs used by the host to send control messages to the client.
   // The stub must not be accessed before OnConnectionAuthenticated(), or

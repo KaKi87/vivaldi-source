@@ -190,6 +190,7 @@ static const struct {
         { "hevc_dequant", checkasm_check_hevc_dequant },
         { "hevc_idct", checkasm_check_hevc_idct },
         { "hevc_pel", checkasm_check_hevc_pel },
+        { "hevc_pred", checkasm_check_hevc_pred },
         { "hevc_sao", checkasm_check_hevc_sao },
     #endif
     #if CONFIG_HPELDSP
@@ -222,6 +223,9 @@ static const struct {
     #if CONFIG_ME_CMP
         { "motion", checkasm_check_motion },
     #endif
+    #if CONFIG_MPEG4_DECODER
+        { "mpeg4videodsp", checkasm_check_mpeg4videodsp },
+    #endif
     #if CONFIG_MPEGVIDEO
         { "mpegvideo_unquantize", checkasm_check_mpegvideo_unquantize },
     #endif
@@ -245,6 +249,12 @@ static const struct {
     #endif
     #if CONFIG_RV40_DECODER
         { "rv40dsp", checkasm_check_rv40dsp },
+    #endif
+    #if CONFIG_SBC_ENCODER
+        { "sbcdsp", checkasm_check_sbcdsp },
+    #endif
+    #if CONFIG_SNOW_DECODER
+        { "snowdsp", checkasm_check_snowdsp },
     #endif
     #if CONFIG_SVQ1_ENCODER
         { "svq1enc", checkasm_check_svq1enc },
@@ -331,6 +341,9 @@ static const struct {
     #endif
     #if CONFIG_NLMEANS_FILTER
         { "vf_nlmeans", checkasm_check_nlmeans },
+    #endif
+    #if CONFIG_PP7_FILTER
+        { "vf_pp7", checkasm_check_vf_pp7 },
     #endif
     #if CONFIG_THRESHOLD_FILTER
         { "vf_threshold", checkasm_check_vf_threshold },

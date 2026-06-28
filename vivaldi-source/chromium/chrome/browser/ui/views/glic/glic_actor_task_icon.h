@@ -18,6 +18,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_variant.h"
+#include "ui/compositor/layer.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/button/menu_button_controller.h"
 #include "ui/views/view_class_properties.h"
@@ -56,15 +57,12 @@ class GlicActorTaskIcon : public GlicBaseShim<T> {
     this->label()->SetProperty(views::kMarginsKey, gfx::Insets().set_left_right(
                                                        kActorNudgeLabelMargin,
                                                        kActorNudgeLabelMargin));
-
-    SetTaskIconToDefault();
-
-    // The task icon will only ever be shown with the GlicButton, so can always
-    // set the corner radii for split button styling.
-    SetLeftRightCornerRadii(kSplitLeftEdgeRadius, GetSplitRoundedEdgeRadius());
-    SetInkdropHoverColorId(kColorTabBackgroundInactiveHoverFrameActive);
-
-    UpdateColors();
+    // Disable subpixel rendering to prevent crash on transparent layer
+    this->label()->SetSubpixelRenderingEnabled(false);
+    this->label()->SetPaintToLayer();
+    if (this->label()->layer()) {
+      this->label()->layer()->SetFillsBoundsOpaquely(false);
+    }
 
     this->SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
 
@@ -139,7 +137,7 @@ class GlicActorTaskIcon : public GlicBaseShim<T> {
   }
 
   // Sets the task icon back to its default colors.
-  void SetDefaultColors() {
+  virtual void SetDefaultColors() {
     SetForegroundFrameActiveColorId(kColorNewTabButtonForegroundFrameActive);
     SetForegroundFrameInactiveColorId(
         kColorNewTabButtonForegroundFrameInactive);
@@ -205,7 +203,7 @@ class GlicActorTaskIcon : public GlicBaseShim<T> {
   }
 
   float GetWidthFactor() const override { return width_factor_; }
-  void SetWidthFactor(float factor) {
+  void SetWidthFactor(float factor) override {
     width_factor_ = factor;
     this->PreferredSizeChanged();
   }
@@ -232,17 +230,17 @@ class GlicActorTaskIcon : public GlicBaseShim<T> {
     GlicBaseShim<T>::SetBackgroundFrameInactiveColorId(new_color_id);
   }
 
- private:
   void SetLeftRightCornerRadii(int left, int right) override {
     GlicBaseShim<T>::SetLeftRightCornerRadii(left, right);
   }
+
+  void UpdateColors() override { GlicBaseShim<T>::UpdateColors(); }
 
   void SetInkdropHoverColorId(const ChromeColorIds new_color_id) override {
     GlicBaseShim<T>::SetInkdropHoverColorId(new_color_id);
   }
 
-  void UpdateColors() override { GlicBaseShim<T>::UpdateColors(); }
-
+ private:
   void OnBrowserWindowDidBecomeActive(BrowserWindowInterface* bwi) {
     UpdateInkdropHoverColor(true);
   }

@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.autofill;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.when;
 
 import android.app.Activity;
@@ -34,7 +33,7 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.components.plus_addresses.PlusAddressesMetricsRecorder;
-import org.chromium.components.signin.base.CoreAccountInfo;
+import org.chromium.components.signin.base.AccountInfo;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.google_apis.gaia.GaiaId;
 import org.chromium.ui.base.TestActivity;
@@ -157,10 +156,9 @@ public class AutofillFallbackSurfaceLauncherTest {
                                 true)
                         .build();
         when(mIdentityServicesProvider.getIdentityManager(mProfile)).thenReturn(mIdentityManager);
-        CoreAccountInfo accountInfo =
-                CoreAccountInfo.createFromEmailAndGaiaId(
-                        "test@gmail.com", new GaiaId("testGaiaId"));
-        when(mIdentityManager.getPrimaryAccountInfo(anyInt())).thenReturn(accountInfo);
+        AccountInfo accountInfo =
+                new AccountInfo.Builder("test@gmail.com", new GaiaId("testGaiaId")).build();
+        when(mIdentityManager.getPrimaryAccountInfo()).thenReturn(accountInfo);
 
         AutofillFallbackSurfaceLauncher.openManagePlusAddresses(mActivity, mProfile);
 

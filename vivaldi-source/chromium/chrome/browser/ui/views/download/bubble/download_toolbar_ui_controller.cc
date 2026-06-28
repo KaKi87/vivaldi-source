@@ -4,6 +4,11 @@
 
 #include "chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.h"
 
+#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
+
+DEFINE_USER_DATA(DownloadToolbarUIController);
+
+#include <optional>
 #include <string>
 
 #include "base/functional/bind.h"
@@ -27,8 +32,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
@@ -52,6 +56,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider.h"
 #include "ui/compositor/compositor.h"
@@ -428,6 +433,12 @@ DownloadsImageBadge* GetImageBadge(BrowserView* browser_view) {
 
 }  // namespace
 
+// static
+DownloadToolbarUIController* DownloadToolbarUIController::From(
+    BrowserWindowInterface* browser) {
+  return Get(browser->GetUnownedUserDataHost());
+}
+
 DownloadToolbarUIController::DownloadToolbarUIController(
     BrowserView* browser_view)
     : browser_view_(browser_view),
@@ -436,7 +447,10 @@ DownloadToolbarUIController::DownloadToolbarUIController(
           kAutoClosePartialViewDelay,
           base::BindRepeating(
               &DownloadToolbarUIController::AutoClosePartialView,
-              base::Unretained(this))) {
+              base::Unretained(this))),
+      scoped_unowned_user_data_(
+          browser_view->browser()->GetUnownedUserDataHost(),
+          *this) {
   Browser* const browser = browser_view_->browser();
   action_item_ = actions::ActionManager::Get().FindAction(
       kActionShowDownloads, browser->browser_actions()->root_action_item());
@@ -666,11 +680,20 @@ void DownloadToolbarUIController::UpdateIcon() {
   bool is_touch_mode = ui::TouchUiController::Get()->touch_ui();
   if (state_ == IconState::kProgress || state_ == IconState::kDeepScanning ||
       state_ == IconState::kContentCheckPending) {
-    new_icon = is_touch_mode ? &kDownloadInProgressTouchIcon
-                             : &kDownloadInProgressChromeRefreshIcon;
+    new_icon = is_touch_mode ? &(features::IsRoundedIconsEnabled()
+                                     ? kArrowDownwardAltIcon
+                                     : kDownloadInProgressTouchOldIcon)
+                             : &(features::IsRoundedIconsEnabled()
+                                     ? kArrowDownwardAltIcon
+                                     : kDownloadInProgressChromeRefreshOldIcon);
   } else {
-    new_icon = is_touch_mode ? &kDownloadToolbarButtonTouchIcon
-                             : &kDownloadToolbarButtonChromeRefreshIcon;
+    new_icon = is_touch_mode
+                   ? &(features::IsRoundedIconsEnabled()
+                           ? kDownloadIcon
+                           : kDownloadToolbarButtonTouchOldIcon)
+                   : &(features::IsRoundedIconsEnabled()
+                           ? kDownloadIcon
+                           : kDownloadToolbarButtonChromeRefreshOldIcon);
   }
   action_item_->SetProperty(kActionItemUnderlineIndicatorKey, is_icon_active);
 
@@ -877,10 +900,9 @@ DownloadToolbarUIController::BubbleCloser::~BubbleCloser() = default;
 
 void DownloadToolbarUIController::BubbleCloser::OnEvent(
     const ui::Event& event) {
-  // If the bubble widget has become active in the meantime (since starting as
-  // inactive), we should do nothing and defer to the close-on-deactivate
-  // behavior from BubbleDialogDelegate which is in effect when the bubble is
-  // active.
+  // If the bubble widget is active, we should do nothing and defer to the
+  // close-on-deactivate behavior from BubbleDialogDelegate which is in effect
+  // when the bubble is active.
   if (bubble_widget_observation_.IsObserving() &&
       bubble_widget_observation_.GetSource()->IsActive()) {
     return;
@@ -956,7 +978,9 @@ void DownloadToolbarUIController::CreateBubbleDialogDelegate() {
   bubble_delegate->SetEnableArrowKeyTraversal(true);
   bubble_delegate_ = bubble_delegate.get();
   views::Widget* bubble_widget =
-      views::BubbleDialogDelegate::CreateBubble(std::move(bubble_delegate));
+      views::BubbleDialogDelegate::CreateBubbleDeprecated(
+          std::move(bubble_delegate),
+          views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET);
   CHECK(bubble_widget);
 
   if (!is_primary_partial_view_ && !button_click_time_.is_null()) {
@@ -982,13 +1006,13 @@ void DownloadToolbarUIController::CreateBubbleDialogDelegate() {
   if (ShouldShowBubbleAsInactive()) {
     CHECK(button);
     bubble_widget->ShowInactive();
-    bubble_closer_ = std::make_unique<BubbleCloser>(button, bubble_widget,
-                                                    weak_factory_.GetWeakPtr());
     bubble_widget->GetRootView()->GetViewAccessibility().AnnounceText(
         l10n_util::GetStringUTF16(IDS_SHOW_BUBBLE_INACTIVE_DESCRIPTION));
   } else {
     bubble_widget->Show();
   }
+  bubble_closer_ = std::make_unique<BubbleCloser>(button, bubble_widget,
+                                                  weak_factory_.GetWeakPtr());
 
   action_item_->SetIsShowingBubble(true);
 
@@ -1101,8 +1125,9 @@ void DownloadToolbarUIController::CloseAutofillPopup() {
   }
   if (auto* autofill_client =
           autofill::ContentAutofillClient::FromWebContents(web_contents)) {
-    autofill_client->HideAutofillSuggestions(
-        autofill::SuggestionHidingReason::kOverlappingWithAnotherPrompt);
+    autofill_client->HideSuggestions(
+        autofill::SuggestionHidingReason::kOverlappingWithAnotherPrompt,
+        /*product=*/std::nullopt);
   }
 }
 
@@ -1123,9 +1148,12 @@ void DownloadToolbarUIController::UpdateIconDormant() {
   // Check if the current browser is the last active browser in this profile.
   // TODO(crbug.com/323962334): This should also check whether the bubble is
   // open once the bubble is added.
+  BrowserWindowInterface* last_active =
+      ProfileBrowserCollection::GetForProfile(browser_view_->GetProfile())
+          ->GetLastActiveBrowser();
   bool should_update_button_progress =
-      browser_view_->browser() ==
-      chrome::FindBrowserWithProfile(browser_view_->GetProfile());
+      last_active &&
+      browser_view_->browser() == last_active->GetBrowserForMigrationOnly();
   if (is_dormant_ == !should_update_button_progress) {
     return;
   }

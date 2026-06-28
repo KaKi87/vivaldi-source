@@ -1,0 +1,36 @@
+# cached_rule_service (common base for download/cache management)
+source_set("cached_rule_service") {
+  include_dirs = [ "//vivaldi/thirdparty" ]
+  sources = [
+    "cached_rule_service.cc",
+    "cached_rule_service.h",
+  ]
+  deps = [
+    "//base",
+    "//chrome/browser/profiles",
+    "//components/keyed_service/core",
+    "//content/public/browser",
+    "//net",
+    "//services/network/public/cpp",
+    "//url",
+  ]
+}
+
+# url_cleaning (orchestrates debounce + query_filter + url_sanitizer pipeline)
+source_set("url_cleaning") {
+  include_dirs = [ "//vivaldi/thirdparty" ]
+  sources = [
+    "url_cleaning.cc",
+    "url_cleaning.h",
+  ]
+  deps = [
+    ":cached_rule_service",
+    "//base",
+    "//chrome/browser/profiles",
+    "//components/keyed_service/content",
+    "//content/public/browser",
+    "//vivaldi/thirdparty/brave/components:debounce",
+    "//vivaldi/thirdparty/brave/components:query_filter",
+    "//vivaldi/thirdparty/brave/components:url_sanitizer",
+  ]
+}

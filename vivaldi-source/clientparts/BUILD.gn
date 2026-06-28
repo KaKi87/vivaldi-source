@@ -6,9 +6,9 @@ source_set("clientparts") {
     "vivaldi_content_browser_client_parts.h",
   ]
   deps = [
-    "//base:base",
+    "//base",
     "//chrome/app/resources:platform_locale_settings",
-    "//components/prefs:prefs",
+    "//components/prefs",
     "//content/public/browser",
     "//skia",
     "//vivaldi/components/request_filter",
@@ -17,9 +17,9 @@ source_set("clientparts") {
   if (enable_extensions) {
     deps += [
       "//extensions/common/api",
+      "//vivaldi/components/ext_data",
       "//vivaldi/extensions/api:apis",
       "//vivaldi/extensions/helper:app_helper",
-      "//vivaldi/components/ext_data"
     ]
   }
 }

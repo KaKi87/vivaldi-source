@@ -8,10 +8,13 @@
 #include "base/callback_list.h"
 #include "base/time/time.h"
 #include "chrome/browser/glic/common/local_hotkey_manager.h"
+#include "chrome/browser/glic/common/panel_focus_dependent_hotkey_manager.h"
+#include "chrome/browser/glic/common/panel_visibility_dependent_hotkey_manager.h"
 #include "chrome/browser/glic/host/context/glic_screenshot_capturer.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/host/host.h"
 #include "chrome/browser/glic/service/glic_ui_embedder.h"
+#include "chrome/browser/glic/widget/browser_conditions.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/web_modal/web_contents_modal_dialog_host.h"
 #include "components/web_modal/web_contents_modal_dialog_manager_delegate.h"
@@ -36,7 +39,8 @@ class GlicFloatingUi : public GlicUiEmbedder,
                        public LocalHotkeyManager::Panel,
                        public views::WidgetObserver,
                        public web_modal::WebContentsModalDialogManagerDelegate,
-                       public web_modal::WebContentsModalDialogHost {
+                       public web_modal::WebContentsModalDialogHost,
+                       public glic::BrowserAttachObserver {
  public:
   GlicFloatingUi(Profile* profile,
                  BrowserWindowInterface* browser,
@@ -57,6 +61,7 @@ class GlicFloatingUi : public GlicUiEmbedder,
   Host::EmbedderDelegate* GetHostEmbedderDelegate() override;
   void Show(const ShowOptions& options) override;
   bool IsShowing() const override;
+  bool IsShowingOrBackgrounded() const override;
   void Close(const CloseOptions& options) override;
   std::unique_ptr<GlicUiEmbedder> CreateInactiveEmbedder() const override;
   void Focus() override;
@@ -89,6 +94,9 @@ class GlicFloatingUi : public GlicUiEmbedder,
                              const gfx::Rect& new_bounds) override;
   void OnWidgetUserResizeStarted(views::Widget* widget) override;
   void OnWidgetUserResizeEnded(views::Widget* widget) override;
+
+  // BrowserAttachObserver implementation:
+  void CanAttachToBrowserChanged(bool can_attach) override;
 
   // LocalHotkeyManager::Panel:
   void FocusIfOpen() override;
@@ -131,8 +139,10 @@ class GlicFloatingUi : public GlicUiEmbedder,
   bool user_resizable_ = true;
   // Whether the user is currently drag-resizing the widget.
   bool user_resizing_ = false;
-  std::unique_ptr<LocalHotkeyManager> application_hotkey_manager_;
-  std::unique_ptr<LocalHotkeyManager> glic_panel_hotkey_manager_;
+  std::unique_ptr<PanelVisibilityDependentHotkeyManager>
+      panel_visibility_dependent_hotkey_manager_;
+  std::unique_ptr<PanelFocusDependentHotkeyManager>
+      panel_focus_dependent_hotkey_manager_;
   std::unique_ptr<GlicWindowAnimator> glic_window_animator_;
 
   // Must outlive `glic_widget_`
@@ -156,6 +166,8 @@ class GlicFloatingUi : public GlicUiEmbedder,
 
   tabs::TabHandle source_tab_;
   base::CallbackListSubscription source_tab_destruction_subscription_;
+
+  std::unique_ptr<BrowserAttachObservation> browser_attach_observation_;
 
   base::WeakPtrFactory<GlicFloatingUi> weak_ptr_factory_{this};
 };

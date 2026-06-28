@@ -14,24 +14,28 @@
 #include "base/files/file_util.h"
 #include "base/functional/callback_helpers.h"
 #include "base/json/json_reader.h"
+#include "base/logging.h"
 #include "base/numerics/byte_conversions.h"
+#include "base/task/bind_post_task.h"
+#include "browser/related_tab_strip_helper.h"
 #include "browser/sessions/vivaldi_session_utils.h"
 #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit.h"
 #include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_tabrestore.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/datasource/vivaldi_image_store.h"
 #include "components/ext_data/tab_ext_data.h"
+#include "components/os_crypt/async/browser/os_crypt_async.h"
 #include "components/sessions/content/content_serialized_navigation_builder.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "components/sessions/core/session_service_commands.h"
 #include "components/sessions/vivaldi_session_service_commands.h"
 #include "content/public/browser/browser_context.h"
+#include "content/public/browser/browser_thread.h"
 #include "content/public/browser/dom_storage_context.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/storage_partition.h"
@@ -173,14 +177,59 @@ VivaldiSessionService::VivaldiSessionService()
       buffer_(kFileReadBufferSize, 0),
       buffer_position_(0),
       available_count_(0),
-      profile_(nullptr) {}
+      profile_(nullptr) {
+
+  // This was added because VivaldiSessionService lives on a sequencedrunner,
+  // and we need to bindposttask to the g_browser_process.
+  base::OnceCallback<void(scoped_refptr<os_crypt_async::Encryptor> encryptor)>
+      forwarder_callback = base::BindPostTask(
+          base::SequencedTaskRunner::GetCurrentDefault(),
+          base::BindOnce(&VivaldiSessionService::OnEncryptorReady,
+                         weak_factory_.GetWeakPtr()));
+
+  content::GetUIThreadTaskRunner({})->PostTask(
+      FROM_HERE,
+      base::BindOnce(
+          [](base::OnceCallback<void(scoped_refptr<os_crypt_async::Encryptor>
+                                         encryptor)> callback) {
+            g_browser_process->os_crypt_async()->GetInstance(
+                std::move(callback));
+          },
+          std::move(forwarder_callback)));
+}
+
+void VivaldiSessionService::GetOSCryptOnOnUIThread() {
+  g_browser_process->os_crypt_async()->GetInstance(base::BindOnce(
+      &VivaldiSessionService::OnEncryptorReady, weak_factory_.GetWeakPtr()));
+}
 
 VivaldiSessionService::VivaldiSessionService(Profile* profile)
     : errored_(false),
       buffer_(kFileReadBufferSize, 0),
       buffer_position_(0),
       available_count_(0),
-      profile_(profile) {}
+      profile_(profile) {
+  base::OnceCallback<void(scoped_refptr<os_crypt_async::Encryptor> encryptor)>
+      forwarder_callback = base::BindPostTask(
+          base::SequencedTaskRunner::GetCurrentDefault(),
+          base::BindOnce(&VivaldiSessionService::OnEncryptorReady,
+                         weak_factory_.GetWeakPtr()));
+
+  content::GetUIThreadTaskRunner({})->PostTask(
+      FROM_HERE,
+      base::BindOnce(
+          [](base::OnceCallback<void(scoped_refptr<os_crypt_async::Encryptor>
+                                         encryptor)> callback) {
+            g_browser_process->os_crypt_async()->GetInstance(
+                std::move(callback));
+          },
+          std::move(forwarder_callback)));
+}
+
+void VivaldiSessionService::OnEncryptorReady(
+    scoped_refptr<os_crypt_async::Encryptor> encryptor) {
+  encryptor_ = encryptor;
+}
 
 // Based on SessionBackend::OpenAndWriteHeader()
 base::File* VivaldiSessionService::OpenAndWriteHeader(
@@ -223,7 +272,8 @@ bool VivaldiSessionService::AppendCommandsToFile(
     base::File* file,
     const std::vector<std::unique_ptr<sessions::SessionCommand>>& commands) {
   for (const std::unique_ptr<sessions::SessionCommand>& command : commands) {
-    const std::vector<uint8_t> serialized = command->Serialize();
+    const std::vector<uint8_t> serialized =
+        command->Serialize(encryptor_.get());
     if (serialized.empty()) {
       return false;
     }
@@ -751,6 +801,8 @@ content::WebContents* VivaldiSessionService::RestoreTab(
 
   chrome::VivExtDataWrap ext_data_wrap;
   ext_data_wrap.ext_data = &tab.viv_ext_data;
+  ext_data_wrap.ext_id_salt = opts_.ext_id_salt_;
+  ext_data_wrap.workspace_as_tabs = opts_.workspaceAsTabs_;
 
   content::WebContents* web_contents = chrome::AddRestoredTab(
       browser, tab.navigations, tab_index, selected_index, tab.extension_app_id,
@@ -819,6 +871,10 @@ Browser* VivaldiSessionService::ProcessSessionWindows(
       has_visible_browser = true;
   }
 
+  // The groups could be temporarily inconsistent during the restore process.
+  // Prevent santitizer from running during the restore process.
+  ::vivaldi::related_tabs::VivaldiSanitizerGuard sanitizer_guard;
+
   for (auto i = windows->begin(); i != windows->end(); ++i) {
     Browser* browser = nullptr;
     if (!has_tabbed_browser &&
@@ -866,6 +922,7 @@ Browser* VivaldiSessionService::ProcessSessionWindows(
         vivaldi::VivaldiBrowserUiData::From(browser);
     browser_ui_data->set_viv_ext_data((*i)->viv_ext_data);
 
+    sanitizer_guard.Insert(browser->tab_strip_model());
     RestoreTabsToBrowser(*(*i), browser, initial_tab_count, selected_tab_index,
                          created_contents);
     NotifySessionServiceOfRestoredTabs(browser, initial_tab_count);
@@ -918,7 +975,6 @@ void VivaldiSessionService::RemoveUnusedRestoreWindows(
   while (i != window_list->end()) {
     sessions::SessionWindow* window = i->get();
     if (window->type != sessions::SessionWindow::TYPE_NORMAL) {
-      delete window;
       i = window_list->erase(i);
     } else {
       ++i;

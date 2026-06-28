@@ -1,6 +1,32 @@
-CHANGES BETWEEN 2.14.2 and 2.14.3 (2026-xxx-xx)
+CHANGES BETWEEN 2.14.3 and 2.15.0 (2026-Mmm-DD)
 
-  I. MISCELLANEOUS
+  I. IMPORTANT CHANGES
+
+  - The anti-aliased rasterizer now uses dynamic heap memory for large
+    glyphs,  which  significantly improves  its performance  at  sizes
+    above 40 ppem.
+
+  - Experimental HVF driver  has been contributed by Apple,  currently
+    available on macOS only.
+
+
+  II. IMPORTANT BUG FIXES
+
+  - Continued efforts to scrutinize FreeType with AI tools resulted in
+    more bugs being fixed, some with potential security implications.
+
+
+======================================================================
+
+CHANGES BETWEEN 2.14.2 and 2.14.3 (2026-Mar-22)
+
+  I. IMPORTANT BUG FIXES
+
+  - A bunch of potential security problems have been found.  All users
+    should update.
+
+
+  II. MISCELLANEOUS
 
   - If configuration option `TT_CONFIG_OPTION_GPOS_KERNING` is active,
     GPOS-based kerning could miss some  value pairs (bug introduced in
@@ -5878,7 +5904,7 @@ Extensions support:
 
 ------------------------------------------------------------------------
 
-Copyright (C) 2000-2025 by
+Copyright (C) 2000-2026 by
 David Turner, Robert Wilhelm, and Werner Lemberg.
 
 This  file  is  part  of the  FreeType  project, and may  only be  used,

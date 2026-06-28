@@ -16,6 +16,8 @@
 #import "components/autofill/core/browser/data_model/payments/credit_card.h"
 #import "components/infobars/core/infobar_manager.h"
 #import "components/password_manager/core/browser/ui/credential_ui_entry.h"
+#import "components/signin/public/base/consent_level.h"
+#import "components/signin/public/identity_manager/account_capabilities.h"
 #import "components/signin/public/identity_manager/account_info.h"
 #import "components/signin/public/identity_manager/identity_manager.h"
 #import "components/supervised_user/core/browser/kids_management_api_fetcher.h"
@@ -34,10 +36,10 @@
 #import "ios/chrome/browser/authentication/account_menu/coordinator/account_menu_coordinator.h"
 #import "ios/chrome/browser/authentication/account_menu/coordinator/account_menu_coordinator_delegate.h"
 #import "ios/chrome/browser/authentication/account_menu/public/account_menu_constants.h"
+#import "ios/chrome/browser/authentication/enterprise/managed_profile_creation/coordinator/managed_profile_creation_coordinator.h"
+#import "ios/chrome/browser/authentication/enterprise/public/managed_profile_creation_constants.h"
 #import "ios/chrome/browser/authentication/ui_bundled/change_profile/change_profile_load_url.h"
 #import "ios/chrome/browser/authentication/ui_bundled/continuation.h"
-#import "ios/chrome/browser/authentication/ui_bundled/enterprise/managed_profile_creation/managed_profile_creation_constants.h"
-#import "ios/chrome/browser/authentication/ui_bundled/enterprise/managed_profile_creation/managed_profile_creation_coordinator.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_coordinator.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_utils.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin_notification_infobar_delegate.h"
@@ -45,12 +47,15 @@
 #import "ios/chrome/browser/cobrowse/model/cobrowse_context.h"
 #import "ios/chrome/browser/default_browser/model/utils.h"
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
+#import "ios/chrome/browser/first_run/guided_tour/coordinator/guided_tour_coordinator.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_controller.h"
 #import "ios/chrome/browser/history/ui_bundled/history_coordinator_factory.h"
 #import "ios/chrome/browser/incognito_interstitial/ui_bundled/incognito_interstitial_coordinator.h"
 #import "ios/chrome/browser/incognito_interstitial/ui_bundled/incognito_interstitial_coordinator_delegate.h"
 #import "ios/chrome/browser/incognito_reauth/ui_bundled/incognito_reauth_scene_agent.h"
 #import "ios/chrome/browser/infobars/model/infobar_manager_impl.h"
+#import "ios/chrome/browser/intelligence/bwg/model/gemini_service.h"
+#import "ios/chrome/browser/intelligence/bwg/model/gemini_service_factory.h"
 #import "ios/chrome/browser/intelligence/bwg/utils/gemini_constants.h"
 #import "ios/chrome/browser/mailto_handler/model/mailto_handler_service.h"
 #import "ios/chrome/browser/mailto_handler/model/mailto_handler_service_factory.h"
@@ -69,6 +74,8 @@
 #import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_util.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
 #import "ios/chrome/browser/shared/coordinator/scene/state/incognito_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/tab_grid_state.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/browser/browser_provider.h"
@@ -77,6 +84,7 @@
 #import "ios/chrome/browser/shared/model/profile/profile_ios_util.h"
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
+#import "ios/chrome/browser/shared/public/commands/app_bar_commands.h"
 #import "ios/chrome/browser/shared/public/commands/bookmarks_commands.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
 #import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
@@ -107,9 +115,20 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
+#import "components/url_formatter/url_fixer.h"
 #import "ios/ui/feedback_prompt/vivaldi_feedback_view_coordinator.h"
 #import "ios/ui/feedback_prompt/vivaldi_feedback_view_delegate.h"
+#import "ios/ui/settings/tabs/vivaldi_tab_settings_helper.h"
 // End Vivaldi
+
+// Used to create PassKey to access the UIViewController through the
+// BrowserProvider interface (crbug.com/40606165).
+class SceneCoordinatorHelper {
+ public:
+  static BrowserProviderPassKey CreateKey() {
+    return base::PassKey<SceneCoordinatorHelper>();
+  }
+};
 
 namespace {
 
@@ -184,6 +203,7 @@ void OnListFamilyMembersResponse(
   id<TabOpening> _tabOpener;
   base::WeakPtr<Browser> _inactiveBrowser;
   base::WeakPtr<Browser> _regularBrowser;
+  raw_ptr<Browser> _incognitoBrowser;
   // Coordinator for the Tab Grid
   TabGridCoordinator* _tabGridCoordinator;
   // Coordinator for the AppBar.
@@ -230,6 +250,8 @@ void OnListFamilyMembersResponse(
   // The view controller to use as a the rootViewController for this scene's
   // window.
   SceneViewController* _viewController;
+  // The layout state for this scene.
+  LayoutState* _layoutState;
   // Fetches the Family Link member role asynchronously from KidsManagement API.
   std::unique_ptr<supervised_user::ListFamilyMembersFetcher>
       _familyMembersFetcher;
@@ -237,6 +259,8 @@ void OnListFamilyMembersResponse(
   base::CancelableOnceClosure _familyMembersTimeoutClosure;
   // Navigation View controller for the settings.
   SettingsNavigationController* _settingsNavigationController;
+  // Coordinator for the first step of the guided tour (NTP).
+  GuidedTourCoordinator* _guidedTourCoordinator;
 }
 
 - (instancetype)initWithTabOpener:(id<TabOpening>)tabOpener {
@@ -264,12 +288,15 @@ void OnListFamilyMembersResponse(
       initWithSceneCommandsEndpoint:self
                      regularBrowser:_regularBrowser.get()
                     inactiveBrowser:_inactiveBrowser.get()
-                   incognitoBrowser:_incognitoBrowser];
+                   incognitoBrowser:_incognitoBrowser.get()];
   _tabGridCoordinator.delegate = self.tabGridDelegate;
   [_tabGridCoordinator start];
+  _layoutState = self.sceneState.layoutState;
   if (IsUseSceneViewControllerEnabled()) {
     _viewController = [[SceneViewController alloc] init];
-    _viewController.layoutGuideCenter = LayoutGuideCenterForBrowser(nil);
+    _viewController.layoutState = _layoutState;
+    _viewController.layoutGuideCenter =
+        LayoutGuideCenterForScene(self.sceneState);
     _viewController.delegate = self;
     UIViewController* tabGridViewController =
         _tabGridCoordinator.viewController;
@@ -289,20 +316,33 @@ void OnListFamilyMembersResponse(
         initWithRegularFullscreenController:FullscreenController::FromBrowser(
                                                 _regularBrowser.get())
               incognitoFullscreenController:FullscreenController::FromBrowser(
-                                                _incognitoBrowser)];
+                                                _incognitoBrowser.get())];
+    _sceneMediator.tracker =
+        feature_engagement::TrackerFactory::GetForProfile(self.profile);
+    _sceneMediator.geminiService =
+        GeminiServiceFactory::GetForProfile(self.profile);
+    if (IsChromeNextIaEnabled()) {
+      [_layoutState updateAppBarPositionWithView:_viewController.view
+                                     coordinator:nil];
+      _sceneMediator.appBarPositionAtLaunch = _layoutState.appBarPosition;
+    }
+    _viewController.mutator = _sceneMediator;
     _sceneMediator.consumer = _viewController;
   }
 
   if (IsChromeNextIaEnabled()) {
-    _appBarCoordinator =
-        [[AppBarCoordinator alloc] initWithRegularBrowser:_regularBrowser.get()
-                                         incognitoBrowser:_incognitoBrowser];
+    _appBarCoordinator = [[AppBarCoordinator alloc]
+        initWithRegularBrowser:_regularBrowser.get()
+              incognitoBrowser:_incognitoBrowser.get()];
+    _appBarCoordinator.baseViewController = _viewController;
     [_appBarCoordinator start];
     [_viewController setAppBar:_appBarCoordinator.viewController];
+    _viewController.appBarHandler = HandlerForProtocol(
+        _regularBrowser->GetCommandDispatcher(), AppBarCommands);
   }
 
   if (IsAssistantContainerEnabled()) {
-    UIViewController* baseViewController = IsAssistantSidePanelEnabled()
+    UIViewController* baseViewController = IsUseSceneViewControllerEnabled()
                                                ? _viewController
                                                : self.activeViewController;
     _assistantContainerCoordinator = [[AssistantContainerCoordinator alloc]
@@ -339,6 +379,7 @@ void OnListFamilyMembersResponse(
   self.UIHandler = nil;
   self.tabGridDelegate = nil;
   self.sceneURLLoadingService = nullptr;
+  [self hideGuidedTourNTPStep];
 
   if (vivaldi::IsVivaldiRunning()) {
     [self stopVivaldiFeedbackPrompt];
@@ -350,7 +391,7 @@ void OnListFamilyMembersResponse(
 
 - (void)setBrowsersFromProvider:(id<BrowserProviderInterface>)provider {
   _regularBrowser = provider.mainBrowserProvider.browser->AsWeakPtr();
-  _inactiveBrowser = provider.mainBrowserProvider.inactiveBrowser->AsWeakPtr();
+  _inactiveBrowser = _regularBrowser->GetInactiveBrowser()->AsWeakPtr();
   _incognitoBrowser = provider.incognitoBrowserProvider.browser;
 }
 
@@ -578,7 +619,10 @@ void OnListFamilyMembersResponse(
     baseViewController = self.activeViewController;
   }
 
-  DCHECK(!self.isSigninInProgress);
+  if (self.isSigninInProgress) {
+    [self stopSigninCoordinatorWithCompletionAnimated:NO];
+  }
+
   if (_settingsNavigationController) {
     DCHECK(_settingsNavigationController.presentingViewController)
         << base::SysNSStringToUTF8(
@@ -664,7 +708,10 @@ void OnListFamilyMembersResponse(
   if (!IsAssistantContainerEnabled()) {
     return;
   }
-  [self stopAssistantAIMCoordinator];
+  if (_assistantAIMCoordinator) {
+    [_assistantAIMCoordinator setVisible:YES];
+    return;
+  }
   _assistantAIMCoordinator = [[AssistantAIMCoordinator alloc]
       initWithBaseViewController:self.activeViewController
                          browser:self.currentBrowser];
@@ -672,12 +719,17 @@ void OnListFamilyMembersResponse(
 }
 
 - (void)hideAssistant {
-  [self stopAssistantAIMCoordinator];
+  [_assistantAIMCoordinator setVisible:NO];
+}
+
+- (void)closeAssistant {
+  [_assistantAIMCoordinator stop];
+  _assistantAIMCoordinator = nil;
 }
 
 - (void)closePresentedViewsAndOpenURL:(OpenNewTabCommand*)command {
   DCHECK([command fromChrome]);
-  UrlLoadParams params = UrlLoadParams::InNewTab([command URL]);
+  UrlLoadParams params = UrlLoadParams::FromOpenNewTabCommand(command);
   params.web_params.transition_type = ui::PAGE_TRANSITION_TYPED;
   id<TabOpening> tabOpener = _tabOpener;
   ProceduralBlock completion = ^{
@@ -754,6 +806,25 @@ void OnListFamilyMembersResponse(
                                  sender:(UserFeedbackSender)sender
                     specificProductData:(NSDictionary<NSString*, NSString*>*)
                                             specificProductData {
+  if (IsFeedbackEntryPointsRequireCanSubmitFeedbackCapabilityEnabled()) {
+    ProfileIOS* originalProfile = self.profile->GetOriginalProfile();
+    signin::IdentityManager* identityManager =
+        IdentityManagerFactory::GetForProfile(originalProfile);
+    CoreAccountInfo primaryAccountInfo =
+        identityManager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin);
+    AccountInfo info = identityManager->FindExtendedAccountInfoByAccountId(
+        primaryAccountInfo.account_id);
+    if (info.capabilities.can_submit_feedback() == signin::Tribool::kFalse) {
+      // TODO(crbug.com/512043635): Remove this test once Chrome uses Aloha
+      // feedback. Aloha feedback is responsible for checking the capability.
+      base::UmaHistogramEnumeration("IOS.Feedback.ReportAnIssue.NotDisplayed",
+                                    sender);
+      return;
+    }
+  }
+
+  base::UmaHistogramEnumeration("IOS.Feedback.ReportAnIssue.Displayed", sender);
+
   DCHECK(baseViewController);
 
   if (vivaldi::IsVivaldiRunning()) {
@@ -794,18 +865,22 @@ void OnListFamilyMembersResponse(
     }
   }
 
-  UrlLoadParams params =
-      UrlLoadParams::InNewTab(command.URL, command.virtualURL);
-  params.SetInBackground(command.inBackground);
-  params.web_params.referrer = command.referrer;
-  params.web_params.extra_headers = [command.extraHeaders copy];
-  params.in_incognito = command.inIncognito;
-  params.append_to = command.appendTo;
-  params.origin_point = command.originPoint;
-  params.from_chrome = command.fromChrome;
-  params.user_initiated = command.userInitiated;
-  params.should_focus_omnibox = command.shouldFocusOmnibox;
-  params.inherit_opener = !command.inBackground;
+  UrlLoadParams params = UrlLoadParams::FromOpenNewTabCommand(command);
+
+  if (vivaldi::IsVivaldiRunning() &&
+      !command.inIncognito &&
+      !params.web_params.url.is_valid()) {
+    ProfileIOS* profile = self.profile;
+    PrefService* prefs = profile ? profile->GetPrefs() : nullptr;
+    if (prefs) {
+      NSString* urlString =
+          [VivaldiTabSettingsHelper getNewTabURLWithPref:prefs];
+      params.web_params.url =
+          url_formatter::FixupURL(base::SysNSStringToUTF8(urlString),
+                                  std::string());
+    }
+  }  // End Vivaldi
+
   self.sceneURLLoadingService->LoadUrlInNewTab(params);
 }
 
@@ -1028,12 +1103,18 @@ void OnListFamilyMembersResponse(
 }
 
 - (void)showManagedProfileCreation {
+  if (_managedConfirmationScreenCoordinator) {
+    // According to crbug.com/502634641 this function can be called twice.
+    // There is no reason to show this view twice, so let’s ignore the second
+    // call.
+    return;
+  }
   SystemIdentityManager* systemIdentityManager =
       GetApplicationContext()->GetSystemIdentityManager();
   AuthenticationService* authenticationService =
       AuthenticationServiceFactory::GetForProfile(self.profile);
   id<SystemIdentity> systemIdentity =
-      authenticationService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
+      authenticationService->GetPrimaryIdentity();
   _managedConfirmationScreenCoordinator =
       [[ManagedProfileCreationCoordinator alloc]
           initWithBaseViewController:self.activeViewController
@@ -1047,6 +1128,35 @@ void OnListFamilyMembersResponse(
   _managedConfirmationScreenCoordinator.delegate = self;
 
   [_managedConfirmationScreenCoordinator start];
+}
+
+- (void)showGuidedTourNTPStepWithCompletion:(ProceduralBlock)completion {
+  UIViewController* baseViewController;
+  if (IsChromeNextIaEnabled()) {
+    baseViewController = _viewController;
+  } else {
+    id<BrowserProvider> presentingInterface =
+        self.sceneState.browserProviderInterface.currentBrowserProvider;
+    baseViewController = [presentingInterface
+        viewController:SceneCoordinatorHelper::CreateKey()];
+  }
+  __weak __typeof(self) weakSelf = self;
+  _guidedTourCoordinator =
+      [[GuidedTourCoordinator alloc] initWithStep:GuidedTourStep::kNTP
+                               baseViewController:baseViewController
+                                          browser:self.currentBrowser
+                                  completionBlock:^{
+                                    [weakSelf hideGuidedTourNTPStep];
+                                    if (completion) {
+                                      completion();
+                                    }
+                                  }];
+  [_guidedTourCoordinator start];
+}
+
+- (void)hideGuidedTourNTPStep {
+  [_guidedTourCoordinator stop];
+  _guidedTourCoordinator = nil;
 }
 
 #pragma mark - ManagedProfileCreationCoordinatorDelegate
@@ -1215,6 +1325,13 @@ void OnListFamilyMembersResponse(
   }];
 }
 
+- (void)showAutofillAndPasswordsSettings {
+  __weak SceneCoordinator* weakSelf = self;
+  [self dismissModalDialogsWithCompletion:^{
+    [weakSelf showAutofillAndPasswordsSettingsAfterModalDismiss];
+  }];
+}
+
 - (void)showPasswordManagerForCredentialImport:(NSUUID*)UUID
     API_AVAILABLE(ios(26.0)) {
   if (!_settingsNavigationController) {
@@ -1345,6 +1462,20 @@ void OnListFamilyMembersResponse(
                                  completion:nil];
 }
 
+- (void)showDefaultSearchEngineSettings {
+  if (_settingsNavigationController) {
+    [_settingsNavigationController showDefaultSearchEngineSettings];
+    return;
+  }
+
+  _settingsNavigationController = [SettingsNavigationController
+      defaultSearchEngineControllerForBrowser:_regularBrowser.get()
+                                     delegate:self];
+  [self.activeViewController presentViewController:_settingsNavigationController
+                                          animated:YES
+                                        completion:nil];
+}
+
 - (void)showAndStartSafetyCheckForReferrer:
     (password_manager::PasswordCheckReferrer)referrer {
   if (_settingsNavigationController) {
@@ -1428,12 +1559,21 @@ void OnListFamilyMembersResponse(
   _tabGridCoordinator.delegate = delegate;
 }
 
+- (Browser*)incognitoBrowser {
+  return _incognitoBrowser.get();
+}
+
 - (void)setIncognitoBrowser:(Browser*)incognitoBrowser {
   _incognitoBrowser = incognitoBrowser;
   _tabGridCoordinator.incognitoBrowser = incognitoBrowser;
   if (IsChromeNextIaEnabled()) {
     _appBarCoordinator.incognitoBrowser = incognitoBrowser;
   }
+  [_sceneMediator
+      setIncognitoFullscreenController:incognitoBrowser == nullptr
+                                           ? nullptr
+                                           : FullscreenController::FromBrowser(
+                                                 incognitoBrowser)];
 }
 
 - (UIViewController*)activeViewController {
@@ -1733,6 +1873,22 @@ void OnListFamilyMembersResponse(
                                  completion:nil];
 }
 
+// Shows the Autofill and Passwords settings in the settings UI.
+- (void)showAutofillAndPasswordsSettingsAfterModalDismiss {
+  DCHECK(!self.isSigninInProgress);
+
+  if (_settingsNavigationController) {
+    [_settingsNavigationController showAutofillAndPasswordsSettings];
+    return;
+  }
+  _settingsNavigationController = [SettingsNavigationController
+      autofillAndPasswordsControllerForBrowser:_regularBrowser.get()
+                                      delegate:self];
+  [self.activeViewController presentViewController:_settingsNavigationController
+                                          animated:YES
+                                        completion:nil];
+}
+
 // Stops the Incognito interstitial coordinator.
 - (void)stopIncognitoInterstitialCoordinator {
   [_incognitoInterstitialCoordinator stop];
@@ -1857,11 +2013,10 @@ void OnListFamilyMembersResponse(
   configuration.sceneHandler = self;
   configuration.singleSignOnService =
       GetApplicationContext()->GetSingleSignOnService();
-  if (IsDisableU18FeedbackIosEnabled()) {
+  if (IsDisableFeedbackForIneligibleUsersEnabled()) {
     AuthenticationService* authenticationService =
         AuthenticationServiceFactory::GetForProfile(self.profile);
-    configuration.primaryIdentity = authenticationService->GetPrimaryIdentity(
-        signin::ConsentLevel::kSignin);
+    configuration.primaryIdentity = authenticationService->GetPrimaryIdentity();
   }
 
   NSError* error;

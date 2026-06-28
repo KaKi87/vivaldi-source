@@ -1,14 +1,11 @@
-
 update_target("//chrome:dependencies") {
-  public_deps += [
-    "//vivaldi/importer",
-  ]
+  public_deps += [ "//vivaldi/importer" ]
 }
 
 update_target("//chrome/browser:browser") {
   deps += [
+    "//vivaldi/importer",
     "//vivaldi/importer:browser",
-    "//vivaldi/importer:importer",
   ]
   allow_circular_includes_from += [
     "//vivaldi/importer:browser",
@@ -18,9 +15,7 @@ update_target("//chrome/browser:browser") {
 
 if (!is_android) {
   update_target("//chrome/common/importer:interfaces") {
-    deps += [
-      "//vivaldi/importer:browser",
-    ]
+    deps += [ "//vivaldi/importer:browser" ]
   }
 
   #update_target("//chrome/common/importer:importer") {
@@ -36,8 +31,8 @@ if (!is_android) {
 
   update_target("//chrome/utility:utility") {
     deps += [
+      "//vivaldi/importer",
       "//vivaldi/importer:browser",
-      "//vivaldi/importer:importer",
     ]
     allow_circular_includes_from = [
       "//vivaldi/importer:browser",

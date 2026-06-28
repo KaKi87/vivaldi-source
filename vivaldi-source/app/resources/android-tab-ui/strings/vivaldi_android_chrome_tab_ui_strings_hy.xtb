@@ -20,7 +20,6 @@
           =1 {Էջանշել ներդիրը}
           other {Էջանշել ներդիրները}
         }</translation>
-<translation id="2498435670446402865">Վերանվանել ներդիրների խումբը</translation>
 <translation id="2734252994837336591">{NUM_WEEKS, plural,
           =1 {Թարմացված է <ph name="NUM_WEEKS_ONE" /> շաբաթ առաջ}
           other {Թարմացված է <ph name="NUM_WEEKS_MANY" /> շաբաթ առաջ}
@@ -56,7 +55,6 @@
           =1 {Թարմացված է <ph name="NUM_YEARS_ONE" /> տարի առաջ}
           other {Թարմացված է <ph name="NUM_YEARS_MANY" /> տարի առաջ}
         }</translation>
-<translation id="7825973332242257878">Ներդիրների խմբեր</translation>
 <translation id="8207688828622594111">{NUM_MINS, plural,
           =1 {Թարմացված է <ph name="NUM_MINS_ONE" /> րոպե առաջ}
           other {Թարմացված է <ph name="NUM_MINS_MANY" /> րոպե առաջ}
@@ -72,5 +70,4 @@
                 other {Ստեղծված է <ph name="NUM_MONTHS_MANY" /> ամիս առաջ}
               }</translation>
 <translation id="8851621822786801079">Հեռացնել խմբից</translation>
-<translation id="8887921976452567404">Ձեր փակած ներդիրներն ու խմբերը կարող են վերաբացվել «Վերջին ներդիրներ» և «Ներդիրների խմբեր» բաժիններից։</translation>
 </translationbundle>

@@ -403,6 +403,7 @@
 <translation id="2618015542787108131">dunë rëre</translation>
 <translation id="2619761439309613843">Rifreskimi i përditshëm</translation>
 <translation id="2620436844016719705">Sistemi</translation>
+<translation id="2626848494898563581">Shërbimet e Google nuk mund të arrihen</translation>
 <translation id="2637303424821734920">JOAKTIV - Për të shfaqur motin lokal, <ph name="BEGIN_LINK" />aktivizo qasjen te vendndodhja e sistemit<ph name="END_LINK" /></translation>
 <translation id="2638662041295312666">Imazhi i identifikimit</translation>
 <translation id="2640549051766135490">Është zgjedhur albumi <ph name="TITLE" /> <ph name="DESC" /></translation>
@@ -579,7 +580,7 @@
 <translation id="357889014807611375">Wi-Fi me matje</translation>
 <translation id="3583278742022654445">Fuqi e dobët e sinjalit. Provo t'i afrohesh më shumë burimit të sinjalit Wi-Fi.</translation>
 <translation id="3586931643579894722">Fshih detajet</translation>
-<translation id="3588034708467091142">Sigurohu që të jesh lidhur me internetin dhe provo përsëri.</translation>
+<translation id="3588034708467091142">Sigurohu që të jesh i lidhur me internetin dhe provo përsëri.</translation>
 <translation id="3594280220611906414"><ph name="USER_FRIENDLY_APN_NAME" /> është emri i përshtatshëm për përdoruesin për <ph name="APN_NAME" />.</translation>
 <translation id="3595596368722241419">Bateria është plot</translation>
 <translation id="3600339377155080675">Pasqyrimi i ekranit</translation>
@@ -1115,7 +1116,7 @@
 <translation id="5939518447894949180">Rivendos</translation>
 <translation id="5942727615796467094">Administratori i <ph name="MANAGER" /> ka caktuar se kur mund të përdoret kjo pajisje <ph name="DEVICE_TYPE" /></translation>
 <translation id="594552776027197022">Gjenero çift të rastësishëm çelësash</translation>
-<translation id="5946538341867151940">Nuk je lidhur ende. Nëse operatori yt celular rekomandon një APN të personalizuar, fut informacionet e APN-së duke zgjedhur "+ APN e re"</translation>
+<translation id="5946538341867151940">Nuk je i lidhur ende. Nëse operatori yt celular rekomandon një APN të personalizuar, fut informacionet e APN-së duke zgjedhur "+ APN e re"</translation>
 <translation id="5947266287934282605">Nëse dita e fundit e muajit është para kësaj dite, të dhënat do të rivendosen në ditën e fundit të muajit</translation>
 <translation id="5948460390109837040">qen</translation>
 <translation id="594989847980441553">Zgjidh "Krijo" për të krijuar një imazh me IA-në.
@@ -1183,6 +1184,7 @@
 <translation id="6234024205316847054">Shfaq strukturat</translation>
 <translation id="6243280677745499710">Caktuar aktualisht</translation>
 <translation id="6250316632541035980">pançetë dhe vezë</translation>
+<translation id="6262413940100821797">një marrës i panjohur</translation>
 <translation id="6265268291107409527">Tasti i zgjedhur është <ph name="KEYS" />. <ph name="ASSIGN_INSTRUCTION" /></translation>
 <translation id="6275224645089671689">Shigjeta djathtas</translation>
 <translation id="6278428485366576908">Tema</translation>
@@ -1846,7 +1848,7 @@ Shkarko modelin e transkriptimit (deri në 100 MB) për të marrë këto transk
 <translation id="9149391708638971077">Ekzekuto testin e memories</translation>
 <translation id="9159524746324788320">hamburgerë</translation>
 <translation id="9161276708550942948">hapësirë</translation>
-<translation id="9169345239923038539">Nuk je lidhur ende. Nëse operatori yt celular rekomandon një APN të personalizuar, <ph name="BEGIN_LINK" />fut informacionet e APN-së<ph name="END_LINK" />.</translation>
+<translation id="9169345239923038539">Nuk je i lidhur ende. Nëse operatori yt celular rekomandon një APN të personalizuar, <ph name="BEGIN_LINK" />fut informacionet e APN-së<ph name="END_LINK" />.</translation>
 <translation id="9173638680043580060">Ka mbetur më pak se një minutë</translation>
 <translation id="9174334653006917325">Ngjyra e ndërfaqes së përdoruesit</translation>
 <translation id="917720651393141712">Provë</translation>
@@ -1863,7 +1865,7 @@ Shkarko modelin e transkriptimit (deri në 100 MB) për të marrë këto transk
 <translation id="945522503751344254">Dërgo komente</translation>
 <translation id="950520315903467048">Tasti mungon për drejtimin <ph name="DIRECTION" />. <ph name="ASSIGN_INSTRUCTION" /></translation>
 <translation id="951780398843003443">Të krahasojë zërat gjatë të gjithë regjistrimit që transkripti të pasqyrojë atë që ka thënë dhe kur e ka thënë çdo folës</translation>
-<translation id="952992212772159698">Nuk është aktivizuar</translation>
+<translation id="952992212772159698">Nuk është i aktivizuar</translation>
 <translation id="95718197892796296">argjilë</translation>
 <translation id="959792926760890141">Rivendosja e sigurisë çaktivizon shtesat e shfletuesit Chrome dhe rivendos rrjetin dhe cilësimet e tjera në parazgjedhjet e sigurta.
           Motori i parazgjedhur i kërkimit do të rivendoset, por skedat, skedarët, kukit dhe historiku yt nuk do të ndryshohen.</translation>

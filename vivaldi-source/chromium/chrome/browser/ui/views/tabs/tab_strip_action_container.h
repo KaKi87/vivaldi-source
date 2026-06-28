@@ -6,12 +6,13 @@
 #define CHROME_BROWSER_UI_VIEWS_TABS_TAB_STRIP_ACTION_CONTAINER_H_
 
 #include "base/memory/raw_ptr.h"
-#include "chrome/browser/glic/browser_ui/glic_button_controller_delegate.h"
-#include "chrome/browser/glic/browser_ui/glic_nudge_controller.h"
-#include "chrome/browser/glic/browser_ui/glic_nudge_delegate.h"
-#include "chrome/browser/ui/views/glic/glic_button_interface.h"
-#include "chrome/browser/ui/views/tabs/glic/tab_strip_glic_actor_task_icon.h"
-#include "chrome/browser/ui/views/tabs/glic/tab_strip_glic_button.h"
+//#include "chrome/browser/glic/browser_ui/glic_actor_nudge_delegate.h"
+//#include "chrome/browser/glic/browser_ui/glic_button_controller_delegate.h"
+//#include "chrome/browser/glic/browser_ui/glic_nudge_controller.h"
+//#include "chrome/browser/glic/browser_ui/glic_nudge_delegate.h"
+//#include "chrome/browser/ui/views/glic/glic_button_interface.h"
+//#include "chrome/browser/ui/views/tabs/glic/tab_strip_glic_actor_task_icon.h"
+//#include "chrome/browser/ui/views/tabs/glic/tab_strip_glic_button.h"
 #include "chrome/common/buildflags.h"
 #include "ui/gfx/animation/animation.h"
 #include "ui/gfx/animation/slide_animation.h"
@@ -41,6 +42,7 @@ class TabStripActionContainer : public views::View,
                                 public views::MouseWatcherListener
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
                                 public glic::GlicNudgeDelegate,
+                                public glic::GlicActorNudgeDelegate,
                                 public glic::GlicButtonControllerDelegate
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 {
@@ -51,7 +53,10 @@ class TabStripActionContainer : public views::View,
    public:
     enum class AnimationSessionType { kShow, kHide };
 
-    TabStripNudgeAnimationSession(TabStripNudgeButton* button,
+    TabStripNudgeAnimationSession(
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+                                  TabStripNudgeButton* button,
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
                                   TabStripActionContainer* container,
                                   AnimationSessionType session_type,
                                   base::OnceCallback<void()> on_animation_ended,
@@ -67,13 +72,17 @@ class TabStripActionContainer : public views::View,
     void ResetOpacityAnimationForTesting(double value);
 
     void Hide();
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     TabStripNudgeButton* button() { return button_; }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
    private:
     base::TimeDelta GetAnimationDuration(base::TimeDelta duration);
     void ShowOpacityAnimation();
     void Show();
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     raw_ptr<TabStripNudgeButton> button_ = nullptr;
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     raw_ptr<TabStripActionContainer> container_ = nullptr;
 
     gfx::SlideAnimation expansion_animation_;
@@ -97,8 +106,11 @@ class TabStripActionContainer : public views::View,
   };
 
   explicit TabStripActionContainer(
-      BrowserWindowInterface* browser_window_interface,
-      glic::GlicNudgeController* glic_nudge_controller);
+      BrowserWindowInterface* browser_window_interface
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+      , glic::GlicNudgeController* glic_nudge_controller
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  );
   TabStripActionContainer(const TabStripActionContainer&) = delete;
   TabStripActionContainer& operator=(const TabStripActionContainer&) = delete;
   ~TabStripActionContainer() override;
@@ -122,12 +134,8 @@ class TabStripActionContainer : public views::View,
   void MouseMovedOutOfHost() override;
 
   #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-// GlicNudgeDelegate:
-  void OnTriggerGlicNudgeUI(std::string label) override;
-  void OnTriggerAnchoredMessage(
-      std::string label,
-      std::string anchored_message_text,
-      std::optional<std::string> prompt_suggestion) override;
+  // GlicNudgeDelegate:
+  void OnTriggerGlicNudgeUI(glic::NudgeParams params) override;
   void OnHideGlicNudgeUI() override;
   bool GetIsShowingGlicNudge() override;
 
@@ -136,14 +144,18 @@ class TabStripActionContainer : public views::View,
   void SetGlicShowState(bool show) override;
   void SetGlicPanelIsOpen(bool open) override;
 
-  void ShowGlicActorTaskIcon();
-  void HideGlicActorTaskIcon();
-  bool GetIsShowingGlicActorTaskIconNudge();
-  bool IsGlicAdded();
-  void TriggerGlicActorNudge(const std::u16string nudge_text);
+  // GlicActorNudgeDelegate:
+  void ShowGlicActorTaskIcon() override;
+  void HideGlicActorTaskIcon() override;
+  bool GetIsShowingGlicActorTaskIconNudge() override;
+  bool IsGlicAdded() override;
+  void SetGlicActorNudgeLabel(const std::u16string& nudge_label) override;
+  void TriggerGlicActorNudge(const std::u16string& nudge_text) override;
+  void SetGlicActorNudgePressedState(bool pressed) override;
+  void ShowActorTaskListBubble() override;
 
   views::FlexLayoutView* glic_actor_button_container();
-  void ShowGlicActorNudge(const std::u16string nudge_text);
+  void ShowGlicActorNudge(const std::u16string& nudge_text);
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   void UpdateButtonBorders(gfx::Insets button_insets);
@@ -154,6 +166,7 @@ class TabStripActionContainer : public views::View,
   void DidBecomeActive(BrowserWindowInterface* browser);
   void DidBecomeInactive(BrowserWindowInterface* browser);
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   void ShowTabStripNudge(TabStripNudgeButton* button);
   void HideTabStripNudge(TabStripNudgeButton* button);
 
@@ -162,12 +175,9 @@ class TabStripActionContainer : public views::View,
   void SetLockedExpansionMode(LockedExpansionMode mode,
                               TabStripNudgeButton* button);
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   std::unique_ptr<glic::TabStripGlicButton> CreateGlicButton();
   void OnGlicButtonClicked();
   void OnGlicButtonDismissed();
-  void OnGlicButtonHovered();
-  void OnGlicButtonMouseDown();
   void OnGlicButtonAnimationEnded();
 
   std::unique_ptr<glic::TabStripGlicActorTaskIcon> CreateGlicActorTaskIcon();
@@ -183,9 +193,9 @@ class TabStripActionContainer : public views::View,
   // Update the Glic and GlicActor button borders when showing or hiding the
   // task icon container.
   void UpdateGlicActorButtonContainerBorders();
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   void OnTabStripNudgeButtonTimeout(TabStripNudgeButton* button);
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   // View where, if the mouse is currently over its bounds, the expansion state
   // will not change. Changes will be staged until after the mouse exits the
@@ -201,14 +211,16 @@ class TabStripActionContainer : public views::View,
   void AnimationEnded(const gfx::Animation* animation) override;
   void AnimationProgressed(const gfx::Animation* animation) override;
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   void ExecuteShowTabStripNudge(TabStripNudgeButton* button);
   void ExecuteHideTabStripNudge(TabStripNudgeButton* button);
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   void OnAnimationSessionEnded();
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   bool ButtonOwnsAnimation(const TabStripNudgeButton* button) const;
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   // Helper to handles teardown logic when the task icon is fully gone.
   void FinalizeHideGlicActorTaskIcon();
 
@@ -217,11 +229,9 @@ class TabStripActionContainer : public views::View,
 
   // Update visibility of glic button and action container
   void UpdateGlicButtonVisibility(bool should_show);
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
   // The button currently holding the lock to be shown/hidden.
   raw_ptr<TabStripNudgeButton> locked_expansion_button_ = nullptr;
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   raw_ptr<glic::GlicNudgeController> glic_nudge_controller_ = nullptr;
   raw_ptr<glic::GlicButtonController> button_controller_ = nullptr;
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
@@ -247,10 +257,6 @@ class TabStripActionContainer : public views::View,
   std::unique_ptr<ScopedTabStripModalUI> scoped_tab_strip_modal_ui_;
 
   std::list<base::CallbackListSubscription> subscriptions_;
-
-  // Tracks the page-action subscription for the anchored contextual cue.
-  // Reset when the anchored message is hidden or replaced.
-  base::CallbackListSubscription anchored_message_subscription_;
 
   std::unique_ptr<TabStripNudgeAnimationSession> animation_session_;
 

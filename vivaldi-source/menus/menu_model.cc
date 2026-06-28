@@ -125,7 +125,14 @@ void Menu_Model::LoadFinished(std::unique_ptr<MenuLoadDetails> details) {
       if (control_->expired.size() == 0) {
         control_->expired = expired;
       }
-      Save();
+
+      // We must save without delay to prevent a crash on "reset" all in
+      // Settings that is followed by an immediate restart. Code will otherwise
+      // post a save request which is still pending after model is gone (and
+      // store is designed to do a NOTREACHED if that happens).
+      if (store_.get()) {
+        store_->SaveNow(true);
+      }
     } else if (details->mode() == MenuLoadDetails::kResetByName) {
       // Reset named menu entry. Works even if old is missing. A menu is in this
       // case a full menu bar, the vivaldi menu, the tab context menu etc.

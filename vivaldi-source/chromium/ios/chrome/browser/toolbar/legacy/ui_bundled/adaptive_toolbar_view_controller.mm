@@ -7,8 +7,8 @@
 #import "base/metrics/user_metrics.h"
 #import "base/notreached.h"
 #import "base/time/time.h"
+#import "ios/chrome/browser/fullscreen/public/fullscreen_metrics.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_animator.h"
-#import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_metrics.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
 #import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
@@ -200,7 +200,6 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
   // Add the layout guide names to the buttons.
   self.view.toolsMenuButton.guideName = kToolsMenuGuide;
   self.view.tabGridButton.guideName = kTabSwitcherGuide;
-  self.view.openNewTabButton.guideName = kNewTabButtonGuide;
   self.view.forwardButton.guideName = kForwardButtonGuide;
   self.view.backButton.guideName = kBackButtonGuide;
   self.view.shareButton.guideName = kShareButtonGuide;
@@ -430,6 +429,12 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
 
 - (void)setScrollProgressForTabletOmnibox:(CGFloat)progress {
   // No-op, should be handled by the primary toolbar.
+}
+
+#pragma mark - FullscreenBrowserAgentObserving
+
+- (void)fullscreenDidUpdateObscuredInsetRange:(FullscreenBrowserAgent*)agent {
+  [self updateAllButtonsVisibility];
 }
 
 #pragma mark - FullscreenUIElement
@@ -665,13 +670,6 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
   // Adds an empty menu so the event triggers the first time.
   UIMenu* emptyMenu = [UIMenu menuWithChildren:@[]];
   button.menu = emptyMenu;
-
-  // Fix the order of the Tab Grid button menu to ensure the menu and child
-  // menus are displayed in the correct visual order.
-  if (buttonType == AdaptiveToolbarButtonTypeTabGrid) {
-    button.preferredMenuElementOrder =
-        UIContextMenuConfigurationElementOrderFixed;
-  }
 
   [button removeActionForIdentifier:kContextMenuActionIdentifier
                    forControlEvents:UIControlEventMenuActionTriggered];

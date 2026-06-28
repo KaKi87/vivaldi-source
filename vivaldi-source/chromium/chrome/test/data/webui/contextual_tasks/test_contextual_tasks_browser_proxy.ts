@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import {PageCallbackRouter} from 'chrome://contextual-tasks/contextual_tasks.mojom-webui.js';
-import type {ComposeboxPosition, ContextInfo, InjectedInput, PageHandlerInterface, PageInterface, PageRemote} from 'chrome://contextual-tasks/contextual_tasks.mojom-webui.js';
+import type {ComposeboxPosition, ContextInfo, ContextualTaskId, ContextualWindowId, InjectedInput, PageHandlerInterface, PageInterface, PageRemote} from 'chrome://contextual-tasks/contextual_tasks.mojom-webui.js';
 import type {BrowserProxy} from 'chrome://contextual-tasks/contextual_tasks_browser_proxy.js';
 import type {PostMessageHandler} from 'chrome://contextual-tasks/post_message_handler.js';
 import type {PageHandler as ComposeboxPageHandler, PageHandlerFactory as ComposeboxPageHandlerFactory} from 'chrome://resources/cr_components/composebox/composebox.mojom-webui.js';
@@ -43,6 +43,11 @@ class MockPage extends TestBrowserProxy implements PageInterface {
       'setShowReopenTabs',
       'onSidePanelPinStateChanged',
       'setInNlm',
+      'setExpandButtonEnabled',
+      'turnOnSmartTabSharing',
+      'showSmartTabSharingTryItIph',
+      'showSmartTabSharingDefaultOnIph',
+      'onWindowClosed',
     ]);
   }
 
@@ -113,12 +118,8 @@ class MockPage extends TestBrowserProxy implements PageInterface {
     this.methodCalled('onLensOverlayStateChanged', isOverlayShowing);
   }
 
-  setTaskDetails(taskId: Uuid) {
-    this.methodCalled('setTaskDetails', taskId);
-  }
-
-  setAimUrl(url: Url) {
-    this.methodCalled('setAimUrl', url);
+  setTaskDetails(taskId: Uuid, url: Url, replaceNavigationEntry: boolean) {
+    this.methodCalled('setTaskDetails', taskId, url, replaceNavigationEntry);
   }
 
   showErrorPage() {
@@ -156,9 +157,28 @@ class MockPage extends TestBrowserProxy implements PageInterface {
   removeInjectedInput(fileToken: UnguessableToken) {
     this.methodCalled('removeInjectedInput', fileToken);
   }
-
   onSidePanelPinStateChanged(isPinned: boolean) {
     this.methodCalled('onSidePanelPinStateChanged', isPinned);
+  }
+
+  setExpandButtonEnabled(enabled: boolean) {
+    this.methodCalled('setExpandButtonEnabled', enabled);
+  }
+
+  turnOnSmartTabSharing() {
+    this.methodCalled('turnOnSmartTabSharing');
+  }
+
+  showSmartTabSharingTryItIph() {
+    this.methodCalled('showSmartTabSharingTryItIph');
+  }
+
+  showSmartTabSharingDefaultOnIph() {
+    this.methodCalled('showSmartTabSharingDefaultOnIph');
+  }
+
+  onWindowClosed(windowId: ContextualWindowId) {
+    this.methodCalled('onWindowClosed', windowId);
   }
 }
 
@@ -192,6 +212,7 @@ class TestContextualTasksPageHandler extends TestBrowserProxy implements
       'isZeroState',
       'moveTaskUiToNewTab',
       'onboardingTooltipDismissed',
+      'onContextMenuOpened',
       'onFileClickedFromSourcesMenu',
       'onImageClickedFromSourcesMenu',
       'onTabClickedFromSourcesMenu',
@@ -208,6 +229,11 @@ class TestContextualTasksPageHandler extends TestBrowserProxy implements
       'pinSidePanel',
       'unpinSidePanel',
       'isSidePanelPinned',
+      'notifySmartTabSharingTryItIphResult',
+      'notifySmartTabSharingDefaultOnIphResult',
+      'registerWindow',
+      'onWindowClosed',
+      'closeWindow',
     ]);
 
     this.url_ = url;
@@ -400,6 +426,31 @@ class TestContextualTasksPageHandler extends TestBrowserProxy implements
   isSidePanelPinned() {
     this.methodCalled('isSidePanelPinned');
     return Promise.resolve({isPinned: false});
+  }
+
+  onContextMenuOpened() {
+    this.methodCalled('onContextMenuOpened');
+  }
+
+  notifySmartTabSharingTryItIphResult(accepted: boolean) {
+    this.methodCalled('notifySmartTabSharingTryItIphResult', accepted);
+  }
+
+  notifySmartTabSharingDefaultOnIphResult(accepted: boolean) {
+    this.methodCalled('notifySmartTabSharingDefaultOnIphResult', accepted);
+  }
+
+  registerWindow(
+      taskId: ContextualTaskId, url: string, windowId: ContextualWindowId) {
+    this.methodCalled('registerWindow', taskId, url, windowId);
+  }
+
+  onWindowClosed(windowId: ContextualWindowId) {
+    this.methodCalled('onWindowClosed', windowId);
+  }
+
+  closeWindow(windowId: ContextualWindowId) {
+    this.methodCalled('closeWindow', windowId);
   }
 }
 

@@ -11,6 +11,7 @@
 
 #include "base/containers/queue.h"
 #include "base/memory/ref_counted_memory.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/power_monitor/power_observer.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "chrome/browser/external_protocol/external_protocol_handler.h"
@@ -28,10 +29,12 @@
 #include "vivaldi_status/vivaldi_status.h"
 
 #include "browser/translate/vivaldi_translate_server_request.h"
-#include "chrome/common/extensions/webstore_install_result.h"
 #include "components/datasource/vivaldi_image_store.h"
+#include "extensions/browser/webstore_install_result.h"
 #include "extensions/schema/vivaldi_utilities.h"
 #include "ui/lights/razer_chroma_handler.h"
+
+#include "components/os_crypt/async/common/encryptor.h"
 
 class Browser;
 class Profile;
@@ -140,6 +143,12 @@ class VivaldiUtilitiesAPI : public BrowserContextKeyedAPI,
                       Profile* profile,
                       std::string source_str);
 
+  // Returns the async encryptor instance. May be nullptr if not yet ready.
+  os_crypt_async::Encryptor* GetEncryptor() { return encryptor_.get(); }
+
+  // Queue a request to be executed when the encryptor is available.
+  void AddPendingRequest(base::OnceClosure request);
+
   CertificateManagerPageHandler::CertSource* CertSource() {
     return cert_source_ptr_.get();
   }
@@ -215,6 +224,11 @@ class VivaldiUtilitiesAPI : public BrowserContextKeyedAPI,
   mojo::Remote<certificate_manager::mojom::CertificateManagerPage>
       certificate_manager_page_;
   std::unique_ptr<CertificateManagerPageHandler::CertSource> cert_source_ptr_;
+
+  // Async os_crypt encryptor.
+  void OnEncryptorReady(scoped_refptr<os_crypt_async::Encryptor> encryptor);
+  scoped_refptr<os_crypt_async::Encryptor> encryptor_;
+  std::vector<base::OnceClosure> pending_requests_;
 };
 
 class UtilitiesPrintFunction : public ExtensionFunction {
@@ -1032,6 +1046,7 @@ class UtilitiesOsCryptFunction : public ExtensionFunction {
  private:
   ~UtilitiesOsCryptFunction() override;
   ResponseAction Run() override;
+  void DoEncrypt(VivaldiUtilitiesAPI* api, std::string plain);
 };
 
 class UtilitiesOsDecryptFunction : public ExtensionFunction {
@@ -1042,6 +1057,7 @@ class UtilitiesOsDecryptFunction : public ExtensionFunction {
  private:
   ~UtilitiesOsDecryptFunction() override;
   ResponseAction Run() override;
+  void DoDecrypt(VivaldiUtilitiesAPI* api, std::string ciphertext);
 };
 
 class UtilitiesTranslateTextFunction : public ExtensionFunction {
@@ -1337,16 +1353,15 @@ class UtilitiesDetectNewCrashesFunction : public ExtensionFunction {
 
 class UtilitiesAcceptMixedDownloadFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("utilities.acceptMixedDownload", UTILITIES_ACCEPTMIXED_DOWNLOAD)
+  DECLARE_EXTENSION_FUNCTION("utilities.acceptMixedDownload",
+                             UTILITIES_ACCEPTMIXED_DOWNLOAD)
 
   UtilitiesAcceptMixedDownloadFunction();
 
   UtilitiesAcceptMixedDownloadFunction(
-      const UtilitiesAcceptMixedDownloadFunction&) =
-      delete;
+      const UtilitiesAcceptMixedDownloadFunction&) = delete;
   UtilitiesAcceptMixedDownloadFunction& operator=(
-      const UtilitiesAcceptMixedDownloadFunction&) =
-      delete;
+      const UtilitiesAcceptMixedDownloadFunction&) = delete;
 
   ResponseAction Run() override;
 
@@ -1354,6 +1369,17 @@ class UtilitiesAcceptMixedDownloadFunction : public ExtensionFunction {
   ~UtilitiesAcceptMixedDownloadFunction() override;
 };
 
+class UtilitiesStripUrlTrackingFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("utilities.stripUrlTracking",
+                             UTILITIES_STRIP_URL_TRACKING)
+  UtilitiesStripUrlTrackingFunction() = default;
+
+ private:
+  ~UtilitiesStripUrlTrackingFunction() override = default;
+
+  ResponseAction Run() override;
+};
 
 }  // namespace extensions
 

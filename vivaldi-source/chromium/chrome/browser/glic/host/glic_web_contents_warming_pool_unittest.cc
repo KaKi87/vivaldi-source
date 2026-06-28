@@ -14,6 +14,10 @@
 #include "content/public/test/web_contents_tester.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
+#if BUILDFLAG(IS_MAC)
+#include "base/mac/mac_util.h"
+#endif
+
 namespace glic {
 
 class FakeWebUIContentsContainer : public WebUIContentsContainer {
@@ -23,6 +27,7 @@ class FakeWebUIContentsContainer : public WebUIContentsContainer {
   ~FakeWebUIContentsContainer() override = default;
 
   void AttachToHost(Host* host) override {}
+  void SetVisibility(content::Visibility visibility) override {}
   content::WebContents* web_contents() const override { return web_contents_; }
 
  private:
@@ -53,10 +58,7 @@ class TestGlicWebContentsWarmingPool : public GlicWebContentsWarmingPool {
 class GlicWebContentsWarmingPoolTest : public testing::Test {
  public:
   GlicWebContentsWarmingPoolTest()
-      : task_environment_(base::test::TaskEnvironment::TimeSource::MOCK_TIME) {
-    scoped_feature_list_.InitAndEnableFeature(
-        features::kGlicWebContentsWarming);
-  }
+      : task_environment_(base::test::TaskEnvironment::TimeSource::MOCK_TIME) {}
 
  protected:
   using WarmingPoolStatus = GlicWebContentsWarmingPool::WarmingPoolStatus;
@@ -122,6 +124,13 @@ TEST_F(GlicWebContentsWarmingPoolTest, TakeContainerTriggersDelayedWarming) {
 }
 
 TEST_F(GlicWebContentsWarmingPoolTest, TakeContainerRecordsExpiredStatus) {
+#if BUILDFLAG(IS_MAC)
+  // TODO(crbug.com/434660312): Re-enable on macOS 26 once issues with
+  // unexpected test timeout failures are resolved.
+  if (base::mac::MacOSMajorVersion() == 26) {
+    GTEST_SKIP() << "Disabled on macOS Tahoe.";
+  }
+#endif
   base::test::ScopedFeatureList local_feature_list;
   local_feature_list.InitAndDisableFeature(kGlicReloadWebContentsAfterExpiry);
 
@@ -145,6 +154,13 @@ TEST_F(GlicWebContentsWarmingPoolTest, TakeContainerRecordsExpiredStatus) {
 }
 
 TEST_F(GlicWebContentsWarmingPoolTest, TakeContainerReloadsAfterExpiry) {
+#if BUILDFLAG(IS_MAC)
+  // TODO(crbug.com/434660312): Re-enable on macOS 26 once issues with
+  // unexpected test timeout failures are resolved.
+  if (base::mac::MacOSMajorVersion() == 26) {
+    GTEST_SKIP() << "Disabled on macOS Tahoe.";
+  }
+#endif
   base::HistogramTester histogram_tester;
   TestGlicWebContentsWarmingPool warming_pool(&profile_,
                                               &web_contents_factory_);
@@ -170,6 +186,13 @@ TEST_F(GlicWebContentsWarmingPoolTest, TakeContainerReloadsAfterExpiry) {
 }
 
 TEST_F(GlicWebContentsWarmingPoolTest, TakeContainerLimitsReloadCount) {
+#if BUILDFLAG(IS_MAC)
+  // TODO(crbug.com/434660312): Re-enable on macOS 26 once issues with
+  // unexpected test timeout failures are resolved.
+  if (base::mac::MacOSMajorVersion() == 26) {
+    GTEST_SKIP() << "Disabled on macOS Tahoe.";
+  }
+#endif
   base::HistogramTester histogram_tester;
   TestGlicWebContentsWarmingPool warming_pool(&profile_,
                                               &web_contents_factory_);
@@ -256,13 +279,84 @@ TEST_F(GlicWebContentsWarmingPoolTest, TakeContainerBeforeWarmingComplete) {
 }
 
 TEST_F(GlicWebContentsWarmingPoolTest, Clear) {
+  base::HistogramTester histogram_tester;
   TestGlicWebContentsWarmingPool warming_pool(&profile_,
                                               &web_contents_factory_);
   warming_pool.EnsurePreload();
   EXPECT_TRUE(warming_pool.HasWarmedContainerForTesting());
 
-  warming_pool.Clear();
+  warming_pool.Clear(GlicWebContentsWarmingPool::ClearReason::kMemoryPressure);
   EXPECT_FALSE(warming_pool.HasWarmedContainerForTesting());
+
+  histogram_tester.ExpectUniqueSample("Glic.WarmingPool.WarmedContainerFate", 4,
+                                      1);
+}
+
+TEST_F(GlicWebContentsWarmingPoolTest, WarmedContainerFate_Used) {
+  base::HistogramTester histogram_tester;
+  TestGlicWebContentsWarmingPool warming_pool(&profile_,
+                                              &web_contents_factory_);
+  warming_pool.EnsurePreload();
+
+  std::unique_ptr<WebUIContentsContainer> container =
+      warming_pool.TakeContainer();
+
+  histogram_tester.ExpectUniqueSample("Glic.WarmingPool.WarmedContainerFate", 0,
+                                      1);
+}
+
+TEST_F(GlicWebContentsWarmingPoolTest, WarmedContainerFate_Expired) {
+#if BUILDFLAG(IS_MAC)
+  // TODO(crbug.com/434660312): Re-enable on macOS 26 once issues with
+  // unexpected test timeout failures are resolved.
+  if (base::mac::MacOSMajorVersion() == 26) {
+    GTEST_SKIP() << "Disabled on macOS Tahoe.";
+  }
+#endif
+  base::test::ScopedFeatureList local_feature_list;
+  local_feature_list.InitAndDisableFeature(kGlicReloadWebContentsAfterExpiry);
+
+  base::HistogramTester histogram_tester;
+  TestGlicWebContentsWarmingPool warming_pool(&profile_,
+                                              &web_contents_factory_);
+  warming_pool.EnsurePreload();
+
+  // Let it expire.
+  task_environment_.FastForwardBy(
+      features::kGlicWebContentsWarmingPoolExpiryDelay.Get());
+
+  histogram_tester.ExpectUniqueSample("Glic.WarmingPool.WarmedContainerFate", 1,
+                                      1);
+}
+
+TEST_F(GlicWebContentsWarmingPoolTest, WarmedContainerFate_Crashed) {
+  base::HistogramTester histogram_tester;
+  TestGlicWebContentsWarmingPool warming_pool(&profile_,
+                                              &web_contents_factory_);
+  warming_pool.EnsurePreload();
+
+  // Crash the container.
+  content::WebContentsTester::For(warming_pool.GetWarmedWebContents())
+      ->SetIsCrashed(base::TERMINATION_STATUS_PROCESS_CRASHED, 0);
+
+  // Trigger a check that replaces it.
+  warming_pool.EnsurePreload();
+
+  histogram_tester.ExpectUniqueSample("Glic.WarmingPool.WarmedContainerFate", 3,
+                                      1);
+}
+
+TEST_F(GlicWebContentsWarmingPoolTest, ShutdownClearsContainer) {
+  base::HistogramTester histogram_tester;
+  {
+    TestGlicWebContentsWarmingPool warming_pool(&profile_,
+                                                &web_contents_factory_);
+    warming_pool.EnsurePreload();
+    // warming_pool goes out of scope here and is destroyed.
+  }
+
+  histogram_tester.ExpectUniqueSample("Glic.WarmingPool.WarmedContainerFate", 2,
+                                      1);
 }
 
 }  // namespace glic

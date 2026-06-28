@@ -532,7 +532,12 @@ std::unique_ptr<WindowResizer> CreateWindowResizer(
       window_state->CreateDragDetails(point_in_parent, window_component,
                                       source);
       MaybeRecordResizeHandleUsage(window, point_in_parent);
-      return std::make_unique<PipWindowResizer>(window_state, for_pinch);
+      auto pip_resizer =
+          std::make_unique<PipWindowResizer>(window_state, for_pinch);
+      // Wrap PipWindowResizer with DragWindowResizer to allow it to cross
+      // display boundaries.
+      return std::make_unique<DragWindowResizer>(std::move(pip_resizer),
+                                                 window_state);
     } else {
       return nullptr;
     }
@@ -707,6 +712,7 @@ void WorkspaceWindowResizer::Drag(const gfx::PointF& location_in_parent,
   gfx::Rect bounds = CalculateBoundsForDrag(location_in_parent);
   AdjustBoundsForMainWindow(sticky_size, &bounds);
 
+  auto weak_this = GetWeakPtr();
   if (bounds != GetTarget()->bounds()) {
     if (!did_move_or_resize_) {
       if (!details().restore_bounds_in_parent.IsEmpty()) {
@@ -717,21 +723,11 @@ void WorkspaceWindowResizer::Drag(const gfx::PointF& location_in_parent,
             // restored (i.e. update the caption buttons and height of the
             // browser frame).
 
-            // TODO(http://crbug.com/1200599): Speculative, remove if not fixed.
-            // Change window property kFrameRestoreLookKey or window bounds may
-            // cause the window being destroyed during the drag and return early
-            // if that's the case.
-            base::WeakPtr<WorkspaceWindowResizer> resizer(
-                weak_ptr_factory_.GetWeakPtr());
             window_state()->window()->SetProperty(kFrameRestoreLookKey, true);
-            if (!resizer) {
-              return;
-            }
+            CHECK(weak_this);
             CrossFadeAnimation(window_state()->window(), bounds,
                                /*maximize=*/false);
-            if (!resizer) {
-              return;
-            }
+            CHECK(weak_this);
 
             base::RecordAction(
                 base::UserMetricsAction("WindowDrag_Unmaximize"));
@@ -741,19 +737,16 @@ void WorkspaceWindowResizer::Drag(const gfx::PointF& location_in_parent,
         }
       }
       RestackWindows();
+      CHECK(weak_this);
     }
     did_move_or_resize_ = true;
   }
 
   if (!attached_windows_.empty()) {
     LayoutAttachedWindows(&bounds);
+    CHECK(weak_this);
   }
   if (aura::Window* window = GetTarget(); bounds != window->bounds()) {
-    // SetBounds needs to be called to update the layout which affects where the
-    // phantom window is drawn. Keep track if the window was destroyed during
-    // the drag and quit early if so.
-    base::WeakPtr<WorkspaceWindowResizer> resizer(
-        weak_ptr_factory_.GetWeakPtr());
     // If a window is snapped, then starts drag to unsnap, at this point its
     // state type hasn't been updated yet. Suppress from force updating the snap
     // ratio which would be using the restore or normal bounds.
@@ -761,7 +754,10 @@ void WorkspaceWindowResizer::Drag(const gfx::PointF& location_in_parent,
     window_state->set_can_update_snap_ratio(false);
     SetBoundsDuringResize(bounds);
     window_state->set_can_update_snap_ratio(true);
-    if (!resizer) {
+    // SetBounds needs to be called to update the layout which affects where the
+    // phantom window is drawn. Keep track if the window was destroyed during
+    // the drag and quit early if so.
+    if (!weak_this) {
       return;
     }
   }
@@ -1224,7 +1220,14 @@ void WorkspaceWindowResizer::LayoutAttachedWindows(gfx::Rect* bounds) {
       attached_bounds.set_y(last);
       attached_bounds.set_height(sizes[i]);
     }
+    base::WeakPtr<WorkspaceWindowResizer> resizer_ptr(
+        weak_ptr_factory_.GetWeakPtr());
     attached_windows_[i]->SetBounds(attached_bounds);
+    // An Window Observer should not delete |this| when SetBounds() is called
+    // (via OnWindowPropertyChanged, OnWindowVisibilityChanged, etc.), so make
+    // sure |this| is valid before moving on to the next iteration to prevent a
+    // UAF when accessing attached_windows_ at i+1.
+    CHECK(resizer_ptr);
     last += sizes[i];
   }
 }
@@ -1676,13 +1679,28 @@ void WorkspaceWindowResizer::RestackWindows() {
     map[index] = attached_window;
   }
 
+  aura::WindowTracker tracker;
+  for (const auto& pair : map) {
+    tracker.Add(pair.second);
+  }
+
+  base::WeakPtr<WorkspaceWindowResizer> resizer(weak_ptr_factory_.GetWeakPtr());
+
   // Reorder the windows starting at the topmost.
   parent->StackChildAtTop(map.rbegin()->second);
+  // StackChildAtTop has the potential to synchronously free |this| which
+  // could cause a UAF below.
+  CHECK(resizer);
+
   for (auto i = map.rbegin(); i != map.rend();) {
     aura::Window* window = i->second;
     ++i;
-    if (i != map.rend()) {
+    if (i != map.rend() && tracker.Contains(window) &&
+        tracker.Contains(i->second)) {
       parent->StackChildBelow(i->second, window);
+      // StackChildBelow has the potential to synchronously free |this| which
+      // could cause a UAF in the following iteration.
+      CHECK(resizer);
     }
   }
 }

@@ -9,14 +9,12 @@
 <translation id="1598449788754183301">通常タブとプライベートタブの切替</translation>
 <translation id="1644574205037202324">履歴</translation>
 <translation id="1829244130665387512">ページ内を検索するで</translation>
-<translation id="1910514478706885609">さらのタブスタックで開く</translation>
 <translation id="1925021887439448749">カスタムウェブアドレス入れる</translation>
 <translation id="2038563949887743358">[デスクトップ版サイトを見る] オンにしとくわ</translation>
 <translation id="208033313373016095">ウェブページのリーダービュー</translation>
 <translation id="2149973817440762519">ブックマークいらう</translation>
 <translation id="2306442503286132111">ブックマーク、<ph name="FOLDER_NAME" /> フォルダーに保存したで</translation>
 <translation id="2433507940547922241">ええ格好つける</translation>
-<translation id="2501278716633472235">戻る</translation>
 <translation id="2546283357679194313">Cookieとサイトデータ</translation>
 <translation id="2633278372998075009">プライベートタブ</translation>
 <translation id="2650751991977523696">ファイルもっかいダウンロードする？</translation>
@@ -43,7 +41,6 @@
 <translation id="3700829948786686853">Vivaldiへ、いらっしゃ～い</translation>
 <translation id="3719826155360621982">ホームページ</translation>
 <translation id="3738139272394829648">タップして検索</translation>
-<translation id="385051799172605136">戻る</translation>
 <translation id="3987993985790029246">リンクコピー</translation>
 <translation id="399014816462153200">読んだ記事：</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
@@ -59,7 +56,6 @@
 <translation id="4269820728363426813">リンクアドレスコピー</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Androidの設定で画面ロック有効にする<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">パスワードマネージャー</translation>
-<translation id="441100617989818073">未使用または重複してるタブ／グループ</translation>
 <translation id="451872707440238414">ブックマーク検索</translation>
 <translation id="4526803704855831732">プライベートタブ</translation>
 <translation id="4532845899244822526">フォルダー選んで</translation>
@@ -68,7 +64,6 @@
 
 VivaldiでGoogleがデフォルトの検索エンジンに設定されてたら、タッチ検索機能が使えるねん。</translation>
 <translation id="4759238208242260848">ダウンロード</translation>
-<translation id="4777866634702576038">タブグループほかす？</translation>
 <translation id="4850886885716139402">表示</translation>
 <translation id="4883379392681899581">プライベートモードを離れるで</translation>
 <translation id="4943872375798546930">見つからへんわ</translation>

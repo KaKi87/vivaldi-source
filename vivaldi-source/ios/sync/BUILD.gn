@@ -1,9 +1,7 @@
 # Copyright (c) 2022 Vivaldi Technologies AS. All rights reserved
 
 source_set("sync_notes") {
-  configs += [
-    "//third_party/abseil-cpp:absl_include_config",
-  ]
+  configs += [ "//third_party/abseil-cpp:absl_include_config" ]
 
   sources = [
     "note_sync_service_factory.cc",
@@ -22,9 +20,7 @@ source_set("sync_notes") {
 }
 
 source_set("invalidations") {
-  configs += [
-    "//third_party/abseil-cpp:absl_include_config",
-  ]
+  configs += [ "//third_party/abseil-cpp:absl_include_config" ]
 
   sources = [
     "vivaldi_sync_invalidations_service_factory.h",
@@ -40,9 +36,7 @@ source_set("invalidations") {
 }
 
 source_set("file_sync") {
-  configs += [
-    "//third_party/abseil-cpp:absl_include_config",
-  ]
+  configs += [ "//third_party/abseil-cpp:absl_include_config" ]
 
   sources = [
     "file_store_factory.h",

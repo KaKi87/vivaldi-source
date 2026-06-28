@@ -17,20 +17,20 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/autofill/chrome_autofill_client.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/simple_web_view_dialog.h"
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
 #include "components/account_id/account_id.h"
-#include "components/tabs/public/tab_interface.h"
 #include "ui/aura/window.h"
 
 namespace {
@@ -51,6 +51,29 @@ bool BrowserMatches(BrowserWindowInterface* browser,
          web_app::GetAppIdFromApplicationName(
              browser->GetBrowserForMigrationOnly()->app_name()) == app_id &&
          (url.is_empty() || BrowserMatchesURL(browser, url));
+}
+
+// Returns the most recently activated tabbed browser for |profile| that is on
+// the current workspace (virtual desk), or nullptr if none exists.
+BrowserWindowInterface* FindTabbedBrowserOnCurrentWorkspace(Profile* profile) {
+  BrowserWindowInterface* match = nullptr;
+  ProfileBrowserCollection::GetForProfile(profile)->ForEach(
+      [&match](BrowserWindowInterface* browser) {
+        if (browser->GetType() != BrowserWindowInterface::TYPE_NORMAL ||
+            browser->IsDeleteScheduled()) {
+          return true;
+        }
+        if (!browser->GetBrowserForMigrationOnly()->window() ||
+            !browser->GetBrowserForMigrationOnly()
+                 ->window()
+                 ->IsOnCurrentWorkspace()) {
+          return true;
+        }
+        match = browser;
+        return false;  // stop iterating
+      },
+      BrowserCollection::Order::kActivation);
+  return match;
 }
 
 }  // namespace
@@ -137,7 +160,8 @@ BrowserDelegate* BrowserControllerImpl::GetBrowserForWindow(
   // TODO(crbug.com/369688254): We'd like to use
   // BrowserView::GetBrowserViewForNativeWindow followed by BrowserView::browser
   // here but this can CHECK-fail during shutdown. Find a solution.
-  return GetDelegate(chrome::FindBrowserWithWindow(window));
+  return GetDelegate(
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithWindow(window));
 }
 
 BrowserDelegate* BrowserControllerImpl::GetBrowserForTab(
@@ -146,7 +170,16 @@ BrowserDelegate* BrowserControllerImpl::GetBrowserForTab(
   // tabs::TabInterface::MaybeGetFromContents followed by
   // tabs::TabInterface::GetBrowserWindowInterface here but this can CHECK-fail
   // during shutdown. Find a solution.
-  return GetDelegate(chrome::FindBrowserWithTab(contents));
+  BrowserWindowInterface* found = nullptr;
+  GlobalBrowserCollection::GetInstance()->ForEach(
+      [&found, contents](BrowserWindowInterface* browser) {
+        TabStripModel* model = browser->GetTabStripModel();
+        if (model->GetIndexOfWebContents(contents) != TabStripModel::kNoTab) {
+          found = browser;
+        }
+        return !found;
+      });
+  return GetDelegate(found);
 }
 
 BrowserDelegate* BrowserControllerImpl::FindWebApp(const AccountId& account_id,
@@ -164,7 +197,7 @@ BrowserDelegate* BrowserControllerImpl::FindWebApp(const AccountId& account_id,
   BrowserDelegate* browser_delegate = nullptr;
   GlobalBrowserCollection::GetInstance()->ForEach(
       [&](BrowserWindowInterface* browser) {
-        if (!browser->GetBrowserForMigrationOnly()->is_delete_scheduled() &&
+        if (!browser->IsDeleteScheduled() &&
             BrowserMatches(browser, profile, app_id, internal_type, url)) {
           browser_delegate = GetDelegate(browser);
           return false;  // stop iterating
@@ -197,7 +230,7 @@ BrowserDelegate* BrowserControllerImpl::NewTabWithPostData(
       network::ResourceRequestBody::CreateFromCopyOfBytes(post_data);
   navigate_params.extra_headers = std::string(extra_headers);
 
-  navigate_params.browser = chrome::FindTabbedBrowser(profile, false);
+  navigate_params.browser = FindTabbedBrowserOnCurrentWorkspace(profile);
   if (!navigate_params.browser &&
       Browser::GetCreationStatusForProfile(profile) ==
           Browser::CreationStatus::kOk) {

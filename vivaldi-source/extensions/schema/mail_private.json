@@ -109,6 +109,45 @@
         }
       },
       {
+        "name": "checkFolder",
+        "type": "function",
+        "description": "Returns boolean stating if folder exists.",
+        "parameters": [
+          {
+            "name": "path",
+            "type": "string",
+            "description": "The folder path to check"
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "optional": true,
+          "parameters": [
+            {
+              "name": "folderExists",
+              "type": "boolean",
+              "description": "Result of folderCheck. Does the folder exist."
+            }
+          ]
+        }
+      },
+      {
+        "name": "openFolder",
+        "type": "function",
+        "description": "Opens filemanager to the path in parameter.",
+        "parameters": [
+          {
+            "name": "path",
+            "type": "string",
+            "description": "The folder path to open the filemanager to."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": []
+        }
+      },
+      {
         "name": "getFullPath",
         "type": "function",
         "description": "Given a file entry, return full path of the file",

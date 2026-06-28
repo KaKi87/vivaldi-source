@@ -26,7 +26,6 @@
 #include "chrome/browser/apps/link_capturing/link_capturing_feature_test_support.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/intent_picker_tab_helper.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/test/test_browser_ui.h"
@@ -127,7 +126,7 @@ class IntentChipButtonBrowserTest
   }
 
   void OpenNewTab(const GURL& url) {
-    chrome::NewTab(browser());
+    chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
     EXPECT_TRUE(DoAndWaitForIntentPickerIconUpdate(
         [this] { NavigateToLaunchingPage(browser()); }));
     NavigateAndWaitForIconUpdate(url);
@@ -282,8 +281,7 @@ INSTANTIATE_TEST_SUITE_P(
     IntentChipButtonBrowserTest,
     testing::Combine(
 #if BUILDFLAG(IS_CHROMEOS)
-        testing::Values(apps::test::LinkCapturingFeatureVersion::kV1DefaultOff,
-                        apps::test::LinkCapturingFeatureVersion::kV2DefaultOff),
+        testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff),
 #else
         testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
                         apps::test::LinkCapturingFeatureVersion::kV2DefaultOn),
@@ -373,8 +371,7 @@ INSTANTIATE_TEST_SUITE_P(
     IntentChipButtonBrowserUiTest,
     testing::Combine(
 #if BUILDFLAG(IS_CHROMEOS)
-        testing::Values(apps::test::LinkCapturingFeatureVersion::kV1DefaultOff,
-                        apps::test::LinkCapturingFeatureVersion::kV2DefaultOff)
+        testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff)
 #else
         testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOn)
 #endif  // BUILDFLAG(IS_CHROMEOS)

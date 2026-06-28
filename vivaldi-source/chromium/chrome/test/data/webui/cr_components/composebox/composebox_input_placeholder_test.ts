@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://new-tab-page/strings.m.js';
+import 'chrome://contextual-tasks/strings.m.js';
 import 'chrome://resources/cr_components/composebox/composebox.js';
 
 import type {ComposeboxFile} from 'chrome://resources/cr_components/composebox/common.js';
@@ -46,6 +46,8 @@ suite('ComposeboxInputPlaceholder', () => {
 
     document.body.appendChild(composebox);
 
+    searchboxPageRemote.onInputStateChanged(inputState);
+
     await microtasksFinished();
   }
 
@@ -54,11 +56,13 @@ suite('ComposeboxInputPlaceholder', () => {
 
     searchboxCallbackRouter = new SearchboxPageCallbackRouter();
     searchboxPageRemote = searchboxCallbackRouter.$.bindNewPipeAndPassRemote();
-    installMock(
+    const composeboxHandler = installMock(
         PageHandlerRemote,
         mock => ComposeboxProxyImpl.setInstance(new ComposeboxProxyImpl(
             mock, new PageCallbackRouter(), new SearchboxPageHandlerRemote(),
             searchboxCallbackRouter)));
+    composeboxHandler.setResultMapperFor(
+        'getSmartTabSharingActive', () => Promise.resolve({active: false}));
 
     searchboxHandler = installMock(
         SearchboxPageHandlerRemote,
@@ -119,6 +123,7 @@ suite('ComposeboxInputPlaceholder', () => {
         hintText: modelHint,
         menuLabel: '',
         aimUrlParams: [],
+        menuTooltip: '',
       }],
     });
 
@@ -160,6 +165,7 @@ suite('ComposeboxInputPlaceholder', () => {
                                       chipLabel: '',
                                       disableActiveModelSelection: false,
                                       aimUrlParams: [],
+                                      menuTooltip: '',
                                     })),
       }));
 

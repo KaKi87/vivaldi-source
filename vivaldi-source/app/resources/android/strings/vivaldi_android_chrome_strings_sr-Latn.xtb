@@ -1,23 +1,38 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="sr-Latn">
+<translation id="1062777154504442433">Nova grupa kartica</translation>
 <translation id="1204037785786432551">Preuzmi vezu</translation>
 <translation id="1206892813135768548">Kopiraj tekst veze</translation>
+<translation id="1223158186497001208">Deljena grupa kartica „<ph name="GROUP_TITLE" />” sa novom aktivnošću</translation>
+<translation id="1328749518742029305">Grupa kartica <ph name="TAB_GROUP_TITLE" /> je zatvorena i sačuvana</translation>
 <translation id="1397811292916898096">Pretraži pomoću: <ph name="PRODUCT_NAME" /></translation>
 <translation id="1435593198351412143">Automatski otvori PDF datoteke</translation>
 <translation id="1456207338570705181">Dodirnite za pretragu je funkcija koja je dostupna samo kada je Google postavljen kao podrazumevani pretraživač u Vivaldi pregledaču. Šalje izabranu reč i trenutnu stranicu kao kontekst Google pretrazi. Možete je isključiti u <ph name="BEGIN_LINK" />Podešavanjima<ph name="END_LINK" />.</translation>
 <translation id="1598449788754183301">Prebacuj normalne/privatne kartice</translation>
+<translation id="1626105448931436644">Saznajte više o deljenim grupama kartica</translation>
 <translation id="1644574205037202324">Istorija</translation>
 <translation id="1829244130665387512">Pronađi na stranici</translation>
-<translation id="1910514478706885609">Otvori u novoj grupi kartica</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+          =1 {Pogledaj <ph name="TABS_COUNT_ONE" /> karticu sa novom aktivnošću u deljenim grupama kartica}
+          few {Pogledaj  <ph name="TABS_COUNT_MANY" /> kartice sa novom aktivnošću u deljenim grupama kartica}
+          other {Pogledaj  <ph name="TABS_COUNT_MANY" /> kartica sa novom aktivnošću u deljenim grupama kartica}
+        }</translation>
 <translation id="1925021887439448749">Unesite prilagođenu veb adresu</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+          =1 {Spoji grupu kartica sa <ph name="OWNER_FIRST_NAME" /> i <ph name="NUMBER_OF_OTHER_MEMBERS" /> ostalim}
+          few {Spoji grupu kartica sa <ph name="OWNER_FIRST_NAME" /> i <ph name="NUMBER_OF_OTHER_MEMBERS" /> ostala}
+          other {Spoji grupu kartica sa <ph name="OWNER_FIRST_NAME" /> i <ph name="NUMBER_OF_OTHER_MEMBERS" /> ostalih}
+        }</translation>
 <translation id="2038563949887743358">Uključi zahtevanje desktop verzije sajta</translation>
+<translation id="2067565353468675023">Spoji grupu kartica sa <ph name="OWNER_FIRST_NAME" /></translation>
 <translation id="208033313373016095">Režim čitanja za veb stranice</translation>
 <translation id="2149973817440762519">Uredi obeleživač</translation>
 <translation id="2306442503286132111">Obeleživač je sačuvan u fascikli <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Izgled</translation>
-<translation id="2501278716633472235">Idi nazad</translation>
-<translation id="2546283357679194313">Kolačići i podaci o sajtovima</translation>
+<translation id="2495373685671077949">Pretražite kartice i grupe</translation>
+<translation id="2500281581698062897">Odmah ćete izgubiti pristup grupi kartica „<ph name="GROUP_NAME" />” i <ph name="BLOCKED_MEMBER_FULL_NAME" /> <ph name="BLOCKED_MEMBER_EMAIL" /> više neće moći da komunicira sa vama putem Google usluga.</translation>
+<translation id="2546283357679194313">Kolačići i podaci sajtova</translation>
 <translation id="2633278372998075009">Privatne kartice</translation>
 <translation id="2650751991977523696">Preuzeti datoteku ponovo?</translation>
 <translation id="265156376773362237">Standardno predučitavanje</translation>
@@ -26,6 +41,7 @@
 <translation id="2871733351037274014">Predučitavanje stranica</translation>
 <translation id="2904300462646366554">Preuzete PDF datoteke će se automatski otvoriti pomoću jednog od PDF prikazivača na vašem uređaju</translation>
 <translation id="2951071800649516099">Dodajte stranice na listu za čitanje za kasnije</translation>
+<translation id="3020023775880428664">Premesti karticu u grupu</translation>
 <translation id="3029276696788198026">Bez predučitavanja</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> obeleživač}
@@ -35,7 +51,14 @@
 <translation id="3232293466644486101">Izbriši podatke pregledanja…</translation>
 <translation id="3234355010754616171">Nova privatna kartica</translation>
 <translation id="3237087289225714896">Standardno predučitavanje:</translation>
+<translation id="3298614730029636660">Napusti grupu</translation>
+<translation id="3359462099791810823">Zadržite ovu grupu da biste kasnije dodali kartice ili je obrišite ako vam više nije potrebna.</translation>
 <translation id="3478414204555961127">Režim čitanja</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+          =1 {Vrati grupu kartica od <ph name="TAB_COUNT_ONE" /> kartice, <ph name="COLOR_NAME" /> boja, kao novu grupu kartica u pozadini.}
+          other {Vrati grupu kartica od <ph name="TAB_COUNT_MANY" /> kartice, <ph name="COLOR_NAME" /> boja, kao novu grupu kartica u pozadini.}
+          other {Vrati grupu kartica od <ph name="TAB_COUNT_MANY" /> kartica, <ph name="COLOR_NAME" /> boja, kao novu grupu kartica u pozadini.}
+        }</translation>
 <translation id="3504699618187058974">Grupiši kartice</translation>
 <translation id="3518985090088779359">Prihvati i nastavi</translation>
 <translation id="3571177741182643350">Nepročitani članci - dostupni van mreže:</translation>
@@ -43,9 +66,11 @@
 <translation id="3700829948786686853">Dobro došli u Vivaldi</translation>
 <translation id="3719826155360621982">Matična stranica</translation>
 <translation id="3738139272394829648">Dodir za pretragu</translation>
-<translation id="385051799172605136">Nazad</translation>
+<translation id="3900825170941000696">Vraćanje grupe kartica „<ph name="TITLE_OF_GROUP" />”, <ph name="COLOR_NAME" /> boja, kao nove grupe kartica u pozadini.</translation>
+<translation id="395421286877117532">Prilagodite grupu kartica i dodirnite „Gotovo”</translation>
 <translation id="3987993985790029246">Kopiraj vezu</translation>
 <translation id="399014816462153200">Pročitani članci:</translation>
+<translation id="4048089913902125176">Otvaranje grupe kartica „<ph name="TITLE_OF_GROUP" />”, <ph name="COLOR_NAME" /> boja, sa sajtovima <ph name="URL_LIST" />.</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> kartica}
           few {<ph name="TAB_COUNT_MANY" /> kartice, privatnih <ph name="TAB_COUNT_INCOGNITO" />}
@@ -55,25 +80,43 @@
 <translation id="4137746084635924146">Trenutni jezik uređaja</translation>
 <translation id="4167670741834902166">Nova privatna kartica</translation>
 <translation id="4195643157523330669">Otvori u novoj kartici</translation>
+<translation id="4219031106525503429">Podeli grupu kartica „<ph name="GROUP_NAME" />”</translation>
 <translation id="4225895483398857530">Prečica na alatnoj traci</translation>
 <translation id="4243710787042215766">Otvori u privatnoj kartici</translation>
 <translation id="4269820728363426813">Kopiraj adresu veze</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Uključite zaključavanje ekrana u Android podešavanjima<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Upravljač lozinkama</translation>
-<translation id="441100617989818073">Nekorišćene ili duplirane kartice i grupe</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {<ph name="TABS_COUNT_ONE" /> standardna kartica sa novom aktivnošću u deljenim grupama kartica}
+          few {<ph name="TABS_COUNT_MANY" /> standardne kartice sa novom aktivnošću u deljenim grupama kartica}
+          other {<ph name="TABS_COUNT_MANY" /> standardnih kartica sa novom aktivnošću u deljenim grupama kartica}
+        }</translation>
+<translation id="4445802392779002787">Dodaj karticu u grupu</translation>
 <translation id="451872707440238414">Pretraži obeleživače</translation>
 <translation id="4526803704855831732">Privatne kartice</translation>
 <translation id="4532845899244822526">Odaberite fasciklu</translation>
+<translation id="454284936014822050">Grupa kartica <ph name="GROUP_TITLE" /></translation>
+<translation id="4614713783237504866">Nekorišćene ili duplirane kartice i grupe</translation>
+<translation id="463284870544181537">Zadržite ovu grupu da biste kasnije dodali kartice ili je napustite ako više ne želite da joj pristupate</translation>
+<translation id="4638726726741656531">Sada možete lako dodavati kartice u grupe ovde</translation>
 <translation id="4699172675775169585">Keširane slike i datoteke</translation>
 <translation id="4719086422742491124">Saznajte više o temama na veb sajtovima bez napuštanja stranice. Izaberite jednu ili više reči na stranici da biste ih potražili.
 
 Dodirnite za pretragu je funkcija koja je dostupna samo kada je Google postavljen kao podrazumevani pretraživač u Vivaldi pregledaču.</translation>
 <translation id="4759238208242260848">Preuzimanja</translation>
-<translation id="4777866634702576038">Izbrisati grupu kartica?</translation>
+<translation id="4771820744342013314">Izbrisati grupu kartica?</translation>
 <translation id="4850886885716139402">Prikaži</translation>
 <translation id="4883379392681899581">Napusti privatni režim</translation>
+<translation id="4883812026489706387">Grupa kartica „<ph name="TAB_GROUP_TITLE" />” ima novu aktivnost</translation>
+<translation id="4887248255051238988">Napustiti grupu kartica?</translation>
 <translation id="4943872375798546930">Nema rezultata</translation>
 <translation id="49576331685473090">Blokator sadržaja</translation>
+<translation id="4964059453543967592">Ponovo otvori zatvorenu grupu</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" /> grupa kartica}
+          few {<ph name="TAB_GROUPS_MANY" /> grupe kartica}
+          other {<ph name="TAB_GROUPS_MANY" /> grupa kartica}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> privatna kartica}
           few {<ph name="TAB_COUNT_NORMAL" /> privatne kartice}
@@ -86,19 +129,26 @@ Dodirnite za pretragu je funkcija koja je dostupna samo kada je Google postavlje
             =1 {Preuzima se datoteka…}
             few {Preuzimaju se # datoteke…}
             other {Preuzima se # datoteka…}}</translation>
+<translation id="5210689723585747462">Grupa kartica <ph name="TAB_GROUP_TITLE" /> je zatvorena</translation>
 <translation id="5233638681132016545">Nova kartica</translation>
 <translation id="5375131951310889874">Saznajte više o temama na veb sajtovima bez napuštanja stranice. Dodirnite za pretragu je funkcija koja je dostupna samo kada je Google postavljen kao podrazumevani pretraživač u Vivaldi pregledaču. Šalje reč i njen okolni kontekst Google pretrazi, vraćajući definicije, slike, rezultate pretrage i druge detalje.
 
 Za podešavanje termina za pretragu, dugo pritisnite da biste ga izabrali. Za precizirnje pretrage, povucite panel do kraja i dodirnite polje za pretragu.</translation>
+<translation id="5570837353202786816">Svi će odmah izgubiti pristup grupi kartica „<ph name="GROUP_NAME" />”, a sve veze ka pozivnicama će biti isključene</translation>
+<translation id="5614794348925178470">Deljena grupa kartica „<ph name="GROUP_TITLE" />”</translation>
 <translation id="572328651809341494">Nedavne kartice</translation>
 <translation id="5833984609253377421">Podeli vezu</translation>
+<translation id="6129507335719227488">Kartice u grupi</translation>
 <translation id="6150320133806434356">Obeleživač je sačuvan</translation>
 <translation id="6193448654517602979">Izaberi kartice</translation>
+<translation id="6221225660285238685">Premesti grupu u drugi prozor</translation>
+<translation id="6277377952699614191">Grupa kartica</translation>
 <translation id="6336451774241870485">Nova privatna kartica</translation>
 <translation id="6337323516034698937">Da biste poslali ovu karticu na drugi uređaj, prijavite se na Vivaldi sinhronizaciju na oba uređaja. Uverite se da ste uneli lozinku za šifrovanje ako je potrebno.</translation>
 <translation id="6341580099087024258">Pitaj gde sačuvati datoteke</translation>
 <translation id="6364438453358674297">Ukloniti predlog iz istorije?</translation>
 <translation id="6404511346730675251">Uredi obeleživač</translation>
+<translation id="6453011654157908292">Detalji grupe kartica</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
             =1 {Datoteka je preuzeta}
             few {# preuzimanja su završena}
@@ -108,11 +158,13 @@ Za podešavanje termina za pretragu, dugo pritisnite da biste ga izabrali. Za pr
 <translation id="6593061639179217415">Desktop verzija sajta</translation>
 <translation id="6610147964972079463">Zatvori privatne kartice</translation>
 <translation id="6627583120233659107">Uređivanje fascikle</translation>
+<translation id="6785740335511995065">Zadržati grupu kartica?</translation>
 <translation id="6865313869410766144">Podaci automatskog popunjavanja obrazaca</translation>
 <translation id="6909589135458168665">Predučitavanje stranica</translation>
 <translation id="7029995644714925509">Kada sajt zatraži da privatno unapred učita veze na svojoj stranici, Vivaldi šifruje i učitava stranice preko Google servera bez kolačića. Ovo skriva vaš identitet od unapred učitanog sajta.</translation>
 <translation id="706339621163631076">Politika privatnosti pregledača</translation>
 <translation id="7100573672995171864">Prilagodite i kontrolišite Vivaldi</translation>
+<translation id="7133879160432070247">Blokirati i napustiti grupu?</translation>
 <translation id="732145680195464316">Obeleživač je sačuvan u <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Slanje zahteva „Ne prati”</translation>
 <translation id="7359002509206457351">Pristup načinima plaćanja</translation>
@@ -121,25 +173,34 @@ Za podešavanje termina za pretragu, dugo pritisnite da biste ga izabrali. Za pr
 <translation id="7456774706094330779">Prošireno predučitavanje</translation>
 <translation id="7465104139234185284">Zatvori sve privatne kartice</translation>
 <translation id="7481312909269577407">Napred</translation>
+<translation id="759273611317559136">Grupa kartica <ph name="TAB_GROUP_TITLE" /> je izbrisana</translation>
+<translation id="7630413501995820846">Zadrži grupu</translation>
+<translation id="7640137753339219124">Izbriši grupu</translation>
 <translation id="7764225426217299476">Dodaj adresu</translation>
+<translation id="7910753230807645596">Duplirane kartice i grupe ili one koje se ne koriste <ph name="DAYS_INACTIVE" /> dana se premeštaju ovde <ph name="AUTODELETE_SECTION" />. Ovo možete promeniti bilo kada u <ph name="DECLUTTER_SETTINGS_TITLE" />.</translation>
 <translation id="7968014550143838305">Dodato na listu za čitanje</translation>
 <translation id="804786196054284061">Ugovor o licenciranju sa krajnjim korisnikom</translation>
 <translation id="8062594758852531064">Prošireno predučitavanje:</translation>
 <translation id="8073388330009372546">Otvori sliku u novoj kartici</translation>
 <translation id="8127542551745560481">Uredi matičnu stranicu</translation>
+<translation id="8149776854955817519">Pregledajte svoje neaktivne kartice i grupe ovde</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
           =1 {(1) neaktivna stavka}
           few {(#) neaktivne stavke}
           other {(#) neaktivnih stavki}}</translation>
 <translation id="8266862848225348053">Lokacija preuzimanja</translation>
 <translation id="8348430946834215779">Koristite HTTPS kad god je to moguće i dobijajte upozorenje pre učitavanja sajtova koji ga ne podržavaju</translation>
+<translation id="8480628728881718381">Otvori u novoj kartici u grupi</translation>
+<translation id="8543049482641423692">Dodaj karticu u novu grupu</translation>
 <translation id="8560602726703398413">Pronađite svoju listu za čitanje u obeleživačima</translation>
 <translation id="85991616550051997">Idi na matičnu stranicu</translation>
+<translation id="8680308397617585416">Odmah ćete izgubiti pristup grupi kartica „<ph name="GROUP_NAME" />” i biće izbrisana sa svih vaših uređaja</translation>
 <translation id="8738163682604285902">Prikazati režim čitanja?</translation>
 <translation id="8820817407110198400">Obeleživači</translation>
 <translation id="9042893549633094279">Privatnost i bezbednost</translation>
 <translation id="9063523880881406963">Isključi zahtevanje desktop verzije sajta</translation>
 <translation id="9080642952018487277">Uđi u privatni režim</translation>
-<translation id="930124987204876019">Brisanje istorije, kolačića, podataka o sajtovima, keša…</translation>
+<translation id="9099398755190923267">Svi će odmah izgubiti pristup grupi kartica „<ph name="GROUP_NAME" />” i biće izbrisana sa svih uređaja</translation>
+<translation id="930124987204876019">Brisanje istorije, kolačića, podataka sajtova, keša…</translation>
 <translation id="961856697154696964">Brisanje podataka pregledanja</translation>
 </translationbundle>

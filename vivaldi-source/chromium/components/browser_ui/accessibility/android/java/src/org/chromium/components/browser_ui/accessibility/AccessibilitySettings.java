@@ -4,6 +4,9 @@
 
 package org.chromium.components.browser_ui.accessibility;
 
+import static org.chromium.build.NullUtil.assertNonNull;
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
@@ -18,6 +21,7 @@ import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
+import org.chromium.build.annotations.EnsuresNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
@@ -92,7 +96,7 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
     private ChromeSwitchPreference mForceEnableZoomPref;
     private ChromeSwitchPreference mCaretBrowsingPref;
     private ChromeSwitchPreference mJumpStartOmnibox;
-    private AccessibilitySettingsDelegate mDelegate;
+    private @Nullable AccessibilitySettingsDelegate mDelegate;
     private double mPageZoomLatestDefaultZoomPrefValue;
     private ChromeSwitchPreference mTouchpadOverscrollHistoryNavigationPref;
     private @Nullable DistilledPagePrefs mDistilledPagePrefs;
@@ -100,15 +104,9 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
     private final SettableMonotonicObservableSupplier<String> mPageTitle =
             ObservableSuppliers.createMonotonic();
 
+    @EnsuresNonNull("mDelegate")
     public void setDelegate(AccessibilitySettingsDelegate delegate) {
         mDelegate = delegate;
-    }
-
-    @Override
-    public void onActivityCreated(@Nullable Bundle savedInstanceState) {
-        super.onActivityCreated(savedInstanceState);
-
-        mPageTitle.set(getString(R.string.prefs_accessibility));
     }
 
     @Override
@@ -119,7 +117,9 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         SettingsUtils.addPreferencesFromResource(this, R.xml.accessibility_preferences);
+        mPageTitle.set(getString(R.string.prefs_accessibility));
 
+        assertNonNull(mDelegate);
         // TODO(crbug.com/439911511): Add PageZoomPreference directly to the xml file instead.
         // Create the page zoom preference.
         if (mDelegate.shouldUseSlider()) {
@@ -205,12 +205,17 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
 
         // Vivaldi: Resets the Zoom within Accessibility settings
         Preference resetZoom = findPreference(VivaldiPreferences.RESET_ZOOM);
+        assert resetZoom != null;
         resetZoom.setOnPreferenceClickListener(preference -> {
-            mPageZoomLatestDefaultZoomPrefValue =
-                    PageZoomUtils.getDefaultZoomAsBarValue(mDelegate.getBrowserContextHandle());
+            if (mDelegate != null) {
+                mPageZoomLatestDefaultZoomPrefValue =
+                        PageZoomUtils.getDefaultZoomAsBarValue(mDelegate.getBrowserContextHandle());
+            }
             Log.i("ResetZoom", "Get default zoom value: "+mPageZoomDefaultZoomPref);
-            PageZoomUtils.setDefaultZoomByBarValue(
-                    mDelegate.getBrowserContextHandle(), (int) mPageZoomLatestDefaultZoomPrefValue);
+            if (mDelegate != null) {
+                PageZoomUtils.setDefaultZoomByBarValue(mDelegate.getBrowserContextHandle(),
+                        (int) mPageZoomLatestDefaultZoomPrefValue);
+            }
             mPageZoomDefaultZoomPref.setZoomValueForTesting((int) mPageZoomLatestDefaultZoomPrefValue);
             return true;
         });
@@ -226,7 +231,7 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
                     initialArguments.putString(
                             AllSiteSettings.EXTRA_TITLE,
                             getString(R.string.zoom_info_preference_title));
-                    mDelegate
+                    assumeNonNull(mDelegate)
                             .getSiteSettingsNavigation()
                             .startSettings(
                                     ContextUtils.getApplicationContext(),
@@ -314,6 +319,7 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
 
     @Override
     public boolean onPreferenceChange(Preference preference, Object newValue) {
+        assertNonNull(mDelegate);
         if (PREF_FORCE_ENABLE_ZOOM.equals(preference.getKey())) {
             mDelegate.getForceEnableZoomAccessibilityDelegate().setValue((Boolean) newValue);
         } else if (PREF_READER_FOR_ACCESSIBILITY.equals(preference.getKey())) {

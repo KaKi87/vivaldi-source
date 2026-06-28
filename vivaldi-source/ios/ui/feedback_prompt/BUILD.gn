@@ -15,22 +15,20 @@ source_set("vivaldi_feedback_prompt") {
 
   deps = [
     ":vivaldi_feedback_prompt_swift",
-    "//base:i18n",
+    "resources:animation_files",
+    "resources:assets",
     "//base",
-    "//components/bookmarks/browser:browser",
+    "//base:i18n",
+    "//components/bookmarks/browser",
     "//ios/chrome/app/strings",
     "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
     "//ios/chrome/browser/shared/model/browser",
     "//ios/chrome/common/ui/util",
     "//ui/base",
     "//vivaldi/ios/ui/helpers",
-    "resources:assets",
-    "resources:animation_files",
   ]
 
-  frameworks = [
-    "UIKit.framework",
-  ]
+  frameworks = [ "UIKit.framework" ]
 }
 
 swift_source_set("vivaldi_feedback_prompt_swift") {
@@ -38,23 +36,23 @@ swift_source_set("vivaldi_feedback_prompt_swift") {
   sources = [
     "vivaldi_feedback_animation_view.swift",
     "vivaldi_feedback_editor_view.swift",
+    "vivaldi_feedback_issue.swift",
     "vivaldi_feedback_issue_constants.swift",
     "vivaldi_feedback_issue_detail_view.swift",
     "vivaldi_feedback_issue_row.swift",
     "vivaldi_feedback_issue_view.swift",
-    "vivaldi_feedback_issue.swift",
     "vivaldi_feedback_path.swift",
+    "vivaldi_feedback_view.swift",
     "vivaldi_feedback_view_constants.swift",
     "vivaldi_feedback_view_provider.swift",
-    "vivaldi_feedback_view_state_type.swift",
     "vivaldi_feedback_view_state.swift",
-    "vivaldi_feedback_view.swift",
+    "vivaldi_feedback_view_state_type.swift",
   ]
 
   deps = [
     "//vivaldi/app:vivaldi_ios_native_strings",
     "//vivaldi/ios/ui/helpers:helpers_swift",
-    "//vivaldi/ios/ui/lottie_swiftui:lottie_swiftui",
+    "//vivaldi/ios/ui/lottie_swiftui",
     "//vivaldi/ios/ui/lottie_swiftui:lottie_objc_wrapper",
   ]
 

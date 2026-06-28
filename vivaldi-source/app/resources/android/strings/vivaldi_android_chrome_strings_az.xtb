@@ -1,22 +1,35 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="az">
+<translation id="1062777154504442433">Yeni vərəq qrupu</translation>
 <translation id="1204037785786432551">Keçidi endirmək</translation>
 <translation id="1206892813135768548">Keçid mətnini kopyalamaq</translation>
+<translation id="1223158186497001208">Yeni fəaliyyətlə paylaşılan <ph name="GROUP_TITLE" /> vərəq qrupu</translation>
+<translation id="1328749518742029305"><ph name="TAB_GROUP_TITLE" /> vərəq qrupu bağlandı və saxlanıldı</translation>
 <translation id="1397811292916898096"><ph name="PRODUCT_NAME" /> ilə axtarın</translation>
 <translation id="1435593198351412143">PDF-ləri avtomatik açmaq</translation>
 <translation id="1456207338570705181">Toxunmaqla axtarış funksiyası yalnız, Vivaldidə Google standart axtraış vasitəsi kimi təyin edildiytində mümkün olur. O, seçilmiş sözü və cari səhifəni kontekst kimi Google axtarışına göndərir. Siz bu funksiyanı <ph name="BEGIN_LINK" />Ayarlar<ph name="END_LINK" /> səhifəsində dəyişə bilərsiniz.</translation>
 <translation id="1598449788754183301">Adi və gizli vərəqlər arası keçid</translation>
+<translation id="1626105448931436644">Birgə istifadə edilən vərəq qrupları haqqında öyrənin</translation>
 <translation id="1644574205037202324">Tarixçə</translation>
 <translation id="1829244130665387512">Səhifədə tapın</translation>
-<translation id="1910514478706885609">Yeni vərəq qrupunda açın</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+          =1 {Birgə istifadə olunan vərəqlərdə yeni fəaliyyətli <ph name="TABS_COUNT_ONE" /> vərəqinə baxın}
+          other {Birgə istifadə olunan vərəqlərdə yeni fəaliyyətli <ph name="TABS_COUNT_MANY" /> vərəqinə baxın}
+        }</translation>
 <translation id="1925021887439448749">Fərdi veb ünvanı daxil et</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+          =1 {<ph name="OWNER_FIRST_NAME" /> və digər <ph name="NUMBER_OF_OTHER_MEMBERS" /> ilə vərəq qrupuna qoşun}
+          other {<ph name="OWNER_FIRST_NAME" /> və digər <ph name="NUMBER_OF_OTHER_MEMBERS" /> ilə vərəq qrupuna qoşun}
+        }</translation>
 <translation id="2038563949887743358">Kompyuter versiyanı açın</translation>
+<translation id="2067565353468675023">Vərəq qrupuna <ph name="OWNER_FIRST_NAME" /> ilə qoşulun</translation>
 <translation id="208033313373016095">Veb səhifələr üçün oxuyucu baxışı</translation>
 <translation id="2149973817440762519">Əlfəcinə düzəliş et</translation>
 <translation id="2306442503286132111">Əlfəcin, <ph name="FOLDER_NAME" /> qovluğunda saxlanıldı</translation>
 <translation id="2433507940547922241">Görünüş</translation>
-<translation id="2501278716633472235">Geriyə</translation>
+<translation id="2495373685671077949">Vərəqləri və qrupları axtarmaq</translation>
+<translation id="2500281581698062897">Siz dərhal <ph name="GROUP_NAME" /> vərəq qrupuna girişinizi itirəcəksiniz və <ph name="BLOCKED_MEMBER_FULL_NAME" /> <ph name="BLOCKED_MEMBER_EMAIL" /> artıq Google xidmətləriniz vasitəsi ilə sizinlə heç bir əlaqə qura bilməyəcək.</translation>
 <translation id="2546283357679194313">Kukilər və sayt məlumatları</translation>
 <translation id="2633278372998075009">Məxfi vərəqlər</translation>
 <translation id="2650751991977523696">Fayl yenidən endirilsin?</translation>
@@ -26,6 +39,7 @@
 <translation id="2871733351037274014">Səhifələri öncədən yükləmək</translation>
 <translation id="2904300462646366554">Endirilmiş PDF-lər cihazdakı PDF baxıcılarından biri ilə avtomatik açılır</translation>
 <translation id="2951071800649516099">Sonra oxumaq üçün oxu siyahınıza səhifələr əlavə et</translation>
+<translation id="3020023775880428664">Vərəqi qrupa köçürün</translation>
 <translation id="3029276696788198026">Əvvəlcədən yükləmə yoxdur</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT,plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> əlfəcin}
@@ -35,7 +49,13 @@
 <translation id="3232293466644486101">Baxılmış məlumatlarını silin…</translation>
 <translation id="3234355010754616171">Yeni məxfi vərəq</translation>
 <translation id="3237087289225714896">Standart öncədən yükləmə:</translation>
+<translation id="3298614730029636660">Qrupu tərk etmək</translation>
+<translation id="3359462099791810823">Sonra daxil etmək üçün bu qrupu saxlayın və ya əgər artıq sizə lazım deyilsə onu silin.</translation>
 <translation id="3478414204555961127">Oxucu baxışı</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> vərəqin vərəq qrupunu <ph name="COLOR_NAME" /> rəngli yeni arxa fon kimi bərpa edin.}
+          other {<ph name="TAB_COUNT_MANY" /> vərəqin vərəq qrupunu <ph name="COLOR_NAME" /> rəngli yeni arxa fon kimi bərpa edin.}
+        }</translation>
 <translation id="3504699618187058974">Vərəqləri qruplaşdırmaq</translation>
 <translation id="3518985090088779359">Qəbul et və irəlilə</translation>
 <translation id="3571177741182643350">Oxunmamış məqalələr - Oflayn əlçatandır:</translation>
@@ -43,9 +63,11 @@
 <translation id="3700829948786686853">Vivaldiyə Xoş Gəldiniz</translation>
 <translation id="3719826155360621982">Ev səhifəsi</translation>
 <translation id="3738139272394829648">Axtarış üçün toxunun</translation>
-<translation id="385051799172605136">Geriyə</translation>
+<translation id="3900825170941000696"><ph name="TITLE_OF_GROUP" /> vərə qrupunu bərpa edin, <ph name="COLOR_NAME" /> yeni arxa plan vərəq qrupu olaraq rəngləyin.</translation>
+<translation id="395421286877117532">Vərəq qrupunu dəyişin və "Hazır" düyməsinə vurun</translation>
 <translation id="3987993985790029246">Keçidi kopyalamaq</translation>
 <translation id="399014816462153200">Məqalələri oxuyun:</translation>
+<translation id="4048089913902125176"><ph name="URL_LIST" /> saytları ilə <ph name="TITLE_OF_GROUP" /> vərəq qrupunu açın, <ph name="COLOR_NAME" /> rəngləyin.</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> vərəq}
           other {<ph name="TAB_COUNT_MANY" /> vərəqlər, <ph name="TAB_COUNT_INCOGNITO" /> gizli}}</translation>
@@ -54,25 +76,41 @@
 <translation id="4137746084635924146">Cihazın hazırkı dili</translation>
 <translation id="4167670741834902166">Yeni məxfi vərəq</translation>
 <translation id="4195643157523330669">Yeni vərəqdə açın</translation>
+<translation id="4219031106525503429"><ph name="GROUP_NAME" /> vərəq qrupunu paylaşın</translation>
 <translation id="4225895483398857530">Alətlər paneli qısayolu</translation>
 <translation id="4243710787042215766">Gizli pəncərədə açın</translation>
 <translation id="4269820728363426813">Keçid ünvanını kopyalamaq</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Android ayarlarında ekran kilidini aktiv edin<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Şifrə idarəedici</translation>
-<translation id="441100617989818073">İstifadə olunmayan və ya təkrarlanan vərəqlər və qruplar</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {Birgə istifadə edilən vərəql qruplarında yeni aktivliklə <ph name="TABS_COUNT_ONE" /> standart vərəq}
+          other {Birgə istifadə edilən vərəql qruplarında yeni aktivliklə  <ph name="TABS_COUNT_MANY" /> standard vərəq}
+        }</translation>
+<translation id="4445802392779002787">Vərəqi qrupa əlavə edin</translation>
 <translation id="451872707440238414">Əlfəcinizi axtarın</translation>
 <translation id="4526803704855831732">Məxfi vərəqlər</translation>
 <translation id="4532845899244822526">Qovluq seçmək</translation>
+<translation id="454284936014822050"><ph name="GROUP_TITLE" /> vərəq qrupu</translation>
+<translation id="4614713783237504866">İstifadəsiz və ya təkrarlanan vərəqlər və qruplar</translation>
+<translation id="463284870544181537">Sonra daxil etmək üçün qrupu saxlayın və ya artıq ona daxil olmaq lazım deyilsə silin</translation>
+<translation id="4638726726741656531">İndi vərəqlərinizi burada asanlıqla qrupa əlavə edə bilərsiniz</translation>
 <translation id="4699172675775169585">Keşlənmiş şəkillər və fayllar</translation>
 <translation id="4719086422742491124">Səhifəni tərk etmədən daha çox məlumat əldə edin. Səhifədə axtarmaq istədiyiniz sözlərdən bir və ya bir neçəsini seçin.
 
 Bir toxunuşla axtarış yalnız Vivaldidə Google standart axtarış mühərriki kimi təyin edildiyində mümkündür.</translation>
 <translation id="4759238208242260848">Endirmələr</translation>
-<translation id="4777866634702576038">Vərəq qrupu silinsin?</translation>
+<translation id="4771820744342013314">Vərəq qrupunu silək?</translation>
 <translation id="4850886885716139402">Görünüş</translation>
 <translation id="4883379392681899581">Məxfi rejimdən çıxın</translation>
+<translation id="4883812026489706387">“<ph name="TAB_GROUP_TITLE" />” vərəq qrupunda yeni fəaliyyət var</translation>
+<translation id="4887248255051238988">Qrupu tərk edək?</translation>
 <translation id="4943872375798546930">Nəticə yoxdur</translation>
 <translation id="49576331685473090">Məzmun əngəlləyici</translation>
+<translation id="4964059453543967592">Bağlanmış qrupu açın</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" /> vərəq qrupu}
+          other {<ph name="TAB_GROUPS_MANY" /> vərəq qrupu}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> gizli vərəq}
           other {<ph name="TAB_COUNT_NORMAL" /> gizli vərəqlər}}</translation>
@@ -83,19 +121,26 @@ Bir toxunuşla axtarış yalnız Vivaldidə Google standart axtarış mühərrik
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {Fayl endirilir…}
             other {Fayllar # endirilir…}}</translation>
+<translation id="5210689723585747462"><ph name="TAB_GROUP_TITLE" /> vərəq qrupu bağlandı</translation>
 <translation id="5233638681132016545">Yeni vərəq</translation>
 <translation id="5375131951310889874">Səhifəni tərk etmədən daha çox məlumat əldə edin. Bir toxunuşla axtarış funksiyası yalnız Vivaldidə Google standart axtarış mühərriki təyin edildiyində mümkündür. O, sözü və ona uyğun məzmunu Google-də axtarışa göndərir və uyğun təsviri, şəkilləri və digər axtarış nəticələrini qaytarır.
 
 Axtarış qaydalarını tənzimləmək üçün basıb saxlayın. Axtarış vasitəsini dəyişmək üçün paneli açın və axtarış vasitəsini seçin.</translation>
+<translation id="5570837353202786816">Hər kəs dərhal <ph name="GROUP_NAME" /> vərəq qrupuna girişi itirəcək və bütün dəvət keçidləri söndürüləcək</translation>
+<translation id="5614794348925178470">Birgə istifadə olunan <ph name="GROUP_TITLE" /> vərəq qrupu</translation>
 <translation id="572328651809341494">Əvvəlki vərəqlər</translation>
 <translation id="5833984609253377421">Keçidi paylaşmaq</translation>
+<translation id="6129507335719227488">Qrupdakı vərəqlər</translation>
 <translation id="6150320133806434356">Əlfəcin saxlanıldı</translation>
 <translation id="6193448654517602979">Vərəqləri seçmək</translation>
+<translation id="6221225660285238685">Qrupu başqa vərəqə köçürün</translation>
+<translation id="6277377952699614191">Vərəq qrupu</translation>
 <translation id="6336451774241870485">Yeni məxfi vərəq</translation>
 <translation id="6337323516034698937">Bu vərəqi başqa cihaza göndərmək üçün hər iki cihazda Vivaldi Eyniləşdirməyə daxil olun. Əgər lazımdırsa şifrələmə şifrəsi əlavə etdiyinizdən əmin olun.</translation>
 <translation id="6341580099087024258">Faylların harada saxlanılacağını soruşmaq</translation>
 <translation id="6364438453358674297">Təkliflər tarixçədən silinsin?</translation>
 <translation id="6404511346730675251">Əlfəcinə düzəliş et</translation>
+<translation id="6453011654157908292">Vərəq qrupu təfərrüatları</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
           =1 {Fayl endirildi}
           other {# endirmələr tamamlandı}}</translation>
@@ -104,11 +149,13 @@ Axtarış qaydalarını tənzimləmək üçün basıb saxlayın. Axtarış vasit
 <translation id="6593061639179217415">Komputer versiyası</translation>
 <translation id="6610147964972079463">Məxfi vərəqləri bağlayın</translation>
 <translation id="6627583120233659107">Qovluğa düzəliş etmək</translation>
+<translation id="6785740335511995065">Vərəq qrupunu saxlayaq?</translation>
 <translation id="6865313869410766144">Avtomatik doldurma verilənləri</translation>
 <translation id="6909589135458168665">Səhifələri əvvəlcədən yükləmək</translation>
 <translation id="7029995644714925509">Hər hansı bir sayt, öz səhifəsindəki keçidlərin məxfi olaraq öncədən yüklənməsi sorğusu göndərdiyi zaman, Vivaldi səhifələri kukilər olmadan Google xidməti ilə şifrələyir və öncədən yükləyir. Bu, sizin kimliyinizi öncədən yüklənən saytlardan gizlədir.</translation>
 <translation id="706339621163631076">Veb-bələdçi məxfilik siyasəti</translation>
 <translation id="7100573672995171864">Vivaldi-ni ayarlayın və idarə edin</translation>
+<translation id="7133879160432070247">Əngəllənsin və qrupu tərk etsin?</translation>
 <translation id="732145680195464316">Əlfəcin, <ph name="PRODUCT_NAME" /> tətbiqinə əlavə edildi</translation>
 <translation id="7324354302972299151">"Do Not Track" sorğusu göndərin</translation>
 <translation id="7359002509206457351">Ödəniş üsullarına giriş</translation>
@@ -117,24 +164,33 @@ Axtarış qaydalarını tənzimləmək üçün basıb saxlayın. Axtarış vasit
 <translation id="7456774706094330779">Genişləndirilmiş öncədən yükləmə</translation>
 <translation id="7465104139234185284">Bütün məxfii vərəqləri bağlayın</translation>
 <translation id="7481312909269577407">İrəli</translation>
+<translation id="759273611317559136"><ph name="TAB_GROUP_TITLE" /> vərəq qrupu silindi</translation>
+<translation id="7630413501995820846">Qrupu saxlayın</translation>
+<translation id="7640137753339219124">Qrupu silin</translation>
 <translation id="7764225426217299476">Ünvan əlavə etmək</translation>
+<translation id="7910753230807645596"><ph name="DAYS_INACTIVE" /> gün ərzində istifadə olunmayan və ya təkrarlanan vərəqlər və qruplar buraya köçürülür: <ph name="AUTODELETE_SECTION" />. Bunu istənilən zaman <ph name="DECLUTTER_SETTINGS_TITLE" /> ilə dəyişə bilərsiniz.</translation>
 <translation id="7968014550143838305">Oxu siyahısına əlavə edildi</translation>
 <translation id="804786196054284061">Son İstifadəçi Lisenziya Razılaşması</translation>
 <translation id="8062594758852531064">Genişləndirilmiş öncədən yükləmə:</translation>
 <translation id="8073388330009372546">Şəkli yeni vərəqdə açmaq</translation>
 <translation id="8127542551745560481">Əsas səhifəyə düzəliş et</translation>
+<translation id="8149776854955817519">Qeyr-aktiv vərəqləri gözdən keçirin və onları burada qruplaşdırın</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
           =1 {(1) qeyri-aktiv element}
           other {(#) qeyri-aktiv elementlər}}</translation>
 <translation id="8266862848225348053">Endirmə yeri</translation>
 <translation id="8348430946834215779">Mümkün olduqda HTTPS istifadə edin və onu dəstəkləməyən saytları yükləməzdən əvvəl xəbərdarlıq alın</translation>
+<translation id="8480628728881718381">Yeni qrupdakı yeni vərəqdə açın</translation>
+<translation id="8543049482641423692">Vərəqi yeni qrupa əlavə edin</translation>
 <translation id="8560602726703398413">Əlfəcinlərdə oxuma siyahısını tap</translation>
 <translation id="85991616550051997">Ev səhifəsinə keçin</translation>
+<translation id="8680308397617585416">Siz dərhal <ph name="GROUP_NAME" /> vərəq qrupuna giriş imkanını itirəcəksiniz və o bütün cihazlarınızdan silinəcəkdir</translation>
 <translation id="8738163682604285902">Oxu rejimi aktiv olunsun?</translation>
 <translation id="8820817407110198400">Əlfəcinlər</translation>
 <translation id="9042893549633094279">Məxfilik və təhlükəsizlik</translation>
 <translation id="9063523880881406963">Komputer versiyasını söndürün</translation>
 <translation id="9080642952018487277">Gizli işləmək</translation>
+<translation id="9099398755190923267">Hər kəs dərhal <ph name="GROUP_NAME" /> vərəq qrupuna girişi itirəcək və o dərhal bütün cihazlardan silinəcək</translation>
 <translation id="930124987204876019">Tarixçə, kuki, sayt verilənlərini və keşi silin…</translation>
 <translation id="961856697154696964">Baxdığınız məlumatları silmək</translation>
 </translationbundle>

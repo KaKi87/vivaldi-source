@@ -25,13 +25,12 @@
 #import "components/autofill/core/browser/data_quality/addresses/profile_requirement_utils.h"
 #import "components/autofill/core/browser/integrators/autofill_ai/autofill_ai_labels.h"
 #import "components/autofill/core/browser/integrators/autofill_ai/management_utils.h"
+#import "components/autofill/core/browser/integrators/autofill_ai/metrics/autofill_ai_metrics.h"
 #import "components/autofill/core/common/autofill_features.h"
 #import "components/autofill/core/common/autofill_prefs.h"
 #import "components/autofill/ios/browser/personal_data_manager_observer_bridge.h"
 #import "components/autofill/ios/common/features.h"
 #import "components/password_manager/core/common/password_manager_features.h"
-#import "components/plus_addresses/core/browser/grit/plus_addresses_strings.h"
-#import "components/plus_addresses/core/common/features.h"
 #import "components/prefs/ios/pref_observer_bridge.h"
 #import "components/prefs/pref_change_registrar.h"
 #import "components/prefs/pref_service.h"
@@ -105,9 +104,6 @@ static constexpr autofill::DenseSet<autofill::EntityTypeName> kTravel = {
     autofill::EntityTypeName::kRedressNumber,
     autofill::EntityTypeName::kVehicle};
 
-// Plus Address Section header height.
-const CGFloat kPlusAddressSectionHeaderHeight = 24;
-
 // TODO(crbug.com/480934103): Update this URL.
 constexpr std::string_view kWalletUrlString =
     "https://wallet.google.com/wallet/settings/managepassesdata";
@@ -118,7 +114,6 @@ const CGFloat kEntityIconPointSize = 20;
 typedef NS_ENUM(NSInteger, SectionIdentifier) {
   SectionIdentifierSwitches = kSectionIdentifierEnumZero,
   SectionIdentifierProfiles,
-  SectionIdentifierPlusAddress,
   SectionIdentifierEnhancedAutofill,
   SectionIdentifierVerificationSwitch,
   SectionIdentifierWalletPromo,
@@ -133,9 +128,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
   ItemTypeAddress,
   ItemTypeHeader,
   ItemTypeFooter,
-  ItemTypePlusAddress,
-  ItemTypePlusAddressFooter,
   ItemTypeEnhancedAutofill,
+  ItemTypeEnhancedAutofillManaged,
   ItemTypeVerificationSwitch,
   ItemTypeVerificationFooter,
   ItemTypeWalletPromoInfo,
@@ -295,7 +289,10 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
 
   self = [super initWithStyle:ChromeTableViewStyle()];
   if (self) {
-    self.title = l10n_util::GetNSString(IDS_AUTOFILL_ADDRESSES_SETTINGS_TITLE);
+    self.title =
+        l10n_util::GetNSString(IsYourSavedInfoSettingsPageIosEnabled()
+                                   ? IDS_AUTOFILL_CONTACT_INFO_TITLE
+                                   : IDS_AUTOFILL_ADDRESSES_SETTINGS_TITLE);
     self.shouldDisableDoneButtonOnEdit = YES;
     _browser = browser;
     _personalDataManager = autofill::PersonalDataManagerFactory::GetForProfile(
@@ -356,23 +353,23 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
   [model setFooter:[self addressSwitchFooter]
       forSectionWithIdentifier:SectionIdentifierSwitches];
 
-  if (base::FeatureList::IsEnabled(
-          plus_addresses::features::kPlusAddressesEnabled) &&
-      _userEmail) {
-    [model addSectionWithIdentifier:SectionIdentifierPlusAddress];
-    [model addItem:[self plusAddressItem]
-        toSectionWithIdentifier:SectionIdentifierPlusAddress];
-
-    [model setFooter:[self plusAddressFooter]
-        forSectionWithIdentifier:SectionIdentifierPlusAddress];
-  }
-
   bool isEnhancedAutofillEnabled = base::FeatureList::IsEnabled(
       autofill::features::kAutofillAiWithDataSchema);
   if (isEnhancedAutofillEnabled) {
     [model addSectionWithIdentifier:SectionIdentifierEnhancedAutofill];
-    [model addItem:[self enhancedAutofillItem]
-        toSectionWithIdentifier:SectionIdentifierEnhancedAutofill];
+    BOOL addressManagedAndDisabled = autofill::prefs::IsAutofillProfileManaged(
+                                         _browser->GetProfile()->GetPrefs()) &&
+                                     !autofill::prefs::IsAutofillProfileEnabled(
+                                         _browser->GetProfile()->GetPrefs());
+    if (addressManagedAndDisabled ||
+        autofill::IsAutofillAiDisabledByEnterprisePolicy(
+            _browser->GetProfile()->GetPrefs())) {
+      [model addItem:[self managedEnhancedAutofillItem]
+          toSectionWithIdentifier:SectionIdentifierEnhancedAutofill];
+    } else {
+      [model addItem:[self enhancedAutofillItem]
+          toSectionWithIdentifier:SectionIdentifierEnhancedAutofill];
+    }
 
     [self populateVerificationAndWalletSections];
   }
@@ -426,6 +423,7 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
   item.typeDescription =
       base::SysUTF16ToNSString(instance.type().GetNameForI18n());
   item.guid = instance.guid();
+  item.entityTypeName = instance.type().name();
 
   if (instance.IsServerInstance()) {
     item.isServerWalletItem = YES;
@@ -477,24 +475,6 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
   return switchItem;
 }
 
-- (TableViewItem*)plusAddressItem {
-  TableViewDetailTextItem* plusAddressItem =
-      [[TableViewDetailTextItem alloc] initWithType:ItemTypePlusAddress];
-
-  plusAddressItem.text =
-      l10n_util::GetNSString(IDS_PLUS_ADDRESS_SETTINGS_LABEL);
-  plusAddressItem.accessorySymbol =
-      TableViewDetailTextCellAccessorySymbolExternalLink;
-  return plusAddressItem;
-}
-
-- (TableViewHeaderFooterItem*)plusAddressFooter {
-  TableViewLinkHeaderFooterItem* footer = [[TableViewLinkHeaderFooterItem alloc]
-      initWithType:ItemTypePlusAddressFooter];
-  footer.text = l10n_util::GetNSString(IDS_PLUS_ADDRESS_SETTINGS_SUBLABEL);
-  return footer;
-}
-
 - (TableViewItem*)enhancedAutofillItem {
   NSString* text = l10n_util::GetNSString(IDS_SETTINGS_AUTOFILL_AI_PAGE_TITLE);
 
@@ -522,6 +502,22 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
   managedAddressItem.selector = @selector(didTapManagedUIInfoButton:);
   managedAddressItem.accessibilityIdentifier = kAutofillAddressManagedViewId;
   return managedAddressItem;
+}
+
+- (TableViewInfoButtonItem*)managedEnhancedAutofillItem {
+  TableViewInfoButtonItem* managedEnhancedAutofillItem =
+      [[TableViewInfoButtonItem alloc]
+          initWithType:ItemTypeEnhancedAutofillManaged];
+  managedEnhancedAutofillItem.text =
+      l10n_util::GetNSString(IDS_SETTINGS_AUTOFILL_AI_PAGE_TITLE);
+  // The status could only be off when the pref is managed.
+  managedEnhancedAutofillItem.statusText =
+      l10n_util::GetNSString(IDS_IOS_SETTING_OFF);
+  managedEnhancedAutofillItem.accessibilityHint =
+      l10n_util::GetNSString(IDS_IOS_TOGGLE_SETTING_MANAGED_ACCESSIBILITY_HINT);
+  managedEnhancedAutofillItem.target = self;
+  managedEnhancedAutofillItem.selector = @selector(didTapManagedUIInfoButton:);
+  return managedEnhancedAutofillItem;
 }
 
 - (TableViewHeaderFooterItem*)addressSwitchFooter {
@@ -662,11 +658,7 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
 // Returns YES if the user can modify the Enhanced Autofill setting.
 - (BOOL)canModifyEnhancedAutofill {
   return autofill::CanPerformAutofillAiAction(
-      _browser->GetProfile(),
-      base::FeatureList::IsEnabled(
-          autofill::features::kAutofillAiAvailableByDefault)
-          ? autofill::AutofillAiAction::kEnableOrDisable
-          : autofill::AutofillAiAction::kOptIn);
+      _browser->GetProfile(), autofill::AutofillAiAction::kOptIn);
 }
 
 // Configures the enhancedAutofillItem based on capability to modify the
@@ -697,9 +689,11 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
       [[TableViewSwitchItem alloc] initWithType:ItemTypeVerificationSwitch];
   switchItem.text =
       l10n_util::GetNSString(IDS_IOS_AUTOFILL_VERIFICATION_INFO_LABEL);
-  switchItem.on = autofill::prefs::IsAutofillAiReauthBeforeFillingEnabled(
-      _browser->GetProfile()->GetPrefs());
-  switchItem.enabled = [_reauthenticationModule canAttemptReauth];
+  BOOL canAttemptReauth = [_reauthenticationModule canAttemptReauth];
+  switchItem.on = canAttemptReauth &&
+                  autofill::prefs::IsAutofillAiReauthBeforeFillingEnabled(
+                      _browser->GetProfile()->GetPrefs());
+  switchItem.enabled = canAttemptReauth;
   switchItem.target = self;
   switchItem.selector = @selector(verificationSwitchChanged:);
   switchItem.accessibilityIdentifier = kAutofillVerificationSwitchTableViewId;
@@ -807,6 +801,13 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
                     itemType:ItemTypeAutofillAddressSwitch];
   [self setWalletPromoButtonItemEnabled:!self.tableView.editing];
   [self updatedToolbarForEditState];
+
+  for (NSIndexPath* indexPath in self.tableView.indexPathsForVisibleRows) {
+    UITableViewCell* cell = [self.tableView cellForRowAtIndexPath:indexPath];
+    if (cell) {
+      [self updateOpacityAndInteractionForCell:cell atIndexPath:indexPath];
+    }
+  }
 }
 
 // Override.
@@ -845,53 +846,14 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
 
 - (UITableViewCellEditingStyle)tableView:(UITableView*)tableView
            editingStyleForRowAtIndexPath:(NSIndexPath*)indexPath {
-  TableViewItem* item = [self.tableViewModel itemAtIndexPath:indexPath];
-  if ([item isKindOfClass:[AutofillAIEntityItem class]]) {
-    AutofillAIEntityItem* aiItem =
-        base::apple::ObjCCastStrict<AutofillAIEntityItem>(item);
-    return aiItem.isServerWalletItem ? UITableViewCellEditingStyleNone
-                                     : UITableViewCellEditingStyleDelete;
-  }
-  return UITableViewCellEditingStyleDelete;
+  return [self isServerWalletItemAtIndexPath:indexPath]
+             ? UITableViewCellEditingStyleNone
+             : UITableViewCellEditingStyleDelete;
 }
 
 - (BOOL)tableView:(UITableView*)tableView
     shouldIndentWhileEditingRowAtIndexPath:(NSIndexPath*)indexPath {
-  TableViewItem* item = [self.tableViewModel itemAtIndexPath:indexPath];
-  if ([item isKindOfClass:[AutofillAIEntityItem class]]) {
-    AutofillAIEntityItem* aiItem =
-        base::apple::ObjCCastStrict<AutofillAIEntityItem>(item);
-    return !aiItem.isServerWalletItem;
-  }
-  return YES;
-}
-
-- (CGFloat)tableView:(UITableView*)tableView
-    heightForHeaderInSection:(NSInteger)section {
-  NSInteger sectionIdentifier =
-      [self.tableViewModel sectionIdentifierForSectionIndex:section];
-
-  if (base::FeatureList::IsEnabled(
-          plus_addresses::features::kPlusAddressesEnabled) &&
-      sectionIdentifier == SectionIdentifierPlusAddress) {
-    return kPlusAddressSectionHeaderHeight;
-  }
-
-  return [super tableView:tableView heightForHeaderInSection:section];
-}
-
-- (CGFloat)tableView:(UITableView*)tableView
-    heightForFooterInSection:(NSInteger)section {
-  NSInteger sectionIdentifier =
-      [self.tableViewModel sectionIdentifierForSectionIndex:section];
-
-  if (base::FeatureList::IsEnabled(
-          plus_addresses::features::kPlusAddressesEnabled) &&
-      sectionIdentifier == SectionIdentifierPlusAddress) {
-    return kTableViewHeaderFooterViewHeight;
-  }
-
-  return [super tableView:tableView heightForFooterInSection:section];
+  return ![self isServerWalletItemAtIndexPath:indexPath];
 }
 
 - (void)setEditing:(BOOL)editing animated:(BOOL)animated {
@@ -921,15 +883,6 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
   NSInteger itemType = [self.tableViewModel itemTypeForIndexPath:indexPath];
 
   switch (itemType) {
-    case ItemTypePlusAddress: {
-      base::RecordAction(
-          base::UserMetricsAction("Settings.ManageOptionOnSettingsSelected"));
-      OpenNewTabCommand* command = [OpenNewTabCommand
-          commandWithURLFromChrome:
-              GURL(plus_addresses::features::kPlusAddressManagementUrl.Get())];
-      [self.sceneHandler closePresentedViewsAndOpenURL:command];
-      return;
-    }
     case ItemTypeEnhancedAutofill: {
       if (![self canModifyEnhancedAutofill]) {
         [self.tableView deselectRowAtIndexPath:indexPath animated:YES];
@@ -1025,18 +978,13 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
 
 - (BOOL)tableView:(UITableView*)tableView
     canEditRowAtIndexPath:(NSIndexPath*)indexPath {
-  if (_settingsAreDismissed) {
+  if (_settingsAreDismissed || [self isServerWalletItemAtIndexPath:indexPath]) {
     return NO;
   }
 
   TableViewItem* item = [self.tableViewModel itemAtIndexPath:indexPath];
-  if ([item isKindOfClass:[AutofillAIEntityItem class]]) {
-    AutofillAIEntityItem* aiItem =
-        base::apple::ObjCCastStrict<AutofillAIEntityItem>(item);
-    return !aiItem.isServerWalletItem;
-  }
-
-  return [item isKindOfClass:[AutofillProfileItem class]];
+  return [item isKindOfClass:[AutofillProfileItem class]] ||
+         [item isKindOfClass:[AutofillAIEntityItem class]];
 }
 
 - (void)tableView:(UITableView*)tableView
@@ -1057,6 +1005,8 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
   selectedBackgroundView.backgroundColor =
       [UIColor colorNamed:kTertiaryBackgroundColor];
   cell.selectedBackgroundView = selectedBackgroundView;
+
+  [self updateOpacityAndInteractionForCell:cell atIndexPath:indexPath];
 
   return cell;
 }
@@ -1188,6 +1138,12 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
     return;
   }
 
+  if ([self.tableView isEditing]) {
+    // Turn off edit mode.
+    [self setEditing:NO animated:NO];
+  }
+
+  [self updateUIForEditState];
   [self reloadData];
 }
 
@@ -1225,8 +1181,7 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
   AuthenticationService* authenticationService =
       AuthenticationServiceFactory::GetForProfile(_browser->GetProfile());
   CHECK(authenticationService);
-  id<SystemIdentity> identity =
-      authenticationService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
+  id<SystemIdentity> identity = authenticationService->GetPrimaryIdentity();
   if (identity) {
     _userEmail = identity.userEmail;
   }
@@ -1290,6 +1245,29 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
 }
 
 #pragma mark - Private
+
+// Returns YES if the item at the given `indexPath` represents a server-side
+// Wallet entity.
+- (BOOL)isServerWalletItemAtIndexPath:(NSIndexPath*)indexPath {
+  TableViewItem* item = [self.tableViewModel itemAtIndexPath:indexPath];
+  if ([item isKindOfClass:[AutofillAIEntityItem class]]) {
+    AutofillAIEntityItem* aiItem =
+        base::apple::ObjCCastStrict<AutofillAIEntityItem>(item);
+    return aiItem.isServerWalletItem;
+  }
+  return NO;
+}
+
+// Updates the opacity and interaction state of the given `cell` based on
+// whether it represents a server wallet entity and the table's editing state.
+- (void)updateOpacityAndInteractionForCell:(UITableViewCell*)cell
+                               atIndexPath:(NSIndexPath*)indexPath {
+  BOOL shouldDisable =
+      [self isServerWalletItemAtIndexPath:indexPath] && self.tableView.editing;
+
+  cell.contentView.alpha = shouldDisable ? 0.5 : 1.0;
+  cell.userInteractionEnabled = !shouldDisable;
+}
 
 - (void)dismissDeletionSheet {
   [_deletionSheetCoordinator stop];
@@ -1356,6 +1334,12 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
       AutofillAIEntityItem* aiItem =
           base::apple::ObjCCastStrict<AutofillAIEntityItem>(item);
       if (_entityDataManager) {
+        autofill::EntityInstance::RecordType recordType =
+            aiItem.isServerWalletItem
+                ? autofill::EntityInstance::RecordType::kServerWallet
+                : autofill::EntityInstance::RecordType::kLocal;
+        autofill::LogEntityDeletedFromSettings(
+            autofill::EntityType(aiItem.entityTypeName), recordType);
         _entityDataManager->RemoveEntityInstance(aiItem.guid);
       }
     }
@@ -1640,8 +1624,22 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
 }
 
 // Returns whether to show the add menu with addresses and entities.
+// Two notes:
+// 1. "Save and fill addresses" being disabled disables Forms AI.
+// 2. When the default availability flag is on, Autofill AI enterprise policy
+// does not control adding/editing entities.
 - (bool)shouldShowAddMenu {
-  return _entityDataManager != nullptr;
+  if (!_entityDataManager || ![self isAutofillProfileEnabled]) {
+    return false;
+  }
+
+  return base::FeatureList::IsEnabled(
+             autofill::features::kAutofillAiAvailableByDefault)
+             ? autofill::CanPerformAutofillAiAction(
+                   _browser->GetProfile(),
+                   autofill::AutofillAiAction::kEnableOrDisable)
+             : autofill::CanPerformAutofillAiAction(
+                   _browser->GetProfile(), autofill::AutofillAiAction::kOptIn);
 }
 
 // Updates the add button in the toolbar based on whether the add menu should be
@@ -1653,6 +1651,7 @@ ItemType ItemTypeForEntitySectionHeader(SectionIdentifier section_identifier) {
     _addButtonInToolbar.target = nil;
     _addButtonInToolbar.menu =
         [self buildAddEntitiesMenuWithProfileEnabled:profileEnabled];
+    _addButtonInToolbar.enabled = YES;
   } else {
     _addButtonInToolbar.enabled = profileEnabled;
   }

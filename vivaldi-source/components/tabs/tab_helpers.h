@@ -10,7 +10,8 @@
 namespace vivaldi {
 
 bool IsTabInAWorkspace(const sessions::SessionTab& session_tab);
-std::optional<double> GetTabWorkspaceId(const sessions::SessionTab& session_tab);
+std::optional<double> GetTabWorkspaceId(
+    const sessions::SessionTab& session_tab);
 
 }  // namespace vivaldi
 

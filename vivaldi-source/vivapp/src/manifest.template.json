@@ -17,7 +17,7 @@
   "display_in_new_tab_page": true,
   "host_permissions": [
     "<all_urls>",
-    "chrome://favicon/",
+    "chrome://favicon2/",
     "chrome://game/",
     "chrome://privacy-report/",
     "chrome://theme/",

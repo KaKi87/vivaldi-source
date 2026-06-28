@@ -3,8 +3,8 @@
 #include "components/permissions/vivaldi_permission_handler.h"
 #include "components/permissions/vivaldi_permission_handler_base.h"
 
-#include "components/permissions/permission_request_manager.h"
 #include "components/permissions/chooser_controller.h"
+#include "components/permissions/permission_request_manager.h"
 
 namespace permissions {
 

@@ -215,6 +215,7 @@
 <translation id="4170314459383239649">Tyhjennä suljettaessa</translation>
 <translation id="4200983522494130825">Uusi &amp;välilehti</translation>
 <translation id="4225397296022057997">Kaikilla sivustoilla</translation>
+<translation id="4242245038391716252">Ladannut laajennus: &lt;a href="<ph name="URL" />"&gt;<ph name="EXTENSION" />&lt;/a&gt;</translation>
 <translation id="4256316378292851214">Tallenna &amp;video nimellä…</translation>
 <translation id="4270393598798225102">Versio <ph name="NUMBER" /></translation>
 <translation id="4278390842282768270">Sallitut</translation>
@@ -382,6 +383,7 @@ Julkinen eksponentti (<ph name="PUBLIC_EXPONENT_NUM_BITS" /> bittiä):
 <translation id="7144856456372460176">&amp;Asenna <ph name="APP" />…</translation>
 <translation id="7175353351958621980">Ladattu lähteestä:</translation>
 <translation id="7186088072322679094">Pidä työkalupalkissa</translation>
+<translation id="7234025455364623479">Tallennettuja salasanoja voi käyttää millä vain laitteella. <ph name="VIVALDI_PASSWORD_MANAGER" /> tallentaa ne osoitteelle <ph name="EMAIL" />.</translation>
 <translation id="7288676996127329262"><ph name="HORIZONTAL_DPI" />×<ph name="VERTICAL_DPI" /> dpi</translation>
 <translation id="7339785458027436441">Tarkista oikeinkirjoitus kirjoittaessa</translation>
 <translation id="7359680654975233185">Välilehden suoratoisto ei onnistu</translation>
@@ -462,6 +464,7 @@ other {# kirjanmerkkiä}}</translation>
 <translation id="8714838604780058252">Taustagrafiikka</translation>
 <translation id="8725066075913043281">Yritä uudelleen</translation>
 <translation id="8770406935328356739">Laajennuksen juurikansio</translation>
+<translation id="8773535891252326047">Linkki kopioitu korostettavaksi</translation>
 <translation id="8774934320277480003">Yläreunus</translation>
 <translation id="8798099450830957504">Oletus</translation>
 <translation id="8808478386290700967">Verkkokauppa</translation>

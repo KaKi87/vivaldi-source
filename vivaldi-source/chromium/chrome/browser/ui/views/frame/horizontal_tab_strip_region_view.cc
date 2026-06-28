@@ -10,7 +10,8 @@
 #include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "build/buildflag.h"
-#include "chrome/browser/glic/public/glic_enabling.h"
+//#include "chrome/browser/glic/public/features.h"
+//#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/themes/theme_properties.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser_actions.h"
@@ -19,6 +20,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/frame/window_frame_util.h"
 #include "chrome/browser/ui/layout_constants.h"
+#include "chrome/browser/ui/tab_search_feature.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/tab_menu_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -46,7 +48,6 @@
 #include "chrome/common/chrome_features.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/commerce/core/commerce_feature_list.h"
-#include "components/user_education/views/view_subregion_anchor.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/clipboard/clipboard_constants.h"
@@ -66,6 +67,7 @@
 #include "ui/views/border.h"
 #include "ui/views/cascading_property.h"
 #include "ui/views/controls/button/image_button.h"
+#include "ui/views/interaction/view_subregion_anchor.h"
 #include "ui/views/layout/flex_layout.h"
 #include "ui/views/layout/flex_layout_types.h"
 #include "ui/views/style/typography.h"
@@ -97,7 +99,7 @@ class FrameGrabHandle : public views::View {
   }
 
   void AddedToWidget() override {
-    dialog_anchor_ = std::make_unique<user_education::ViewSubregionAnchor>(
+    dialog_anchor_ = std::make_unique<views::ViewSubregionAnchor>(
         kTabStripFrameDialogAnchorId, *this);
   }
 
@@ -114,7 +116,7 @@ class FrameGrabHandle : public views::View {
  private:
   // Anchor point for help bubbles and other dialogs that lies in an empty
   // region of the tabstrip.
-  std::unique_ptr<user_education::ViewSubregionAnchor> dialog_anchor_;
+  std::unique_ptr<views::ViewSubregionAnchor> dialog_anchor_;
 };
 
 BEGIN_METADATA(FrameGrabHandle)
@@ -239,9 +241,6 @@ HorizontalTabStripRegionView::HorizontalTabStripRegionView(
   SetLayoutManager(std::make_unique<views::FlexLayout>())
       ->SetOrientation(views::LayoutOrientation::kHorizontal);
 
-  GetViewAccessibility().SetRole(ax::mojom::Role::kTabList);
-  GetViewAccessibility().SetIsMultiselectable(true);
-
   BrowserWindowInterface* const browser = browser_view->browser();
 
   if (browser &&
@@ -256,7 +255,9 @@ HorizontalTabStripRegionView::HorizontalTabStripRegionView(
 
   if (base::FeatureList::IsEnabled(features::kTabGroupsFocusing)) {
     unfocus_button_ = AddChildView(std::make_unique<TabStripControlButton>(
-        browser, views::Button::PressedCallback(), vector_icons::kArrowBackIcon,
+        browser, views::Button::PressedCallback(),
+        features::IsRoundedIconsEnabled() ? vector_icons::kArrowBackIcon
+                                          : vector_icons::kArrowBackOldIcon,
         Edge::kNone, Edge::kNone));
 
     actions::ActionItem* const unfocus_action =
@@ -277,10 +278,14 @@ HorizontalTabStripRegionView::HorizontalTabStripRegionView(
   if (browser &&
       (browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL)) {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-    if (glic::GlicEnabling::IsEnabledByFlags()) {
+    // The Glic button visibility is dynamic and depends on profile state
+    // (e.g., sign-in status, enterprise policies, recoverable errors).
+    // We instantiate the action container if the profile is eligible (even if
+    // the button is not currently shown, e.g. when signed out) so that it can
+    // dynamically update its visibility when the profile state changes.
+    if (glic::GlicEnabling::IsProfileEligible(profile_)) {
       tab_strip_action_container = std::make_unique<TabStripActionContainer>(
           browser, browser->GetFeatures().glic_nudge_controller());
-
       tab_strip_action_container->SetProperty(views::kCrossAxisAlignmentKey,
                                               views::LayoutAlignment::kStart);
     } else
@@ -320,7 +325,9 @@ HorizontalTabStripRegionView::HorizontalTabStripRegionView(
         std::make_unique<NewTabButton>(
             base::BindRepeating(&TabStrip::NewTabButtonPressed,
                                 base::Unretained(tab_strip_)),
-            vector_icons::kAddIcon, Edge::kNone, Edge::kNone, browser);
+            features::IsRoundedIconsEnabled() ? vector_icons::kAddWeight500Icon
+                                              : vector_icons::kAddOldIcon,
+            Edge::kNone, Edge::kNone, browser);
 
     new_tab_button_ = AddChildView(std::move(tab_strip_control_button));
 
@@ -505,7 +512,7 @@ void HorizontalTabStripRegionView::Layout(PassKey) {
             GetLayoutConstant(LayoutConstant::kTabStripPadding) +
             GetLayoutConstant(LayoutConstant::kNewTabButtonLeadingMargin);
 
-    gfx::Point button_new_position = gfx::Point(x, 0);
+    gfx::Point button_new_position = gfx::Point(x, GetInsets().top());
     gfx::Rect button_new_bounds = gfx::Rect(button_new_position, button_size);
 
     // If the tabsearch button is before the tabstrip container, then manually
@@ -588,7 +595,9 @@ views::Button* HorizontalTabStripRegionView::GetTabSearchButton() {
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 views::LabelButton* HorizontalTabStripRegionView::GetGlicButton() {
-  return tab_strip_action_container_->GetGlicButton();
+  return tab_strip_action_container_
+             ? tab_strip_action_container_->GetGlicButton()
+             : nullptr;
 }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 
@@ -635,8 +644,16 @@ std::optional<int> HorizontalTabStripRegionView::GetFocusedTabIndex() const {
   return std::nullopt;
 }
 
-const tabs::TabData& HorizontalTabStripRegionView::GetTabData(int tab_index) {
-  return tab_strip_->tab_at(tab_index)->data();
+const tabs::TabData& HorizontalTabStripRegionView::GetTabData(
+    const tabs::TabHandle& tab) {
+  for (int i = 0; i < tab_strip_->GetTabCount(); ++i) {
+    Tab* tab_view = tab_strip_->tab_at(i);
+    if (tab_view->tab_handle() == tab) {
+      return tab_view->data();
+    }
+  }
+
+  NOTREACHED() << "Tab view not found for handle";
 }
 
 views::View* HorizontalTabStripRegionView::GetTabAnchorViewAt(int tab_index) {
@@ -730,7 +747,7 @@ void HorizontalTabStripRegionView::UpdateButtonBorders() {
   // tabstrip. Extend the border of the button such that it extends to the top
   // of the tabstrip bounds. This is essential to ensure it is targetable on the
   // edge of the screen when in fullscreen mode and ensures the button abides
-  // by the correct Fitt's Law behavior (https://crbug.com/1136557).
+  // by the correct Fitt's Law behavior (https://crbug.com/40152330).
   // TODO(crbug.com/40727472): The left border is 0 in order to abut the NTB
   // directly with the tabstrip. That's the best immediately available
   // approximation to the prior behavior of aligning the NTB relative to the
@@ -740,9 +757,11 @@ void HorizontalTabStripRegionView::UpdateButtonBorders() {
   // should be improved, likely by taking the scroll state of the tabstrip into
   // account.
   const auto border_insets = gfx::Insets::TLBR(top_inset, 0, bottom_inset, 0);
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (tab_strip_action_container_) {
     tab_strip_action_container_->UpdateButtonBorders(border_insets);
   }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (combo_button_) {
     UpdateBorderInsetsIfNeeded(combo_button_, border_insets);
   }
@@ -840,7 +859,8 @@ void HorizontalTabStripRegionView::AdjustViewBoundsRect(View* view,
   const int x = tab_strip_->x() + TabStyle::Get()->GetBottomCornerRadius() -
                 GetLayoutConstant(LayoutConstant::kTabStripPadding) -
                 view_size.width() - offset;
-  const gfx::Rect new_bounds = gfx::Rect(gfx::Point(x, 0), view_size);
+  const gfx::Rect new_bounds =
+      gfx::Rect(gfx::Point(x, GetInsets().top()), view_size);
   view->SetBoundsRect(new_bounds);
 }
 

@@ -12,6 +12,7 @@
 #include "base/types/expected.h"
 #include "chrome/browser/autofill/actor/actor_form_filling_service_impl.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
+#include "components/actor/core/aggregated_journal.h"
 #include "components/autofill/content/browser/test_autofill_client_injector.h"
 #include "components/autofill/content/browser/test_autofill_driver_injector.h"
 #include "components/autofill/content/browser/test_content_autofill_client.h"
@@ -142,6 +143,7 @@ class ActorTestBase : public ChromeRenderViewHostTestHarness {
       autofill_client_injector_;
   TestAutofillDriverInjector<TestActorContentAutofillDriver>
       autofill_driver_injector_;
+  ::actor::AggregatedJournal journal_;
   std::unique_ptr<ActorFormFillingServiceImpl> service_;
   absl::flat_hash_map<FieldGlobalId, std::u16string> last_filled_values_;
 };

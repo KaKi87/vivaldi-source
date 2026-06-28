@@ -14,21 +14,19 @@ static_library("update") {
     ]
     if (is_win) {
       sources += [
-       "win/vivaldi_updater_win.h",
-       "win/vivaldi_updater_win.cc",
+        "win/vivaldi_updater_win.cc",
+        "win/vivaldi_updater_win.h",
       ]
     }
 
-    configs += [
-      "//vivaldi/gn/config:release_kind"
-    ]
+    configs += [ "//vivaldi/gn/config:release_kind" ]
 
     deps = [
       "//chrome/common:buildflags",
       "//content/public/browser",
       "//rlz/buildflags",
       "//vivaldi/app:resources",
-      "//vivaldi/extensions/schema"
+      "//vivaldi/extensions/schema",
     ]
     if (is_win) {
       deps += [
@@ -36,7 +34,7 @@ static_library("update") {
         "//vivaldi/browser:init_sparkle",
         "//vivaldi/update_notifier/thirdparty/winsparkle/src:winsparkle",
       ]
-    libs = ["comctl32.lib"]
+      libs = [ "comctl32.lib" ]
     }
   }
 }

@@ -22,9 +22,10 @@
 #import "ios/chrome/browser/infobars/model/overlays/default_infobar_overlay_request_factory.h"
 #import "ios/chrome/browser/infobars/model/overlays/infobar_overlay_request_inserter.h"
 #import "ios/chrome/browser/intelligence/bwg/metrics/gemini_metrics.h"
-#import "ios/chrome/browser/intelligence/bwg/model/bwg_service.h"
-#import "ios/chrome/browser/intelligence/bwg/model/bwg_tab_helper.h"
+#import "ios/chrome/browser/intelligence/bwg/model/gemini_service.h"
+#import "ios/chrome/browser/intelligence/bwg/model/gemini_tab_helper.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
+#import "ios/chrome/browser/intelligence/page_action_menu/ui/page_action_menu_consumer.h"
 #import "ios/chrome/browser/intelligence/page_action_menu/ui/page_action_menu_content_entry_point.h"
 #import "ios/chrome/browser/intelligence/page_action_menu/ui/page_action_menu_feature.h"
 #import "ios/chrome/browser/intelligence/page_action_menu/utils/ai_hub_metrics.h"
@@ -42,7 +43,6 @@
 #import "ios/chrome/browser/translate/model/chrome_ios_translate_client.h"
 #import "ios/chrome/browser/web/model/blocked_popup_tab_helper.h"
 #import "ios/chrome/grit/ios_strings.h"
-#import "ios/public/provider/chrome/browser/bwg/bwg_api.h"
 #import "ios/web/public/permissions/permissions.h"
 #import "ios/web/public/web_state.h"
 #import "ios/web/public/web_state_observer_bridge.h"
@@ -58,8 +58,7 @@ bool SigninIsPossible(AuthenticationService* auth_service) {
   if (!auth_service) {
     return false;
   }
-  return !auth_service->HasPrimaryIdentity(signin::ConsentLevel::kSignin) &&
-         auth_service->SigninEnabled();
+  return !auth_service->HasPrimaryIdentity() && auth_service->SigninEnabled();
 }
 
 }  // namespace
@@ -84,10 +83,10 @@ bool SigninIsPossible(AuthenticationService* auth_service) {
   raw_ptr<TemplateURLService> _templateURLService;
 
   // The service for the Gemini floaty.
-  raw_ptr<BwgService> _geminiService;
+  raw_ptr<GeminiService> _geminiService;
 
   // The tab helper for the Gemini floaty.
-  raw_ptr<BwgTabHelper> _geminiTabHelper;
+  raw_ptr<GeminiTabHelper> _geminiTabHelper;
 
   // The tab helper for Reader mode.
   raw_ptr<ReaderModeTabHelper> _readerModeTabHelper;
@@ -100,8 +99,8 @@ bool SigninIsPossible(AuthenticationService* auth_service) {
            authenticationService:(AuthenticationService*)authenticationService
               profilePrefService:(PrefService*)profilePrefs
               templateURLService:(TemplateURLService*)templateURLService
-                   geminiService:(BwgService*)geminiService
-                 geminiTabHelper:(BwgTabHelper*)geminiTabHelper
+                   geminiService:(GeminiService*)geminiService
+                 geminiTabHelper:(GeminiTabHelper*)geminiTabHelper
              readerModeTabHelper:(ReaderModeTabHelper*)readerModeTabHelper
           hostContentSettingsMap:
               (HostContentSettingsMap*)hostContentSettingsMap {
@@ -117,9 +116,6 @@ bool SigninIsPossible(AuthenticationService* auth_service) {
     _hostContentSettingsMap = hostContentSettingsMap;
     _webStateObserver = std::make_unique<web::WebStateObserverBridge>(self);
     _webState->AddObserver(_webStateObserver.get());
-    if (IsZeroStateSuggestionsAIHubEnabled()) {
-      [self executeGeminiZeroStateSuggestions];
-    }
   }
   return self;
 }
@@ -155,7 +151,15 @@ bool SigninIsPossible(AuthenticationService* auth_service) {
   return _readerModeTabHelper->IsActive();
 }
 
+- (BOOL)isReaderModeAvailable {
+  return IsReaderModeAvailable();
+}
+
 - (PageActionMenuContentEntryPoint*)geminiEntryPoint {
+  if (_webState && _webState->GetBrowserState()->IsOffTheRecord()) {
+    return [[PageActionMenuContentEntryPoint alloc] initWithEnabled:NO];
+  }
+
   if (!_geminiService || !_geminiTabHelper) {
     return [[PageActionMenuContentEntryPoint alloc] initWithEnabled:NO];
   }
@@ -172,12 +176,14 @@ bool SigninIsPossible(AuthenticationService* auth_service) {
       _geminiService->GeminiIneligibilityForProfile();
 
   if (result.has_value()) {
-    // TODO(crbug.com/485297147): Add footer item when the footer UI gets
-    // implemented.
-    return result.value().chrome_enterprise
-               ? [[PageActionMenuContentEntryPoint alloc] initWithEnabled:NO
-                                                               footerItem:nil]
-               : [[PageActionMenuContentEntryPoint alloc] initWithEnabled:NO];
+    if (result.value().chrome_enterprise) {
+      return [[PageActionMenuContentEntryPoint alloc]
+          initWithEnabled:NO
+               footerItem:[ContentEntryPointUnavailabilityItem
+                              geminiEnterprise]];
+    }
+
+    return [[PageActionMenuContentEntryPoint alloc] initWithEnabled:NO];
   }
 
   return [[PageActionMenuContentEntryPoint alloc]
@@ -195,17 +201,15 @@ bool SigninIsPossible(AuthenticationService* auth_service) {
   }
 
   if (!featureAvailable) {
-    // TODO(crbug.com/485297147): Add footer item when the footer UI gets
-    // implemented.
-    return [[PageActionMenuContentEntryPoint alloc] initWithEnabled:NO
-                                                         footerItem:nil];
+    return [[PageActionMenuContentEntryPoint alloc]
+        initWithEnabled:NO
+             footerItem:[ContentEntryPointUnavailabilityItem lensEnterprise]];
   }
 
   if (!hasDefaultSearchEngine) {
-    // TODO(crbug.com/485297147): Add footer item when the footer UI gets
-    // implemented.
-    return [[PageActionMenuContentEntryPoint alloc] initWithEnabled:NO
-                                                         footerItem:nil];
+    return [[PageActionMenuContentEntryPoint alloc]
+        initWithEnabled:NO
+             footerItem:[ContentEntryPointUnavailabilityItem lensSearchEngine]];
   }
 
   // Disabled without disclaimer.
@@ -222,6 +226,23 @@ bool SigninIsPossible(AuthenticationService* auth_service) {
       _readerModeTabHelper->CurrentPageIsEligibleForReaderMode();
   // There are no readerMode non eligibility disclaimers.
   return [[PageActionMenuContentEntryPoint alloc] initWithEnabled:eligible];
+}
+
+- (NSArray<ContentEntryPointUnavailabilityItem*>*)
+    unavailabilityItemsForTraitCollection:(UITraitCollection*)traitCollection {
+  NSMutableArray<ContentEntryPointUnavailabilityItem*>* items =
+      [NSMutableArray array];
+  NSArray<PageActionMenuContentEntryPoint*>* mainEntryPoints = @[
+    [self lensEntryPointForTraitCollection:traitCollection],
+    [self readerModeEntryPoint], [self geminiEntryPoint]
+  ];
+  for (PageActionMenuContentEntryPoint* entryPoint in mainEntryPoints) {
+    if (entryPoint.unavailabilityItem) {
+      [items addObject:entryPoint.unavailabilityItem];
+    }
+  }
+
+  return items;
 }
 
 - (BOOL)isFeatureAvailable:(PageActionMenuFeatureType)featureType {
@@ -660,23 +681,6 @@ std::string GetTargetLanguageCode(ChromeIOSTranslateClient* translate_client) {
       params);
 }
 
-// Fetches zero-state suggestions from the BWG tab helper and pass them to the
-// UI provider through a callback.
-- (void)executeGeminiZeroStateSuggestions {
-  if (!IsZeroStateSuggestionsAIHubEnabled()) {
-    return;
-  }
-  BwgTabHelper* tabHelper = BwgTabHelper::FromWebState(_webState);
-  if (!tabHelper) {
-    return;
-  }
-
-  tabHelper->ExecuteZeroStateSuggestions(
-      base::BindOnce(^(NSArray<NSString*>* suggestions){
-          // No-op.
-      }));
-}
-
 // Finds the translate client depending on whether Reader mode is active.
 - (ChromeIOSTranslateClient*)findTranslateClient {
   web::WebState* targetWebState = _webState;
@@ -721,16 +725,14 @@ std::string GetTargetLanguageCode(ChromeIOSTranslateClient* translate_client) {
   if (!_authenticationService) {
     return NO;
   }
-  return _authenticationService->HasPrimaryIdentity(
-      signin::ConsentLevel::kSignin);
+  return _authenticationService->HasPrimaryIdentity();
 }
 
 - (BOOL)isManagedAccount {
   if (!_authenticationService) {
     return NO;
   }
-  return _authenticationService->HasPrimaryIdentityManaged(
-      signin::ConsentLevel::kSignin);
+  return _authenticationService->HasPrimaryIdentityManaged();
 }
 
 - (BOOL)isGeminiEligibilityLoading {

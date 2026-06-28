@@ -6,9 +6,11 @@
 #include "base/callback_list.h"
 #include "base/containers/enum_set.h"
 #include "base/containers/fixed_flat_map.h"
+#include "base/hash/sha1.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
+#include "base/strings/stringprintf.h"
 #include "base/uuid.h"
 
 namespace vivaldi {
@@ -20,11 +22,13 @@ enum class ExtDataFlag {
   kCtl,  // Can't be set. Used for control while calling chrome.tas.create() or
          // chrome.tabs.update().
 
+  kSalted,  // Mix with salt if salt provided.
   kString,
   kDouble,
   kBool,
   kInt,
   kDict,
+  kUnsafe,  // settable by SetUnsafe() only
   kNullAllowed,
 };
 
@@ -51,11 +55,11 @@ constexpr char kFollowerTabExtId[] = "followerTabExtId";
 constexpr char kParentFollowerTabExtId[] = "parentFollowerTabExtId";
 constexpr char kRestrictPinnedTabs[] = "restrictPinnedTab";
 constexpr char kTabZoom[] = "vivaldi_tab_zoom";
+constexpr char kPurpose[] = "purpose";
 
 // Use only in chrome.tabs.update(). It disables ext_data write checks.
 // Used by the migration scripts with caution.
 constexpr char kMigration[] = "migration";
-constexpr char kCreate[] = "create";
 
 struct KeyParams {
   ExtDataFlags flags;
@@ -66,10 +70,12 @@ struct KeyParams {
 // in KeyParams.
 constexpr auto kKeyParams = base::MakeFixedFlatMap<std::string_view, KeyParams>(
     {{kExtId,
-      {ExtDataFlags{ExtDataFlag::kSetOnce, ExtDataFlag::kString},
+      {ExtDataFlags{ExtDataFlag::kSetOnce, ExtDataFlag::kString,
+                    ExtDataFlag::kSalted},
        TabExtKey::kExtId}},
      {kParentExtId,
-      {ExtDataFlags{ExtDataFlag::kString, ExtDataFlag::kNullAllowed},
+      {ExtDataFlags{ExtDataFlag::kString, ExtDataFlag::kNullAllowed,
+                    ExtDataFlag::kSalted},
        TabExtKey::kParentExtId}},
      {kExpandStatus,
       {ExtDataFlags{ExtDataFlag::kBool, ExtDataFlag::kNullAllowed},
@@ -87,22 +93,26 @@ constexpr auto kKeyParams = base::MakeFixedFlatMap<std::string_view, KeyParams>(
       {ExtDataFlags{ExtDataFlag::kString, ExtDataFlag::kNullAllowed},
        TabExtKey::kFollowerTabExtId}},
      {kGroupId,
-      {ExtDataFlags{ExtDataFlag::kString, ExtDataFlag::kNullAllowed},
-       TabExtKey::kGroupId}},
+      {ExtDataFlags{ExtDataFlag::kString, ExtDataFlag::kNullAllowed,
+                    ExtDataFlag::kUnsafe, ExtDataFlag::kSalted},
+       TabExtKey::kGroupId_}},
      {kGroupColor,
-      {ExtDataFlags{ExtDataFlag::kString, ExtDataFlag::kNullAllowed},
+      {ExtDataFlags{ExtDataFlag::kString, ExtDataFlag::kNullAllowed,
+                    ExtDataFlag::kUnsafe},
        TabExtKey::kGroupColor}},
      {kFixedGroupTitle,
-      {ExtDataFlags{ExtDataFlag::kString, ExtDataFlag::kNullAllowed},
+      {ExtDataFlags{ExtDataFlag::kString, ExtDataFlag::kNullAllowed,
+                    ExtDataFlag::kUnsafe},
        TabExtKey::kFixedGroupTitle}},
      {kPanelId,
       {ExtDataFlags{ExtDataFlag::kSetOnce, ExtDataFlag::kString},
        TabExtKey::kPanelId}},
      {kWorkspaceId,
-      {ExtDataFlags{ExtDataFlag::kDouble, ExtDataFlag::kNullAllowed},
+      {ExtDataFlags{ExtDataFlag::kDouble, ExtDataFlag::kNullAllowed,
+                    ExtDataFlag::kSalted},
        TabExtKey::kWorkspaceId}},
      {kInterval,
-      {ExtDataFlags{ExtDataFlag::kDouble, ExtDataFlag::kNullAllowed},
+      {ExtDataFlags{ExtDataFlag::kInt, ExtDataFlag::kNullAllowed},
        TabExtKey::kInterval}},
      {kThumbnail,
       {ExtDataFlags{ExtDataFlag::kString, ExtDataFlag::kNullAllowed},
@@ -124,7 +134,13 @@ constexpr auto kKeyParams = base::MakeFixedFlatMap<std::string_view, KeyParams>(
        TabExtKey::kRestrictPinnedTabs}},
      {kTabZoom,
       {ExtDataFlags{ExtDataFlag::kDouble, ExtDataFlag::kNullAllowed},
-       TabExtKey::kTabZoom}}});
+       TabExtKey::kTabZoom}},
+    {kPurpose,
+       {ExtDataFlags{ExtDataFlag::kString,
+               ExtDataFlag::kNullAllowed,
+               ExtDataFlag::kSetOnce},
+               TabExtKey::kPurpose}},
+    });
 
 constexpr auto kKeyEnumToString =
     base::MakeFixedFlatMap<TabExtKey, std::string_view>(
@@ -135,7 +151,7 @@ constexpr auto kKeyEnumToString =
          {TabExtKey::kRestoreStatus, kRestoreStatus},
          {TabExtKey::kExpandStatus, kExpandStatus},
          {TabExtKey::kCollapsedTab, kCollapsedTab},
-         {TabExtKey::kGroupId, kGroupId},
+         {TabExtKey::kGroupId_, kGroupId},
          {TabExtKey::kFixedGroupTitle, kFixedGroupTitle},
          {TabExtKey::kGroupColor, kGroupColor},
          {TabExtKey::kInterval, kInterval},
@@ -147,7 +163,13 @@ constexpr auto kKeyEnumToString =
          {TabExtKey::kFollowerTabExtId, kFollowerTabExtId},
          {TabExtKey::kParentFollowerTabExtId, kParentFollowerTabExtId},
          {TabExtKey::kRestrictPinnedTabs, kRestrictPinnedTabs},
-         {TabExtKey::kTabZoom, kTabZoom}});
+         {TabExtKey::kTabZoom, kTabZoom},
+         {TabExtKey::kPurpose, kPurpose},
+        });
+
+std::string GenId() {
+  return base::Uuid::GenerateRandomV4().AsLowercaseString();
+}
 
 ExtDataFlags GetKeyFlags(std::string_view s) {
   auto it = kKeyParams.find(s);
@@ -174,12 +196,41 @@ class ExtDataNotifyGuard {
   TabExtDataImpl* ext_data_;
 };
 
+std::string RemapUUID(std::string_view uuid, std::string_view salt) {
+  std::string combined = std::string(uuid) + std::string(salt);
+  std::string hash = base::SHA1HashString(combined);
+  CHECK(hash.size() >= 16);
+  const uint8_t* bytes = reinterpret_cast<const uint8_t*>(hash.data());
+  // The original code taken from internet tweaks the bits to match the RFC 4122
+  // UUID v4 layout. Keeping it for standards compliance, although it is not
+  // essential here.
+  uint8_t byte_6 = (bytes[6] & 0x0F) | 0x40;
+  uint8_t byte_8 = (bytes[8] & 0x3F) | 0x80;
+
+  return base::StringPrintf(
+      "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+      bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], byte_6,
+      bytes[7], byte_8, bytes[9], bytes[10], bytes[11], bytes[12], bytes[13],
+      bytes[14], bytes[15]);
+}
+
+bool MixSalt(base::Value& val, const std::string& salt) {
+  if (std::string* s = val.GetIfString()) {
+    *s = RemapUUID(*s, salt);
+    return true;
+  }
+  if (std::optional<double> d = val.GetIfDouble()) {
+    val = base::Value(TabExtDataImpl::RemapWorkspaceId(*d, salt));
+    return true;
+  }
+  return false;
+}
+
 }  // namespace
 
 TabExtDataImpl::TabExtDataImpl(content::WebContents* contents)
     : content::WebContentsUserData<TabExtDataImpl>(*contents),
-      content::WebContentsObserver(contents)
-{}
+      content::WebContentsObserver(contents) {}
 
 TabExtDataImpl::~TabExtDataImpl() {}
 
@@ -204,28 +255,34 @@ void TabExtDataImpl::UnpauseNotifications() {
 }
 
 void TabExtDataImpl::MergeInternal(const std::string& json,
-                                   MergeType merge_type) {
+                                   const TabExtData::RestoreArgs& args) {
   std::optional<base::Value> new_json_data =
       base::JSONReader::Read(json, base::JSON_PARSE_RFC);
   if (new_json_data && new_json_data->is_dict()) {
-    MergeInternal(new_json_data->GetDict(), merge_type);
+    MergeInternal(new_json_data->GetDict(), args);
   } else {
     LOG(ERROR) << "merging invalid extData JSON: [" << json << "]";
   }
 }
 
 void TabExtDataImpl::MergeInternal(const base::DictValue& new_dict,
-                                   MergeType merge_type) {
+                                   const TabExtData::RestoreArgs& args) {
   used_ = true;
   ExtDataNotifyGuard pause_notifications(this);
   UpdateFlags flags{UpdateFlag::kMergeFlag};
 
-  if (merge_type == MergeType::kRestore ||
-      merge_type == MergeType::kRestoreForeign) {
+  if (args.type == TabExtData::RestoreArgs::kRestore || args.foreign) {
     flags.Put(UpdateFlag::kRestoreFlag);
   }
 
-  if (merge_type == MergeType::kRestoreForeign) {
+  if (args.workspace_as_tabs) {
+    // We may want to use this flag even during the merge.
+    // In this case feel free to remove the CHECK.
+    CHECK(args.type == TabExtData::RestoreArgs::kRestore);
+    flags.Put(UpdateFlag::kWithoutWorkspace);
+  }
+
+  if (args.foreign) {
     flags.Put(UpdateFlag::kForeign);
   }
 
@@ -233,39 +290,33 @@ void TabExtDataImpl::MergeInternal(const base::DictValue& new_dict,
     flags.Put(UpdateFlag::kMigration);
   }
 
-  if (new_dict.FindBool(kCreate).value_or(false)) {
-    weak_ext_data_.creating = true;
-    flags.Put(UpdateFlag::kCreateFlag);
-  }
-
   for (const auto [key, new_val] : new_dict) {
-    if (key == kMigration || key == kCreate) {
+    if (key == kMigration) {
       continue;
     }
-
-    UpdateValue(key, new_val, flags);
+    UpdateValue(key, new_val, flags, args.ext_id_salt);
   }
 }
 
 void TabExtDataImpl::Merge(const std::string& json) {
-  MergeInternal(json, MergeType::kNormal);
+  TabExtData::RestoreArgs args;
+  args.type = TabExtData::RestoreArgs::kMerge;
+  MergeInternal(json, args);
 }
 
 void TabExtDataImpl::Merge(const base::DictValue& new_dict) {
-  MergeInternal(new_dict, MergeType::kNormal);
+  TabExtData::RestoreArgs args;
+  args.type = TabExtData::RestoreArgs::kMerge;
+  MergeInternal(new_dict, args);
 }
 
 void TabExtDataImpl::Restore(const std::string& json,
                              const TabExtData::RestoreArgs& args) {
   CHECK(!used_);
+  CHECK(args.type == TabExtData::RestoreArgs::kRestore);
   ExtDataNotifyGuard pause_notifications(this);
 
-  if (args.foreign) {
-    MergeInternal(json, MergeType::kRestoreForeign);
-  } else {
-    MergeInternal(json, MergeType::kRestore);
-  }
-
+  MergeInternal(json, args);
   Set(TabExtKey::kRestoreStatus, std::string("restored"));
 
   // Restore does not send notifications.
@@ -291,9 +342,8 @@ bool TabExtDataImpl::Check(std::string_view key,
   }
   if (key_flags.Has(ExtDataFlag::kSetOnce) && old_val) {
     LOG(ERROR) << "viv_ext_data: " << key
-             << " is supposed to be set once; old="
-             << old_val->DebugString()
-             << "; new=" << new_val.DebugString();
+               << " is supposed to be set once; old=" << old_val->DebugString()
+               << "; new=" << new_val.DebugString();
     return false;
   }
 
@@ -331,9 +381,27 @@ bool TabExtDataImpl::Check(std::string_view key,
 }
 
 void TabExtDataImpl::OnKeyChange(std::string_view key,
-                                 const base::Value* new_val) {
+                                 const base::Value* new_val,
+                                 bool restore) {
   // If there are too many updated keys, something is terribly wrong.
   CHECK(changed_keys_.size() < 200);
+  if (!restore) {
+    // Nothing changes during restore; only the new values are set.
+    // The tab strip may be temporarily inconsistent during restore.
+    // We don't fix these inconsistencies because they resolve themselves
+    // once the restore finishes.
+    //
+    // In this particular case, the sanitizer deletes color and title from the
+    // tab group because changing groupId is supposed to set a new group with
+    // new color and title. If we don't skip the sanitizer during restore, it
+    // would delete the restored color/title from the group.
+    //
+    // Also, while adding the tabs one by one, the first restored tab may have a
+    // groupId. Since we don't have groups of size 1, the tab strip is
+    // considered temporarily inconsistent until the next group member is
+    // restored.
+    SanitizeAfterChange(key);
+  }
   changed_keys_.insert(std::string(key));
   cache_ = std::nullopt;
 
@@ -344,8 +412,13 @@ TabExtDataImpl::Action TabExtDataImpl::SanitizeBeforeUpdate(
     std::string_view key,
     base::Value& new_val,
     const base::Value* old_val,
-    UpdateFlags flags) {
+    UpdateFlags flags,
+    const std::optional<std::string>& salt) {
   ExtDataFlags key_flags = GetKeyFlags(key);
+  const bool is_restore = flags.Has(UpdateFlag::kRestoreFlag);
+  if (is_restore && salt && key_flags.Has(ExtDataFlag::kSalted)) {
+    CHECK(MixSalt(new_val, *salt));
+  }
 
   if (key_flags.Has(ExtDataFlag::kCtl)) {
     // Never allow to set a control key.
@@ -359,6 +432,10 @@ TabExtDataImpl::Action TabExtDataImpl::SanitizeBeforeUpdate(
   std::optional<TabExtKey> key_enum = GetExtKeyEnum(key);
 
   if (key_enum == TabExtKey::kWorkspaceId) {
+    if (flags.Has(UpdateFlag::kWithoutWorkspace)) {
+      return Action::kAbort;
+    }
+
     // Remember, someone set the workspace.
     workspace_id_chosen_ = true;
   }
@@ -400,9 +477,7 @@ TabExtDataImpl::Action TabExtDataImpl::SanitizeBeforeUpdate(
     }
   }
 
-  const bool is_restore = flags.Has(UpdateFlag::kRestoreFlag);
   const bool is_merge = flags.Has(UpdateFlag::kMergeFlag);
-  const bool is_create = flags.Has(UpdateFlag::kCreateFlag);
   const bool is_foreign = flags.Has(UpdateFlag::kForeign);
 
   if (!key_enum)
@@ -433,13 +508,12 @@ TabExtDataImpl::Action TabExtDataImpl::SanitizeBeforeUpdate(
       }
       break;
     case TabExtKey::kParentExtId: {
-        // Prevent parent->parent loop.
-        const std::string* s = new_val.GetIfString();
-        if (has_ext_id_ && s && *s == GetExtId()) {
-          return Action::kAbort;
-        }
+      // Prevent parent->parent loop.
+      const std::string* s = new_val.GetIfString();
+      if (has_ext_id_ && s && *s == GetExtId()) {
+        return Action::kAbort;
       }
-      break;
+    } break;
     case TabExtKey::kFixedGroupTitle:
     case TabExtKey::kGroupColor:
       if (is_merge && !is_restore) {
@@ -447,14 +521,7 @@ TabExtDataImpl::Action TabExtDataImpl::SanitizeBeforeUpdate(
         return Action::kAbort;
       }
       break;
-    case TabExtKey::kGroupId:
-      if (is_create) {
-        const std::string* s = new_val.GetIfString();
-        if (s) {
-          weak_ext_data_.create_in_group_request = *s;
-        }
-        return Action::kAbort;
-      }
+    case TabExtKey::kGroupId_:
       if (is_merge && !is_restore) {
         // Prevents from using chrome.tabs.update to set groupId as it is
         // deprecated.
@@ -469,13 +536,13 @@ TabExtDataImpl::Action TabExtDataImpl::SanitizeBeforeUpdate(
   return Action::kContinue;
 }
 
-void TabExtDataImpl::SanitizeAfterRemove(std::string_view key) {
+void TabExtDataImpl::SanitizeAfterChange(std::string_view key) {
   std::optional<TabExtKey> key_enum = GetExtKeyEnum(key);
   if (!key_enum) {
     return;
   }
   switch (*key_enum) {
-    case TabExtKey::kGroupId:
+    case TabExtKey::kGroupId_:
       Remove(TabExtKey::kFixedGroupTitle);
       Remove(TabExtKey::kGroupColor);
       break;
@@ -484,9 +551,11 @@ void TabExtDataImpl::SanitizeAfterRemove(std::string_view key) {
   }
 }
 
-TabExtData::Result TabExtDataImpl::UpdateValue(std::string_view key,
-                                               const base::Value& new_val_arg,
-                                               UpdateFlags flags) {
+TabExtData::Result TabExtDataImpl::UpdateValue(
+    std::string_view key,
+    const base::Value& new_val_arg,
+    UpdateFlags flags,
+    const std::optional<std::string>& salt) {
   // This is here due to CHECK in TabExtDataImpl::Restore() to
   // ensure nobody calls UpdateValue before Restore.
   used_ = true;
@@ -494,7 +563,7 @@ TabExtData::Result TabExtDataImpl::UpdateValue(std::string_view key,
   const base::Value* old_val = value_.Find(key);
   base::Value new_val = new_val_arg.Clone();
 
-  switch (SanitizeBeforeUpdate(key, new_val, old_val, flags)) {
+  switch (SanitizeBeforeUpdate(key, new_val, old_val, flags, salt)) {
     case Action::kRemove:
       return RemoveValue(key);
     case Action::kAbort:
@@ -510,7 +579,7 @@ TabExtData::Result TabExtDataImpl::UpdateValue(std::string_view key,
 
   if (!old_val || *old_val != new_val) {
     base::Value* value_set = value_.Set(key, std::move(new_val));
-    OnKeyChange(key, value_set);
+    OnKeyChange(key, value_set, flags.Has(UpdateFlag::kRestoreFlag));
     return kUpdated;
   }
   return kUnchanged;
@@ -522,8 +591,7 @@ TabExtData::Result TabExtDataImpl::RemoveValue(std::string_view key) {
     return Result::kUnchanged;
   }
 
-  SanitizeAfterRemove(key);
-  OnKeyChange(key, nullptr);
+  OnKeyChange(key, nullptr, false /* no removing during restore */);
   return Result::kUpdated;
 }
 
@@ -607,13 +675,21 @@ std::optional<bool> TabExtDataImpl::IsPinnedTabRestricted() const {
   return value_.FindBool(kRestrictPinnedTabs);
 }
 
-WeakExtData* TabExtDataImpl::GetWeakExtData() {
-  return &weak_ext_data_;
-}
-
 TabExtData::Result TabExtDataImpl::Set(TabExtKey key,
                                        const base::Value& value) {
+  ExtDataFlags key_flags = GetKeyFlags(kKeyEnumToString.at(key));
+  CHECK(!key_flags.Has(ExtDataFlag::kUnsafe));
   return UpdateValue(kKeyEnumToString.at(key), value, {});
+}
+
+TabExtData::Result TabExtDataImpl::SetUnsafe(TabExtKey key,
+                                             const base::Value& value) {
+  return UpdateValue(kKeyEnumToString.at(key), value, {});
+}
+
+TabExtData::Result TabExtDataImpl::SetForTesting(TabExtKey key,
+                                                 const base::Value& value) {
+  return SetUnsafe(key, value);
 }
 
 TabExtData::Result TabExtDataImpl::Set(TabExtKey key, std::string value) {
@@ -656,10 +732,9 @@ void TabExtDataImpl::SanitizeExtId() {
 
   // Do this without any notification going out. We don't need validation either
   // since we know that thevalue we use here is correct.
-  value_.Set(kExtId, base::Uuid::GenerateRandomV4().AsLowercaseString());
-  OnKeyChange(kExtId, nullptr);
+  value_.Set(kExtId, GenId());
+  OnKeyChange(kExtId, nullptr, false /* Restore assigns extId */);
 }
-
 
 void TabExtDataImpl::SanitizeExtId() const {
   const_cast<TabExtDataImpl*>(this)->SanitizeExtId();
@@ -710,11 +785,11 @@ void TabExtDataImpl::OnTabRemoved() {
   in_tab_strip_ = false;
 }
 
-void TabExtDataImpl::CopyFrom(TabExtData *orig) {
+void TabExtDataImpl::CopyFrom(TabExtData* orig) {
   CHECK(orig);
   CHECK(!used_);
 
-  TabExtDataImpl * ext = static_cast<TabExtDataImpl *>(orig);
+  TabExtDataImpl* ext = static_cast<TabExtDataImpl*>(orig);
 
   value_ = ext->value_.Clone();
   cache_ = std::nullopt;
@@ -757,7 +832,61 @@ void TabExtDataImpl::DidOpenRequestedURL(
     ui::PageTransition transition,
     bool started_from_context_menu,
     bool renderer_initiated) {
-  Create(new_contents)->Set(::vivaldi::TabExtKey::kParentExtId, GetExtId());
+  auto * ext = Create(new_contents);
+  TabPositioningParams positional_params = ext->GetPositioningParams();
+  positional_params.invoked_by = TabInvokedBy::kHtml;
+  ext->SetPositioningParams(positional_params);
+}
+
+void TabExtDataImpl::CopyExtDataUnsafe(TabExtData& target,
+                                       ::vivaldi::TabExtKey key,
+                                       const TabExtData& source) {
+  const base::Value* source_value = source.Get(key);
+  if (source_value) {
+    target.SetUnsafe(key, *source_value);
+  } else {
+    target.Remove(key);
+  }
+}
+
+void TabExtDataImpl::JoinGroup(TabExtData& source, bool create) {
+  auto group = source.GetGroupId();
+  if (group) {
+    SetUnsafe(TabExtKey::kGroupId_, base::Value(std::string(*group)));
+    CopyExtDataUnsafe(*this, TabExtKey::kFixedGroupTitle, source);
+    CopyExtDataUnsafe(*this, TabExtKey::kGroupColor, source);
+  } else {
+    if (create) {
+      group = GenId();
+      SetUnsafe(TabExtKey::kGroupId_, base::Value(std::string(*group)));
+      source.SetUnsafe(TabExtKey::kGroupId_, base::Value(std::string(*group)));
+    } else {
+      Ungroup();
+    }
+  }
+}
+
+void TabExtDataImpl::Ungroup() {
+  // Preparation for replacing TabExtKey::kGroupId_ with TabExtData members.
+  // NOTE: removing or changing the kGroupId_ key also removes kFixedGroupTitle
+  // and kGroupColor in SanitizeAfterChange() to keep the group data consistent.
+  Remove(TabExtKey::kGroupId_);
+}
+
+const TabPositioningParams & TabExtDataImpl::GetPositioningParams() {
+  return positioning_params_;
+}
+
+void TabExtDataImpl::SetPositioningParams(const TabPositioningParams& params) {
+  positioning_params_ = params;
+}
+
+StackingMode TabExtDataImpl::GetStackingMode() const {
+  return stacking_mode_;
+}
+
+void TabExtDataImpl::SetStackingMode(StackingMode mode) {
+  stacking_mode_ = mode;
 }
 
 // static
@@ -765,4 +894,38 @@ TabExtData* TabExtDataImpl::Create(content::WebContents* contents) {
   return GetOrCreateForWebContents(contents);
 }
 
+// static
+double TabExtDataImpl::RemapWorkspaceId(double id, std::string_view salt) {
+  std::string combined = std::string(salt) + base::StringPrintf("%.16g", id);
+  std::string sha1_hash = base::SHA1HashString(combined);
+
+  uint64_t hash_value;
+  CHECK(sha1_hash.size() >= sizeof(uint64_t));
+  std::memcpy(&hash_value, sha1_hash.data(), sizeof(uint64_t));
+
+  constexpr uint64_t min_val = 1000000000;
+  constexpr uint64_t max_val = 9999999990;
+  constexpr uint64_t range = max_val - min_val + 1;
+
+  return static_cast<double>(min_val + (hash_value % range));
+}
+
+TabPurpose TabExtDataImpl::GetPurpose() const {
+  static constexpr auto kPurposeList =
+      base::MakeFixedFlatMap<std::string_view, TabPurpose>(
+          {{"mail", TabPurpose::kMail}});
+  const base::Value* value = Get(TabExtKey::kPurpose);
+  if (!value) {
+    return TabPurpose::kUndefined;
+  }
+  const std::string* s = value->GetIfString();
+  if (!s) {
+    return TabPurpose::kUndefined;
+  }
+  auto it = kPurposeList.find(*s);
+  if (it == kPurposeList.end()) {
+    return TabPurpose::kUndefined;
+  }
+  return it->second;
+}
 }  // namespace vivaldi

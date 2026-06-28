@@ -3,6 +3,9 @@ Enabling WebMCP Domain
 Adding {
     tools : [
         [0] : {
+            annotations : {
+                autosubmit : true
+            }
             backendNodeId : <number>
             description : A declarative WebMCP tool
             frameId : <string>
@@ -19,15 +22,19 @@ Adding {
             name : initial_declarative_tool
         }
         [1] : {
+            annotations : {
+                readOnly : true
+                untrustedContent : false
+            }
             description : An imperative WebMCP tool
             frameId : <string>
             name : initial_imperative_tool
             stackTrace : {
                 callFrames : [
                     [0] : {
-                        columnNumber : 31
+                        columnNumber : 30
                         functionName :
-                        lineNumber : 15
+                        lineNumber : 16
                         scriptId : <string>
                         url :
                     }
@@ -40,6 +47,10 @@ Registering a new imperative and a new declarative tool...
 Adding {
     tools : [
         [0] : {
+            annotations : {
+                readOnly : false
+                untrustedContent : false
+            }
             description : Another imperative tool
             frameId : <string>
             inputSchema : {
@@ -57,9 +68,9 @@ Adding {
             stackTrace : {
                 callFrames : [
                     [0] : {
-                        columnNumber : 35
+                        columnNumber : 34
                         functionName : window.registerNewTools
-                        lineNumber : 18
+                        lineNumber : 19
                         scriptId : <string>
                         url :
                     }
@@ -71,10 +82,21 @@ Adding {
 Adding {
     tools : [
         [0] : {
+            annotations : {
+                autosubmit : true
+            }
             backendNodeId : <number>
             description : Another declarative tool
             frameId : <string>
             inputSchema : {
+                properties : {
+                    text_name : {
+                        type : string
+                    }
+                }
+                required : [
+                ]
+                type : object
             }
             name : new_declarative_tool
         }
@@ -84,39 +106,15 @@ Unregistering one of each...
 Removing {
     tools : [
         [0] : {
-            description : An imperative WebMCP tool
             frameId : <string>
             name : initial_imperative_tool
-            stackTrace : {
-                callFrames : [
-                    [0] : {
-                        columnNumber : 31
-                        functionName :
-                        lineNumber : 15
-                        scriptId : <string>
-                        url :
-                    }
-                ]
-            }
         }
     ]
 }
 Removing {
     tools : [
         [0] : {
-            backendNodeId : <number>
-            description : A declarative WebMCP tool
             frameId : <string>
-            inputSchema : {
-                properties : {
-                    text : {
-                        type : string
-                    }
-                }
-                required : [
-                ]
-                type : object
-            }
             name : initial_declarative_tool
         }
     ]

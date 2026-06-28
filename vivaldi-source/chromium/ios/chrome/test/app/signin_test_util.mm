@@ -9,6 +9,7 @@
 #import "base/test/ios/wait_util.h"
 #import "components/policy/core/browser/signin/profile_separation_policies.h"
 #import "components/prefs/pref_service.h"
+#import "components/signin/public/base/consent_level.h"
 #import "components/signin/public/base/signin_metrics.h"
 #import "components/signin/public/base/signin_pref_names.h"
 #import "components/signin/public/identity_manager/identity_manager.h"
@@ -106,9 +107,9 @@ void ClearPreferences() {
   ProfileIOS* profile = GetOriginalProfile();
   CHECK(profile);
   // Clear last signed in user preference.
-  profile->GetPrefs()->ClearPref(prefs::kGoogleServicesLastSyncingGaiaId);
   profile->GetPrefs()->ClearPref(prefs::kGoogleServicesLastSignedInUsername);
-  profile->GetPrefs()->ClearPref(prefs::kGoogleServicesLastSyncingUsername);
+  profile->GetPrefs()->ClearPref(
+      prefs::kGoogleServicesSyncingGaiaIdMigratedToSignedIn);
 
   // `SignOutAndClearIdentities()` is called during shutdown. Commit all pref
   // changes to ensure that clearing the last signed in account is saved on
@@ -196,6 +197,10 @@ void ResetSigninPromoPreferences() {
   prefs->SetBoolean(prefs::kIosNtpFeedTopPromoAlreadySeen, false);
   prefs->SetInteger(prefs::kIosReadingListSigninPromoDisplayedCount, 0);
   prefs->SetBoolean(prefs::kIosReadingListPromoAlreadySeen, false);
+  prefs->SetInteger(
+      prefs::kIosSettingsAutofillAndPasswordsSigninPromoDisplayedCount, 0);
+  prefs->SetBoolean(prefs::kIosSettingsAutofillAndPasswordsPromoAlreadySeen,
+                    false);
   prefs->SetBoolean(prefs::kSigninShouldPromptForSigninAgain, false);
 }
 

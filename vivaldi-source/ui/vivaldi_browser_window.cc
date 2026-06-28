@@ -27,6 +27,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/apps/platform_apps/audio_focus_web_contents_observer.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/devtools/devtools_ui_controller.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/extensions/browser_extension_window_controller.h"
 #include "chrome/browser/extensions/chrome_extension_web_contents_observer.h"
@@ -45,8 +46,6 @@
 #include "chrome/browser/ui/autofill/save_address_bubble_controller.h"
 #include "chrome/browser/ui/autofill/update_address_bubble_controller.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/browser_list_observer.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
@@ -54,7 +53,7 @@
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
-#include "chrome/browser/ui/passwords/manage_passwords_icon_view.h"
+#include "chrome/browser/ui/page_action/page_action_controller.h"
 #include "chrome/browser/ui/passwords/manage_passwords_ui_controller.h"
 #include "chrome/browser/ui/qrcode_generator/qrcode_generator_bubble_controller.h"
 #include "chrome/browser/ui/tab_contents/core_tab_helper.h"
@@ -66,7 +65,6 @@
 #include "chrome/browser/ui/views/download/download_in_progress_dialog_view.h"
 #include "chrome/browser/ui/views/extensions/extension_keybinding_registry_views.h"
 #include "chrome/browser/ui/views/eye_dropper/eye_dropper.h"
-#include "chrome/browser/ui/views/page_action/page_action_controller.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 #include "chrome/browser/ui/views/page_info/page_info_bubble_specification.h"
 #include "chrome/browser/ui/views/page_info/page_info_bubble_view.h"
@@ -347,7 +345,6 @@ WindowState ConvertToJSWindowState(ui::mojom::WindowShowState state) {
 
 class VivaldiBrowserWindow::InterfaceHelper final
     : public ExclusiveAccessContext,
-      public ManagePasswordsIconView,
       public autofill::AutofillBubbleHandler,
       public extensions::ExtensionFunctionDispatcher::Delegate,
       public extensions::ExtensionKeybindingRegistry::Delegate,
@@ -396,19 +393,6 @@ class VivaldiBrowserWindow::InterfaceHelper final
 
   content::WebContents* GetWebContentsForExclusiveAccess() override {
     return window_->GetActiveWebContents();
-  }
-
-  // ManagePasswordsIconView overrides
-
-  void SetState(password_manager::ui::State state,
-                bool is_blocklisted) override {
-    extensions::VivaldiUtilitiesAPI* utils_api =
-        extensions::VivaldiUtilitiesAPI::GetFactoryInstance()->Get(
-            window_->browser()->profile());
-    bool show = state == password_manager::ui::State::PENDING_PASSWORD_STATE;
-    show =
-        state != password_manager::ui::State::INACTIVE_STATE && !is_blocklisted;
-    utils_api->OnPasswordIconStatusChanged(window_->id(), show);
   }
 
   // autofill::AutofillBubbleHandler overrides
@@ -539,12 +523,6 @@ class VivaldiBrowserWindow::InterfaceHelper final
         window_->browser());
   }
 
-  // ExtensionKeybindingRegistry::Delegate overrides
-
-  content::WebContents* GetWebContentsForExtension() override {
-    return GetWebContentsForExclusiveAccess();
-  }
-
   // ExtensionRegistryObserver overrides
 
   void OnExtensionUnloaded(
@@ -555,6 +533,8 @@ class VivaldiBrowserWindow::InterfaceHelper final
       window_->Close();
     }
   }
+
+  void OnMediaKeysAccelerator(const ui::Accelerator& accelerator) override {}
 
   // VivaldiRootDocumentHandlerObserver
 
@@ -788,6 +768,16 @@ VivaldiBrowserWindow::~VivaldiBrowserWindow() {
   if (vivaldi::WindowRegistryService::Get(profile_)) {
     vivaldi::WindowRegistryService::Get(profile_)->RemoveWindow(window_key_);
   }
+
+#if defined(USE_AURA)
+  // Remove the event targeter before destroying the widget. This prevents
+  // use-after-free when X11 geometry callbacks fire asynchronously after
+  // VivaldiBrowserWindow starts being destroyed. See VB-127324.
+  if (aura::Window* native_window = GetNativeWindow()) {
+    event_targeter_ = native_window->SetEventTargeter(nullptr);
+  }
+#endif
+
   DCHECK(root_doc_handler_);
   root_doc_handler_->RemoveObserver(interface_helper_.get());
 
@@ -837,7 +827,7 @@ std::unique_ptr<BrowserWindow, BrowserWindowDeleter>
 VivaldiBrowserWindow::CreateVivaldiBrowserWindow(Browser* browser) {
   DCHECK(browser);
 
-   VivaldiBrowserWindow* named_window =
+  VivaldiBrowserWindow* named_window =
       vivaldi::WindowRegistryService::Get(browser->profile())
           ->GetNamedWindow(browser->create_params().window_name);
 
@@ -898,6 +888,9 @@ void VivaldiBrowserWindow::CreateWebContents(
   browser_ = browser;
   profile_ = browser_->profile();
 
+  devtools_ui_controller_ = std::make_unique<DevtoolsUIController>(
+      browser_, unused_contents_container_views_);
+
   vivaldi::VivaldiBrowserUiData* browser_ui_data =
       vivaldi::VivaldiBrowserUiData::From(browser);
   CHECK(browser_ui_data);
@@ -923,7 +916,7 @@ void VivaldiBrowserWindow::CreateWebContents(
       } else if (*window_type == "mail-composer") {
         window_type_ = MAIL_COMPOSER;
       } else if (*window_type == "devtools") {
-       window_type_ = DEVTOOLS;
+        window_type_ = DEVTOOLS;
       }
     }
   }
@@ -1013,6 +1006,9 @@ void VivaldiBrowserWindow::CreateWebContents(
 
   toolbar_button_provider_ =
       std::make_unique<VivaldiToolbarButtonProvider>(this);
+
+  toolbar_button_provider_->scoped_unowned_user_data_.emplace(
+      browser_->GetUnownedUserDataHost(), *toolbar_button_provider_);
 
   pageaction_model_observer_ =
       std::make_unique<VivaldiPageActionModelObserver>(this);
@@ -1865,31 +1861,18 @@ void VivaldiBrowserWindow::Restore() {
   }
 }
 
-bool VivaldiBrowserWindow::ShouldHideUIForFullscreen() const {
-  return IsFullscreen();
-}
-
-bool VivaldiBrowserWindow::IsFullscreenBubbleVisible() const {
-  return false;
-}
-
-bool VivaldiBrowserWindow::IsForceFullscreen() const {
-  return false;
-}
-
 LocationBar* VivaldiBrowserWindow::GetLocationBar() const {
   return nullptr;
 }
 
 void VivaldiBrowserWindow::UpdateToolbar(content::WebContents* contents) {
-
   tabs::TabInterface* tab_interface = browser()->GetActiveTabInterface();
 
   page_actions::PageActionController* page_action_controller = nullptr;
 
   if (tab_interface && tab_interface->GetTabFeatures()) {
-    page_action_controller = tab_interface->GetTabFeatures()
-        ->page_action_controller();
+    page_action_controller =
+        tab_interface->GetTabFeatures()->page_action_controller();
   }
 
   pageaction_model_observer_->OnNewActiveController(page_action_controller);
@@ -1951,14 +1934,6 @@ ui::AcceleratorProvider* VivaldiBrowserWindow::GetAcceleratorProvider() {
   return interface_helper_.get();
 }
 
-bool VivaldiBrowserWindow::IsBookmarkBarVisible() const {
-  return false;
-}
-
-bool VivaldiBrowserWindow::IsBookmarkBarAnimating() const {
-  return false;
-}
-
 bool VivaldiBrowserWindow::IsTabStripEditable() const {
   return true;
 }
@@ -1980,7 +1955,7 @@ void VivaldiBrowserWindow::VivaldiShowWebsiteSettingsAt(
 #endif
   views::BubbleDialogDelegateView* bubble =
       PageInfoBubbleView::CreatePageInfoBubble(
-          PageInfoBubbleSpecification::Builder(nullptr, GetNativeWindow(),
+          PageInfoBubbleSpecification::Builder({}, GetNativeWindow(),
                                                web_contents, url)
               .AddAnchorRect(anchor_rect)
               .AddPageInfoClosingCallback(base::BindOnce(
@@ -2120,10 +2095,6 @@ void VivaldiBrowserWindow::UpdateDevTools(
   }
 }
 
-bool VivaldiBrowserWindow::CanDockDevTools() const {
-  return true;
-}
-
 void VivaldiBrowserWindow::ResetDockingState(int tab_id) {
   extensions::DevtoolsConnectorAPI* api =
       extensions::DevtoolsConnectorAPI::GetFactoryInstance()->Get(
@@ -2176,10 +2147,9 @@ void VivaldiBrowserWindow::OnNativeWindowChanged(bool moved) {
   if (aura::Window* native_window = GetNativeWindow()) {
     // Add the targeter on the window, not its root window. The root window does
     // not have a delegate, which is needed to handle the event in Linux.
-    std::unique_ptr<ui::EventTargeter> old_eventtarget =
-        native_window->SetEventTargeter(
-            std::make_unique<VivaldiWindowEasyResizeWindowTargeter>(
-                gfx::Insets(inset), this));
+    event_targeter_ = native_window->SetEventTargeter(
+        std::make_unique<VivaldiWindowEasyResizeWindowTargeter>(
+            gfx::Insets(inset), this));
   }
 #endif
 
@@ -2372,10 +2342,12 @@ void VivaldiBrowserWindow::OnTabDetached(content::WebContents* contents,
   rootdocument_handler->InfoBarContainer()->ChangeInfoBarManager(nullptr);
 }
 
+/*
 sharing_hub::SharingHubBubbleView* VivaldiBrowserWindow::ShowSharingHubBubble(
     share::ShareAttempt attempt) {
   return nullptr;
 }
+*/
 
 void VivaldiBrowserWindow::NavigationStateChanged(
     content::WebContents* source,
@@ -2398,12 +2370,14 @@ ui::ZOrderLevel VivaldiBrowserWindow::GetZOrderLevel() const {
   return ui::ZOrderLevel::kNormal;
 }
 
+/*
 SharingDialog* VivaldiBrowserWindow::ShowSharingDialog(
     content::WebContents* contents,
     SharingDialogData data) {
   NOTIMPLEMENTED();
   return nullptr;
 }
+*/
 
 bool VivaldiBrowserWindow::IsOnCurrentWorkspace() const {
 #if BUILDFLAG(IS_WIN)
@@ -2442,8 +2416,8 @@ void VivaldiBrowserWindow::UpdatePageActionIcon(PageActionIconType type) {
     content::WebContents* web_contents =
         browser()->tab_strip_model()->GetActiveWebContents();
     if (web_contents) {
-      ManagePasswordsUIController::FromWebContents(web_contents)
-          ->UpdateIconAndBubbleState(interface_helper_.get());
+      // ManagePasswordsUIController::FromWebContents(web_contents)
+      //     ->UpdateIconAndBubbleState(interface_helper_.get());
     }
   }
 }
@@ -2451,51 +2425,6 @@ void VivaldiBrowserWindow::UpdatePageActionIcon(PageActionIconType type) {
 autofill::AutofillBubbleHandler*
 VivaldiBrowserWindow::GetAutofillBubbleHandler() {
   return interface_helper_.get();
-}
-
-sharing_hub::ScreenshotCapturedBubble*
-VivaldiBrowserWindow::ShowScreenshotCapturedBubble(
-    content::WebContents* contents,
-    const gfx::Image& image) {
-  return nullptr;
-}
-
-qrcode_generator::QRCodeGeneratorBubbleView*
-VivaldiBrowserWindow::ShowQRCodeGeneratorBubble(content::WebContents* contents,
-                                                const GURL& url,
-                                                bool show_back_button) {
-  // This is called if the user uses the page context menu to generate a QR
-  // code.
-  vivaldi::BroadcastEvent(
-      extensions::vivaldi::utilities::OnShowQRCode::kEventName,
-      extensions::vivaldi::utilities::OnShowQRCode::Create(url.spec()),
-      browser_->profile());
-
-  auto* bubble_controler =
-      qrcode_generator::QRCodeGeneratorBubbleController::Get(contents);
-
-  DCHECK(bubble_controler);
-  if (bubble_controler) {
-    // This function doesn't actually open the bubble. It just broadcasts
-    // the event and javascript opens the bubble.
-    //
-    // This makes the "C++ bubble" think, it's closed.
-    bubble_controler->GetOnBubbleClosedCallback().Run();
-  }
-  return nullptr;
-}
-
-send_tab_to_self::SendTabToSelfBubbleView*
-VivaldiBrowserWindow::ShowSendTabToSelfDevicePickerBubble(
-    content::WebContents* contents) {
-  return nullptr;
-}
-
-send_tab_to_self::SendTabToSelfBubbleView*
-VivaldiBrowserWindow::ShowSendTabToSelfPromoBubble(
-    content::WebContents* contents,
-    bool show_signin_button) {
-  return nullptr;
 }
 
 void VivaldiBrowserWindow::SetDidFinishNavigationCallback(
@@ -2735,8 +2664,8 @@ void VivaldiBrowserWindow::ReportMousePosition(const gfx::Point& point,
     } else if (hot_spot_.location ==
                extensions::vivaldi::window_private::HotSpotLocation::kBottom) {
       // Similar to kTop, but we need to start at different Y
-      hot_rect = gfx::Rect(
-          window_rect.x() + GetHotSpotReach(),
+      hot_rect =
+          gfx::Rect(window_rect.x() + GetHotSpotReach(),
                     window_rect.height() - hot_spot_.height - GetHotSpotReach(),
                     window_rect.width() - (2 * GetHotSpotReach()),
                     hot_spot_.height + GetHotSpotReach());
@@ -2818,7 +2747,6 @@ bool VivaldiBrowserWindow::TrackInSession() {
 
 void VivaldiBrowserWindow::CloseBrowserWindow(
     views::Widget::ClosedReason reason) {
-
   // Give the user, or policy, a chance to cancel closing.
   if (!ConfirmWindowClose()) {
     // Need to reset the synchronous close callback after each Close() call as
@@ -2845,7 +2773,6 @@ void VivaldiBrowserWindow::CloseBrowserWindow(
     // down. When the tab strip is empty we'll be called back again.
     widget_->Hide();
   }
-
 }
 
 void VivaldiBrowserWindow::OnWidgetDestroying(views::Widget* widget) {
@@ -2887,7 +2814,7 @@ void VivaldiBrowserWindow::OnWidgetActivationChanged(views::Widget* widget,
 void VivaldiBrowserWindow::PaintAsActiveChanged() {
   // Do not propagate Browser active state changes if the Browser has already
   // been scheduled for destruction.
-  if (browser_->is_delete_scheduled()) {
+  if (browser_->IsDeleteScheduled()) {
     return;
   }
 
@@ -2917,14 +2844,12 @@ void VivaldiBrowserWindow::OnWidgetShowStateChanged(views::Widget* widget) {
 VivaldiPageActionModelObserver::VivaldiPageActionModelObserver(
     VivaldiBrowserWindow* window)
     : window_(window) {
-
-    actions::ActionItem* passwords_action_item =
+  actions::ActionItem* passwords_action_item =
       actions::ActionManager::Get().FindAction(
           kActionShowPasswordsBubbleOrPage,
           window_->browser()->GetActions()->root_action_item());
 
   action_show_passwords_item_ = passwords_action_item->GetAsWeakPtr();
-
 }
 
 VivaldiPageActionModelObserver::~VivaldiPageActionModelObserver() {
@@ -2945,8 +2870,8 @@ void VivaldiPageActionModelObserver::OnPageActionModelWillBeDeleted(
 
 void VivaldiPageActionModelObserver::OnNewActiveController(
     page_actions::PageActionController* controller) {
-    observation_.Reset();
-    action_item_controller_subscription_ = {};
+  observation_.Reset();
+  action_item_controller_subscription_ = {};
   if (controller) {
     controller->AddObserver(action_show_passwords_item_->GetActionId().value(),
                             observation_);
@@ -2970,7 +2895,6 @@ void VivaldiPageActionModelObserver::SetVisible(bool show) {
 
 /*********************/
 
-
 VivaldiToolbarButtonProvider::VivaldiToolbarButtonProvider(
     VivaldiBrowserWindow* window)
     : window_(window) {}
@@ -2993,9 +2917,9 @@ gfx::Size VivaldiToolbarButtonProvider::GetToolbarButtonSize() const {
   return gfx::Size(size, size);
 }
 
-views::View*
-VivaldiToolbarButtonProvider::GetDefaultExtensionDialogAnchorView() {
-  return window_->GetWebView();
+views::BubbleAnchor
+VivaldiToolbarButtonProvider::GetDefaultExtensionDialogAnchor() {
+  return views::BubbleAnchor(window_->GetBubbleDialogAnchor());
 }
 
 PageActionIconView* VivaldiToolbarButtonProvider::GetPageActionIconView(
@@ -3010,7 +2934,7 @@ page_actions::PageActionView* VivaldiToolbarButtonProvider::GetPageActionView(
   return static_cast<page_actions::PageActionView*>(window_->GetWebView());
 }
 
-AppMenuButton* VivaldiToolbarButtonProvider::GetAppMenuButton() {
+AppMenuControl* VivaldiToolbarButtonProvider::GetAppMenuControl() {
   return nullptr;
 }
 
@@ -3028,13 +2952,42 @@ VivaldiToolbarButtonProvider::GetAsAccessiblePaneView() {
 
 views::BubbleAnchor VivaldiToolbarButtonProvider::GetBubbleAnchor(
     std::optional<actions::ActionId> action_id) {
-  return window_->GetWebView();
+  if (action_id == kActionQrCodeGenerator) {
+    // TODO: Look into how this might get cleaned up by looking at
+    // WebUIToolbarExtensionsContainer.
+
+    content::WebContents* active_contents = window_->GetActiveWebContents();
+
+    // This is called if the user uses the page context menu to generate a QR
+    // code.
+    vivaldi::BroadcastEvent(
+        extensions::vivaldi::utilities::OnShowQRCode::kEventName,
+        extensions::vivaldi::utilities::OnShowQRCode::Create(
+            active_contents->GetLastCommittedURL().spec()),
+        window_->browser()->profile());
+
+    auto* bubble_controler =
+        qrcode_generator::QRCodeGeneratorBubbleController::Get(active_contents);
+
+    DCHECK(bubble_controler);
+    if (bubble_controler) {
+      // This function doesn't actually open the bubble. It just broadcasts
+      // the event and javascript opens the bubble.
+      //
+      // This makes the "C++ bubble" think, it's closed.
+      bubble_controler->GetOnBubbleClosedCallback().Run();
+    }
+    return views::BubbleAnchor();
+  }
+
+  return views::BubbleAnchor(window_->GetWebView());
 }
 
 void VivaldiToolbarButtonProvider::ZoomChangedForActiveTab(
     bool can_show_bubble) {}
 
-AvatarToolbarButton* VivaldiToolbarButtonProvider::GetAvatarToolbarButton() {
+AvatarToolbarButtonInterface*
+VivaldiToolbarButtonProvider::GetAvatarToolbarButtonInterface() {
   return nullptr;
 }
 

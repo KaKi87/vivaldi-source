@@ -44,13 +44,3 @@ content::WebContents* Browser::AddNewContentsVivaldi(
 bool Browser::IsWebApp() {
   return is_type_app();
 }
-
-bool Browser::IsWebContentsVisible(content::WebContents* web_contents) {
-  // NOTE(andre@vivaldi.com) : We can be called on startup and when a tab is
-  // restored.
-  if (vivaldi::IsVivaldiRunning() && !web_contents->GetNativeView()) {
-    return false;
-  }
-  return ChromeWebModalDialogManagerDelegate::IsWebContentsVisible(
-      web_contents);
-}

@@ -701,8 +701,7 @@ network::ParsedPermissionsPolicy PermissionsPolicyParser::ParseHeader(
     } else {
       overlap_features.push_back(
           GetNameForFeature(policy_declaration.feature, is_isolated_context)
-              .Ascii()
-              .c_str());
+              .Ascii());
     }
   }
 

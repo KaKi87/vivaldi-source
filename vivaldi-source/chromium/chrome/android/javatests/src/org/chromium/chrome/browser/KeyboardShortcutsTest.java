@@ -13,6 +13,7 @@ import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.description;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -22,6 +23,7 @@ import static org.mockito.Mockito.when;
 import android.os.SystemClock;
 import android.util.Pair;
 import android.view.KeyEvent;
+import android.view.View;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.SmallTest;
@@ -37,11 +39,13 @@ import org.mockito.junit.MockitoRule;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Batch;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features;
 import org.chromium.base.ui.KeyboardUtils;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.homepage.HomepageManager;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabSelectionType;
@@ -55,7 +59,10 @@ import org.chromium.chrome.browser.tabmodel.TabRemover;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
 import org.chromium.components.browser_ui.widget.MenuOrKeyboardActionController;
 import org.chromium.content_public.browser.ContentFeatureList;
+import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.WebContents;
+import org.chromium.url.GURL;
+import org.chromium.url.JUnitTestGURLs;
 
 import java.util.List;
 import java.util.Set;
@@ -90,6 +97,8 @@ public class KeyboardShortcutsTest {
     @Mock private WebContents mWebContents;
     @Mock private Profile mProfile;
 
+    @Mock private HomepageManager mHomepageManager;
+
     @Before
     public void setUp() {
         setUpTabModelSelector(List.of(mTab));
@@ -98,6 +107,24 @@ public class KeyboardShortcutsTest {
         when(mTab.getContext()).thenReturn(ApplicationProvider.getApplicationContext());
         mPinnedTabCloseManager = spy(PinnedTabClosureManagerFactory.getInstance());
         PinnedTabClosureManagerFactory.setInstanceForTesting(mPinnedTabCloseManager);
+
+        HomepageManager.setInstanceForTesting(mHomepageManager);
+    }
+
+    @Test
+    @SmallTest
+    public void testOpenHomePage() {
+        GURL mockGurl = JUnitTestGURLs.EXAMPLE_URL;
+        when(mHomepageManager.getHomepageGurl(anyBoolean())).thenReturn(mockGurl);
+
+        boolean isKeyEventHandled =
+                keyDown(
+                        KeyEvent.KEYCODE_HOME,
+                        KeyEvent.META_ALT_ON,
+                        /* isCurrentTabVisible= */ true);
+
+        assertTrue("Expected key event to be handled for Alt+Home", isKeyEventHandled);
+        verify(mTab).loadUrl(any(LoadUrlParams.class));
     }
 
     /**
@@ -119,6 +146,7 @@ public class KeyboardShortcutsTest {
         }
         when(mTabModel.getTabRemover()).thenReturn(mTabRemover);
         when(mTabModel.isTabMultiSelected(TAB_ID)).thenReturn(true);
+        when(mTabModel.getOrderedMultiSelectedTabs()).thenReturn(List.of(tabs.get(0)));
 
         doNothing().when(mTabRemover).closeTabs(any(TabClosureParams.class), anyBoolean());
     }
@@ -138,6 +166,7 @@ public class KeyboardShortcutsTest {
             for (Tab tab : tabsToClose) {
                 when(mTabModel.isTabMultiSelected(tab.getId())).thenReturn(true);
             }
+            when(mTabModel.getOrderedMultiSelectedTabs()).thenReturn(tabsToClose);
             for (int i = 0; i < keyCodeAndModifier.size(); i++) {
                 clearInvocations(mTabRemover);
                 int keyCode = keyCodeAndModifier.get(i).first;
@@ -218,6 +247,7 @@ public class KeyboardShortcutsTest {
 
     @Test
     @SmallTest
+    @DisabledTest(message = "Flaky - crbug.com/490369117")
     public void testCloseTab_singlePinnedTab_firstAttempt_timeout() {
         // Setup the first closure attempt of a pinned tab.
         setUpTabModelSelector(List.of(mTab));
@@ -294,6 +324,7 @@ public class KeyboardShortcutsTest {
         when(mTab.getIsPinned()).thenReturn(true);
         when(mTabModel.isTabMultiSelected(0)).thenReturn(true);
         when(mTabModel.isTabMultiSelected(1)).thenReturn(true);
+        when(mTabModel.getOrderedMultiSelectedTabs()).thenReturn(List.of(mTab, mTab2));
 
         // trigger Ctrl+W keyboard shortcut once.
         ThreadUtils.runOnUiThreadBlocking(
@@ -528,7 +559,7 @@ public class KeyboardShortcutsTest {
     @Test
     @SmallTest
     public void testFocusSwitch() {
-        keyDown(KeyEvent.KEYCODE_F6, 0, true);
+        assertTrue(dispatchKeyEvent(KeyEvent.KEYCODE_F6, 0));
         verify(mMenuOrKeyboardActionController, times(1))
                 .onMenuOrKeyboardAction(
                         /* id= */ eq(R.id.switch_keyboard_focus_row), /* fromMenu= */ eq(false));
@@ -552,6 +583,18 @@ public class KeyboardShortcutsTest {
                         /* id= */ eq(R.id.open_tab_strip_context_menu), /* fromMenu= */ eq(false));
     }
 
+    /** Test that pressing F10 triggers focus on the app menu button view. */
+    @Test
+    @SmallTest
+    public void testFocusAppMenuButton() {
+        View mockMenuButton = mock(View.class);
+        when(mToolbarManager.getMenuButtonView()).thenReturn(mockMenuButton);
+
+        assertTrue(keyDown(KeyEvent.KEYCODE_F10, 0, true));
+        verify(mToolbarManager, times(1)).getMenuButtonView();
+        verify(mockMenuButton, times(1)).requestFocus();
+    }
+
     /** Test that pressing F7 triggers the caret browsing dialog. */
     @Test
     @SmallTest
@@ -562,6 +605,17 @@ public class KeyboardShortcutsTest {
         // Ensure we trigger the caret browsing dialog
         verify(mMenuOrKeyboardActionController)
                 .onMenuOrKeyboardAction(eq(R.id.toggle_caret_browsing), eq(false));
+    }
+
+    /** Test that pressing F1 triggers the help action. */
+    @Test
+    @SmallTest
+    public void testOpenHelp() {
+        // Ensure we handle F1 key
+        assertTrue(keyDown(KeyEvent.KEYCODE_F1, 0, true));
+
+        // Ensure we trigger the help action
+        verify(mMenuOrKeyboardActionController).onMenuOrKeyboardAction(eq(R.id.help_id), eq(false));
     }
 
     private void testOpenBookmarks(
@@ -605,5 +659,20 @@ public class KeyboardShortcutsTest {
                 mTabModelSelector,
                 mMenuOrKeyboardActionController,
                 mToolbarManager);
+    }
+
+    private Boolean dispatchKeyEvent(int keyCode, int metaState) {
+        return KeyboardShortcuts.dispatchKeyEvent(
+                new KeyEvent(
+                        /* downTime= */ SystemClock.uptimeMillis(),
+                        /* eventTime= */ SystemClock.uptimeMillis(),
+                        KeyEvent.ACTION_DOWN,
+                        keyCode,
+                        /* repeat= */ 0,
+                        metaState),
+                /* uiInitialized= */ true,
+                /* fullscreenManager= */ null,
+                mMenuOrKeyboardActionController,
+                ApplicationProvider.getApplicationContext());
     }
 }

@@ -55,6 +55,7 @@ import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.ApplicationTestUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisableIf;
+import org.chromium.base.test.util.DisableLeakChecks;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features;
@@ -62,17 +63,18 @@ import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.base.test.util.Restriction;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.device_lock.DeviceLockActivityLauncherImpl;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.ui.signin.ForcedSigninStatusProvider;
 import org.chromium.chrome.browser.ui.signin.FullscreenSigninAndHistorySyncConfig;
+import org.chromium.chrome.browser.ui.signin.SigninAndHistorySyncCoordinator;
 import org.chromium.chrome.browser.ui.signin.SigninUtils;
 import org.chromium.chrome.browser.ui.signin.fullscreen_signin.FullscreenSigninMediator;
 import org.chromium.chrome.browser.ui.signin.history_sync.HistorySyncConfig;
 import org.chromium.chrome.browser.ui.signin.history_sync.HistorySyncHelper;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.util.ActivityTestUtils;
 import org.chromium.chrome.test.util.browser.signin.SigninTestRule;
 import org.chromium.chrome.test.util.browser.signin.SigninTestUtil;
@@ -82,7 +84,6 @@ import org.chromium.components.policy.test.annotations.Policies;
 import org.chromium.components.policy.test.annotations.Policies.Add;
 import org.chromium.components.policy.test.annotations.Policies.Item;
 import org.chromium.components.signin.SigninFeatures;
-import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.metrics.AccountConsistencyPromoAction;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
 import org.chromium.components.signin.test.util.TestAccounts;
@@ -101,6 +102,7 @@ import org.chromium.ui.test.util.ViewUtils;
 @DoNotBatch(reason = "This test relies on native initialization")
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @Restriction({GmsCoreVersionRestriction.RESTRICTION_TYPE_VERSION_GE_20W02})
+@DisableLeakChecks("crbug.com/512492723 (SigninManagerImpl)")
 public class FullscreenSigninAndHistorySyncIntegrationTest {
     @Rule
     public final MockitoRule mMockitoRule = MockitoJUnit.rule().strictness(Strictness.STRICT_STUBS);
@@ -117,11 +119,11 @@ public class FullscreenSigninAndHistorySyncIntegrationTest {
 
     @Rule(order = 1)
     public final BaseActivityTestRule<BlankUiTestActivity> mBlankUiActivityTestRule =
-            new BaseActivityTestRule(BlankUiTestActivity.class);
+            new BaseActivityTestRule<>(BlankUiTestActivity.class);
 
     @Rule(order = 2)
     public final BaseActivityTestRule<SigninAndHistorySyncActivity> mActivityTestRule =
-            new BaseActivityTestRule(SigninAndHistorySyncActivity.class);
+            new BaseActivityTestRule<>(SigninAndHistorySyncActivity.class);
 
     @Mock private HistorySyncHelper mHistorySyncHelperMock;
 
@@ -196,7 +198,7 @@ public class FullscreenSigninAndHistorySyncIntegrationTest {
         accountConsistencyHistogram.assertExpected();
         accountStartedHistogram.assertExpected();
         ApplicationTestUtils.waitForActivityState(mActivity, Stage.DESTROYED);
-        assertNull(mSigninTestRule.getPrimaryAccount(ConsentLevel.SIGNIN));
+        assertNull(mSigninTestRule.getPrimaryAccount());
         assertFalse(SyncTestUtil.isHistorySyncEnabled());
     }
 
@@ -267,7 +269,7 @@ public class FullscreenSigninAndHistorySyncIntegrationTest {
         verify(mHistorySyncHelperMock, never()).recordHistorySyncNotShown(anyInt());
 
         // Verify that the user is signed-out.
-        assertNull(mSigninTestRule.getPrimaryAccount(ConsentLevel.SIGNIN));
+        assertNull(mSigninTestRule.getPrimaryAccount());
     }
 
     @Test
@@ -453,6 +455,7 @@ public class FullscreenSigninAndHistorySyncIntegrationTest {
 
     @Test
     @MediumTest
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288677
     public void testUserAlreadySignedIn_refuseHistorySync_historySyncRequired() {
         HistogramWatcher historySyncHistogramWatcher =
                 HistogramWatcher.newBuilder()
@@ -474,7 +477,7 @@ public class FullscreenSigninAndHistorySyncIntegrationTest {
         verify(mHistorySyncHelperMock, never()).recordHistorySyncNotShown(anyInt());
 
         // Verify that the user is not signed-out.
-        Assert.assertNotNull(mSigninTestRule.getPrimaryAccount(ConsentLevel.SIGNIN));
+        Assert.assertNotNull(mSigninTestRule.getPrimaryAccount());
         historySyncHistogramWatcher.assertExpected();
     }
 
@@ -509,7 +512,7 @@ public class FullscreenSigninAndHistorySyncIntegrationTest {
 
         // Verify that the history opt-in dialog is shown and refuse.
         onView(withId(R.id.history_sync)).check(matches(isDisplayed()));
-        onViewWaiting(withId(org.chromium.chrome.test.R.id.button_secondary)).perform(click());
+        onViewWaiting(withId(R.id.button_secondary)).perform(click());
 
         // Verify that the flow completion callback, which finishes the activity, is called.
         ApplicationTestUtils.waitForActivityState(mActivity, Stage.DESTROYED);
@@ -598,6 +601,7 @@ public class FullscreenSigninAndHistorySyncIntegrationTest {
     @Test
     @MediumTest
     @DisableFeatures(SigninFeatures.SUPPORT_FORCED_SIGNIN_POLICY)
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288677
     public void testBackPress() {
         mBlankUiActivityTestRule.launchActivity(null);
         when(mHistorySyncHelperMock.shouldDisplayHistorySync()).thenReturn(true);
@@ -622,7 +626,7 @@ public class FullscreenSigninAndHistorySyncIntegrationTest {
         // the user was signed out.
         ApplicationTestUtils.waitForActivityState(mActivity, Stage.DESTROYED);
         assertFalse(SyncTestUtil.isHistorySyncEnabled());
-        Assert.assertNull(mSigninTestRule.getPrimaryAccount(ConsentLevel.SIGNIN));
+        Assert.assertNull(mSigninTestRule.getPrimaryAccount());
     }
 
     @Test
@@ -661,7 +665,7 @@ public class FullscreenSigninAndHistorySyncIntegrationTest {
         // history sync was not enabled.
         ApplicationTestUtils.waitForActivityState(mActivity, Stage.DESTROYED);
         assertFalse(SyncTestUtil.isHistorySyncEnabled());
-        Assert.assertNotNull(mSigninTestRule.getPrimaryAccount(ConsentLevel.SIGNIN));
+        Assert.assertNotNull(mSigninTestRule.getPrimaryAccount());
     }
 
     @Test
@@ -737,6 +741,7 @@ public class FullscreenSigninAndHistorySyncIntegrationTest {
 
     @Test
     @MediumTest
+    @SuppressWarnings("unchecked") // hamcrest allOf varargs
     public void testSigninDisabledByConfig() {
         mSigninTestRule.addAccount(TestAccounts.ACCOUNT1);
         FullscreenSigninAndHistorySyncConfig config =
@@ -812,6 +817,126 @@ public class FullscreenSigninAndHistorySyncIntegrationTest {
         mRenderTestRule.render(
                 mActivityTestRule.getActivity().findViewById(android.R.id.content),
                 "fullscreen_signin_and_history_sync_history_sync_customized");
+    }
+
+    @Test
+    @MediumTest
+    public void testWithSelectedAccountEmail_existingAccount() {
+        mSigninTestRule.addAccount(TestAccounts.ACCOUNT2);
+        FullscreenSigninAndHistorySyncConfig config =
+                getDefaultConfigBuilder()
+                        .selectedAccountEmail(TestAccounts.ACCOUNT2.getEmail())
+                        .build();
+
+        launchActivity(/* shouldReplaceProgressBars= */ true, config);
+
+        // Verify that the fullscreen sign-in promo is shown with the specified account.
+        onView(withId(R.id.fullscreen_signin)).check(matches(isDisplayed()));
+        onViewWaiting(withText(TestAccounts.ACCOUNT2.getFullName())).check(matches(isDisplayed()));
+    }
+
+    @Test
+    @MediumTest
+    // TODO(crbug.com/428056054): The top content is blocked by system UI on B+.
+    @DisableIf.Build(
+            sdk_is_greater_than = Build.VERSION_CODES.VANILLA_ICE_CREAM,
+            message = "crbug.com/428056054")
+    public void testWithSelectedAccountEmail_nonExistingAccount() {
+        mSigninTestRule.setAddAccountFlowResult(TestAccounts.ACCOUNT2);
+        FullscreenSigninAndHistorySyncConfig config =
+                getDefaultConfigBuilder()
+                        .selectedAccountEmail(TestAccounts.ACCOUNT2.getEmail())
+                        .build();
+
+        // launchActivity() helper is not used as this test starts the add account flow immediately.
+        Intent intent =
+                SigninAndHistorySyncActivity.createIntentForFullscreenSignin(
+                        ApplicationProvider.getApplicationContext(), config, mSigninAccessPoint);
+        mActivity = mActivityTestRule.launchActivity(intent);
+
+        // Brought directly to the add account flow.
+        onViewWaiting(SigninTestRule.ADD_ACCOUNT_BUTTON_MATCHER).perform(click());
+
+        // Verify that the fullscreen sign-in promo is shown with the newly added account.
+        onViewWaiting(withId(R.id.fullscreen_signin)).check(matches(isDisplayed()));
+        onViewWaiting(withText(TestAccounts.ACCOUNT2.getFullName())).check(matches(isDisplayed()));
+    }
+
+    @Test
+    @MediumTest
+    // TODO(crbug.com/428056054): The top content is blocked by system UI on B+.
+    @DisableIf.Build(
+            sdk_is_greater_than = Build.VERSION_CODES.VANILLA_ICE_CREAM,
+            message = "crbug.com/428056054")
+    public void testWithSelectedAccountEmail_nonExistingAccount_cancelAddAccount() {
+        mSigninTestRule.setAddAccountFlowResult(null);
+        FullscreenSigninAndHistorySyncConfig config =
+                getDefaultConfigBuilder()
+                        .selectedAccountEmail(TestAccounts.ACCOUNT2.getEmail())
+                        .build();
+
+        // launchActivity() helper is not used as this test starts the add account flow immediately.
+        Intent intent =
+                SigninAndHistorySyncActivity.createIntentForFullscreenSignin(
+                        ApplicationProvider.getApplicationContext(), config, mSigninAccessPoint);
+        mActivity = mActivityTestRule.launchActivity(intent);
+
+        // Brought directly to the add account flow.
+        onViewWaiting(SigninTestRule.ADD_ACCOUNT_BUTTON_MATCHER).perform(click());
+
+        // Verify that the flow completion callback, which finishes the activity, is called.
+        ApplicationTestUtils.waitForActivityState(mActivity, Stage.DESTROYED);
+    }
+
+    @Test
+    @MediumTest
+    public void testSwitchAccount_signIn() {
+        mSigninTestRule.addAccountThenSignin(TestAccounts.ACCOUNT1);
+        mSigninTestRule.addAccount(TestAccounts.ACCOUNT2);
+        FullscreenSigninAndHistorySyncConfig config =
+                getDefaultConfigBuilder()
+                        .selectedAccountEmail(TestAccounts.ACCOUNT2.getEmail())
+                        .signinFlow(SigninAndHistorySyncCoordinator.SigninFlow.SWITCH_ACCOUNT)
+                        .build();
+
+        launchActivity(/* shouldReplaceProgressBars= */ true, config);
+
+        // Verify that the fullscreen sign-in promo is shown with the specified account.
+        onView(withId(R.id.fullscreen_signin)).check(matches(isDisplayed()));
+        onViewWaiting(withText(TestAccounts.ACCOUNT2.getFullName())).check(matches(isDisplayed()));
+
+        onView(withId(R.id.signin_fre_continue_button)).perform(scrollTo(), click());
+        SigninTestUtil.completeDeviceLockIfOnAutomotive(mDeviceLockActivityLauncher);
+
+        // Verify that the specified account is signed in.
+        mSigninTestRule.waitForSignin(TestAccounts.ACCOUNT2);
+        ApplicationTestUtils.waitForActivityState(mActivity, Stage.DESTROYED);
+        Assert.assertEquals(TestAccounts.ACCOUNT2, mSigninTestRule.getPrimaryAccount());
+    }
+
+    @Test
+    @MediumTest
+    public void testSwitchAccount_dismiss() {
+        mSigninTestRule.addAccountThenSignin(TestAccounts.ACCOUNT1);
+        mSigninTestRule.addAccount(TestAccounts.ACCOUNT2);
+        FullscreenSigninAndHistorySyncConfig config =
+                getDefaultConfigBuilder()
+                        .selectedAccountEmail(TestAccounts.ACCOUNT2.getEmail())
+                        .signinFlow(SigninAndHistorySyncCoordinator.SigninFlow.SWITCH_ACCOUNT)
+                        .build();
+
+        launchActivity(/* shouldReplaceProgressBars= */ true, config);
+
+        // Verify that the fullscreen sign-in promo is shown with the specified account.
+        onView(withId(R.id.fullscreen_signin)).check(matches(isDisplayed()));
+        onViewWaiting(withText(TestAccounts.ACCOUNT2.getFullName())).check(matches(isDisplayed()));
+
+        // Dismiss the sign-in screen.
+        onViewWaiting(withId(R.id.signin_fre_dismiss_button)).perform(scrollTo(), click());
+
+        // Verify that the user is still signed in.
+        ApplicationTestUtils.waitForActivityState(mActivity, Stage.DESTROYED);
+        Assert.assertEquals(TestAccounts.ACCOUNT1, mSigninTestRule.getPrimaryAccount());
     }
 
     private void launchActivity() {

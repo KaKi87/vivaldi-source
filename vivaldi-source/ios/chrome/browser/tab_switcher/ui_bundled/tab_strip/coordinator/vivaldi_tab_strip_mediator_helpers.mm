@@ -171,7 +171,7 @@ const TabGroup* FindTabGroupStartingAtIndex(int index,
 
 UrlLoadParams VivaldiNewTabURLLoadParams(ProfileIOS* profile) {
   UrlLoadParams params = UrlLoadParams::InNewTab(GURL(kChromeUINewTabURL));
-  if (!profile) {
+  if (!profile || profile->IsOffTheRecord()) {
     return params;
   }
   PrefService* prefService = profile->GetPrefs();

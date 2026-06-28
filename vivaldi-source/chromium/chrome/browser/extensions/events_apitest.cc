@@ -98,6 +98,9 @@ IN_PROC_BROWSER_TEST_F(ExtensionApiTest, EventsAreUnregistered) {
       event_router->ExtensionHasEventListener(id, "webNavigation.onCompleted"));
 }
 
+// The following test is executed as Chrome App, which is only supported on
+// ChromeOS.
+#if BUILDFLAG(IS_CHROMEOS)
 // Test that listeners for webview-related events are not stored (even for lazy
 // contexts). See crbug.com/41327043.
 IN_PROC_BROWSER_TEST_F(ExtensionApiTest, WebViewEventRegistration) {
@@ -132,10 +135,11 @@ IN_PROC_BROWSER_TEST_F(ExtensionApiTest, WebViewEventRegistration) {
   EXPECT_TRUE(
       event_router->HasLazyEventListenerForTesting("app.runtime.onLaunched"));
 }
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 // Tests that registering a listener for an event that requires a permission and
 // then removing that permission using the permissions API does not lead to a
-// crash. Regression test for crbug.com/1402642.
+// crash. Regression test for crbug.com/40884929.
 IN_PROC_BROWSER_TEST_F(ExtensionApiTest, EventAfterPermissionRemoved) {
   // Add an extension which registers an event on a permission which it has
   // declared as optional.
@@ -279,8 +283,14 @@ IN_PROC_BROWSER_TEST_F(ExtensionApiTest, EventAfterPermissionRemoved) {
 }
 
 // Tests that events broadcast right after a profile has started to be destroyed
-// do not cause a crash. Regression test for crbug.com/1335837.
-IN_PROC_BROWSER_TEST_F(ExtensionApiTest, DispatchEventDuringShutdown) {
+// do not cause a crash. Regression test for crbug.com/40847328.
+// TODO(crbug.com/505759503): Enable the test.
+#if BUILDFLAG(IS_CHROMEOS)
+#define MAYBE_DispatchEventDuringShutdown DISABLED_DispatchEventDuringShutdown
+#else
+#define MAYBE_DispatchEventDuringShutdown DispatchEventDuringShutdown
+#endif
+IN_PROC_BROWSER_TEST_F(ExtensionApiTest, MAYBE_DispatchEventDuringShutdown) {
   // Minimize background page expiration time for testing purposes.
   ProcessManager::SetEventPageIdleTimeForTesting(1);
   ProcessManager::SetEventPageSuspendingTimeForTesting(1);

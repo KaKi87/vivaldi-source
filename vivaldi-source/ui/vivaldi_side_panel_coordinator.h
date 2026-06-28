@@ -27,8 +27,7 @@ class SidePanelCoordinator : public SidePanelUI,
   void ShowFrom(SidePanelEntryKey entry_key,
                 gfx::Rect starting_bounds) override {}
 
-  void Close(SidePanelEntry::PanelType panel_type,
-             SidePanelEntryHideReason hide_reason,
+  void Close(SidePanelEntryHideReason hide_reason,
              bool suppress_animations) override;
 
   void Toggle(SidePanelEntryKey key,
@@ -36,13 +35,11 @@ class SidePanelCoordinator : public SidePanelUI,
 
   // void UpdatePinState() override;
 
-  std::optional<SidePanelEntryId> GetCurrentEntryId(
-      SidePanelEntry::PanelType panel_type) const override;
+  std::optional<SidePanelEntryId> GetCurrentEntryId() const override;
 
-  int GetCurrentEntryDefaultContentWidth(
-      SidePanelEntry::PanelType panel_type) const override;
+  int GetCurrentEntryDefaultContentWidth() const override;
 
-  bool IsSidePanelShowing(SidePanelEntry::PanelType panel_type) const override;
+  bool IsSidePanelShowing() const override;
 
   bool IsSidePanelEntryShowing(
       const SidePanelEntryKey& entry_key) const override;
@@ -51,7 +48,6 @@ class SidePanelCoordinator : public SidePanelUI,
                                bool for_tab) const override;
 
   base::CallbackListSubscription RegisterSidePanelShown(
-      SidePanelEntry::PanelType type,
       ShownCallback callback) override;
 
   content::WebContents* GetWebContentsForTest(SidePanelEntryId id) override;

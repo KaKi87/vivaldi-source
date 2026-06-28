@@ -51,6 +51,21 @@ function createAppearancePage() {
         type: chrome.settingsPrivate.PrefType.BOOLEAN,
         value: false,
       },
+      // The following two prefs are added to keep in sync with
+      // PinnedToolbarActionsModel::IsDefault().
+      pin_split_tab_button: {
+        type: chrome.settingsPrivate.PrefType.BOOLEAN,
+        value: false,
+      },
+      pin_contextual_task_button: {
+        type: chrome.settingsPrivate.PrefType.BOOLEAN,
+        value: false,
+      },
+      // Added to support setPrefValue in tests where this pref is modified.
+      split_view_drag_and_drop_enabled: {
+        type: chrome.settingsPrivate.PrefType.BOOLEAN,
+        value: false,
+      },
     },
     extensions: {
       theme: {
@@ -62,6 +77,16 @@ function createAppearancePage() {
           type: chrome.settingsPrivate.PrefType.NUMBER,
           value: SystemTheme.DEFAULT,
         },
+      },
+    },
+    bookmark_bar: {
+      show_on_all_tabs: {
+        type: chrome.settingsPrivate.PrefType.BOOLEAN,
+        value: true,
+      },
+      visibility_state: {
+        type: chrome.settingsPrivate.PrefType.NUMBER,
+        value: 0,
       },
     },
     tab_search: {
@@ -96,14 +121,28 @@ function createAppearancePage() {
         value: false,
       },
     },
+    side_panel: {
+      is_right_aligned: {
+        type: chrome.settingsPrivate.PrefType.BOOLEAN,
+        value: true,
+      },
+      alignment_overrides: {
+        type: chrome.settingsPrivate.PrefType.DICTIONARY,
+        value: {},
+      },
+    },
   });
 
   document.body.appendChild(appearancePage);
   flush();
 }
 
-suite('AppearanceHandler', function() {
+suite('AppearancePage', function() {
   setup(function() {
+    loadTimeData.overrideValues({
+      ntpSimplificationBookmarksBarEnabled: false,
+    });
+
     appearanceBrowserProxy = new TestAppearanceBrowserProxy();
     AppearanceBrowserProxyImpl.setInstance(appearanceBrowserProxy);
 
@@ -293,6 +332,54 @@ suite('AppearanceHandler', function() {
     assertFalse(!!button);
   });
 
+  test('resetVisibleWhenSplitTabPrefChanges', async function() {
+    appearanceBrowserProxy.setPinnedToolbarActionsAreDefaultResponse(true);
+    createAppearancePage();
+    await microtasksFinished();
+
+    // Initially hidden.
+    assertFalse(!!appearancePage.shadowRoot!.querySelector(
+        '#resetPinnedToolbarActions'));
+
+    // Mock that actions are no longer default.
+    appearanceBrowserProxy.setPinnedToolbarActionsAreDefaultResponse(false);
+    appearanceBrowserProxy.reset();
+
+    // Trigger observer by changing the pref.
+    appearancePage.setPrefValue('browser.pin_split_tab_button', true);
+
+    await appearanceBrowserProxy.whenCalled('pinnedToolbarActionsAreDefault');
+    await microtasksFinished();
+
+    // Now visible.
+    assertTrue(!!appearancePage.shadowRoot!.querySelector(
+        '#resetPinnedToolbarActions'));
+  });
+
+  test('resetVisibleWhenContextualTaskPrefChanges', async function() {
+    appearanceBrowserProxy.setPinnedToolbarActionsAreDefaultResponse(true);
+    createAppearancePage();
+    await microtasksFinished();
+
+    // Initially hidden.
+    assertFalse(!!appearancePage.shadowRoot!.querySelector(
+        '#resetPinnedToolbarActions'));
+
+    // Mock that actions are no longer default.
+    appearanceBrowserProxy.setPinnedToolbarActionsAreDefaultResponse(false);
+    appearanceBrowserProxy.reset();
+
+    // Trigger observer by changing the pref.
+    appearancePage.setPrefValue('browser.pin_contextual_task_button', true);
+
+    await appearanceBrowserProxy.whenCalled('pinnedToolbarActionsAreDefault');
+    await microtasksFinished();
+
+    // Now visible.
+    assertTrue(!!appearancePage.shadowRoot!.querySelector(
+        '#resetPinnedToolbarActions'));
+  });
+
   test('ColorSchemeMode', async () => {
     colorSchemeHandler.reset();
     createAppearancePage();
@@ -348,10 +435,7 @@ suite('AppearanceHandler', function() {
   test('show home button toggling', function() {
     assertFalse(
         !!appearancePage.shadowRoot!.querySelector('#home-button-options'));
-    appearancePage.set('prefs.browser.show_home_button', {
-      type: chrome.settingsPrivate.PrefType.BOOLEAN,
-      value: true,
-    });
+    appearancePage.setPrefValue('browser.show_home_button', true);
     flush();
 
     assertTrue(
@@ -384,10 +468,8 @@ suite('AppearanceHandler', function() {
       showSplitViewDragAndDropSetting: true,
     });
     createAppearancePage();
-    appearancePage.set('prefs.browser.split_view_drag_and_drop_enabled', {
-      type: chrome.settingsPrivate.PrefType.BOOLEAN,
-      value: true,
-    });
+    appearancePage.setPrefValue(
+        'browser.split_view_drag_and_drop_enabled', true);
     await microtasksFinished();
 
     const toggle =
@@ -421,6 +503,55 @@ suite('AppearanceHandler', function() {
     assertTrue(!!autoPinToggle);
     assertTrue(autoPinToggle.hidden);
   });
+
+  test('bookmarks bar toggle visibility', async function() {
+    createAppearancePage();
+    await microtasksFinished();
+
+    assertTrue(!!appearancePage.shadowRoot!.querySelector('#showBookmarksBar'));
+    assertFalse(!!appearancePage.shadowRoot!.querySelector(
+        '#bookmarksBarVisibilityDropdown'));
+  });
+
+  test(
+      'bookmarks bar dropdown menu updates visibility_state', async function() {
+        loadTimeData.overrideValues({
+          ntpSimplificationBookmarksBarEnabled: true,
+        });
+        createAppearancePage();
+        await microtasksFinished();
+
+        assertFalse(
+            !!appearancePage.shadowRoot!.querySelector('#showBookmarksBar'));
+
+        assertEquals(
+            0, appearancePage.getPref('bookmark_bar.visibility_state').value);
+
+        const dropdown = appearancePage.shadowRoot!
+                             .querySelector<SettingsDropdownMenuElement>(
+                                 '#bookmarksBarVisibilityDropdown');
+        assertTrue(!!dropdown);
+
+        const selectElement = dropdown.$.dropdownMenu;
+
+        assertEquals('0', selectElement.value);
+
+        selectElement.value = '1';
+        selectElement.dispatchEvent(new Event('change'));
+        await microtasksFinished();
+
+        assertEquals(
+            1, appearancePage.getPref('bookmark_bar.visibility_state').value);
+        assertEquals('1', selectElement.value);
+
+        selectElement.value = '2';
+        selectElement.dispatchEvent(new Event('change'));
+        await microtasksFinished();
+
+        assertEquals(
+            2, appearancePage.getPref('bookmark_bar.visibility_state').value);
+        assertEquals('2', selectElement.value);
+      });
 });
 
 suite('TabStripPositionSettings', () => {

@@ -3,8 +3,8 @@
 # depending on platform settings
 
 import("//vivaldi/gn/config/features.gni")
-import("//vivaldi/gn/config/product.gni")
 import("//vivaldi/gn/config/hermetic.gni")
+import("//vivaldi/gn/config/product.gni")
 import("//vivaldi/gn/config/reclient.gni")
 
 # import("//build/toolchain/cc_wrapper.gni")
@@ -12,14 +12,14 @@ import("//vivaldi/gn/config/reclient.gni")
 
 declare_overrides() {
   chrome_pgo_phase = 0
-  if (is_official_build && (is_win || is_mac ||
-              (is_linux && target_cpu == "x64") ||
-              (is_android && target_cpu == "arm64") ||
-              (is_android && target_cpu == "x64"))) {
+  if (is_official_build &&
+      (is_win || is_mac || (is_linux && target_cpu == "x64") ||
+       (is_android && target_cpu == "arm64") ||
+       (is_android && target_cpu == "x64"))) {
     chrome_pgo_phase = 2
   }
 
-  if(!is_ios) {
+  if (!is_ios) {
     branding_path_component = "vivaldi"
     branding_path_product = "vivaldi"
   } else {
@@ -39,14 +39,14 @@ declare_overrides() {
     ffmpeg_branding = "Chrome"
   }
   proprietary_codecs = true
-  dcheck_always_on = is_debug # || is_component_build
+  dcheck_always_on = is_debug  # || is_component_build
   enable_check_raw_ptr_fields = false
 
   # Build ICU data into the executable to avoid crashes due to missing file
   # don't change for Android and IOS
   icu_use_data_file = is_android || is_ios
 
-  if(!is_ios) {
+  if (!is_ios) {
     enable_widevine = true
 
     enable_media_remoting = true
@@ -56,16 +56,18 @@ declare_overrides() {
     if (!is_component_build) {
       enable_linux_installer = is_linux
     }
-#    if (is_official_build) {
-#      symbol_level = 1
-#    }
+
+    #    if (is_official_build) {
+    #      symbol_level = 1
+    #    }
     is_component_ffmpeg = true
   }
 
   if (is_android) {
     if (is_official_build) {
       symbol_level = 1
-    } if (is_debug) {
+    }
+    if (is_debug) {
       android_static_analysis = "off"
     } else {
       android_static_analysis = "on"
@@ -74,6 +76,7 @@ declare_overrides() {
     enable_arcore = false
     enable_vr = false
     ffmpeg_branding = "Chrome"
+
     # NOTE(jarle@vivaldi.com):
     # Ref. AUTO-128/AUTO-136, disable fix for VAB-7448 for now.
     #if (is_vivaldi_automotive) { # Potential fix for VAB-7448.
@@ -88,8 +91,8 @@ declare_overrides() {
       strip_debug_info = true
     }
     if (is_vivaldi_lynkco) {
-      # NOTE(jarle): For Lynkco we do not treat warnings as errors due to 3rd party
-      # library integration.
+      # NOTE(jarle): For Lynkco we do not treat warnings as errors due to 3rd
+      # party library integration.
       treat_warnings_as_errors = false
 
       # NOTE(jarle@vivaldi.com): Lynk&Co third-party libs require 28.
@@ -102,12 +105,10 @@ declare_overrides() {
     dfmify_dev_ui = false
   }
 
-  if(!is_ios) {
-    enable_hangout_services_extension = true
-  }
-
-  # enable_precompiled_headers = !is_official_build && cc_wrapper == "" && !use_remoteexec
+  # enable_precompiled_headers = !is_official_build && cc_wrapper == "" &&
+  # !use_remoteexec
   enable_nocompile_tests = false
+
   # We cannot use this functionality at present because the system assumes
   # "../../" is the Chromium src dir, but it is the vivaldi dir for us
   clang_use_chrome_plugins = false
@@ -125,7 +126,6 @@ declare_overrides() {
     #}
   }
 
-
   if (is_win) {
     fast_archive_compression = is_component_build
   }
@@ -138,14 +138,16 @@ declare_overrides() {
     toolchain_json_spec_file = "//vivaldi/build/toolchain.json"
   }
 
-  if(!is_ios) {
-    enable_cdm_host_verification = (is_mac || is_win) && is_official_build && !vivaldi_disable_widevine_verification
-    enable_cdm_storage_id = (is_mac || is_win) && is_official_build && !vivaldi_disable_widevine_verification
+  if (!is_ios) {
+    enable_cdm_host_verification = (is_mac || is_win) && is_official_build &&
+                                   !vivaldi_disable_widevine_verification
+    enable_cdm_storage_id = (is_mac || is_win) && is_official_build &&
+                            !vivaldi_disable_widevine_verification
   }
-  if(is_ios) {
-    # Needed when IOS has translate_genders false, otherwise there will be a mismatch
-    # in translation files built for the host-specific toolchain
-    # Check for each Chromium update
+  if (is_ios) {
+    # Needed when IOS has translate_genders false, otherwise there will be a
+    # mismatch in translation files built for the host-specific toolchain Check
+    # for each Chromium update
     translate_genders = false
     if (release_kind == "final" || test_ios_app_as_final) {
       ios_app_bundle_id_prefix = "com.vivaldi"
@@ -156,21 +158,21 @@ declare_overrides() {
     ios_code_signing_identity = vivaldi_signing_id
     ios_code_signing_identity_description = ""
     is_component_build = false
+
     # Needed until we understand chromium partition allocator better.
-    # TODO: @tomas/prio: This flag is removed on Cr142. We need to modify the info.plist
-    # Chr commit: 13ef863afc9ba24afe903ee391e22cbf474851cb
+    # TODO: @tomas/prio: This flag is removed on Cr142. We need to modify the
+    # info.plist Chr commit: 13ef863afc9ba24afe903ee391e22cbf474851cb
     # ios_partition_alloc_enabled = false
 
-    ios_application_icons_target = "//vivaldi/ios/app/resources:vivaldi_appicons"
-    ios_launchscreen_assets_target = "//vivaldi/ios/app/resources:launchscreen_assets"
+    ios_application_icons_target =
+        "//vivaldi/ios/app/resources:vivaldi_appicons"
+    ios_launchscreen_assets_target =
+        "//vivaldi/ios/app/resources:launchscreen_assets"
 
     # Just making sure it stays off
     ios_enable_memory_debugging = false
 
     # Make sure we do not build AI stuff
     build_with_internal_optimization_guide = false
-
-    # VIB-1880
-    ios_enable_extended_share_extension = false
   }
 }

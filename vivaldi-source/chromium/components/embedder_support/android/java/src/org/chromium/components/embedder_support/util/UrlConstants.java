@@ -55,6 +55,7 @@ public class UrlConstants {
     public static final String ABOUT_URL = "chrome://about/";
 
     public static final String NTP_HOST = "newtab";
+    public static final String NEW_TAB_PAGE_HOST = "new-tab-page";
     public static final String NTP_ABOUT_URL = "about:newtab";
 
     // Don't use this URL. The constant is added for legacy reasons.
@@ -74,10 +75,7 @@ public class UrlConstants {
     public static final String GRID_TAB_SWITCHER_URL = "chrome-native://gts/";
 
     public static final String HISTORY_HOST = "history";
-
-    public static final String CONTEXTUAL_TASKS_HOST = "contextual-tasks-page";
-    public static final String CONTEXTUAL_TASKS_WEBUI_HOST = "contextual-tasks";
-    public static final String CONTEXTUAL_TASKS_URL = "chrome-native://contextual-tasks-page/";
+    public static final String SETTINGS_HOST = "settings";
 
     public static final String LAUNCHPAD_HOST = "apps";
     public static final String LAUNCHPAD_URL = "chrome://apps/";
@@ -133,6 +131,7 @@ public class UrlConstants {
     public static final String CHROME_DINO_URL = "chrome://dino/";
 
     public static final String CHROME_EXTENSIONS_URL = "chrome://extensions/";
+    public static final String CHROME_EXTENSIONS_ID_URL = "chrome://extensions/?id=";
     public static final String CHROME_WEBSTORE_URL = "https://chromewebstore.google.com/";
 
     public static final String LOCALHOST = "localhost";

@@ -1,0 +1,16 @@
+# Copyright (c) 2026 Vivaldi Technologies AS. All rights reserved
+
+source_set("vivaldi_policy_handlers") {
+  sources = [
+    "vivaldi_policy_handlers.cc",
+    "vivaldi_policy_handlers.h",
+  ]
+  deps = [
+    "//base",
+    "//components/policy:generated",
+    "//components/policy/core/browser",
+    "//components/policy/core/common",
+    "//components/prefs",
+    "//vivaldi/prefs:prefs_files_generator",
+  ]
+}

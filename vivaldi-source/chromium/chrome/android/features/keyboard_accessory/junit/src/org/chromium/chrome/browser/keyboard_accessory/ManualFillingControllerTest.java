@@ -49,6 +49,7 @@ import static org.chromium.chrome.browser.tab.TabSelectionType.FROM_NEW;
 import static org.chromium.chrome.browser.tab.TabSelectionType.FROM_USER;
 
 import android.content.res.Configuration;
+import android.content.res.Resources;
 import android.graphics.RectF;
 import android.view.Surface;
 import android.view.View;
@@ -110,6 +111,7 @@ import org.chromium.components.embedder_support.view.ContentView;
 import org.chromium.content_public.browser.Visibility;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.test.mock.MockWebContents;
+import org.chromium.ui.base.ActivityKeyboardVisibilityDelegate;
 import org.chromium.ui.base.ApplicationViewportInsetTracker;
 import org.chromium.ui.base.DeviceInput;
 import org.chromium.ui.display.DisplayAndroid;
@@ -128,7 +130,6 @@ import java.util.concurrent.atomic.AtomicReference;
 @Features.EnableFeatures({
     ChromeFeatureList.AUTOFILL_ANDROID_DESKTOP_SUPPRESS_ACCESSORY_ON_EMPTY,
     ChromeFeatureList.AUTOFILL_ANDROID_DESKTOP_KEYBOARD_ACCESSORY_REVAMP,
-    ChromeFeatureList.AUTOFILL_ENABLE_KEYBOARD_ACCESSORY_CHIP_REDESIGN,
     ChromeFeatureList.AUTOFILL_ANDROID_KEYBOARD_ACCESSORY_DYNAMIC_POSITIONING
 })
 public class ManualFillingControllerTest {
@@ -148,18 +149,20 @@ public class ManualFillingControllerTest {
     @Mock private Profile.Natives mProfileJniMock;
     @Mock private ContentView mMockContentView;
     @Mock private TabModelSelector mMockTabModelSelector;
-    @Mock private android.content.res.Resources mMockResources;
+    @Mock private Resources mMockResources;
     @Mock private KeyboardAccessoryCoordinator mMockKeyboardAccessory;
     @Mock private AccessorySheetCoordinator mMockAccessorySheet;
     @Mock private CompositorViewHolder mMockCompositorViewHolder;
     @Mock private BottomSheetController mMockBottomSheetController;
     @Mock private ManualFillingComponent.SoftKeyboardDelegate mMockSoftKeyboardDelegate;
+    @Mock private ActivityKeyboardVisibilityDelegate mMockKeyboardDelegate;
     @Mock private FullscreenManager mMockFullscreenManager;
     @Mock private InsetObserver mInsetObserver;
     @Mock private BackPressManager mMockBackPressManager;
     @Mock private EdgeToEdgeController mMockEdgeToEdgeController;
     @Mock private MultiWindowModeStateDispatcher mMockMultiWindowModeStateDispatcher;
     @Mock private BrowserControlsManager mMockBrowserControlsManager;
+    @Mock private Runnable mMockAtMemoryCallback;
 
     private final ManualFillingCoordinator mController = new ManualFillingCoordinator();
     private final ManualFillingMediator mMediator = mController.getMediatorForTesting();
@@ -352,6 +355,8 @@ public class ManualFillingControllerTest {
         ProfileJni.setInstanceForTesting(mProfileJniMock);
         when(mProfileJniMock.fromWebContents(any())).thenReturn(mMockProfile);
 
+        when(mMockWindow.getKeyboardDelegate()).thenReturn(mMockKeyboardDelegate);
+        when(mMockKeyboardDelegate.isKeyboardShowing(any())).thenReturn(false);
         when(mMockWindow.getInsetObserver()).thenReturn(mInsetObserver);
         simulateLayoutSizeChange(
                 2.f, 80, 128, /* keyboardShown= */ false, VirtualKeyboardMode.RESIZES_VISUAL);
@@ -361,6 +366,7 @@ public class ManualFillingControllerTest {
         when(mMockResources.getDimensionPixelSize(
                         R.dimen.keyboard_accessory_bar_dynamic_positioning_max_width))
                 .thenReturn(sDynamicPositioningMaxWidthPx);
+        DeviceInput.setSupportsAlphabeticKeyboardForTesting(null);
         doNothing()
                 .when(mMockBackPressManager)
                 .addHandler(any(), eq(BackPressHandler.Type.MANUAL_FILLING));
@@ -376,6 +382,42 @@ public class ManualFillingControllerTest {
                 mMockEdgeToEdgeControllerSupplier,
                 mMockSoftKeyboardDelegate,
                 mMockBrowserControlsManager);
+    }
+
+    @Test
+    public void testSetsAtMemoryCallback() {
+        mController.setAtMemoryCallback(mMockAtMemoryCallback);
+        verify(mMockKeyboardAccessory).setAtMemoryCallback(mMockAtMemoryCallback);
+    }
+
+    @Test
+    public void testIsAccessoryRequestedSupplierUpdatesCorrectly() {
+        addBrowserTab(mMediator, 1111, null);
+
+        // Initial state: both keyboard and SHOW_WHEN_VISIBLE are false
+        assertFalse(mController.getIsAccessoryRequestedSupplier().get());
+
+        // 1. Set SHOW_WHEN_VISIBLE = true, but keyboard is still closed
+        mModel.set(SHOW_WHEN_VISIBLE, true);
+        assertFalse(mController.getIsAccessoryRequestedSupplier().get());
+
+        // 2. Open the keyboard: supplier must become true!
+        when(mMockSoftKeyboardDelegate.isSoftKeyboardShowing(any())).thenReturn(true);
+        when(mMockKeyboardDelegate.isKeyboardShowing(any())).thenReturn(true);
+        simulateLayoutSizeChange(
+                2.f, 180, 128, /* keyboardShown= */ true, VirtualKeyboardMode.RESIZES_VISUAL);
+        assertTrue(mController.getIsAccessoryRequestedSupplier().get());
+
+        // 3. Close the keyboard: supplier must become false!
+        when(mMockSoftKeyboardDelegate.isSoftKeyboardShowing(any())).thenReturn(false);
+        when(mMockKeyboardDelegate.isKeyboardShowing(any())).thenReturn(false);
+        simulateLayoutSizeChange(
+                2.f, 180, 128, /* keyboardShown= */ false, VirtualKeyboardMode.RESIZES_VISUAL);
+        assertFalse(mController.getIsAccessoryRequestedSupplier().get());
+
+        // 4. Set SHOW_WHEN_VISIBLE = false while keyboard is closed: remains false
+        mModel.set(SHOW_WHEN_VISIBLE, false);
+        assertFalse(mController.getIsAccessoryRequestedSupplier().get());
     }
 
     @Test
@@ -1530,7 +1572,7 @@ public class ManualFillingControllerTest {
         simulateVisibleViewportSize(/* width= */ 1000, /* height= */ 1000);
         mController.setFieldBounds(new RectF(leftBound, topBound, rightBound, bottomBound));
 
-        when(mMockResources.getDimensionPixelSize(R.dimen.keyboard_accessory_height_redesign))
+        when(mMockResources.getDimensionPixelSize(R.dimen.keyboard_accessory_height))
                 .thenReturn(barHeight);
         when(mMockResources.getDimensionPixelSize(R.dimen.keyboard_accessory_notch_height))
                 .thenReturn(paddingForNotch);
@@ -1573,7 +1615,7 @@ public class ManualFillingControllerTest {
         simulateVisibleViewportSize(/* width= */ 1000, /* height= */ 90);
         mController.setFieldBounds(new RectF(leftBound, topBound, rightBound, bottomBound));
 
-        when(mMockResources.getDimensionPixelSize(R.dimen.keyboard_accessory_height_redesign))
+        when(mMockResources.getDimensionPixelSize(R.dimen.keyboard_accessory_height))
                 .thenReturn(barHeight);
         when(mMockResources.getDimensionPixelSize(R.dimen.keyboard_accessory_notch_height))
                 .thenReturn(paddingForNotch);
@@ -1885,10 +1927,9 @@ public class ManualFillingControllerTest {
         // Return the correct keyboard_accessory_height for the current density:
         when(mMockResources.getDimensionPixelSize(R.dimen.keyboard_accessory_suggestion_height))
                 .thenReturn((int) (density * 48));
-        when(mMockResources.getDimensionPixelSize(R.dimen.keyboard_accessory_height_redesign))
+        when(mMockResources.getDimensionPixelSize(R.dimen.keyboard_accessory_height))
                 .thenReturn((int) (density * 48));
-        when(mMockResources.getDimensionPixelSize(
-                        R.dimen.keyboard_accessory_height_with_shadow_redesign))
+        when(mMockResources.getDimensionPixelSize(R.dimen.keyboard_accessory_height_with_shadow))
                 .thenReturn((int) (density * 48));
     }
 

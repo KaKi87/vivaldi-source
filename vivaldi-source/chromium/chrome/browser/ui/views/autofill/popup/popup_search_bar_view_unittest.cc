@@ -15,6 +15,8 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/events/test/event_generator.h"
 #include "ui/events/types/event_type.h"
+#include "ui/views/controls/image_view.h"
+#include "ui/views/controls/throbber.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_utils.h"
 
@@ -177,6 +179,95 @@ TEST_F(PopupSearchBarViewTest, ClearButton) {
 
   generator().MoveMouseTo(view->GetClearButtonScreenCenterPointForTesting());
   generator().ClickLeftButton();
+  task_environment()->FastForwardBy(
+      PopupSearchBarView::kInputChangeCallbackDelay);
+}
+
+TEST_F(PopupSearchBarViewTest, ClearButtonVisibility) {
+  PopupSearchBarView* view = widget().SetContentsView(
+      std::make_unique<PopupSearchBarView>(u"placeholder", delegate()));
+  widget().Show();
+
+  EXPECT_FALSE(view->IsClearButtonVisibleForTesting());
+
+  view->SetInputTextForTesting(u"a");
+  EXPECT_TRUE(view->IsClearButtonVisibleForTesting());
+
+  view->SetInputTextForTesting(u"");
+  EXPECT_FALSE(view->IsClearButtonVisibleForTesting());
+}
+
+TEST_F(PopupSearchBarViewTest, IndicatorVisibility_Enabled) {
+  PopupSearchBarView* view =
+      widget().SetContentsView(std::make_unique<PopupSearchBarView>(
+          u"placeholder", delegate(), /*show_indicator=*/true));
+  widget().Show();
+
+  EXPECT_TRUE(view->IsIndicatorVisibleForTesting());
+
+  view->SetInputTextForTesting(u"a");
+  EXPECT_FALSE(view->IsIndicatorVisibleForTesting());
+
+  view->SetInputTextForTesting(u"");
+  EXPECT_TRUE(view->IsIndicatorVisibleForTesting());
+}
+
+TEST_F(PopupSearchBarViewTest, IndicatorVisibility_Disabled) {
+  PopupSearchBarView* view =
+      widget().SetContentsView(std::make_unique<PopupSearchBarView>(
+          u"placeholder", delegate(), /*show_indicator=*/false));
+  widget().Show();
+
+  EXPECT_FALSE(view->IsIndicatorVisibleForTesting());
+
+  view->SetInputTextForTesting(u"a");
+  EXPECT_FALSE(view->IsIndicatorVisibleForTesting());
+
+  view->SetInputTextForTesting(u"");
+  EXPECT_FALSE(view->IsIndicatorVisibleForTesting());
+}
+
+TEST_F(PopupSearchBarViewTest, SetLoading) {
+  PopupSearchBarView* view = widget().SetContentsView(
+      std::make_unique<PopupSearchBarView>(u"placeholder", delegate()));
+  widget().Show();
+
+  view->SetLoading(true);
+  EXPECT_TRUE(view->GetThrobberForTesting()->GetVisible());
+  EXPECT_FALSE(view->GetSearchIconForTesting()->GetVisible());
+
+  view->SetLoading(false);
+  EXPECT_FALSE(view->GetThrobberForTesting()->GetVisible());
+  EXPECT_TRUE(view->GetSearchIconForTesting()->GetVisible());
+}
+
+// Tests that pressing the Enter (VKEY_RETURN) key synchronously stops the
+// debounced input changed timer, preventing any trailing incremental queries
+// from executing after a full search is submitted.
+TEST_F(PopupSearchBarViewTest, PressingEnterStopsInputChangedTimer) {
+  std::unique_ptr<PopupSearchBarView> view =
+      std::make_unique<PopupSearchBarView>(u"placeholder", delegate());
+
+  // We expect the Enter key to be passed to the delegate, and we return true.
+  EXPECT_CALL(delegate(), SearchBarHandleKeyPressed)
+      .WillOnce([](const ui::KeyEvent& event) {
+        return event.key_code() == ui::VKEY_RETURN;
+      });
+
+  // Because Enter stops the timer, SearchBarOnInputChanged should never be
+  // called.
+  EXPECT_CALL(delegate(), SearchBarOnInputChanged).Times(0);
+
+  // Set input text, starting the debouncing timer.
+  view->SetInputTextForTesting(u"input text");
+
+  // Simulate pressing Enter by invoking the key event handler on the view.
+  ui::KeyEvent key_event(ui::EventType::kKeyPressed, ui::VKEY_RETURN,
+                         ui::EF_NONE);
+  view->HandleKeyEvent(nullptr, key_event);
+
+  // Fast forward by the full delay, and verify that the callback was not
+  // called.
   task_environment()->FastForwardBy(
       PopupSearchBarView::kInputChangeCallbackDelay);
 }

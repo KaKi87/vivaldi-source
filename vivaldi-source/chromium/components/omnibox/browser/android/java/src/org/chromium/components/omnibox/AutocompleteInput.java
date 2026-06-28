@@ -8,6 +8,7 @@ import android.text.TextUtils;
 import android.util.Range;
 
 import androidx.annotation.IntDef;
+import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.UserData;
 import org.chromium.base.supplier.NonNullObservableSupplier;
@@ -57,14 +58,55 @@ public class AutocompleteInput implements UserData {
         int COUNT = 4;
     }
 
+    @IntDef({
+        AutocompleteState.DISABLED,
+        AutocompleteState.STANDBY,
+        AutocompleteState.ENABLED,
+        AutocompleteState.STANDBY_NO_FOCUS
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface AutocompleteState {
+        /** Fully disabled autocompletion. */
+        int DISABLED = 0;
+
+        /** Autocompletion disabled until user starts typing. */
+        int STANDBY = 1;
+
+        /** Fully enabled autocompletion, including zero-state suggestions. */
+        int ENABLED = 2;
+
+        /** Autocompletion disabled until user starts typing, and does not focus edittext. */
+        int STANDBY_NO_FOCUS = 3;
+    }
+
     /** Data class representing the active site search mode state in the Omnibox. */
     public static class SiteSearchData {
         public final String keyword;
         public final String fullName;
+        public final boolean enteredViaSpace;
 
         public SiteSearchData(String keyword, String fullName) {
+            this(keyword, fullName, false);
+        }
+
+        public SiteSearchData(String keyword, String fullName, boolean enteredViaSpace) {
             this.keyword = keyword;
             this.fullName = fullName;
+            this.enteredViaSpace = enteredViaSpace;
+        }
+
+        @Override
+        public boolean equals(@Nullable Object o) {
+            if (this == o) return true;
+            if (!(o instanceof SiteSearchData that)) return false;
+            return enteredViaSpace == that.enteredViaSpace
+                    && Objects.equals(keyword, that.keyword)
+                    && Objects.equals(fullName, that.fullName);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(keyword, fullName, enteredViaSpace);
         }
     }
 
@@ -75,7 +117,7 @@ public class AutocompleteInput implements UserData {
     private String mPageTitle;
     private boolean mAllowExactKeywordMatch;
     private boolean mHasAttachments;
-    private boolean mSuppressAutomaticSuggestionsUntilUserStartsTyping;
+    private @AutocompleteState int mAutocompleteState = AutocompleteState.ENABLED;
     private Range<Integer> mSelection;
     private @RefineActionUsage int mRefineActionUsage;
     private boolean mSuggestionsListScrolled;
@@ -85,6 +127,7 @@ public class AutocompleteInput implements UserData {
     private String mInitialUserText = "";
     private final SettableNonNullObservableSupplier<String> mUserText =
             ObservableSuppliers.createNonNull("");
+    private @Nullable String mPreviewText;
     private final SettableNonNullObservableSupplier<Boolean> mAllowUserTextAutocompletion =
             ObservableSuppliers.createNonNull(true);
     private final SettableNonNullObservableSupplier<@AutocompleteRequestType Integer>
@@ -124,14 +167,14 @@ public class AutocompleteInput implements UserData {
         mPageTitle = other.mPageTitle;
         mAllowExactKeywordMatch = other.mAllowExactKeywordMatch;
         mHasAttachments = other.mHasAttachments;
-        mSuppressAutomaticSuggestionsUntilUserStartsTyping =
-                other.mSuppressAutomaticSuggestionsUntilUserStartsTyping;
+        mAutocompleteState = other.mAutocompleteState;
         mSelection = other.mSelection;
         mRefineActionUsage = other.mRefineActionUsage;
         mSuggestionsListScrolled = other.mSuggestionsListScrolled;
         mFocusReason = other.mFocusReason;
         mModelMode = other.mModelMode;
         mUserText.set(other.mUserText.get());
+        mPreviewText = other.mPreviewText;
         mAllowUserTextAutocompletion.set(other.mAllowUserTextAutocompletion.get());
         mInitialUserText = other.mInitialUserText;
         mRequestTypeSupplier.set(other.mRequestTypeSupplier.get());
@@ -147,6 +190,8 @@ public class AutocompleteInput implements UserData {
                     PageClassification.NTP_OMNIBOX_COMPOSEBOX_VALUE;
             case PageClassification.SEARCH_RESULT_PAGE_NO_SEARCH_TERM_REPLACEMENT_VALUE ->
                     PageClassification.SRP_OMNIBOX_COMPOSEBOX_VALUE;
+            case PageClassification.CO_BROWSING_COMPOSEBOX_VALUE ->
+                    PageClassification.CO_BROWSING_COMPOSEBOX_VALUE;
             case PageClassification.OTHER_VALUE ->
                     PageClassification.OTHER_OMNIBOX_COMPOSEBOX_VALUE;
             // LINT.ThenChange(/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/fusebox/FuseboxCoordinator.java:FuseboxSupportedPageClassifications)
@@ -291,19 +336,21 @@ public class AutocompleteInput implements UserData {
      * existing content of the UserText the selection markers and keyword matching flags are reset.
      * When new text matches the existing text no action is taken.
      *
-     * @param text The user-typed text. Null text is automatically replaced with empty string.
+     * @param text The user-typed text. Null text is automatically replaced with empty string. Note
+     *     that if the site search is triggered, the text will only contains the content after the
+     *     keyword and space.
      * @return The AutocompleteInput object.
      */
     public AutocompleteInput setUserText(@Nullable String text) {
         if (text == null) text = "";
 
+        mPreviewText = null;
+
         String oldText = mUserText.get();
         if (TextUtils.equals(text, oldText)) return this;
 
-        boolean oldTextUsesKeywordActivator =
-                !TextUtils.isEmpty(oldText) && TextUtils.indexOf(oldText, ' ') > 0;
-        boolean newTextUsesKeywordActivator =
-                !TextUtils.isEmpty(text) && TextUtils.indexOf(text, ' ') > 0;
+        boolean oldTextUsesKeywordActivator = allowExactKeywordTrigger(oldText);
+        boolean newTextUsesKeywordActivator = allowExactKeywordTrigger(text);
 
         if (!BuildConfig.IS_VIVALDI) { // ref. VAB-12083
         // Allow engaging Keyword mode only if the user input introduces first space.
@@ -387,6 +434,46 @@ public class AutocompleteInput implements UserData {
         return mUserText;
     }
 
+    /**
+     * Sets the preview text. If the preview text is empty or same as user text, it is reset to
+     * null.
+     *
+     * @param text The preview text.
+     * @return The AutocompleteInput object.
+     */
+    public AutocompleteInput setPreviewText(@Nullable String text) {
+        if (text == null || TextUtils.equals(mUserText.get(), text)) {
+            mPreviewText = null;
+        } else {
+            mPreviewText = text;
+        }
+        return this;
+    }
+
+    /** Returns the preview text if set, otherwise the user text. */
+    public String getPreviewText() {
+        return mPreviewText == null ? mUserText.get() : mPreviewText;
+    }
+
+    /** Returns whether there is an active preview text. */
+    public boolean hasPreviewText() {
+        return mPreviewText != null;
+    }
+
+    /** Resets the preview text. */
+    public AutocompleteInput resetPreviewText() {
+        return setPreviewText(null);
+    }
+
+    /** Commits the preview text as the user text. */
+    public AutocompleteInput commitPreviewText() {
+        if (hasPreviewText()) {
+            String textToCommit = mPreviewText;
+            setUserText(textToCommit);
+        }
+        return this;
+    }
+
     /** Sets whether user text should be autocompleted. */
     public AutocompleteInput setAllowUserTextAutocompletion(boolean shouldAllow) {
         mAllowUserTextAutocompletion.set(shouldAllow);
@@ -405,8 +492,9 @@ public class AutocompleteInput implements UserData {
 
     /** Returns whether the current context includes user-typed text. */
     public boolean isInZeroPrefixContext() {
-        return TextUtils.isEmpty(mUserText.get())
-                || TextUtils.equals(mUserText.get(), mInitialUserText);
+        return getSiteSearchData() == null
+                && (TextUtils.isEmpty(mUserText.get())
+                        || TextUtils.equals(mUserText.get(), mInitialUserText));
     }
 
     /** Returns whether current context enables suggestions caching. */
@@ -474,12 +562,13 @@ public class AutocompleteInput implements UserData {
         mPageClassification = PageClassification.BLANK_VALUE;
         mFocusReason = OmniboxFocusReason.OMNIBOX_TAP;
         mUserText.set("");
+        mPreviewText = null;
         mAllowUserTextAutocompletion.set(true);
         mRequestTypeSupplier.set(AutocompleteRequestType.SEARCH);
         mSiteSearchData.set(null);
         mUrlFocusTime = 0;
         mSuggestionsListScrolled = false;
-        mSuppressAutomaticSuggestionsUntilUserStartsTyping = false;
+        mAutocompleteState = AutocompleteState.ENABLED;
 
         return this;
     }
@@ -502,22 +591,21 @@ public class AutocompleteInput implements UserData {
     }
 
     /**
-     * Returns whether automatic suggestions should be suppressed until user starts typing.
-     * Internally tracks and updates own state to reflect typing started.
+     * Returns the current {@link AutocompleteState}. Internally tracks and updates own state to
+     * reflect typing started.
      */
-    public boolean shouldSuppressAutomaticSuggestionsUntilUserStartsTyping() {
-        // Update own state. If user text diverged, we no longer want to suppress suggestions,
-        // even if the user reverts the text to its initial state.
-        mSuppressAutomaticSuggestionsUntilUserStartsTyping =
-                mSuppressAutomaticSuggestionsUntilUserStartsTyping
-                        && TextUtils.equals(mUserText.get(), mInitialUserText);
-
-        return mSuppressAutomaticSuggestionsUntilUserStartsTyping;
+    public @AutocompleteState int getAutocompleteState() {
+        if ((mAutocompleteState == AutocompleteState.STANDBY
+                        || mAutocompleteState == AutocompleteState.STANDBY_NO_FOCUS)
+                && !TextUtils.equals(mUserText.get(), mInitialUserText)) {
+            mAutocompleteState = AutocompleteState.ENABLED;
+        }
+        return mAutocompleteState;
     }
 
-    public AutocompleteInput setSuppressAutomaticSuggestionsUntilUserStartsTyping(
-            boolean suppress) {
-        mSuppressAutomaticSuggestionsUntilUserStartsTyping = suppress;
+    /** Sets the {@link AutocompleteState}. */
+    public AutocompleteInput setAutocompleteState(@AutocompleteState int state) {
+        mAutocompleteState = state;
         return this;
     }
 
@@ -529,5 +617,18 @@ public class AutocompleteInput implements UserData {
     /** Sets the ModelMode that should be used. */
     public void setModelMode(int modelMode) {
         mModelMode = modelMode;
+    }
+
+    @VisibleForTesting
+    static boolean allowExactKeywordTrigger(String text) {
+        if (TextUtils.isEmpty(text)) return false;
+        // Given test should at least contains keyword + space to allow keyword match.
+        if (text.length() <= 1 || !text.endsWith(" ")) return false;
+
+        // Checks if there is exactly one space in the input.  If a user triggers site search
+        // (e.g. "yahoo "), then deletes the chip via <backspace> and continues typing a multi-word
+        // query ("yahoo some query"), we must prevent the first word from falsely re-triggering the
+        // keyword match.
+        return text.indexOf(' ') == text.lastIndexOf(' ');
     }
 }

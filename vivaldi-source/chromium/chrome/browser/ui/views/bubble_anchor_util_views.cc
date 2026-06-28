@@ -12,6 +12,8 @@
 #include "chrome/browser/ui/views/frame/picture_in_picture_browser_frame_view.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/permissions/chip/permission_chip_view.h"
+#include "chrome/browser/ui/views/permissions/chip/permission_dashboard_view.h"
+#include "chrome/browser/ui/views/toolbar/app_menu_control.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "components/content_settings/core/common/features.h"
 #include "ui/base/interaction/element_highlighter.h"
@@ -28,8 +30,9 @@
 
 namespace bubble_anchor_util {
 
-AnchorConfiguration GetPageInfoAnchorConfiguration(Browser* browser,
-                                                   Anchor anchor) {
+AnchorConfiguration GetPageInfoAnchorConfiguration(
+    BrowserWindowInterface* browser,
+    Anchor anchor) {
   BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
 
   if (!browser_view) // Vivaldi
@@ -42,51 +45,72 @@ AnchorConfiguration GetPageInfoAnchorConfiguration(Browser* browser,
           content_settings::features::kLeftHandSideActivityIndicators) &&
       location_bar_view) {
     auto* permission_dashboard_view =
-        location_bar_view->permission_dashboard_controller()
-            ->permission_dashboard_view();
+        location_bar_view->permission_dashboard_view();
 
     if (anchor == Anchor::kLocationBar &&
         permission_dashboard_view->GetVisible()) {
       if (permission_dashboard_view->GetIndicatorChip()->GetVisible()) {
-        return {permission_dashboard_view->GetIndicatorChip(),
-                PermissionChipView::kIndicatorChipElementId,
-                views::BubbleBorder::TOP_LEFT};
+        return {
+            views::BubbleAnchor(permission_dashboard_view->GetIndicatorChip()),
+            PermissionChipView::kIndicatorChipElementId,
+            views::BubbleBorder::TOP_LEFT};
       }
 
-      return {permission_dashboard_view->GetRequestChip(),
+      return {views::BubbleAnchor(permission_dashboard_view->GetRequestChip()),
               PermissionChipView::kPermissionRequestChipElementId,
               views::BubbleBorder::TOP_LEFT};
     }
   } else {
-    auto chip_anchor = browser->window()->GetLocationBar()->GetChipAnchor();
+    auto chip_anchor = browser->GetBrowserForMigrationOnly()
+                           ->window()
+                           ->GetLocationBar()
+                           ->GetChipAnchor();
     if (anchor == Anchor::kLocationBar && chip_anchor) {
       return *chip_anchor;
     }
   }
 
-  if (anchor == Anchor::kLocationBar && location_bar_view->IsDrawn()) {
-    return {location_bar_view, kLocationIconElementId,
-            views::BubbleBorder::TOP_LEFT};
+  if (anchor == Anchor::kLocationBar) {
+    LocationBar* location_bar =
+        browser_view ? browser_view->GetLocationBar() : nullptr;
+    if (location_bar && location_bar->IsDrawn()) {
+      if (ui::TrackedElement* element = location_bar->GetAnchorOrNull()) {
+        return {views::BubbleAnchor(element), kLocationIconElementId,
+                views::BubbleBorder::TOP_LEFT};
+      }
+    }
   }
 
   if (anchor == Anchor::kLocationBar &&
       browser_view->GetIsPictureInPictureType()) {
     auto* frame_view = static_cast<PictureInPictureBrowserFrameView*>(
         browser_view->browser_widget()->GetFrameView());
-    return {frame_view->GetLocationIconView(), kLocationIconElementId,
-            views::BubbleBorder::TOP_LEFT};
+    return {views::BubbleAnchor(frame_view->GetLocationIconView()),
+            kLocationIconElementId, views::BubbleBorder::TOP_LEFT};
   }
 
   if (anchor == Anchor::kCustomTabBar &&
       browser_view->toolbar()->custom_tab_bar()) {
-    return {browser_view->toolbar()->custom_tab_bar(), kLocationIconElementId,
-            views::BubbleBorder::TOP_LEFT};
+    return {views::BubbleAnchor(browser_view->toolbar()->custom_tab_bar()),
+            kLocationIconElementId, views::BubbleBorder::TOP_LEFT};
   }
 
   // Fall back to menu button.
-  views::Button* app_menu_button =
-      browser_view->toolbar_button_provider()->GetAppMenuButton();
-  if (!app_menu_button || !app_menu_button->IsDrawn()) {
+  auto* app_menu_control =
+      browser_view->toolbar_button_provider()->GetAppMenuControl();
+
+  // If the anchor is a physical View (like the button), it must be visible on
+  // screen. If it's hidden (e.g. during fullscreen), return empty so the
+  // bubble falls back to a default corner position instead of floating at
+  // (0,0).
+  if (!app_menu_control || !app_menu_control->IsDrawn()) {
+    return {};
+  }
+
+  views::BubbleAnchor app_menu_anchor = app_menu_control->GetAnchor();
+
+  // If the anchor is explicitly null, we can't anchor to it.
+  if (app_menu_anchor.IsNull()) {
     return {};
   }
 
@@ -97,7 +121,7 @@ AnchorConfiguration GetPageInfoAnchorConfiguration(Browser* browser,
     return {};
   }
 
-  return {app_menu_button, kToolbarAppMenuButtonElementId,
+  return {app_menu_anchor, kToolbarAppMenuButtonElementId,
           views::BubbleBorder::TOP_RIGHT};
 }
 
@@ -111,12 +135,8 @@ AnchorConfiguration GetPermissionPromptBubbleAnchorConfiguration(
       browser_view->GetLocationBar()
           ->GetChipController()
           ->IsPermissionPromptChipVisible()) {
-    ui::TrackedElement* tracked_element =
-        browser_view->GetLocationBar()->GetAnchorOrNull();
-    if (tracked_element) {
-      return {tracked_element,
-              PermissionChipView::kPermissionRequestChipElementId,
-              views::BubbleBorder::TOP_LEFT};
+    if (auto chip_anchor = browser_view->GetLocationBar()->GetChipAnchor()) {
+      return *chip_anchor;
     }
   }
   return GetPageInfoAnchorConfiguration(browser);
@@ -126,19 +146,18 @@ AnchorConfiguration GetAppMenuAnchorConfiguration(Browser* browser) {
   return GetPageInfoAnchorConfiguration(browser, Anchor::kAppMenuButton);
 }
 
-gfx::Rect GetPageInfoAnchorRect(Browser* browser) {
+gfx::Rect GetPageInfoAnchorRect(BrowserWindowInterface* browser) {
   // GetPageInfoAnchorConfiguration()'s anchor should be preferred if
   // available.
-  DCHECK(std::holds_alternative<std::nullptr_t>(
-      GetPageInfoAnchorConfiguration(browser).anchor));
+  DCHECK(GetPageInfoAnchorConfiguration(browser).anchor.IsNull());
 
   if (browser->is_vivaldi()) {
     extensions::VivaldiUtilitiesAPI* api =
         extensions::VivaldiUtilitiesAPI::GetFactoryInstance()->Get(
-            browser->profile());
+            browser->GetProfile());
 
     std::string flow_direction;
-    gfx::Rect rect(api->GetDialogPosition(browser->session_id().id(),
+    gfx::Rect rect(api->GetDialogPosition(browser->GetSessionID().id(),
                                           "permission", &flow_direction));
 
     // Adjust rect to urlbar on top/bottom.
@@ -146,7 +165,7 @@ gfx::Rect GetPageInfoAnchorRect(Browser* browser) {
         flow_direction == "down" ? rect.bottom_right() : rect.top_right();
 
     VivaldiBrowserWindow* vivaldi_browser_window =
-        static_cast<VivaldiBrowserWindow*>(browser->window());
+        static_cast<VivaldiBrowserWindow*>(browser->GetWindow());
     views::View* contents_view = vivaldi_browser_window->GetContentsView();
 
     views::View::ConvertPointToScreen(contents_view, &pos);
@@ -170,11 +189,11 @@ gfx::Rect GetPageInfoAnchorRect(Browser* browser) {
 
 // Returns true if the given anchor can be used as a highlight.
 bool IsHighlightable(views::BubbleAnchor anchor) {
-  if (auto* view_anchor = std::get_if<views::View*>(&anchor)) {
-    return views::Button::AsButton(*view_anchor);
-  } else if (auto* element_anchor = std::get_if<ui::TrackedElement*>(&anchor)) {
+  if (views::View* view_anchor = anchor.GetIfView()) {
+    return views::Button::AsButton(view_anchor);
+  } else if (ui::TrackedElement* element_anchor = anchor.GetIfElement()) {
     return ui::ElementHighlighter::GetElementHighlighter()->CanBeHighlighted(
-        *element_anchor);
+        element_anchor);
   } else {
     // nullptr isn't highlightable.
     return false;

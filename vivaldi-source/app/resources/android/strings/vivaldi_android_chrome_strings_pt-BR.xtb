@@ -9,14 +9,12 @@
 <translation id="1598449788754183301">Alternar entre abas normais/privadas</translation>
 <translation id="1644574205037202324">Histórico</translation>
 <translation id="1829244130665387512">Encontrar na página</translation>
-<translation id="1910514478706885609">Abrir em nova pilha de abas</translation>
 <translation id="1925021887439448749">Digitar endereço web personalizado</translation>
 <translation id="2038563949887743358">Ativar "Ver versão para computador"</translation>
 <translation id="208033313373016095">Visualização do leitor para páginas da web</translation>
 <translation id="2149973817440762519">Editar favorito</translation>
 <translation id="2306442503286132111">Favorito salvo na pasta <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Aparência</translation>
-<translation id="2501278716633472235">Voltar</translation>
 <translation id="2546283357679194313">Cookies e dados do site</translation>
 <translation id="2633278372998075009">Abas privadas</translation>
 <translation id="2650751991977523696">Baixar o arquivo novamente?</translation>
@@ -43,7 +41,6 @@
 <translation id="3700829948786686853">Bem-vindo ao Vivaldi</translation>
 <translation id="3719826155360621982">Página Inicial</translation>
 <translation id="3738139272394829648">Tocar para pesquisar</translation>
-<translation id="385051799172605136">Voltar</translation>
 <translation id="3987993985790029246">Copiar link</translation>
 <translation id="399014816462153200">Artigos Lidos:</translation>
 <translation id="4121750346708795461">Ao utilizar este aplicativo, você concorda com o <ph name="BEGIN_LINK1" />Acordo de Licença de Usuário Final<ph name="END_LINK1" /> e com a <ph name="BEGIN_LINK2" />Política de Privacidade<ph name="END_LINK2" /> do Vivaldi.</translation>
@@ -63,7 +60,6 @@
 
 Tocar para Pesquisar é um recurso apenas disponível quando o Google é seu mecanismo de busca padrão no Vivaldi.</translation>
 <translation id="4759238208242260848">Baixados</translation>
-<translation id="4777866634702576038">Excluir grupo de abas?</translation>
 <translation id="4850886885716139402">Ver</translation>
 <translation id="4883379392681899581">Sair do modo privado</translation>
 <translation id="4943872375798546930">Nenhum resultado</translation>

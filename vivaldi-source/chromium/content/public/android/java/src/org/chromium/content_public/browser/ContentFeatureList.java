@@ -10,9 +10,14 @@ import org.chromium.base.MutableBooleanParamWithSafeDefault;
 import org.chromium.base.MutableFlagWithSafeDefault;
 import org.chromium.base.MutableIntParamWithSafeDefault;
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.components.cached_flags.CachedFeatureParam;
+import org.chromium.components.cached_flags.CachedFlag;
+import org.chromium.components.cached_flags.IntCachedFeatureParam;
 import org.chromium.content.common.ContentInternalFeatures;
 import org.chromium.content_public.common.ContentFeatures;
 import org.chromium.ui.accessibility.AccessibilityFeatures;
+
+import java.util.List;
 
 /** Convenience static methods to access {@link ContentFeatureMap}. */
 @NullMarked
@@ -60,15 +65,23 @@ public class ContentFeatureList {
     public static final String ANDROID_CARET_BROWSING = "AndroidCaretBrowsing";
 
     public static final String ANDROID_DEV_TOOLS_FRONTEND = "AndroidDevToolsFrontend";
+    public static final String ANDROID_FORCE_TEXT_INPUT_STATE_UPDATE_UPON_FOCUS =
+            "AndroidForceTextInputStateUpdateUponFocus";
 
     public static final String ANDROID_MEDIA_INSERTION = "AndroidMediaInsertion";
 
     public static final String ANDROID_PK_AUTOCORRECT_UNDERLINE = "AndroidPkAutocorrectUnderline";
 
+    public static final String ANDROID_PK_AUTOCORRECT_UNDERLINE_V2 =
+            "AndroidPkAutocorrectUnderlineV2";
+
     public static final String ANDROID_SPELLCHECK_FULL_API_BLINK = "AndroidSpellcheckFullApiBlink";
 
     public static final String ANDROID_BLOCK_MISSPELLING_SUGGESTION_SPAN_IN_COMPOSITION_MODE =
             "AndroidBlockMisspellingSuggestionSpanInCompositionMode";
+
+    public static final String ANDROID_BLOCK_GRAMMAR_SUGGESTION_SPAN_IN_COMPOSITION_MODE =
+            "AndroidBlockGrammarSuggestionSpanInCompositionMode";
 
     public static final String HIDE_PASTE_POPUP_ON_GSB = "HidePastePopupOnGSB";
 
@@ -89,6 +102,8 @@ public class ContentFeatureList {
 
     public static final String WEB_IDENTITY_DIGITAL_CREDENTIALS_CREATION =
             "WebIdentityDigitalCredentialsCreation";
+
+    public static final String TEXT_CLASSIFIER_TIMEOUT = "TextClassifierTimeout";
 
     public static final String DIPS_TTL = "DIPSTtl";
 
@@ -143,12 +158,6 @@ public class ContentFeatureList {
                     ContentInternalFeatures.STRICT_HIGH_RANK_PROCESS_LRU,
                     true);
 
-    public static final MutableFlagWithSafeDefault sRemoveCachedProcessFromBindingManager =
-            new MutableFlagWithSafeDefault(
-                    ContentFeatureMap.getInstance(),
-                    ContentInternalFeatures.REMOVE_CACHED_PROCESS_FROM_BINDING_MANAGER,
-                    false);
-
     public static final MutableFlagWithSafeDefault sSpareRendererProcessPriority =
             new MutableFlagWithSafeDefault(
                     ContentFeatureMap.getInstance(),
@@ -168,6 +177,15 @@ public class ContentFeatureList {
     public static final MutableBooleanParamWithSafeDefault sSpareRendererRemoveBindingNoTimeout =
             sSpareRendererProcessPriority.newBooleanParam("remove-binding-no-timeout", false);
 
+    public static final MutableFlagWithSafeDefault sTextClassifierTimeout =
+            new MutableFlagWithSafeDefault(
+                    ContentFeatureMap.getInstance(),
+                    ContentFeatures.TEXT_CLASSIFIER_TIMEOUT,
+                    false);
+
+    public static final MutableIntParamWithSafeDefault sTextClassifierTimeoutMs =
+            sTextClassifierTimeout.newIntParam("timeout_ms", 200);
+
     public static final MutableFlagWithSafeDefault sAndroidDesktopZoomScaling =
             new MutableFlagWithSafeDefault(
                     ContentFeatureMap.getInstance(),
@@ -179,4 +197,28 @@ public class ContentFeatureList {
 
     public static final MutableIntParamWithSafeDefault sAndroidMonitorZoomScalingFactor =
             sAndroidDesktopZoomScaling.newIntParam("monitor-zoom-scaling-factor", 100);
+
+    public static final CachedFlag sSandboxedProcessServiceLimitOnAndroid =
+            new CachedFlag(
+                    ContentFeatureMap.getInstance(),
+                    ContentInternalFeatures.SANDBOXED_PROCESS_SERVICE_LIMIT_ON_ANDROID,
+                    /* defaultValue= */ false,
+                    /* defaultValueInTests= */ true);
+
+    public static final IntCachedFeatureParam sSandboxedProcessServiceLimitOnAndroidCount =
+            new IntCachedFeatureParam(
+                    ContentFeatureMap.getInstance(),
+                    ContentInternalFeatures.SANDBOXED_PROCESS_SERVICE_LIMIT_ON_ANDROID,
+                    "count",
+                    98);
+
+    public static final List<CachedFlag> sCachedFlags =
+            List.of(sSandboxedProcessServiceLimitOnAndroid);
+
+    public static final List<CachedFeatureParam<?>> sParamsCached =
+            List.of(
+                    // keep-sorted start
+                    sSandboxedProcessServiceLimitOnAndroidCount
+                    // keep-sorted end
+                    );
 }

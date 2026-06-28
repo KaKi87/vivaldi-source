@@ -1,17 +1,20 @@
 #include <vector>
 
-#include "benchmark/benchmark.h"
+#include "benchmark/benchmark_api.h"
+#include "benchmark/managers.h"
+#include "benchmark/reporter.h"
+#include "benchmark/state.h"
 #include "gtest/gtest.h"
 
 namespace {
 
+using benchmark::Benchmark;
 using benchmark::ClearRegisteredBenchmarks;
 using benchmark::ConsoleReporter;
 using benchmark::MemoryManager;
 using benchmark::RegisterBenchmark;
 using benchmark::RunSpecifiedBenchmarks;
 using benchmark::State;
-using benchmark::internal::Benchmark;
 
 constexpr int N_REPETITIONS = 100;
 constexpr int N_ITERATIONS = 1;

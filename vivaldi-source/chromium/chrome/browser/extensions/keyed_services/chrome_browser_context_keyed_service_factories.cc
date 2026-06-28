@@ -7,6 +7,7 @@
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "chrome/browser/extensions/activity_log/activity_log.h"
+#include "chrome/browser/extensions/api/webstore_private/webstore_private_api.h"
 #include "chrome/browser/extensions/blocklist_factory.h"
 #include "chrome/browser/extensions/chrome_app_icon_service_factory.h"
 #include "chrome/browser/extensions/chrome_extension_cookies_factory.h"
@@ -26,12 +27,12 @@
 #include "chrome/browser/extensions/forced_extensions/install_stage_tracker_factory.h"
 #include "chrome/browser/extensions/install_tracker_factory.h"
 #include "chrome/browser/extensions/install_verifier_factory.h"
-#include "chrome/browser/extensions/manifest_v2_experiment_manager.h"
 #include "chrome/browser/extensions/menu_manager_factory.h"
 #include "chrome/browser/extensions/shared_module_service_factory.h"
 #include "chrome/browser/extensions/sync/account_extension_tracker.h"
 #include "chrome/browser/extensions/sync/extension_sync_service_factory.h"
 #include "chrome/browser/extensions/updater/extension_updater_factory.h"
+#include "extensions/browser/manifest_v2_experiment_manager.h"
 #include "extensions/browser/permissions/permissions_updater.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -78,6 +79,7 @@ void EnsureChromeBrowserContextKeyedServiceFactoriesBuilt() {
   extensions::MenuManagerFactory::GetInstance();
   extensions::PermissionsUpdater::EnsureAssociatedFactoryBuilt();
   extensions::SharedModuleServiceFactory::GetInstance();
+  extensions::WebstorePrivateApi::EnsureAssociatedFactoryBuilt();
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #if BUILDFLAG(ENABLE_PLUGINS)

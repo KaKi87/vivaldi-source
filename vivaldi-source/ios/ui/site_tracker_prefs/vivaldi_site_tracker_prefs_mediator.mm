@@ -98,7 +98,7 @@ bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
   }
 }
 
-- (void) dealloc {
+- (void)dealloc {
   [self disconnect];
 }
 

@@ -291,6 +291,18 @@ const NSUInteger kSearchCharacterLimit = 1000;
     didReceiveResponse:(NSURLResponse*)response
      completionHandler:(void (^)(NSURLSessionResponseDisposition disposition))
                            completionHandler {
+#if defined(VIVALDI_BUILD)
+  // VIB-1880: Handle image url instead of trying to handle the actual image
+  // Using #if def because IsVivaldiRunning does not work in the extensions
+  // The extension process is started by the OS so we have no control over the
+  // command line parameters that are used to define the IsVivaldi behaviour
+  __weak ExtendedShareViewController* weakSelf = self;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [weakSelf handleURL:dataTask.originalRequest.URL forItem:nil];
+  });
+  return;
+#else
+
   NSHTTPURLResponse* httpResponse =
       base::apple::ObjCCast<NSHTTPURLResponse>(response);
   NSString* mimeType = [httpResponse MIMEType];
@@ -318,6 +330,8 @@ const NSUInteger kSearchCharacterLimit = 1000;
       [weakSelf handleURL:dataTask.originalRequest.URL forItem:nil];
     });
   }
+
+#endif // VIVALDI_BUILD
 }
 
 - (void)URLSession:(NSURLSession*)session

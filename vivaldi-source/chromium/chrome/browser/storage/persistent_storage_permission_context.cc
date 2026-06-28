@@ -22,6 +22,7 @@
 #include "components/permissions/permission_prompt_decision.h"
 #include "components/permissions/permission_request_data.h"
 #include "components/permissions/permission_request_id.h"
+#include "components/permissions/resolvers/permission_resolver.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/child_process_security_policy.h"
 #include "content/public/browser/render_frame_host.h"
@@ -49,22 +50,27 @@ void PersistentStoragePermissionContext::DecidePermission(
     std::unique_ptr<permissions::PermissionRequestData> request_data,
     permissions::BrowserPermissionCallback callback) {
   DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
+#if DCHECK_IS_ON()
+  std::unique_ptr<permissions::PermissionResolver> resolver =
+      CreatePermissionResolver(/*permission_descriptor=*/nullptr);
   DCHECK_NE(PermissionStatus::GRANTED,
-            GetPermissionStatus(
-                *request_data->resolver, nullptr /* render_frame_host */,
-                request_data->requesting_origin, request_data->embedding_origin)
+            GetPermissionStatus(*resolver, /*render_frame_host=*/nullptr,
+                                request_data->requesting_origin,
+                                request_data->embedding_origin)
                 .status);
   DCHECK_NE(PermissionStatus::DENIED,
-            GetPermissionStatus(
-                *request_data->resolver, nullptr /* render_frame_host */,
-                request_data->requesting_origin, request_data->embedding_origin)
+            GetPermissionStatus(*resolver, /*render_frame_host=*/nullptr,
+                                request_data->requesting_origin,
+                                request_data->embedding_origin)
                 .status);
+#endif
 
   // Durable is only allowed to be granted to the top-level origin. Embedding
   // origin is the last committed navigation origin to the web contents.
   if (request_data->requesting_origin != request_data->embedding_origin) {
     NotifyPermissionSet(*request_data, std::move(callback),
                         /*persist=*/false,
+                        /*permission_result=*/nullptr,
                         permissions::PermissionPromptDecision{
                             .overall_decision = PermissionDecision::kNone,
                             .prompt_options = std::monostate(),
@@ -90,6 +96,7 @@ void PersistentStoragePermissionContext::DecidePermission(
           rfh->GetStorageKey().ToCookiePartitionKey())) {
     NotifyPermissionSet(*request_data, std::move(callback),
                         /*persist=*/false,
+                        /*permission_result=*/nullptr,
                         permissions::PermissionPromptDecision{
                             .overall_decision = PermissionDecision::kNone,
                             .prompt_options = std::monostate(),
@@ -112,6 +119,7 @@ void PersistentStoragePermissionContext::DecidePermission(
   if (installed_registerable_domains.contains(registerable_domain)) {
     NotifyPermissionSet(*request_data, std::move(callback),
                         /*persist=*/true,
+                        /*permission_result=*/nullptr,
                         permissions::PermissionPromptDecision{
                             .overall_decision = PermissionDecision::kAllow,
                             .prompt_options = std::monostate(),
@@ -130,6 +138,7 @@ void PersistentStoragePermissionContext::DecidePermission(
     if (important_site.registerable_domain == registerable_domain) {
       NotifyPermissionSet(*request_data, std::move(callback),
                           /*persist=*/true,
+                          /*permission_result=*/nullptr,
                           permissions::PermissionPromptDecision{
                               .overall_decision = PermissionDecision::kAllow,
                               .prompt_options = std::monostate(),
@@ -140,23 +149,26 @@ void PersistentStoragePermissionContext::DecidePermission(
 
   NotifyPermissionSet(*request_data, std::move(callback),
                       /*persist=*/false,
+                      /*permission_result=*/nullptr,
                       permissions::PermissionPromptDecision{
                           .overall_decision = PermissionDecision::kNone,
                           .prompt_options = std::monostate(),
                           .is_final = true});
 }
 
-void PersistentStoragePermissionContext::UpdateContentSetting(
+void PersistentStoragePermissionContext::UpdateSetting(
     const permissions::PermissionRequestData& request_data,
-    ContentSetting content_setting,
+    const PermissionSetting& setting,
     bool is_one_time) {
-  DCHECK(!is_one_time);
-  DCHECK_EQ(request_data.requesting_origin,
-            request_data.requesting_origin.DeprecatedGetOriginAsURL());
-  DCHECK_EQ(request_data.embedding_origin,
-            request_data.embedding_origin.DeprecatedGetOriginAsURL());
-  DCHECK(content_setting == CONTENT_SETTING_ALLOW ||
-         content_setting == CONTENT_SETTING_BLOCK);
+  CHECK(std::holds_alternative<ContentSetting>(setting));
+  ContentSetting content_setting = std::get<ContentSetting>(setting);
+  CHECK(!is_one_time);
+  CHECK_EQ(request_data.requesting_origin,
+           request_data.requesting_origin.DeprecatedGetOriginAsURL());
+  CHECK_EQ(request_data.embedding_origin,
+           request_data.embedding_origin.DeprecatedGetOriginAsURL());
+  CHECK(content_setting == CONTENT_SETTING_ALLOW ||
+        content_setting == CONTENT_SETTING_BLOCK);
 
   HostContentSettingsMapFactory::GetForProfile(browser_context())
       ->SetContentSettingDefaultScope(request_data.requesting_origin, GURL(),

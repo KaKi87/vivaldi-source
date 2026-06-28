@@ -10,9 +10,7 @@ source_set("cells") {
     "vivaldi_atb_source_setting_item.mm",
   ]
 
-  deps = [
-    "//ui/base",
-  ]
+  deps = [ "//ui/base" ]
 
   frameworks = [
     "Foundation.framework",

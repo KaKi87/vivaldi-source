@@ -35,7 +35,9 @@
 #include "content/browser/renderer_host/frame_token_message_queue.h"
 #include "content/browser/renderer_host/input/touch_emulator_impl.h"
 #include "content/browser/renderer_host/mock_render_widget_host.h"
+#include "content/browser/renderer_host/render_view_host_delegate.h"
 #include "content/browser/renderer_host/render_view_host_delegate_view.h"
+#include "content/browser/renderer_host/render_view_host_impl.h"
 #include "content/browser/renderer_host/render_widget_host_delegate.h"
 #include "content/browser/renderer_host/render_widget_host_view_base.h"
 #include "content/browser/renderer_host/visible_time_request_trigger.h"
@@ -555,6 +557,8 @@ class MockRenderWidgetHostOwnerDelegate
  public:
   MOCK_METHOD1(SetBackgroundOpaque, void(bool opaque));
   MOCK_METHOD0(IsMainFrameActive, bool());
+  MOCK_METHOD1(ZoomToFindInPageRect, void(const gfx::Rect&));
+  MOCK_METHOD2(AnimateDoubleTapZoom, void(const gfx::Point&, const gfx::Rect&));
 };
 
 // RenderWidgetHostTest --------------------------------------------------------
@@ -1732,6 +1736,41 @@ TEST_F(RenderWidgetHostTest, RawKeyDownShortcutEvent) {
             delegate_->unhandled_keyboard_event_type());
 }
 
+TEST_F(RenderWidgetHostTest, PreHandleRawKeyDownDoesNotSuppressOtherKeyKeyUp) {
+  // When the browser handles a RawKeyDown (e.g. Tab in Ctrl+Tab), keyup
+  // events for other keys (e.g. Ctrl) must not be suppressed.
+  delegate_->set_prehandle_keyboard_event(true);
+
+  // Simulate Tab RawKeyDown handled by the browser.
+  auto event = CreateNativeWebKeyboardEvent(WebInputEvent::Type::kRawKeyDown);
+  event.windows_key_code = ui::VKEY_TAB;
+  host_->ForwardKeyboardEvent(event);
+
+  EXPECT_TRUE(delegate_->prehandle_keyboard_event_called());
+  EXPECT_EQ(WebInputEvent::Type::kRawKeyDown,
+            delegate_->prehandle_keyboard_event_type());
+
+  // Tab RawKeyDown should not be sent to the renderer.
+  MockWidgetInputHandler::MessageVector dispatched_events =
+      host_->mock_render_input_router()->GetAndResetDispatchedMessages();
+  EXPECT_EQ(0u, dispatched_events.size());
+
+  // Disable handling for the Ctrl KeyUp so it is not handled by the delegate.
+  delegate_->set_prehandle_keyboard_event(false);
+
+  // Ctrl KeyUp for a different key must pass through.
+  event = CreateNativeWebKeyboardEvent(WebInputEvent::Type::kKeyUp);
+  event.windows_key_code = ui::VKEY_CONTROL;
+  host_->ForwardKeyboardEvent(event);
+
+  dispatched_events =
+      host_->mock_render_input_router()->GetAndResetDispatchedMessages();
+  ASSERT_EQ(1u, dispatched_events.size());
+  ASSERT_TRUE(dispatched_events[0]->ToEvent());
+  EXPECT_EQ(WebInputEvent::Type::kKeyUp,
+            dispatched_events[0]->ToEvent()->Event()->Event().GetType());
+}
+
 TEST_F(RenderWidgetHostTest, UnhandledWheelEvent) {
   SimulateWheelEvent(-5, 0, 0, true, WebMouseWheelEvent::kPhaseBegan);
 
@@ -2407,6 +2446,28 @@ TEST_F(RenderWidgetHostDragTest, FileUrlSpecifiesDownloadUrlWithFileUrl) {
   EXPECT_TRUE(drop_data().download_metadata.has_value());
 }
 
+TEST_F(RenderWidgetHostDragTest, SanitizeFilenameExtensionOnDrag) {
+  NavigateAndCommit(GURL("https://example.com"));
+  EXPECT_EQ(start_dragging_count(), 0);
+
+  auto drag_data = blink::mojom::DragData::New();
+  blink::mojom::DragItemBinaryPtr item = blink::mojom::DragItemBinary::New();
+  item->data = mojo_base::BigBuffer(std::vector<uint8_t>{1, 2, 3});
+  item->is_image_accessible = true;
+  item->source_url = GURL("http://example.com/image.png");
+  item->filename_extension =
+      base::FilePath(FILE_PATH_LITERAL("png/../../payload.so"));
+  drag_data->items.push_back(
+      blink::mojom::DragItem::NewBinary(std::move(item)));
+
+  StartDragWithDragData(std::move(drag_data));
+
+  EXPECT_EQ(start_dragging_count(), 1);
+  // BaseName() should strip the path traversal components.
+  EXPECT_EQ(drop_data().file_contents_filename_extension,
+            FILE_PATH_LITERAL("payload.so"));
+}
+
 // Hiding the RenderWidgetHostImpl instance via a call to WasHidden should
 // not reject a pending pointer lock, if the operation is waiting for the
 // user to make a selection on the permission prompt.
@@ -2703,6 +2764,68 @@ TEST_F(RenderWidgetHostTest, SetHungRendererDelayUpdatesTimeout) {
   // for Android and 15 seconds for others.
   host_->SetHungRendererDelay(base::Seconds(3));
   EXPECT_EQ(host_->GetHungRendererDelayForTesting(), base::Seconds(3));
+}
+
+TEST_F(RenderWidgetHostTest, ZoomToFindInPageRectBoundsCheck) {
+  view_->SetBounds(gfx::Rect(0, 0, 200, 200));
+
+  // Rect outside the view's bounds.
+  gfx::Rect out_of_bounds_rect(-10, -10, 5, 5);
+
+  // With the fix, it should return early because of bounds check.
+  // EXPECT_CALL ensures that ZoomToFindInPageRect is NOT called.
+  EXPECT_CALL(mock_owner_delegate_, ZoomToFindInPageRect(_)).Times(0);
+
+  static_cast<blink::mojom::FrameWidgetHost*>(host_.get())
+      ->ZoomToFindInPageRectInMainFrame(out_of_bounds_rect);
+}
+
+TEST_F(RenderWidgetHostTest, ZoomToFindInPageRectValidBounds) {
+  view_->SetBounds(gfx::Rect(0, 0, 200, 200));
+
+  // Rect inside the view's bounds.
+  gfx::Rect valid_rect(10, 10, 5, 5);
+
+  // This should proceed past the bounds check and call ZoomToFindInPageRect.
+  // The coordinates are relative to the view. Since this is the root view,
+  // they should not be transformed.
+  EXPECT_CALL(mock_owner_delegate_,
+              ZoomToFindInPageRect(gfx::Rect(10, 10, 5, 5)))
+      .Times(1);
+
+  static_cast<blink::mojom::FrameWidgetHost*>(host_.get())
+      ->ZoomToFindInPageRectInMainFrame(valid_rect);
+}
+
+TEST_F(RenderWidgetHostTest, AnimateDoubleTapZoomBoundsCheck) {
+  view_->SetBounds(gfx::Rect(0, 0, 200, 200));
+
+  // Rect outside the view's bounds.
+  gfx::Rect out_of_bounds_rect(-10, -10, 5, 5);
+  gfx::Point tap_point(10, 10);
+
+  // With the fix, it should return early because of bounds check.
+  // EXPECT_CALL ensures that AnimateDoubleTapZoom is NOT called.
+  EXPECT_CALL(mock_owner_delegate_, AnimateDoubleTapZoom(_, _)).Times(0);
+
+  static_cast<blink::mojom::FrameWidgetHost*>(host_.get())
+      ->AnimateDoubleTapZoomInMainFrame(tap_point, out_of_bounds_rect);
+}
+
+TEST_F(RenderWidgetHostTest, AnimateDoubleTapZoomValidBounds) {
+  view_->SetBounds(gfx::Rect(0, 0, 200, 200));
+
+  // Rect inside the view's bounds.
+  gfx::Rect valid_rect(10, 10, 5, 5);
+  gfx::Point tap_point(12, 12);
+
+  // This should proceed past the bounds check and call AnimateDoubleTapZoom.
+  EXPECT_CALL(mock_owner_delegate_,
+              AnimateDoubleTapZoom(gfx::Point(12, 12), gfx::Rect(10, 10, 5, 5)))
+      .Times(1);
+
+  static_cast<blink::mojom::FrameWidgetHost*>(host_.get())
+      ->AnimateDoubleTapZoomInMainFrame(tap_point, valid_rect);
 }
 
 }  // namespace content

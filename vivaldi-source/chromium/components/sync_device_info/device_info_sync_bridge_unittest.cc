@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <map>
+#include <optional>
 #include <set>
 #include <utility>
 
@@ -163,7 +164,20 @@ MATCHER_P(ModelEqualsSpecifics, expected_specifics, "") {
          SpecificsToPromoTypes(expected_specifics) ==
              arg.desktop_to_ios_promo_receiving_types() &&
          expected_specifics.invalidation_fields().instance_id_token() ==
-             arg.fcm_registration_token();
+             arg.fcm_registration_token(); // &&
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+         expected_specifics.feature_fields()
+                 .glic_experimental_triggering_state() ==
+             ToGlicExperimentalTriggeringStateProto(
+                 arg.glic_experimental_triggering_state()) &&
+         expected_specifics.feature_fields()
+                 .has_glic_experimental_triggering_version() ==
+             arg.glic_experimental_triggering_version().has_value() &&
+         (!arg.glic_experimental_triggering_version().has_value() ||
+          expected_specifics.feature_fields()
+                  .glic_experimental_triggering_version() ==
+              *arg.glic_experimental_triggering_version());
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 }
 
 Matcher<std::unique_ptr<EntityData>> HasSpecifics(
@@ -311,6 +325,10 @@ DeviceInfoSpecifics CreateSpecifics(
   specifics.mutable_feature_fields()->set_send_tab_to_self_receiving_type(
       sync_pb::
           SyncEnums_SendTabReceivingType_SEND_TAB_RECEIVING_TYPE_CHROME_OR_UNSPECIFIED);
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  specifics.mutable_feature_fields()->set_glic_experimental_triggering_state(
+      sync_pb::SyncEnums::READY);
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   specifics.mutable_sharing_fields()->set_sender_id_fcm_token_v2(
       SharingSenderIdFcmTokenForSuffix(suffix));
   specifics.mutable_sharing_fields()->set_chime_representative_target_id(
@@ -407,11 +425,24 @@ class TestLocalDeviceInfoProvider : public MutableLocalDeviceInfoProvider {
                   const DeviceInfo* device_info_restored_from_store) override {
     std::string last_fcm_registration_token;
     DataTypeSet last_interested_data_types;
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    DeviceInfo::GlicExperimentalTriggeringState
+        glic_experimental_triggering_state =
+            DeviceInfo::GlicExperimentalTriggeringState::kUnavailable;
+    std::optional<int> glic_experimental_triggering_version = std::nullopt;
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     if (device_info_restored_from_store) {
       last_fcm_registration_token =
           device_info_restored_from_store->fcm_registration_token();
       last_interested_data_types =
           device_info_restored_from_store->interested_data_types();
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+      glic_experimental_triggering_state =
+          device_info_restored_from_store->glic_experimental_triggering_state();
+      glic_experimental_triggering_version =
+          device_info_restored_from_store
+              ->glic_experimental_triggering_version();
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
     }
 
     std::set<DeviceInfo::SharingFeature> sharing_enabled_features{
@@ -436,7 +467,16 @@ class TestLocalDeviceInfoProvider : public MutableLocalDeviceInfoProvider {
         /*paask_info=*/std::nullopt, last_fcm_registration_token,
         last_interested_data_types,
         /*auto_sign_out_last_signin_timestamp=*/std::nullopt,
-        /*desktop_to_ios_promo_receiving_enabled=*/false);
+        /*desktop_to_ios_promo_receiving_enabled=*/false,
+        /*desktop_to_ios_promo_receiving_types=*/
+        MobilePromoOnDesktopPromoTypeSet{} //,
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+        /*glic_experimental_triggering_state=*/
+        glic_experimental_triggering_state,
+        /*glic_experimental_triggering_version=*/
+        glic_experimental_triggering_version);
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+    );
   }
 
   void Clear() override { local_device_info_.reset(); }

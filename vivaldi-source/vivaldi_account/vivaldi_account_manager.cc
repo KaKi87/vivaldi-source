@@ -6,7 +6,6 @@
 #include "base/base64.h"
 #include "base/i18n/case_conversion.h"
 #include "base/json/json_reader.h"
-#include "base/rand_util.h"
 #include "base/strings/escape.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
@@ -14,7 +13,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/uuid.h"
 #include "build/build_config.h"
-#include "components/os_crypt/sync/os_crypt.h"
+#include "components/os_crypt/async/browser/os_crypt_async.h"
 #include "components/prefs/pref_service.h"
 #include "net/http/http_request_headers.h"
 #include "net/http/http_status_code.h"
@@ -121,6 +120,7 @@ bool VivaldiAccountManager::AccountInfo::operator==(
 VivaldiAccountManager::VivaldiAccountManager(
     PrefService* prefs,
     PrefService* local_state,
+    os_crypt_async::OSCryptAsync* os_crypt_async,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
     scoped_refptr<password_manager::PasswordStoreInterface> password_store)
     : prefs_(prefs),
@@ -135,10 +135,26 @@ VivaldiAccountManager::VivaldiAccountManager(
       prefs_->GetString(vivaldiprefs::kVivaldiAccountUsername);
   account_info_.account_id = prefs_->GetString(vivaldiprefs::kVivaldiAccountId);
   device_id_ = prefs_->GetString(vivaldiprefs::kVivaldiAccountDeviceId);
+
+  bool should_decrypt_refresh_token = true;
   if (account_info_.account_id.empty()) {
     if (account_info_.username.empty()) {
       MigrateOldCredentialsIfNeeded();
     }
+    should_decrypt_refresh_token = false;
+  }
+
+  os_crypt_async->GetInstance(
+      base::BindOnce(&VivaldiAccountManager::ReceiveEncryptorInstance,
+                     weak_factory_.GetWeakPtr(), should_decrypt_refresh_token));
+}
+
+void VivaldiAccountManager::ReceiveEncryptorInstance(
+    bool should_decrypt_refresh_token,
+    scoped_refptr<os_crypt_async::Encryptor> encryptor) {
+  encryptor_ = encryptor;
+
+  if (!should_decrypt_refresh_token) {
     return;
   }
 
@@ -149,7 +165,7 @@ VivaldiAccountManager::VivaldiAccountManager(
           &encrypted_refresh_token) &&
       !encrypted_refresh_token.empty()) {
     std::string refresh_token;
-    if (OSCrypt::DecryptString(encrypted_refresh_token, &refresh_token)) {
+    if (encryptor_->DecryptString(encrypted_refresh_token, &refresh_token)) {
       refresh_token_ = refresh_token;
       base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
           FROM_HERE, base::BindOnce(&VivaldiAccountManager::RequestNewToken,
@@ -375,7 +391,7 @@ void VivaldiAccountManager::OnTokenRequestDone(
   refresh_token_ = refresh_token;
 
   std::string encrypted_refresh_token;
-  if (OSCrypt::EncryptString(refresh_token_, &encrypted_refresh_token)) {
+  if (encryptor_->EncryptString(refresh_token_, &encrypted_refresh_token)) {
     std::string encoded_refresh_token;
     encoded_refresh_token = base::Base64Encode(encrypted_refresh_token);
     prefs_->SetString(vivaldiprefs::kVivaldiAccountRefreshToken,

@@ -34,6 +34,7 @@
 #include "src/tint/lang/core/ir/transform/block_decorated_structs.h"
 #include "src/tint/lang/core/ir/transform/builtin_polyfill.h"
 #include "src/tint/lang/core/ir/transform/builtin_scalarize.h"
+#include "src/tint/lang/core/ir/transform/collapse_subgroup_min_max.h"
 #include "src/tint/lang/core/ir/transform/combine_access_instructions.h"
 #include "src/tint/lang/core/ir/transform/conversion_polyfill.h"
 #include "src/tint/lang/core/ir/transform/decompose_access.h"
@@ -43,6 +44,7 @@
 #include "src/tint/lang/core/ir/transform/prepare_immediate_data.h"
 #include "src/tint/lang/core/ir/transform/preserve_padding.h"
 #include "src/tint/lang/core/ir/transform/prevent_infinite_loops.h"
+#include "src/tint/lang/core/ir/transform/propagate_buffer_sizes.h"
 #include "src/tint/lang/core/ir/transform/remove_uniform_vector_component_loads.h"
 #include "src/tint/lang/core/ir/transform/resource_table.h"
 #include "src/tint/lang/core/ir/transform/robustness.h"
@@ -74,6 +76,9 @@ Result<SuccessType> Raise(core::ir::Module& module, const Options& options) {
 
     TINT_CHECK_RESULT(
         core::ir::transform::SubstituteOverrides(module, options.substitute_overrides_config));
+
+    // Must come before robustness.
+    TINT_CHECK_RESULT(core::ir::transform::PropagateBufferSizes(module));
 
     tint::transform::multiplanar::BindingsMap multiplanar_map{};
     RemapperData remapper_data{};
@@ -130,8 +135,8 @@ Result<SuccessType> Raise(core::ir::Module& module, const Options& options) {
     core_polyfills.pack_4xu8_clamp = true;
     core_polyfills.pack_unpack_4x8_norm = options.workarounds.polyfill_pack_unpack_4x8_norm;
     core_polyfills.abs_signed_int = true;
-    core_polyfills.length_scalar_f32 = options.workarounds.polyfill_length_scalar_f32;
-    core_polyfills.distance_scalar_f32 = options.workarounds.polyfill_distance_scalar_f32;
+    core_polyfills.length_scalar_float = options.workarounds.polyfill_length_scalar_float;
+    core_polyfills.distance_scalar_float = options.workarounds.polyfill_distance_scalar_float;
     core_polyfills.subgroup_broadcast_f16 = options.workarounds.polyfill_subgroup_broadcast_f16;
     core_polyfills.saturate_as_min_max = options.workarounds.polyfill_saturate_as_min_max_f16;
     TINT_CHECK_RESULT(core::ir::transform::BuiltinPolyfill(module, core_polyfills));
@@ -174,12 +179,14 @@ Result<SuccessType> Raise(core::ir::Module& module, const Options& options) {
 
     TINT_CHECK_RESULT(core::ir::transform::Bgra8UnormPolyfill(module));
 
-    if (!options.extensions.use_uniform_buffers) {
-        // DecomposeAccess must come before BlockDecoratedStructs, which will wrap the
-        // uniform variable in a structure.
-        core::ir::transform::DecomposeAccessOptions decompose_config{.uniform = true};
-        TINT_CHECK_RESULT(core::ir::transform::DecomposeAccess(module, decompose_config));
-    } else {
+    // DecomposeAccess must come before BlockDecoratedStructs, which will wrap
+    // buffer resource variables in a structure.
+    // Uniform buffers are only unconditionally decomposed if the implementation does not support
+    // uniform buffer standard layout. Otherwise, only buffer type variables are decomposed.
+    core::ir::transform::DecomposeAccessOptions decompose_config{
+        .uniform = !options.extensions.use_uniform_buffers};
+    TINT_CHECK_RESULT(core::ir::transform::DecomposeAccess(module, decompose_config));
+    if (options.extensions.use_uniform_buffers) {
         TINT_CHECK_RESULT(core::ir::transform::Std140(module));
     }
     TINT_CHECK_RESULT(core::ir::transform::BlockDecoratedStructs(module));
@@ -200,12 +207,18 @@ Result<SuccessType> Raise(core::ir::Module& module, const Options& options) {
         TINT_CHECK_RESULT(core::ir::transform::DemoteToHelper(module));
     }
 
+    if (options.workarounds.collapse_subgroup_min_max) {
+        TINT_CHECK_RESULT(core::ir::transform::CollapseSubgroupMinMax(module));
+    }
+
     raise::PolyfillConfig config = {
         .use_vulkan_memory_model = options.extensions.use_vulkan_memory_model,
         .version = options.spirv_version,
         .subgroup_shuffle_clamped = options.workarounds.subgroup_shuffle_clamped,
         .texture_sample_compare_depth_cube_array =
             options.workarounds.texture_sample_compare_depth_cube_array,
+        .texture_sample_compare_2d_polyfill =
+            options.workarounds.texture_sample_compare_2d_polyfill,
         .cooperative_matrix_stride_is_matrix_elements =
             options.workarounds.cooperative_matrix_stride_is_matrix_elements,
     };
@@ -213,20 +226,19 @@ Result<SuccessType> Raise(core::ir::Module& module, const Options& options) {
     TINT_CHECK_RESULT(raise::ExpandImplicitSplats(module));
 
     core::ir::transform::BuiltinScalarizeConfig scalarize_config{
-        .scalarize_clamp = options.workarounds.scalarize_max_min_clamp,
-        .scalarize_max = options.workarounds.scalarize_max_min_clamp,
-        .scalarize_min = options.workarounds.scalarize_max_min_clamp};
+        .scalarize_min_max_clamp = options.workarounds.scalarize_max_min_clamp,
+    };
     TINT_CHECK_RESULT(core::ir::transform::BuiltinScalarize(module, scalarize_config));
 
     core::ir::transform::SignedIntegerPolyfillConfig signed_integer_cfg{
         .signed_negation = true, .signed_arithmetic = true, .signed_shiftleft = true};
     TINT_CHECK_RESULT(core::ir::transform::SignedIntegerPolyfill(module, signed_integer_cfg));
 
-    // AMD mesa front end optimizer bug for unary negation and abs.
-    // Fixed in 25.3 - See crbug.com/448294721
+    // AMD Mesa front end optimizer bug for unary f32 and f16 negation and abs.
+    // Fixed in 25.3 - See crbug.com/448294721 and crbug.com/500099471
     raise::UnaryPolyfillConfig unary_polyfill_cfg = {
-        .polyfill_f32_negation = options.workarounds.polyfill_unary_f32_negation,
-        .polyfill_f32_abs = options.workarounds.polyfill_f32_abs};
+        .polyfill_float_negation = options.workarounds.polyfill_float_negation,
+        .polyfill_float_abs = options.workarounds.polyfill_float_abs};
 
     TINT_CHECK_RESULT(raise::UnaryPolyfill(module, unary_polyfill_cfg));
 

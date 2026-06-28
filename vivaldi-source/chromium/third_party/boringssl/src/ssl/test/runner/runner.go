@@ -45,6 +45,7 @@ import (
 	"time"
 
 	"boringssl.googlesource.com/boringssl.git/util/testresult"
+	"filippo.io/mldsa"
 	"golang.org/x/crypto/cryptobyte"
 )
 
@@ -139,6 +140,10 @@ var (
 
 	ed25519Key ed25519.PrivateKey
 
+	mldsa44Key *mldsa.PrivateKey
+	mldsa65Key *mldsa.PrivateKey
+	mldsa87Key *mldsa.PrivateKey
+
 	channelIDKey ecdsa.PrivateKey
 )
 
@@ -187,6 +192,21 @@ func initKeys() {
 	}
 	ed25519Key = k.(ed25519.PrivateKey)
 
+	for _, k := range []struct {
+		params *mldsa.Parameters
+		key    **mldsa.PrivateKey
+	}{
+		{mldsa.MLDSA44(), &mldsa44Key},
+		{mldsa.MLDSA65(), &mldsa65Key},
+		{mldsa.MLDSA87(), &mldsa87Key},
+	} {
+		key, err := mldsa.GenerateKey(k.params)
+		if err != nil {
+			panic(fmt.Sprintf("Failed to generate ML-DSA test key: %s", err))
+		}
+		*k.key = key
+	}
+
 	channelIDKeyPath = writeTempKeyFile(&channelIDKey)
 }
 
@@ -214,6 +234,9 @@ var (
 	ecdsaP384Certificate Credential
 	ecdsaP521Certificate Credential
 	ed25519Certificate   Credential
+	mldsa44Certificate   Credential
+	mldsa65Certificate   Credential
+	mldsa87Certificate   Credential
 	garbageCertificate   Credential
 	pssCertificate       Credential
 )
@@ -230,6 +253,9 @@ func initCertificates() {
 		{"ECDSA P-384", &ecdsaP384Key, &ecdsaP384Certificate},
 		{"ECDSA P-521", &ecdsaP521Key, &ecdsaP521Certificate},
 		{"Ed25519", ed25519Key, &ed25519Certificate},
+		{"ML-DSA 44", mldsa44Key, &mldsa44Certificate},
+		{"ML-DSA 65", mldsa65Key, &mldsa65Certificate},
+		{"ML-DSA 87", mldsa87Key, &mldsa87Certificate},
 	} {
 		// For each test key, make a self-signed root that issues a leaf, using
 		// the same algorithm.
@@ -279,6 +305,59 @@ func initCertificates() {
 		DNSNames:           []string{"test"},
 		EncodeSPKIAsRSAPSS: true,
 	}).ToCredential()
+}
+
+var (
+	p256DC          *Credential
+	p256DCFromECDSA *Credential
+)
+
+func initDelegatedCredentials() {
+	p256DC = createDelegatedCredential(&rsaCertificate, delegatedCredentialConfig{
+		dcAlgo: signatureECDSAWithP256AndSHA256,
+		algo:   signatureRSAPSSWithSHA256,
+	})
+	p256DCFromECDSA = createDelegatedCredential(&ecdsaP256Certificate, delegatedCredentialConfig{
+		dcAlgo: signatureECDSAWithP256AndSHA256,
+		algo:   signatureECDSAWithP256AndSHA256,
+	})
+}
+
+var (
+	rpkEcdsaP256 Credential
+	rpkEcdsaP384 Credential
+	rpkRsa       Credential
+)
+
+func initRawPublicKeyCredentials() {
+	for _, def := range []struct {
+		key crypto.Signer
+		out *Credential
+	}{
+		{&ecdsaP256Key, &rpkEcdsaP256},
+		{&ecdsaP384Key, &rpkEcdsaP384},
+		{&rsa2048Key, &rpkRsa},
+	} {
+		var publicKey crypto.PublicKey
+		switch def.key.(type) {
+		case *rsa.PrivateKey:
+			publicKey = def.key.(*rsa.PrivateKey).Public()
+		case *ecdsa.PrivateKey:
+			publicKey = def.key.(*ecdsa.PrivateKey).Public()
+		default:
+			panic("credential has unsupported key type")
+		}
+		rpkData, err := x509.MarshalPKIXPublicKey(publicKey)
+		if err != nil {
+			panic(err)
+		}
+		*def.out = Credential{
+			Type:        CredentialTypeRawPublicKey,
+			PrivateKey:  def.key,
+			KeyPath:     writeTempKeyFile(def.key),
+			Certificate: [][]byte{rpkData},
+		}
+	}
 }
 
 func flagInts(flagName string, vals []int) []string {
@@ -553,9 +632,11 @@ type testCase struct {
 	testTLSUnique bool
 	// sendEmptyRecords is the number of consecutive empty records to send
 	// before each test message.
+	// If both this and `sendWarningAlerts` are set, they alternate at the end.
 	sendEmptyRecords int
 	// sendWarningAlerts is the number of consecutive warning alerts to send
 	// before each test message.
+	// If both this and `sendWarningAlerts` are set, they alternate at the end.
 	sendWarningAlerts int
 	// sendUserCanceledAlerts is the number of consecutive user_canceled alerts to
 	// send before each test message.
@@ -896,13 +977,17 @@ func doExchange(test *testCase, config *Config, conn net.Conn, isResume bool, tr
 	}
 
 	if expected := expectations.peerCertificate; expected != nil {
-		if len(connState.PeerCertificates) != len(expected.Certificate) {
-			return fmt.Errorf("expected peer to send %d certificates, but got %d", len(connState.PeerCertificates), len(expected.Certificate))
-		}
-		for i, cert := range connState.PeerCertificates {
-			if !bytes.Equal(cert.Raw, expected.Certificate[i]) {
-				return fmt.Errorf("peer certificate %d did not match", i+1)
+		var peerCerts [][]byte
+		switch expected.Type.CertificateType() {
+		case certTypeX509:
+			for _, cert := range connState.PeerCertificates {
+				peerCerts = append(peerCerts, cert.Raw)
 			}
+		case certTypeRawPublicKey:
+			peerCerts = [][]byte{connState.PeerRawPublicKey}
+		}
+		if !slices.EqualFunc(peerCerts, expected.Certificate, slices.Equal) {
+			return fmt.Errorf("peer certificate did not match expectations (got %v, expected %v)", peerCerts, expected.Certificate)
 		}
 
 		if !bytes.Equal(connState.OCSPResponse, expected.OCSPStaple) {
@@ -922,6 +1007,30 @@ func doExchange(test *testCase, config *Config, conn net.Conn, isResume bool, tr
 			}
 		} else if connState.PeerDelegatedCredential != nil {
 			return fmt.Errorf("peer unexpectedly used delegated credentials")
+		}
+		if expected.Type == CredentialTypeRawPublicKey {
+			if len(connState.PeerRawPublicKey) == 0 {
+				return fmt.Errorf("peer unexpectedly did not send a raw public key")
+			}
+			var expectedPublic crypto.PublicKey
+			switch expected.PrivateKey.(type) {
+			case *rsa.PrivateKey:
+				expectedPublic = expected.PrivateKey.(*rsa.PrivateKey).Public()
+			case *ecdsa.PrivateKey:
+				expectedPublic = expected.PrivateKey.(*ecdsa.PrivateKey).Public()
+			default:
+				panic("expected credential has unsupported key type")
+			}
+			expectedSpki, err := x509.MarshalPKIXPublicKey(expectedPublic)
+			if err != nil {
+				panic(fmt.Sprintf("error serializing public key of expected credential: %s", err))
+			}
+			if !slices.Equal(expectedSpki, connState.PeerRawPublicKey) {
+				return fmt.Errorf("peer raw public key did not match expected credential")
+			}
+		}
+		if expected.Type != CredentialTypeRawPublicKey && len(connState.PeerRawPublicKey) > 0 {
+			return fmt.Errorf("peer unexpectedly sent a raw public key")
 		}
 	}
 
@@ -1086,15 +1195,17 @@ func doExchange(test *testCase, config *Config, conn net.Conn, isResume bool, tr
 			}
 		}
 
-		for i := 0; i < test.sendEmptyRecords; i++ {
-			if _, err := tlsConn.Write(nil); err != nil {
-				return err
+		// Count _down_, so that in case of differing values for the two counters, the alternating takes place at the _end_.
+		for i := max(test.sendEmptyRecords, test.sendWarningAlerts); i > 0; i-- {
+			if i <= test.sendEmptyRecords {
+				if _, err := tlsConn.Write(nil); err != nil {
+					return err
+				}
 			}
-		}
-
-		for i := 0; i < test.sendWarningAlerts; i++ {
-			if err := tlsConn.SendAlert(alertLevelWarning, alertUnexpectedMessage); err != nil {
-				return err
+			if i <= test.sendWarningAlerts {
+				if err := tlsConn.SendAlert(alertLevelWarning, alertUnexpectedMessage); err != nil {
+					return err
+				}
 			}
 		}
 
@@ -1452,6 +1563,8 @@ func appendCredentialFlags(flags []string, cred *Credential, prefix string, newC
 			flags = append(flags, prefix+"-new-spake2plusv1-credential")
 		case CredentialTypePreSharedKey:
 			flags = append(flags, prefix+"-new-psk-credential")
+		case CredentialTypeRawPublicKey:
+			flags = append(flags, prefix+"-new-rpk-credential")
 		default:
 			panic(fmt.Errorf("unknown credential type %d", cred.Type))
 		}
@@ -2109,6 +2222,7 @@ func statusPrinter(doneChan chan *testresult.Results, statusChan chan statusMsg,
 					if *allowUnimplemented {
 						testOutput.AddSkip(msg.test.name)
 					} else {
+						fmt.Printf("UNIMPLEMENTED (%s)\n%s\n", msg.test.name, msg.err)
 						testOutput.AddResult(msg.test.name, "SKIP", nil)
 					}
 				} else {
@@ -2217,6 +2331,8 @@ func main() {
 	}
 	initKeys()
 	initCertificates()
+	initDelegatedCredentials()
+	initRawPublicKeyCredentials()
 
 	if *shimConfigFile != "" {
 		encoded, err := os.ReadFile(*shimConfigFile)
@@ -2247,6 +2363,7 @@ func main() {
 	addSignatureAlgorithmTests()
 	addDTLSRetransmitTests()
 	addDTLSReorderTests()
+	addDTLSFragmentWindowTests()
 	addExportKeyingMaterialTests()
 	addExportTrafficSecretsTests()
 	addTLSUniqueTests()
@@ -2270,6 +2387,7 @@ func main() {
 	addRSAKeyUsageTests()
 	addExtraHandshakeTests()
 	addOmitExtensionsTests()
+	addExtensionTrailingDataTests()
 	addCertCompressionTests()
 	addJDK11WorkaroundTests()
 	addDelegatedCredentialTests()
@@ -2282,6 +2400,7 @@ func main() {
 	addTrustAnchorTests()
 	addPSKTests()
 	addRawPublicKeyTests()
+	addServerPaddingTests()
 
 	toAppend, err := convertToSplitHandshakeTests(testCases)
 	if err != nil {

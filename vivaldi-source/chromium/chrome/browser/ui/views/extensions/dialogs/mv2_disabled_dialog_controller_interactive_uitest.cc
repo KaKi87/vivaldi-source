@@ -6,8 +6,6 @@
 #include "base/path_service.h"
 #include "build/build_config.h"
 #include "chrome/browser/extensions/chrome_test_extension_loader.h"
-#include "chrome/browser/extensions/manifest_v2_experiment_manager.h"
-#include "chrome/browser/extensions/mv2_experiment_stage.h"
 #include "chrome/browser/extensions/scoped_test_mv2_enabler.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -22,6 +20,8 @@
 #include "content/public/test/browser_test.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/install_verifier.h"
+#include "extensions/browser/manifest_v2_experiment_manager.h"
+#include "extensions/browser/mv2_experiment_stage.h"
 #include "extensions/common/extension_features.h"
 #include "extensions/common/mojom/manifest.mojom-shared.h"
 #include "extensions/test/test_extension_dir.h"
@@ -184,17 +184,15 @@ class Mv2DisabledDialogControllerInteractiveUITest
 
     switch (experiment_stage) {
       case MV2ExperimentStage::kWarning:
+      case MV2ExperimentStage::kNone:
+        NOTREACHED() << "Unhandled stage.";
       case MV2ExperimentStage::kDisableWithReEnable:
-        enabled_features.push_back(
-            extensions_features::kExtensionManifestV2Disabled);
         disabled_features.push_back(
             extensions_features::kExtensionManifestV2Unsupported);
         break;
       case MV2ExperimentStage::kUnsupported:
         enabled_features.push_back(
             extensions_features::kExtensionManifestV2Unsupported);
-        disabled_features.push_back(
-            extensions_features::kExtensionManifestV2Disabled);
         break;
     }
     feature_list_.InitWithFeatures(enabled_features, disabled_features);
@@ -228,6 +226,7 @@ INSTANTIATE_TEST_SUITE_P(
                       MV2ExperimentStage::kUnsupported),
     [](const testing::TestParamInfo<MV2ExperimentStage>& info) {
       switch (info.param) {
+        case MV2ExperimentStage::kNone:
         case MV2ExperimentStage::kWarning:
           NOTREACHED();
         case MV2ExperimentStage::kDisableWithReEnable:

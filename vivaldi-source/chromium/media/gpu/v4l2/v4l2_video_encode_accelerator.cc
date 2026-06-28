@@ -692,6 +692,10 @@ void V4L2VideoEncodeAccelerator::Destroy() {
   // We're destroying; cancel all callbacks.
   client_ptr_factory_.reset();
 
+  // Invalidates |child_weak_this_factory_| so that no callback to |this| is
+  // invoked hereafter.
+  child_weak_this_factory_.InvalidateWeakPtrs();
+
   encoder_task_runner_->PostTask(
       FROM_HERE, base::BindOnce(&V4L2VideoEncodeAccelerator::DestroyTask,
                                 base::Unretained(this)));
@@ -959,6 +963,19 @@ void V4L2VideoEncodeAccelerator::EncodeTask(scoped_refptr<VideoFrame> frame,
                      base::StrCat({"Unexpected storage: ",
                                    VideoFrame::StorageTypeToString(
                                        frame->storage_type())})});
+      return;
+    }
+    constexpr VideoPixelFormat kExpectedFormats[] = {
+        PIXEL_FORMAT_I420,
+        PIXEL_FORMAT_NV12,
+    };
+    const bool is_expected_format =
+        std::ranges::contains(kExpectedFormats, frame->format());
+    if (!is_expected_format) {
+      SetErrorState(
+          {EncoderStatus::Codes::kInvalidInputFrame,
+           base::StrCat({"Unexpected format: ",
+                         VideoPixelFormatToString(frame->format())})});
       return;
     }
 
@@ -1528,7 +1545,7 @@ bool V4L2VideoEncodeAccelerator::EnqueueInputRecord(
   }
 
   scoped_refptr<VideoFrame> frame = frame_info.frame;
-
+  CHECK(frame);
   size_t buffer_id = input_buf.BufferId();
 
   struct timeval timestamp;
@@ -1538,7 +1555,16 @@ bool V4L2VideoEncodeAccelerator::EnqueueInputRecord(
       frame->timestamp().InSeconds() * base::Time::kMicrosecondsPerSecond;
   input_buf.SetTimeStamp(timestamp);
 
-  DCHECK_EQ(device_input_layout_->format(), frame->format());
+  if (frame->format() != device_input_layout_->format()) {
+    SetErrorState(
+        {EncoderStatus::Codes::kUnsupportedFrameFormat,
+         base::StrCat(
+             {"Unexpected format: ", VideoPixelFormatToString(frame->format()),
+              ", expected: ",
+              VideoPixelFormatToString(device_input_layout_->format())})});
+    return false;
+  }
+
   size_t num_planes = GetNumPlanesOfV4L2PixFmt(
       Fourcc::FromVideoPixelFormat(device_input_layout_->format(),
                                    !device_input_layout_->is_multi_planar())
@@ -1608,11 +1634,31 @@ bool V4L2VideoEncodeAccelerator::EnqueueInputRecord(
                        "VideoFrame doesn't have shared memory"});
         return false;
       }
-
+      const size_t shm_size =
+          frame->shm_region() ? frame->shm_region()->GetSize() : 0u;
       // The frame data is readable only and the driver doesn't actually write
       // the buffer. But USRPTR buffer needs void*. So const_cast<> is required.
       std::vector<void*> user_ptrs(num_planes);
       for (size_t i = 0; i < num_planes; ++i) {
+        const size_t plane_offset = frame->layout().planes()[i].offset;
+        const size_t plane_size = device_input_layout_->planes()[i].size;
+        base::CheckedNumeric<size_t> plane_end = plane_offset;
+        plane_end += plane_size;
+        if (!plane_end.IsValid()) {
+          LOG(ERROR) << "Too large plane_end value";
+          SetErrorState({EncoderStatus::Codes::kInvalidInputFrame,
+                         "Too large plane_end value"});
+          return false;
+        }
+        if (plane_end.ValueOrDie() > shm_size) {
+          LOG(ERROR)
+              << "Input shmem smaller than device requirements for plane " << i
+              << ": offset=" << plane_offset << ", size=" << plane_size
+              << ", shm_size=" << shm_size;
+          SetErrorState({EncoderStatus::Codes::kInvalidInputFrame,
+                         "Input shmem smaller than device sizeimage"});
+          return false;
+        }
         user_ptrs[i] = const_cast<uint8_t*>(frame->data(i));
       }
       if (!std::move(input_buf).QueueUserPtr(std::move(user_ptrs))) {

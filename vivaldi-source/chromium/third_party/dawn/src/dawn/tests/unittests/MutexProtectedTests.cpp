@@ -25,18 +25,20 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include <memory>
 #include <string>
 #include <thread>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
-#include "dawn/common/MutexProtected.h"
-#include "dawn/common/Ref.h"
-#include "dawn/common/RefCounted.h"
-#include "dawn/common/Time.h"
-#include "dawn/utils/SystemUtils.h"
 #include "gtest/gtest.h"
+#include "src/dawn/common/MutexProtected.h"
+#include "src/dawn/common/Range.h"
+#include "src/dawn/common/Ref.h"
+#include "src/dawn/common/RefCounted.h"
+#include "src/dawn/common/Time.h"
+#include "src/dawn/utils/SystemUtils.h"
 
 namespace dawn {
 namespace {
@@ -262,6 +264,33 @@ TEST(MutexCondVarProtectedTest, WaitDeadlock) {
     thread2.join();
 }
 
+// Regression test for https://crbug.com/517303276 where the condition variable is signaled after
+// the mutex is unlocked, which could lead to issues because work on other threads could happen in
+// between the two (including destruction of the cond var itself).
+TEST(MutexCondVarProtectedTest, NotifyIsInLock) {
+    std::vector<std::unique_ptr<MutexCondVarProtected<bool>>> condVars;
+    for (size_t _ : Range(100)) {
+        condVars.push_back(std::make_unique<MutexCondVarProtected<bool>>(false));
+    }
+
+    std::thread doDestruction([&] {
+        for (size_t i : Range(condVars.size())) {
+            condVars[i]->Use(
+                [&](auto c) { c.Wait([](bool readyToDestroy) { return readyToDestroy; }); });
+            condVars[i] = nullptr;
+        }
+    });
+
+    std::thread markForDestruction([&] {
+        for (size_t i : Range(condVars.size())) {
+            condVars[i]->Use([&](auto c) { *c = true; });
+        }
+    });
+
+    markForDestruction.join();
+    doDestruction.join();
+}
+
 // Test that if we specifically ask for only one thread to be notified, then only one thread should
 // wake up from waiting.
 TEST(MutexCondVarProtectedTest, NotifyTypes) {
@@ -301,6 +330,42 @@ TEST(MutexCondVarProtectedTest, NotifyTypes) {
         t.join();
     }
     EXPECT_EQ(woken, kNumThreads);
+}
+
+TEST(MutexRWProtectedTest, Nominal) {
+    static constexpr int kDefaultValue = 100;
+    auto counter = MutexRWProtected<CounterT>(kDefaultValue);
+
+    // We need to use another condvar protected value to ensure that multiple threads are capable of
+    // reading the value at the same time.
+    auto condvar = MutexCondVarProtected<CounterT>();
+
+    // Have multiple threads hold the read lock and then increment the condvar while holding the
+    // lock. We should be able to wait for the condvar to reach the expected value while still
+    // holding the read lock.
+    static constexpr int kNumThreads = 5;
+    std::vector<std::thread> threads;
+    threads.reserve(kNumThreads);
+    for (auto i = 0; i < kNumThreads; i++) {
+        threads.emplace_back([&] {
+            counter.ConstUse([&](auto c) {
+                // We should be holding the read scope lock now.
+                EXPECT_EQ(c->Get(), kDefaultValue);
+
+                // While holding the read lock, wait until all threads have read the value. This
+                // would deadlock if other threads were not able to acquire the read lock at the
+                // same time.
+                condvar.Use([&](auto cv) {
+                    cv->Increment();
+                    cv.Wait([](const auto& x) { return x.Get() == kNumThreads; });
+                });
+            });
+        });
+    }
+
+    for (auto& t : threads) {
+        t.join();
+    }
 }
 
 }  // anonymous namespace

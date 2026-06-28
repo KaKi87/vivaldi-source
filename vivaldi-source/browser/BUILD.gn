@@ -1,12 +1,14 @@
-import("//vivaldi/gn/config/features.gni")
-import("//vivaldi/gn/config/version.gni")
 import("//chrome/version.gni")
 import("//extensions/buildflags/buildflags.gni")
+import("//vivaldi/gn/config/features.gni")
+import("//vivaldi/gn/config/version.gni")
 
 if (is_android) {
   import("//build/config/android/rules.gni")
   java_cpp_enum("password_check_enums_srcjar") {
-    sources = [ "//vivaldi/browser/android/password_check/password_check_ui_status.h" ]
+    sources = [
+      "//vivaldi/browser/android/password_check/password_check_ui_status.h",
+    ]
   }
 
   # Wrap the java_cpp_enum in android_library so it can be used by both
@@ -33,9 +35,7 @@ static_library("browser") {
       "//vivaldi/vivapp",
     ]
     if (vivaldi_v8_context_snapshot) {
-      public_deps += [
-        "//vivaldi/vivapp:generate_custom_v8_snapshot",
-      ]
+      public_deps += [ "//vivaldi/vivapp:generate_custom_v8_snapshot" ]
     }
   }
   deps = [
@@ -43,7 +43,7 @@ static_library("browser") {
     "//vivaldi/prefs:browser_prefs",
 
     #"//vivaldi/base",
-    "//base:base",
+    "//base",
     "//chrome/app:branded_strings",
     "//chrome/app:command_ids",
     "//chrome/app:generated_resources",
@@ -51,16 +51,16 @@ static_library("browser") {
     "//chrome/browser/devtools",
     "//chrome/common:buildflags",
     "//chrome/common:non_code_constants",
-
     "//components/keyed_service/content",
-    "//components/os_crypt/sync",
+    "//components/os_crypt/async/browser",
     "//components/renderer_context_menu",
     "//components/search_engines",
     "//components/strings:components_branded_strings",
     "//components/strings:components_strings",
-   # "//content/browser",
-    "//crypto:crypto",
-    "//skia:skia",
+
+    # "//content/browser",
+    "//crypto",
+    "//skia",
     "//third_party/blink/public:blink_headers",
     "//ui/events:events_base",
     "//vivaldi/components:adverse_adblocking",
@@ -75,14 +75,12 @@ static_library("browser") {
     ]
   }
   if (is_ios) {
-    deps += [
-      "//ios/chrome/browser/bookmarks/model",
-    ]
+    deps += [ "//ios/chrome/browser/bookmarks/model" ]
   }
   if (enable_extensions) {
     deps += [
-      "//chrome/browser/web_applications/extensions",
       "//chrome/browser/extensions",
+      "//chrome/browser/web_applications/extensions",
       "//vivaldi/browser:vivaldi_browser_component_wrapper_impl",
     ]
   }
@@ -99,16 +97,16 @@ static_library("browser") {
   sources = [
     "../components/adverse_adblocking/adverse_ad_filter_list_factory.cc",
     "../components/adverse_adblocking/adverse_ad_filter_list_factory.h",
-    "translate/vivaldi_translate_language_list.cc",
-    "translate/vivaldi_translate_language_list.h",
-    "translate/vivaldi_translate_server_request.cc",
-    "translate/vivaldi_translate_server_request.h",
+    "search_engines/vivaldi_search_engines_updater.cc",
+    "search_engines/vivaldi_search_engines_updater.h",
     "translate/vivaldi_translate_client.cc",
     "translate/vivaldi_translate_client.h",
     "translate/vivaldi_translate_frame_binder.cc",
     "translate/vivaldi_translate_frame_binder.h",
-    "search_engines/vivaldi_search_engines_updater.cc",
-    "search_engines/vivaldi_search_engines_updater.h",
+    "translate/vivaldi_translate_language_list.cc",
+    "translate/vivaldi_translate_language_list.h",
+    "translate/vivaldi_translate_server_request.cc",
+    "translate/vivaldi_translate_server_request.h",
     "vivaldi_default_bookmarks_updater_client_impl.cc",
     "vivaldi_default_bookmarks_updater_client_impl.h",
     "vivaldi_gitignore.cc",
@@ -116,12 +114,6 @@ static_library("browser") {
 
   if (!is_android) {
     sources += [
-      "tab_probe.cc",
-      "tab_probe.h",
-      "related_tab_strip_helper.cc",
-      "related_tab_strip_helper.h",
-      "tab_strip_sanitizer.cc",
-      "tab_strip_sanitizer.h",
       "../app/vivaldi_command_controller.cpp",
       "../app/vivaldi_command_controller.h",
       "../app/vivaldi_commands.h",
@@ -129,26 +121,36 @@ static_library("browser") {
       "../components/direct_match/direct_match_favicon_installer.h",
       "menus/vivaldi_bookmark_context_menu.cpp",
       "menus/vivaldi_bookmark_context_menu.h",
-      "menus/vivaldi_context_menu_controller.h",
       "menus/vivaldi_context_menu_controller.cc",
-      "menus/vivaldi_developertools_menu_controller.h",
+      "menus/vivaldi_context_menu_controller.h",
       "menus/vivaldi_developertools_menu_controller.cc",
-      "menus/vivaldi_device_menu_controller.h",
+      "menus/vivaldi_developertools_menu_controller.h",
       "menus/vivaldi_device_menu_controller.cc",
-      "menus/vivaldi_extensions_menu_controller.h",
+      "menus/vivaldi_device_menu_controller.h",
       "menus/vivaldi_extensions_menu_controller.cc",
+      "menus/vivaldi_extensions_menu_controller.h",
+      "menus/vivaldi_menubar_conroller.h",
+      "menus/vivaldi_menubar_controller.cc",
       "menus/vivaldi_menus.cpp",
       "menus/vivaldi_menus.h",
-      "menus/vivaldi_menubar_controller.cc",
-      "menus/vivaldi_menubar_conroller.h",
-      "menus/vivaldi_profile_menu_controller.h",
       "menus/vivaldi_profile_menu_controller.cc",
-      "menus/vivaldi_pwa_link_menu_controller.h",
+      "menus/vivaldi_profile_menu_controller.h",
       "menus/vivaldi_pwa_link_menu_controller.cc",
-      "menus/vivaldi_pwa_menu_controller.h",
+      "menus/vivaldi_pwa_link_menu_controller.h",
       "menus/vivaldi_pwa_menu_controller.cc",
-      "menus/vivaldi_render_view_context_menu.h",
+      "menus/vivaldi_pwa_menu_controller.h",
       "menus/vivaldi_render_view_context_menu.cc",
+      "menus/vivaldi_render_view_context_menu.h",
+      "related_tab_strip_helper.cc",
+      "related_tab_strip_helper.h",
+      "tab_positioning.cc",
+      "tab_positioning.h",
+      "tab_positioning_prefs.cc",
+      "tab_positioning_prefs.h",
+      "tab_probe.cc",
+      "tab_probe.h",
+      "tab_strip_sanitizer.cc",
+      "tab_strip_sanitizer.h",
       "vivaldi_browser_finder.cc",
       "vivaldi_browser_finder.h",
       "vivaldi_webcontents_util.cc",
@@ -157,8 +159,8 @@ static_library("browser") {
   }
   if (is_mac) {
     sources += [
-      "menus/vivaldi_speech_menu_controller.h",
       "menus/vivaldi_speech_menu_controller.cc",
+      "menus/vivaldi_speech_menu_controller.h",
       "vivaldi_app_observer.h",
       "vivaldi_app_observer.mm",
     ]
@@ -167,17 +169,16 @@ static_library("browser") {
   }
   if (is_android) {
     sources += [
-      "android/media/vivaldi_background_media_playback_enabler.h",
       "android/media/vivaldi_background_media_playback_enabler.cc",
+      "android/media/vivaldi_background_media_playback_enabler.h",
     ]
   }
   if (is_linux) {
     sources += [
-      "vivaldi_platform_util_linux.h",
       "vivaldi_platform_util_linux.cc",
+      "vivaldi_platform_util_linux.h",
     ]
   }
-
 }
 
 static_library("internal_handlers") {
@@ -195,7 +196,7 @@ static_library("clipboard") {
     "vivaldi_clipboard_utils.h",
   ]
 
-  deps= [ "//third_party/blink/public:blink_headers" ]
+  deps = [ "//third_party/blink/public:blink_headers" ]
 }
 
 source_set("init_sparkle") {
@@ -206,14 +207,12 @@ source_set("init_sparkle") {
 
   deps = [
     "//base",
-    "//base:i18n",
     "//base:base_static",
+    "//base:i18n",
     "//url",
   ]
 
-  configs += [
-    "//vivaldi/gn/config:release_kind"
-  ]
+  configs += [ "//vivaldi/gn/config:release_kind" ]
 }
 
 source_set("default_bookmarks") {
@@ -222,13 +221,13 @@ source_set("default_bookmarks") {
     "vivaldi_default_bookmarks.h",
   ]
 
-  public_deps=[
-    "//vivaldi/components/bookmarks:bookmark_locales_include",
+  public_deps = [
     "//components/bookmarks/browser",
+    "//vivaldi/components/bookmarks:bookmark_locales_include",
   ]
 
-  deps= [
-    "//base:base",
+  deps = [
+    "//base",
     "//components/favicon/core",
     "//components/prefs",
     "//ui/base",
@@ -243,14 +242,14 @@ source_set("removed_partners_tracker") {
     "removed_partners_tracker.h",
   ]
 
-  public_deps=[
-    "//vivaldi/components/bookmarks:bookmark_locales_include",
+  public_deps = [
     "//components/bookmarks/browser",
+    "//vivaldi/components/bookmarks:bookmark_locales_include",
   ]
 
-  deps= [
+  deps = [
     ":default_bookmarks",
-    "//base:base",
+    "//base",
     "//components/favicon/core",
     "//components/prefs",
     "//ui/base",
@@ -259,42 +258,32 @@ source_set("removed_partners_tracker") {
   ]
 
   if (!is_ios) {
-    deps +=[
-      "//chrome/browser/profiles"
-    ]
+    deps += [ "//chrome/browser/profiles" ]
   }
 }
 
 source_set("stats_reporter") {
-  sources= [
-    "stats_reporter_impl.cc",
-    "stats_reporter_impl.h",
+  sources = [
     "stats_reporter.cc",
     "stats_reporter.h",
+    "stats_reporter_impl.cc",
+    "stats_reporter_impl.h",
   ]
 
   if (is_android) {
-    sources += [
-      "stats_reporter_impl_android.cc",
-    ]
+    sources += [ "stats_reporter_impl_android.cc" ]
   }
   if (is_linux) {
-    sources += [
-      "stats_reporter_impl_linux.cc",
-    ]
+    sources += [ "stats_reporter_impl_linux.cc" ]
   }
   if (is_mac) {
-    sources += [
-      "stats_reporter_impl_mac.mm",
-    ]
+    sources += [ "stats_reporter_impl_mac.mm" ]
   }
   if (is_win) {
-    sources += [
-      "stats_reporter_impl_win.cc",
-    ]
+    sources += [ "stats_reporter_impl_win.cc" ]
   }
 
-  deps= [
+  deps = [
     "//base",
     "//base/version_info:generate_version_info",
     "//components/metrics",
@@ -302,23 +291,19 @@ source_set("stats_reporter") {
     "//net",
     "//net/traffic_annotation",
     "//services/network/public/cpp",
-    "//ui/display:display",
+    "//ui/display",
     "//vivaldi/prefs:prefs_strings",
   ]
 
   if (!is_ios) {
-    sources += [
-      "stats_reporter_impl_content.cc",
-    ]
+    sources += [ "stats_reporter_impl_content.cc" ]
 
     deps += [
       "//chrome/browser:browser_process",
       "//components/embedder_support:user_agent",
     ]
   } else {
-    sources += [
-      "stats_reporter_impl_ios.mm",
-    ]
+    sources += [ "stats_reporter_impl_ios.mm" ]
 
     deps += [
       "//ios/chrome/browser/application_context/model",
@@ -336,26 +321,24 @@ source_set("vivaldi_browser_component_wrapper_impl") {
   ]
   deps = [
     "//chrome/browser/profiles:profile",
-    "//content/public/browser:browser",
+    "//content/public/browser",
     "//vivaldi/components:tabs",
     "//vivaldi/prefs:prefs_files_generated",
   ]
 }
 source_set("features") {
   sources = [
-    "features/vivaldi_features.h",
     "features/vivaldi_features.cc",
-    "features/vivaldi_flag_descriptions.h",
+    "features/vivaldi_features.h",
     "features/vivaldi_flag_descriptions.cc",
-    "features/vivaldi_flag_utils.h",
+    "features/vivaldi_flag_descriptions.h",
     "features/vivaldi_flag_utils.cc",
+    "features/vivaldi_flag_utils.h",
   ]
   deps = [
-    "//base:base",
-    "//base/version_info:version_info",
+    "//base",
+    "//base/version_info",
   ]
 
-  configs += [
-     "//vivaldi/gn/config:release_kind"
-   ]
+  configs += [ "//vivaldi/gn/config:release_kind" ]
 }

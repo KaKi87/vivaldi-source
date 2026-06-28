@@ -95,11 +95,11 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tabmodel.TabGroupMetadata;
 import org.chromium.chrome.browser.tabmodel.TabGroupMetadataExtractor;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.ui.favicon.FaviconHelper;
 import org.chromium.chrome.browser.ui.favicon.FaviconHelperJni;
+import org.chromium.components.tab_groups.TabGroupsFeatureMap;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.dragdrop.DragAndDropDelegate;
 import org.chromium.ui.dragdrop.DragDropGlobalState;
@@ -118,6 +118,7 @@ import java.util.function.Supplier;
 /** Tests for {@link TabStripDragHandler}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(qualifiers = "sw600dp", sdk = VERSION_CODES.S, shadows = ShadowToast.class)
+@DisableFeatures({TabGroupsFeatureMap.UPDATE_TAB_GROUP_COLORS})
 public class TabStripDragHandlerTest {
 
     private static final int CURR_INSTANCE_ID = 100;
@@ -154,12 +155,11 @@ public class TabStripDragHandlerTest {
     @Mock private MultiInstanceManager mSourceMultiInstanceManager;
     @Mock private MultiInstanceManager mDestMultiInstanceManager;
     @Mock private MultiInstanceOrchestrator mMultiInstanceOrchestrator;
-    @Mock private TabGroupModelFilter mTabGroupModelFilter;
 
     private final SettableMonotonicObservableSupplier<Integer> mTabStripHeightSupplier =
             ObservableSuppliers.createMonotonic();
-    private final SettableMonotonicObservableSupplier<TabGroupModelFilter>
-            mTabGroupModelFilterSupplier = ObservableSuppliers.createMonotonic();
+    private final SettableMonotonicObservableSupplier<TabModel> mTabModelSupplier =
+            ObservableSuppliers.createMonotonic();
 
     private TabStripDragHandler mSourceInstance;
     private TabStripDragHandler mDestInstance;
@@ -190,7 +190,7 @@ public class TabStripDragHandlerTest {
         mTabStripHeight = mActivity.getResources().getDimensionPixelSize(R.dimen.tab_strip_height);
 
         mTabStripHeightSupplier.set(mTabStripHeight);
-        mTabGroupModelFilterSupplier.set(mTabGroupModelFilter);
+        mTabModelSupplier.set(mTabModel);
 
         mPosY = mTabStripHeight - 2 * DRAG_MOVE_DISTANCE;
         mTabStripVisible = true;
@@ -234,10 +234,7 @@ public class TabStripDragHandlerTest {
         when(mTabModelSelector.getCurrentTab()).thenReturn(mTabBeingDragged);
         when(mTabModelSelector.getCurrentModel()).thenReturn(mTabModel);
         when(mTabModelSelector.getModel(anyBoolean())).thenReturn(mTabModel);
-        when(mTabModelSelector.getTabGroupModelFilter(anyBoolean()))
-                .thenReturn(mTabGroupModelFilter);
-        when(mTabModelSelector.getCurrentTabGroupModelFilterSupplier())
-                .thenReturn(mTabGroupModelFilterSupplier);
+        when(mTabModelSelector.getCurrentTabModelSupplier()).thenReturn(mTabModelSupplier);
 
         Supplier<Activity> activitySupplier = () -> mWindowAndroid.getActivity().get();
 
@@ -805,7 +802,7 @@ public class TabStripDragHandlerTest {
         doReturn(mhtmlTabTitle).when(mGroupedTab1).getTitle();
         mTabGroupMetadata =
                 TabGroupMetadataExtractor.extractTabGroupMetadata(
-                        mTabGroupModelFilter,
+                        mTabModel,
                         mTabGroupBeingDragged,
                         /* sourceWindowIndex= */ -1,
                         mGroupedTab1.getId(),
@@ -1016,7 +1013,7 @@ public class TabStripDragHandlerTest {
     @Test
     public void testNonLastTabDroppedInStrip_RecordTabRemovedFromGroup() {
         // The tab being dragged is in a tab group.
-        when(mTabGroupModelFilter.isTabInTabGroup(mTabBeingDragged)).thenReturn(true);
+        when(mTabModel.isTabInTabGroup(mTabBeingDragged)).thenReturn(true);
 
         // Verify histograms.
         testNonLastTabDroppedInStripHistogram();
@@ -2091,16 +2088,15 @@ public class TabStripDragHandlerTest {
         mTabGroupBeingDragged.add(mGroupedTab2);
         mTabGroupMetadata =
                 TabGroupMetadataExtractor.extractTabGroupMetadata(
-                        mTabGroupModelFilter,
+                        mTabModel,
                         mTabGroupBeingDragged,
                         /* sourceWindowIndex= */ -1,
                         mGroupedTab1.getId(),
                         isGroupShared);
-        when(mTabGroupModelFilter.getTabsInGroup(TAB_GROUP_ID)).thenReturn(mTabGroupBeingDragged);
-        when(mTabGroupModelFilter.isTabModelRestored()).thenReturn(true);
-        when(mTabGroupModelFilter.getTabModel()).thenReturn(mTabModel);
-        when(mTabGroupModelFilter.isTabInTabGroup(mGroupedTab1)).thenReturn(true);
-        when(mTabGroupModelFilter.isTabInTabGroup(mGroupedTab2)).thenReturn(true);
+        when(mTabModel.getTabsInGroup(TAB_GROUP_ID)).thenReturn(mTabGroupBeingDragged);
+        when(mTabModel.isTabModelRestored()).thenReturn(true);
+        when(mTabModel.isTabInTabGroup(mGroupedTab1)).thenReturn(true);
+        when(mTabModel.isTabInTabGroup(mGroupedTab2)).thenReturn(true);
         when(mTabModel.getTabById(mGroupedTab1.getId())).thenReturn(mGroupedTab1);
         when(mTabModel.getTabById(mGroupedTab2.getId())).thenReturn(mGroupedTab2);
     }

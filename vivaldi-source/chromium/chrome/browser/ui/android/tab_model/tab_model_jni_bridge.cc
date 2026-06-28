@@ -34,10 +34,10 @@
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_observer_jni_bridge.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window/internal/android/android_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_muted_utils.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
@@ -183,19 +183,19 @@ void TabModelJniBridge::MoveTabToWindowForTesting(
   MoveTabToWindow(tab->GetHandle(), destination_window_id, new_index);
 }
 
-void TabModelJniBridge::MoveTabGroupToWindowForTesting(
+bool TabModelJniBridge::MoveTabGroupToWindowForTesting(
     JNIEnv* env,
     const base::Token& group_id,
     long android_browser_window_ptr,
     int new_index) {
   if (!TabModel::EnableBrowserWindowInterfaceMobile()) {
-    return;
+    return false;
   }
   SessionID destination_window_id =
       reinterpret_cast<AndroidBrowserWindow*>(android_browser_window_ptr)
           ->GetSessionID();
-  MoveTabGroupToWindow(tab_groups::TabGroupId::FromRawToken(group_id),
-                       destination_window_id, new_index);
+  return MoveTabGroupToWindow(tab_groups::TabGroupId::FromRawToken(group_id),
+                              destination_window_id, new_index);
 }
 
 bool TabModelJniBridge::IsThisTabListEditable() {
@@ -326,12 +326,31 @@ tabs::TabInterface* TabModelJniBridge::GetActiveTab() {
   return GetTab(GetActiveIndex());
 }
 
+std::vector<tabs::TabHandle> TabModelJniBridge::GetOrderedMultiSelectedTabs()
+    const {
+  JNIEnv* env = AttachCurrentThread();
+  auto selected_android_tabs =
+      Java_TabModelJniBridge_getOrderedMultiSelectedTabs(env,
+                                                         java_object_.get(env));
+
+  std::vector<tabs::TabHandle> selected_handles;
+  for (auto& selected : selected_android_tabs) {
+    selected_handles.push_back(selected->GetHandle());
+  }
+  return selected_handles;
+}
+
 tabs::TabInterface* TabModelJniBridge::CreateTab(
     TabAndroid* parent,
     std::unique_ptr<WebContents> web_contents,
     int index,
     TabLaunchType type,
     bool should_pin) {
+  // It is not possible to create a new tab in a non-standard tab model.
+  if (GetTabModelType() != TabModelType::kStandard) {
+    return nullptr;
+  }
+
   JNIEnv* env = AttachCurrentThread();
   Profile* profile =
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
@@ -497,12 +516,19 @@ void TabModelJniBridge::ActivateTab(tabs::TabHandle tab) {
   SetActiveIndex(index);
 }
 
-tabs::TabInterface* TabModelJniBridge::OpenTab(const GURL& url, int index) {
+tabs::TabInterface* TabModelJniBridge::OpenTab(const GURL& url,
+                                               int index,
+                                               bool foreground) {
   JNIEnv* env = AttachCurrentThread();
   ScopedJavaLocalRef<jobject> jobj = java_object_.get(env);
   ScopedJavaLocalRef<jobject> jurl = url::GURLAndroid::FromNativeGURL(env, url);
 
-  return Java_TabModelJniBridge_openTabProgrammatically(env, jobj, jurl, index);
+  tabs::TabInterface* tab = Java_TabModelJniBridge_openTabProgrammatically(
+      env, jobj, jurl, index, foreground);
+  if (foreground && tab) {
+    ActivateTab(tab->GetHandle());
+  }
+  return tab;
 }
 
 void TabModelJniBridge::SetOpenerForTab(tabs::TabHandle target,
@@ -845,14 +871,14 @@ void TabModelJniBridge::MoveTabToWindow(tabs::TabHandle tab,
                                                  jactivity, destination_index);
 }
 
-void TabModelJniBridge::MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
+bool TabModelJniBridge::MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
                                              SessionID destination_window_id,
                                              int destination_index) {
   ScopedJavaLocalRef<jobject> jactivity =
       GetActivityForWindow(destination_window_id);
   JNIEnv* env = AttachCurrentThread();
   ScopedJavaLocalRef<jobject> jobj = java_object_.get(env);
-  Java_TabModelJniBridge_moveTabGroupToWindowInternal(
+  return Java_TabModelJniBridge_moveTabGroupToWindowInternal(
       env, jobj, group_id.token(), jactivity, destination_index);
 }
 

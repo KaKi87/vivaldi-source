@@ -22,8 +22,6 @@ import org.chromium.url.GURL;
 // Vivaldi
 import org.chromium.build.BuildConfig;
 
-import org.vivaldi.browser.preferences.VivaldiPreferences;
-
 /**
  * A controller class could enable or disable web content dark mode feature based on the content
  * settings {@link ContentSettingsType.AUTO_DARK_WEB_CONTENT}.
@@ -202,23 +200,4 @@ public class WebContentsDarkModeController {
             BrowserContextHandle browserContextHandle, Context context, GURL url) {
         return sInstance.getEnabledState(browserContextHandle, context, url);
     }
-
-    // Returns if the page should be forced to auto dark mode or not
-    public static boolean vivaldiShouldForceAutoDarkContentSetting() {
-        @ThemeType
-        int websiteTheme = VivaldiPreferences.getSharedPreferencesManager().readInt(
-                VivaldiPreferences.PREF_WEBSITE_THEME_APPEARANCE, ThemeType.SYSTEM_DEFAULT);
-
-        switch (websiteTheme) {
-            case ThemeType.LIGHT:
-                return false;
-            case ThemeType.DARK:
-                return true;
-            case ThemeType.SYSTEM_DEFAULT:
-                return GlobalNightModeStateProviderHolder.getInstance().isInNightMode();
-            default:
-                return false;
-        }
-    }
-    // End Vivaldi
 }

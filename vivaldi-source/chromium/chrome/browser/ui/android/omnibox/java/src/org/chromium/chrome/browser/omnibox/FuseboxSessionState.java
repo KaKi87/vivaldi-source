@@ -4,10 +4,11 @@
 
 package org.chromium.chrome.browser.omnibox;
 
+import android.content.Context;
+
 import org.chromium.base.Callback;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.UserData;
-import org.chromium.base.UserDataHost;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.supplier.OneShotCallback;
 import org.chromium.build.annotations.NullMarked;
@@ -19,15 +20,19 @@ import org.chromium.chrome.browser.omnibox.fusebox.FuseboxMetrics;
 import org.chromium.chrome.browser.omnibox.suggestions.AutocompleteController;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.embedder_support.util.UrlUtilities;
+import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
 import org.chromium.components.omnibox.AutocompleteInput;
 import org.chromium.components.omnibox.AutocompleteRequestType;
+import org.chromium.components.omnibox.OmniboxCapabilities;
 import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.components.omnibox.ToolModeUtils;
+import org.chromium.content_public.browser.WebContents;
 
 import java.util.Optional;
 
 // Vivaldi
 import org.chromium.build.BuildConfig;
+import org.vivaldi.browser.common.VivaldiUrlConstants;
 
 /**
  * Fusebox / Omnibox session state object. Captures controllers and state details needed to fulfill
@@ -69,11 +74,12 @@ public class FuseboxSessionState implements UserData {
     private final AutocompleteInput mAutocompleteInput = new AutocompleteInput();
 
     private @Nullable FuseboxMetrics mMetrics;
-    private @Nullable Profile mProfile;
+    protected @Nullable Profile mProfile;
     private @Nullable ComposeboxQueryControllerBridge mComposeBoxQueryControllerBridge;
-    private @Nullable AutocompleteController mAutocomplete;
+    protected @Nullable AutocompleteController mAutocomplete;
     private @Nullable FuseboxAttachmentModelList mFuseboxAttachmentModelList;
     private @Nullable OneShotCallback<Profile> mPendingProfileCallback;
+    private @Nullable WebContents mWebContents;
     private boolean mIsActive;
 
     /**
@@ -87,10 +93,9 @@ public class FuseboxSessionState implements UserData {
     public static @Nullable FuseboxSessionState from(LocationBarDataProvider dataProvider) {
         if (sInstanceForTesting != null) return sInstanceForTesting.orElse(null);
 
-        var userDataHost = dataProvider.getUserDataHost();
-        if (userDataHost == null) return null;
+        var state = dataProvider.getFuseboxSessionState();
+        if (state == null) return null;
 
-        var state = getSessionForTab(userDataHost);
         // Re-apply page metadata in case of ephemeral session, background reload etc.
         state.mAutocompleteInput.setPageClassification(dataProvider.getPageClassification(false));
         state.mAutocompleteInput.setPageUrl(dataProvider.getCurrentGurl());
@@ -98,26 +103,21 @@ public class FuseboxSessionState implements UserData {
         return state;
     }
 
-    /**
-     * Returns session state for the supplied tab.
-     *
-     * @param userDataHost The tab to retrieve the session state for.
-     * @return FuseboxSessionState for the supplied UserDataHost.
-     */
-    private static FuseboxSessionState getSessionForTab(UserDataHost userDataHost) {
-        FuseboxSessionState state = userDataHost.getUserData(FuseboxSessionState.class);
-        if (state == null) {
-            state = new FuseboxSessionState();
-            userDataHost.setUserData(FuseboxSessionState.class, state);
-        }
-        return state;
-    }
-
     /** Constructs a new, empty FuseboxSessionState. */
-    private FuseboxSessionState() {
+    public FuseboxSessionState() {
         if (OmniboxFeatures.sShowModelPicker.getValue()) {
             mAutocompleteInput.getRequestTypeSupplier().addSyncObserver(mOnRequestTypeChanged);
         }
+    }
+
+    /** Returns the WebContents of the contextual tasks WebUI associated with the fusebox. */
+    public @Nullable WebContents getContextualTasksWebContents() {
+        return mWebContents;
+    }
+
+    /** Returns whether the session is scoped to a specific AI task. */
+    public boolean isTaskScoped() {
+        return false;
     }
 
     /** Returns the current {@link Profile} for this session. */
@@ -132,12 +132,17 @@ public class FuseboxSessionState implements UserData {
      * initialize all required session controllers. The caller may supply an optional {@link
      * Runnable} to be notified when the session is fully set up.
      *
+     * @param context The context appropriate for the current Activity window.
+     * @param webContents The WebContents of the contextual tasks WebUI.
      * @param profileSupplier The supplier for the {@link Profile} object.
      * @param onFullyActivated Optional runnable to be invoked when the session is fully activated.
      */
     public void activate(
+            Context context,
+            @Nullable WebContents webContents,
             MonotonicObservableSupplier<Profile> profileSupplier,
             @Nullable Runnable onFullyActivated) {
+        mWebContents = webContents;
         if (mIsActive) {
             // This session is being re-activated. It has already been fully initialized so simply
             // emit the event.
@@ -154,19 +159,31 @@ public class FuseboxSessionState implements UserData {
         // current page URL (if the URL is eligible for display).
         // Vivaldi VAB-12855: Vivaldi should always retain URL.
         boolean retainUrl =
-                OmniboxFeatures.shouldRetainOmniboxOnFocus() || BuildConfig.IS_VIVALDI;
-        if (retainUrl && UrlBarData.shouldShowUrl(mAutocompleteInput.getPageUrl(), false)) {
+                OmniboxCapabilities.hasDesktopExperience(context) || BuildConfig.IS_VIVALDI;
+        if (retainUrl
+                && UrlBarData.shouldShowUrl(mAutocompleteInput.getPageUrl(), false)) {
             var editUrl = UrlUtilities.stripScheme(mAutocompleteInput.getPageUrl().getSpec());
+            // Vivaldi VAB-12922: show vivaldi-native:// instead of chrome-native://.
+            if (BuildConfig.IS_VIVALDI) editUrl = VivaldiUrlConstants.replaceInternalScheme(editUrl);
             mAutocompleteInput.setInitialUserText(editUrl);
         } else {
             mAutocompleteInput.setInitialUserText("");
         }
 
         // Apply the initial default value unless user text is already set.
-        if (mAutocompleteInput.getUserText().isEmpty()) {
+        if (mAutocompleteInput.getUserText().isEmpty()
+                && mAutocompleteInput.getPageClassification()
+                        != PageClassification.ANDROID_SEARCH_WIDGET_VALUE
+                && mAutocompleteInput.getPageClassification()
+                        != PageClassification.ANDROID_SHORTCUTS_WIDGET_VALUE) {
             mAutocompleteInput
                     .setUserText(mAutocompleteInput.getInitialUserText())
-                    .setSelection(retainUrl ? 0 : Integer.MAX_VALUE, Integer.MAX_VALUE); // Vivaldi
+                    .setSelection(
+                            // OmniboxCapabilities.hasDesktopExperience(context)
+                            retainUrl // Vivaldi
+                                    ? 0
+                                    : Integer.MAX_VALUE,
+                            Integer.MAX_VALUE);
         }
 
         // Stop here if we're already waiting for profile.
@@ -190,6 +207,7 @@ public class FuseboxSessionState implements UserData {
 
         mAutocompleteInput.reset();
         tearDownSessionControllers();
+        mWebContents = null;
         mIsActive = false;
     }
 
@@ -212,14 +230,14 @@ public class FuseboxSessionState implements UserData {
         assert (mProfile == null);
         mProfile = profile;
 
-        // AutocompleteController is currently a Profile-keyed instance and does not require
-        // explicit destruction.
-        mAutocomplete = AutocompleteController.getForProfile(mProfile);
+        createAutoComplete(profile);
 
-        mComposeBoxQueryControllerBridge =
-                ComposeboxQueryControllerBridge.createForProfile(mProfile);
+        if (mComposeBoxQueryControllerBridge == null) {
+            mComposeBoxQueryControllerBridge =
+                    ComposeboxQueryControllerBridge.create(mProfile, mWebContents, isTaskScoped());
+        }
 
-        if (mComposeBoxQueryControllerBridge != null) {
+        if (mComposeBoxQueryControllerBridge != null && mFuseboxAttachmentModelList == null) {
             // Composebox Controller may not be instantiated if locale or policies prohibit AIM.
             mMetrics = new FuseboxMetrics();
             // Create attachments list only if allowed.
@@ -234,16 +252,32 @@ public class FuseboxSessionState implements UserData {
         if (onFullyActivated != null) onFullyActivated.run();
     }
 
+    /**
+     * Create the AutocompleteController for the session.
+     *
+     * @param profile The profile to create the controller for.
+     */
+    protected void createAutoComplete(Profile profile) {
+        // AutocompleteController is currently a Profile-keyed instance and does not require
+        // explicit destruction.
+        mAutocomplete = AutocompleteController.getForProfile(profile);
+    }
+
     @Override
     public void destroy() {
+        if (mIsActive) {
+            deactivate();
+        }
         tearDownSessionControllers();
         if (OmniboxFeatures.sShowModelPicker.getValue()) {
             mAutocompleteInput.getRequestTypeSupplier().removeObserver(mOnRequestTypeChanged);
         }
     }
 
-    /** Tear down session controllers. */
-    private void tearDownSessionControllers() {
+    /** Unlinks and destroys session controllers. */
+    protected void tearDownSessionControllers() {
+        unlinkSessionControllers();
+
         if (mFuseboxAttachmentModelList != null) {
             mFuseboxAttachmentModelList.removeAttachmentChangeListener(
                     mFuseboxAttachmentChangeListener);
@@ -251,15 +285,13 @@ public class FuseboxSessionState implements UserData {
             mFuseboxAttachmentModelList = null;
         }
 
-        unlinkSessionControllers();
-
         if (mComposeBoxQueryControllerBridge != null) {
             mComposeBoxQueryControllerBridge.destroy();
+            mComposeBoxQueryControllerBridge = null;
         }
 
-        mComposeBoxQueryControllerBridge = null;
-        mMetrics = null;
         mAutocomplete = null;
+        mMetrics = null;
         mProfile = null;
     }
 
@@ -296,6 +328,11 @@ public class FuseboxSessionState implements UserData {
     /** Returns whether the Fusebox session is active. */
     public boolean isSessionActive() {
         return mIsActive;
+    }
+
+    /** Returns whether the session is a contextual tasks session. */
+    public boolean isContextualTasksState() {
+        return false;
     }
 
     /** Modifies this session input to have the values of the given input. */

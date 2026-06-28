@@ -73,12 +73,14 @@ suite('CrActionMenu', function() {
   }
 
   test('open-changed event fires', async function() {
-    let whenFired = eventToPromise('open-changed', menu);
+    let whenFired =
+        eventToPromise<CustomEvent<{value: boolean}>>('open-changed', menu);
     menu.showAt(dots);
     let event = await whenFired;
     assertTrue(event.detail.value);
 
-    whenFired = eventToPromise('open-changed', menu);
+    whenFired =
+        eventToPromise<CustomEvent<{value: boolean}>>('open-changed', menu);
     menu.close();
     event = await whenFired;
     assertFalse(event.detail.value);
@@ -244,6 +246,32 @@ suite('CrActionMenu', function() {
 
     window.dispatchEvent(new CustomEvent('popstate'));
     assertFalse(dialog.open);
+  });
+
+  test('auto-close on focusout', function() {
+    menu.autoCloseOnFocusout = true;
+    menu.showAt(dots);
+    assertTrue(menu.open);
+
+    // Focus out to an external element.
+    menu.dispatchEvent(new FocusEvent('focusout', {
+      relatedTarget: dots,
+      bubbles: true,
+      composed: true,
+    }));
+    assertFalse(menu.open);
+
+    // Reset and test with autoCloseOnFocusout = false.
+    menu.autoCloseOnFocusout = false;
+    menu.showAt(dots);
+    assertTrue(menu.open);
+
+    menu.dispatchEvent(new FocusEvent('focusout', {
+      relatedTarget: dots,
+      bubbles: true,
+      composed: true,
+    }));
+    assertTrue(menu.open);
   });
 
   /** @param key The key to use for closing. */

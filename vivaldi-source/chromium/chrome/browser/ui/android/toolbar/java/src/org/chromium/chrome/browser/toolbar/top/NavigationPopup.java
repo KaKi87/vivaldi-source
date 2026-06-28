@@ -288,7 +288,7 @@ public class NavigationPopup implements AdapterView.OnItemClickListener {
                         (bitmap, iconUrl) ->
                                 NavigationPopup.this.onFaviconAvailable(pageUrl, bitmap);
                 mFaviconHelper.getLocalFaviconImageForURL(
-                        mProfile, pageUrl, mFaviconSize, imageCallback);
+                        mProfile, pageUrl, mFaviconSize, /* fallbackToHost= */ true, imageCallback);
                 requestedUrls.add(pageUrl);
             }
         }
@@ -381,8 +381,7 @@ public class NavigationPopup implements AdapterView.OnItemClickListener {
                 if (!BuildConfig.IS_VIVALDI) // Vivaldi Ref. VAB-9101
                 ImageViewCompat.setImageTintList(
                         viewHolder.mImageView,
-                        AppCompatResources.getColorStateList(
-                                mContext, R.color.default_icon_color_accent1_tint_list));
+                        mContext.getColorStateList(R.color.default_icon_color_accent1_tint_list));
             } else {
                 ImageViewCompat.setImageTintList(viewHolder.mImageView, null);
             }

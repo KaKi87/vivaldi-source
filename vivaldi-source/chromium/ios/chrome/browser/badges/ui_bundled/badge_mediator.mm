@@ -74,7 +74,8 @@ bool IsInfobarTypeSupportedInReaderMode(InfobarType infobarType,
     case InfobarType::kInfobarTypePermissions:
       return true;
     case InfobarType::kInfobarTypeReaderMode:
-      return IsProactiveSuggestionsFrameworkEnabled() && !is_incognito;
+      return IsProactiveSuggestionsFrameworkEnabled() &&
+             (!is_incognito || IsChromeNextIaEnabled());
     case InfobarType::kInfobarTypeConfirm:
     case InfobarType::kInfobarTypePasswordSave:
     case InfobarType::kInfobarTypePasswordUpdate:
@@ -184,6 +185,9 @@ LocationBarBadgeType LocationBarBadgeTypeFromBadgeType(BadgeType badgeType) {
                     overlayPresenter:(OverlayPresenter*)overlayPresenter {
   self = [super init];
   if (self) {
+    if (!IsChromeNextIaEnabled()) {
+      _active = YES;
+    }
     // Set up the OverlayPresenterObserver for the infobar banner presentation.
     _overlayPresenterObserver =
         std::make_unique<OverlayPresenterObserverBridge>(self);
@@ -200,7 +204,9 @@ LocationBarBadgeType LocationBarBadgeTypeFromBadgeType(BadgeType badgeType) {
     _webStateObserver = std::make_unique<web::WebStateObserverBridge>(self);
 
     if (_webState) {
-      InfobarBadgeTabHelper::FromWebState(_webState)->SetDelegate(self);
+      if (!IsChromeNextIaEnabled()) {
+        InfobarBadgeTabHelper::FromWebState(_webState)->SetDelegate(self);
+      }
       if (ReaderModeTabHelper* readerModeTabHelper =
               ReaderModeTabHelper::FromWebState(_webState)) {
         readerModeTabHelper->AddObserver(_readerModeObserver.get());
@@ -271,6 +277,19 @@ LocationBarBadgeType LocationBarBadgeTypeFromBadgeType(BadgeType badgeType) {
 
 #pragma mark - Accessors
 
+- (void)setActive:(BOOL)active {
+  if (_active == active) {
+    return;
+  }
+  _active = active;
+  if (active) {
+    if (self.badgeTabHelper) {
+      self.badgeTabHelper->SetDelegate(self);
+      [self updateBadgesShownForWebState:self.webState];
+    }
+  }
+}
+
 - (NSArray<id<BadgeItem>>*)badges {
   if (!self.badgeTabHelper) {
     return [NSArray array];
@@ -316,7 +335,8 @@ LocationBarBadgeType LocationBarBadgeTypeFromBadgeType(BadgeType badgeType) {
         InfobarType::kInfobarTypePermissions) {
       // TODO(crbug.com/458307626): Migrate to LocationBarBadge.
       if (IsProactiveSuggestionsFrameworkEnabled() && self.webState &&
-          !self.webState->GetBrowserState()->IsOffTheRecord()) {
+          (!self.webState->GetBrowserState()->IsOffTheRecord() ||
+           IsChromeNextIaEnabled())) {
         // Check camera permission.
         if (self.webState->GetStateForPermission(web::PermissionCamera) ==
             web::PermissionStateAllowed) {
@@ -397,7 +417,9 @@ LocationBarBadgeType LocationBarBadgeTypeFromBadgeType(BadgeType badgeType) {
   } // End Vivaldi
 
   if (_webState) {
-    InfobarBadgeTabHelper::FromWebState(_webState)->SetDelegate(nil);
+    if (self.active) {
+      InfobarBadgeTabHelper::FromWebState(_webState)->SetDelegate(nil);
+    }
     if (ReaderModeTabHelper* readerModeTabHelper =
             ReaderModeTabHelper::FromWebState(_webState)) {
       readerModeTabHelper->RemoveObserver(_readerModeObserver.get());
@@ -406,7 +428,9 @@ LocationBarBadgeType LocationBarBadgeTypeFromBadgeType(BadgeType badgeType) {
   }
   _webState = webState;
   if (_webState) {
-    InfobarBadgeTabHelper::FromWebState(_webState)->SetDelegate(self);
+    if (self.active) {
+      InfobarBadgeTabHelper::FromWebState(_webState)->SetDelegate(self);
+    }
     if (ReaderModeTabHelper* readerModeTabHelper =
             ReaderModeTabHelper::FromWebState(_webState)) {
       readerModeTabHelper->AddObserver(_readerModeObserver.get());
@@ -472,10 +496,14 @@ LocationBarBadgeType LocationBarBadgeTypeFromBadgeType(BadgeType badgeType) {
 - (NSArray<NSNumber*>*)badgeTypesForOverflowMenu {
   NSMutableArray<NSNumber*>* badgeTypes = [NSMutableArray array];
   for (id<BadgeItem> badgeItem in self.badges) {
+
+    if (!IsVivaldiRunning()) { // Vivaldi shows reader view on AB.
     // Skip Reader mode badge.
     if (badgeItem.badgeType == BadgeType::kBadgeTypeReaderMode) {
       continue;
     }
+    } // End Vivaldi
+
     [badgeTypes addObject:@(badgeItem.badgeType)];
   }
   return badgeTypes;
@@ -548,6 +576,9 @@ LocationBarBadgeType LocationBarBadgeTypeFromBadgeType(BadgeType badgeType) {
 #pragma mark - InfobarBadgeTabHelperDelegate
 
 - (BOOL)badgeSupportedForInfobarType:(InfobarType)infobarType {
+  if (!self.active) {
+    return NO;
+  }
   if (base::FeatureList::IsEnabled(kAutofillBadgeRemoval)) {
     // TODO(crbug.com/440366193): Remove this ad hoc logic once we can fully
     // cleanup the autofill and password badges code once we are done
@@ -582,6 +613,9 @@ LocationBarBadgeType LocationBarBadgeTypeFromBadgeType(BadgeType badgeType) {
 }
 
 - (void)updateBadgesShownForWebState:(web::WebState*)webState {
+  if (!self.active) {
+    return;
+  }
   if (webState != self.webStateList->GetActiveWebState()) {
     // Don't update badges if the update request is not coming from the
     // currently active WebState.
@@ -591,7 +625,8 @@ LocationBarBadgeType LocationBarBadgeTypeFromBadgeType(BadgeType badgeType) {
   NSArray<id<BadgeItem>>* badges = self.badges;
 
   if (IsProactiveSuggestionsFrameworkEnabled() && self.webState &&
-      !self.webState->GetBrowserState()->IsOffTheRecord()) {
+      (!self.webState->GetBrowserState()->IsOffTheRecord() ||
+       IsChromeNextIaEnabled())) {
     [self handleMultiBadgeDisplay:badges];
   } else {
     [self handleSingleBadgeDisplay:badges];

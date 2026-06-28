@@ -91,7 +91,6 @@ enum class PasskeyUserVerificationStatus {
     PasskeyKeychainProviderBridgeDelegate,
     PasskeyWelcomeScreenViewControllerDelegate,
     MultiProfilePasskeyCreationViewControllerDelegate,
-    SuccessfulReauthTimeAccessor,
     UIAdaptivePresentationControllerDelegate>
 
 // Interface for the persistent credential store.
@@ -103,9 +102,6 @@ enum class PasskeyUserVerificationStatus {
 // Consent coordinator that shows a view requesting device auth in order to
 // enable the extension.
 @property(nonatomic, strong) ConsentCoordinator* consentCoordinator;
-
-// Date kept for ReauthenticationModule.
-@property(nonatomic, strong) NSDate* lastSuccessfulReauthTime;
 
 // Reauthentication Module used for reauthentication.
 @property(nonatomic, strong) ReauthenticationModule* reauthenticationModule;
@@ -324,9 +320,16 @@ enum class PasskeyUserVerificationStatus {
   }
 }
 
-// Only available in iOS 18.0+.
 - (void)performPasskeyRegistrationWithoutUserInteractionIfPossible:
-    (ASPasskeyCredentialRequest*)registrationRequest API_AVAILABLE(ios(18.0)) {
+    (ASPasskeyCredentialRequest*)registrationRequest {
+  // TODO(crbug.com/515318495): Force disable registration to prevent the CPE
+  // startup crash in M149
+  [self exitWithErrorCode:ASExtensionErrorCodeFailed];
+  return;
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunreachable-code"
+
   PasskeyRequestDetails* passkeyRequestDetails =
       [self passkeyDetailsFromConditionalCreateRequest:registrationRequest];
   if (![passkeyRequestDetails
@@ -349,6 +352,8 @@ enum class PasskeyUserVerificationStatus {
 
   // Try to create a passkey while user interaction is disallowed.
   [self createPasskeyWithDetails:passkeyRequestDetails gaia:gaia];
+
+#pragma clang diagnostic pop
 }
 
 - (void)prepareInterfaceForPasskeyRegistration:
@@ -382,13 +387,7 @@ enum class PasskeyUserVerificationStatus {
       [self exitWithErrorCode:ASExtensionErrorCodeFailed];
       return;
     case PasskeyCreationEligibility::kExcludedPasskey:
-      // Note: ASExtensionErrorCodeMatchedExcludedCredential is iOS 18.0+ only,
-      // but so is the excludedCredentials array, so we can't reach this point
-      // if the iOS version is below 18.0, which is why there's no need for an
-      // else statement.
-      if (@available(iOS 18.0, *)) {
-        [self exitWithErrorCode:ASExtensionErrorCodeMatchedExcludedCredential];
-      }
+      [self exitWithErrorCode:ASExtensionErrorCodeMatchedExcludedCredential];
       return;
     case PasskeyCreationEligibility::kCanCreateWithUserInteraction:
       if ([self isUsingMultiProfile]) {
@@ -409,9 +408,6 @@ enum class PasskeyUserVerificationStatus {
 
 - (void)reportUnknownPublicKeyCredentialForRelyingParty:(NSString*)relyingParty
                                            credentialID:(NSData*)credentialID {
-  if (!IsSignalAPIEnabled()) {
-    return;
-  }
 
   NSArray<id<Credential>>* credentials = self.credentialStore.credentials;
   NSUInteger credentialIndex =
@@ -433,9 +429,6 @@ enum class PasskeyUserVerificationStatus {
 - (void)reportPublicKeyCredentialUpdateForRelyingParty:(NSString*)relyingParty
                                             userHandle:(NSData*)userHandle
                                                newName:(NSString*)newName {
-  if (!IsSignalAPIEnabled()) {
-    return;
-  }
 
   NSArray<id<Credential>>* credentials = self.credentialStore.credentials;
   NSUInteger credentialIndex =
@@ -467,9 +460,6 @@ enum class PasskeyUserVerificationStatus {
                                        acceptedCredentialIDs:
                                            (NSArray<NSData*>*)
                                                acceptedCredentialIDs {
-  if (!IsSignalAPIEnabled()) {
-    return;
-  }
 
   NSArray<id<Credential>>* credentials = self.credentialStore.credentials;
   NSUInteger credentialIndex =
@@ -530,8 +520,7 @@ enum class PasskeyUserVerificationStatus {
 
 - (ReauthenticationModule*)reauthenticationModule {
   if (!_reauthenticationModule) {
-    _reauthenticationModule = [[ReauthenticationModule alloc]
-        initWithSuccessfulReauthTimeAccessor:self];
+    _reauthenticationModule = [[ReauthenticationModule alloc] init];
   }
   return _reauthenticationModule;
 }
@@ -718,12 +707,6 @@ enum class PasskeyUserVerificationStatus {
   }];
 }
 
-#pragma mark - SuccessfulReauthTimeAccessor
-
-- (void)updateSuccessfulReauthTime {
-  self.lastSuccessfulReauthTime = [[NSDate alloc] init];
-}
-
 #pragma mark - UIAdaptivePresentationControllerDelegate
 
 - (void)presentationControllerDidDismiss:
@@ -835,8 +818,7 @@ enum class PasskeyUserVerificationStatus {
 // or an access to passwords (when `NO`).
 - (void)reauthenticateIfNeededToAccessPasskeys:(BOOL)forPasskeys
                          withCompletionHandler:
-                             (void (^)(ReauthenticationResult))
-                                 completionHandler {
+                             (ReauthenticationResultBlock)completionHandler {
   __weak __typeof__(self) weakSelf = self;
   auto handlerWrapper = ^(ReauthenticationResult result) {
     if (result == ReauthenticationResult::kSuccess) {
@@ -1250,7 +1232,7 @@ enum class PasskeyUserVerificationStatus {
   if (userVerificationRequired) {
     _userVerificationStatus = PasskeyUserVerificationStatus::kRequired;
     // Since UV is required, do not allow a previous reauth to be reused.
-    self.lastSuccessfulReauthTime = nil;
+    [self.reauthenticationModule clearAuthValidity];
   } else {
     _userVerificationStatus = PasskeyUserVerificationStatus::kNotRequired;
   }

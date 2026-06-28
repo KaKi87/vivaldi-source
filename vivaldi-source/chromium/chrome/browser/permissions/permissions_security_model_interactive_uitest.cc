@@ -13,7 +13,7 @@
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/extensions/extension_action_test_helper.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_paths.h"
@@ -736,7 +736,9 @@ IN_PROC_BROWSER_TEST_F(PermissionsSecurityModelInteractiveUITest,
 
   content::RenderFrameHost* popup_rfh =
       ui_test_utils::NavigateToURLBlockUntilNavigationsComplete(
-          chrome::FindBrowserWithTab(popup_iframe_web_contents), fs_url, 1);
+          GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+              popup_iframe_web_contents),
+          fs_url, 1);
 
   EXPECT_TRUE(popup_rfh->GetLastCommittedURL().SchemeIsFileSystem());
 
@@ -828,7 +830,7 @@ IN_PROC_BROWSER_TEST_F(PermissionsSecurityModelInteractiveUITest,
   VerifyPermissionsForFile(main_rfh, /*expect_granted=*/false);
 }
 
-// Flaky - https://crbug.com/1289985
+// Flaky - https://crbug.com/40817826
 #if BUILDFLAG(IS_WIN)
 #define MAYBE_UniversalAccessFromFileUrls UniversalAccessFromFileUrls
 #else
@@ -936,13 +938,13 @@ IN_PROC_BROWSER_TEST_F(PermissionsSecurityModelInteractiveUITest,
 
   content::RenderFrameHost* main_rfh =
       ui_test_utils::NavigateToURLBlockUntilNavigationsComplete(
-          browser(), GURL(chrome::kChromeUINewTabURL), 1);
+          browser(), chrome::ChromeUINewTabURLAsGURL(), 1);
   content::WebContents::FromRenderFrameHost(main_rfh)->Focus();
 
   ASSERT_TRUE(main_rfh);
-  EXPECT_EQ(GURL(chrome::kChromeUINewTabURL),
+  EXPECT_EQ(chrome::ChromeUINewTabURLAsGURL(),
             embedder_contents->GetLastCommittedURL());
-  EXPECT_EQ(GURL(chrome::kChromeUINewTabPageURL),
+  EXPECT_EQ(chrome::ChromeUINewTabPageURLAsGURL(),
             main_rfh->GetLastCommittedOrigin().GetURL());
 
   EXPECT_EQ(false, content::EvalJs(main_rfh, kCheckMicrophone,
@@ -975,13 +977,13 @@ IN_PROC_BROWSER_TEST_F(PermissionsSecurityModelInteractiveUITest,
 
   content::RenderFrameHost* main_rfh =
       ui_test_utils::NavigateToURLBlockUntilNavigationsComplete(
-          browser(), GURL(chrome::kChromeUINewTabURL), 1);
+          browser(), chrome::ChromeUINewTabURLAsGURL(), 1);
   content::WebContents::FromRenderFrameHost(main_rfh)->Focus();
 
   ASSERT_TRUE(main_rfh);
-  EXPECT_EQ(GURL(chrome::kChromeUINewTabURL),
+  EXPECT_EQ(chrome::ChromeUINewTabURLAsGURL(),
             embedder_contents->GetLastCommittedURL());
-  EXPECT_EQ(GURL(chrome::kChromeUINewTabPageURL),
+  EXPECT_EQ(chrome::ChromeUINewTabPageURLAsGURL(),
             main_rfh->GetLastCommittedOrigin().GetURL());
 
   EXPECT_EQ(false, content::EvalJs(main_rfh, kCheckMicrophone,
@@ -1028,13 +1030,13 @@ IN_PROC_BROWSER_TEST_F(PermissionsSecurityModelInteractiveUITest,
 
   content::RenderFrameHost* main_rfh =
       ui_test_utils::NavigateToURLBlockUntilNavigationsComplete(
-          browser(), GURL(chrome::kChromeUINewTabURL), 1);
+          browser(), chrome::ChromeUINewTabURLAsGURL(), 1);
   content::WebContents::FromRenderFrameHost(main_rfh)->Focus();
 
   ASSERT_TRUE(main_rfh);
-  EXPECT_EQ(GURL(chrome::kChromeUINewTabURL),
+  EXPECT_EQ(chrome::ChromeUINewTabURLAsGURL(),
             embedder_contents->GetLastCommittedURL());
-  EXPECT_EQ(GURL(chrome::kChromeUINewTabPageURL),
+  EXPECT_EQ(chrome::ChromeUINewTabPageURLAsGURL(),
             main_rfh->GetLastCommittedOrigin().GetURL());
 
   EXPECT_EQ(false, content::EvalJs(main_rfh, kCheckMicrophone,
@@ -1573,7 +1575,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestWithPrerendererTest,
 
   // The main frame of a newly created frame tree is a prerenderer. It is
   // inactive, all permission requests should be automatically denied.
-  // (crbug.com/1126305): Do not use RFH::IsInactiveAndDisallowActivation() as
+  // (crbug.com/40148089): Do not use RFH::IsInactiveAndDisallowActivation() as
   // it will stop prerendering process.
   EXPECT_EQ(prerender_render_frame_host->GetLifecycleState(),
             content::RenderFrameHost::LifecycleState::kPrerendering);
@@ -2240,7 +2242,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestFromExtension,
       "permissions_test/request_from_popup_v3/has_permissions");
 }
 
-// crbug.com/1356314 Failed on Linux.
+// crbug.com/40860324 Failed on Linux.
 #if BUILDFLAG(IS_LINUX)
 #define MAYBE_OptionsPageNoPermissonsV2Test \
   DISABLED_OptionsPageNoPermissonsV2Test
@@ -2254,7 +2256,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestFromExtension,
       /*shown_prompts=*/4);
 }
 
-// crbug.com/1356314 Failed on Linux.
+// crbug.com/40860324 Failed on Linux.
 #if BUILDFLAG(IS_LINUX)
 #define MAYBE_OptionsPageHasPermissonsV2Test \
   DISABLED_OptionsPageHasPermissonsV2Test
@@ -2268,7 +2270,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestFromExtension,
       /*shown_prompts=*/2);
 }
 
-// crbug.com/1356314 Failed on Linux.
+// crbug.com/40860324 Failed on Linux.
 #if BUILDFLAG(IS_LINUX)
 #define MAYBE_OptionsPageNoPermissonsV3Test \
   DISABLED_OptionsPageNoPermissonsV3Test
@@ -2282,7 +2284,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestFromExtension,
       /*shown_prompts=*/4);
 }
 
-// crbug.com/1356314 Failed on Linux.
+// crbug.com/40860324 Failed on Linux.
 #if BUILDFLAG(IS_LINUX)
 #define MAYBE_OptionsPageHasPermissonsV3Test \
   DISABLED_OptionsPageHasPermissonsV3Test

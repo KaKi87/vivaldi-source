@@ -16,8 +16,6 @@
 #include "base/strings/stringprintf.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/browser_list_observer.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/test/base/devtools_agent_coverage_observer.h"
 #include "chrome/test/base/test_switches.h"
@@ -26,8 +24,8 @@
 #include "content/public/browser/web_contents.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/interaction/element_tracker.h"
-#include "ui/base/interaction/framework_specific_implementation.h"
 #include "ui/base/interaction/interactive_test_internal.h"
+#include "ui/base/interaction/safe_castable.h"
 #include "ui/gfx/native_ui_types.h"
 #include "ui/views/widget/widget.h"
 
@@ -38,7 +36,7 @@
 
 namespace internal {
 
-DEFINE_FRAMEWORK_SPECIFIC_METADATA(InteractiveBrowserTestPrivate)
+DEFINE_SAFE_CAST_TARGET(InteractiveBrowserTestPrivate)
 
 InteractiveBrowserTestPrivate::InteractiveBrowserTestPrivate(
     ui::test::internal::InteractiveTestPrivate& test_impl)

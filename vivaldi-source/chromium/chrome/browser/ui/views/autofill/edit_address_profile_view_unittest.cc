@@ -16,6 +16,7 @@
 #include "chrome/browser/ui/views/autofill/address_editor_view.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/views/chrome_views_test_base.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_i18n_api.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
 #include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/common/autofill_features.h"
@@ -135,7 +136,7 @@ void EditAddressProfileViewTest::CreateViewAndShow(
   widget_->Show();
 #if BUILDFLAG(IS_MAC)
   // Necessary for Mac. On other platforms this happens in the focus
-  // manager, but it's disabled for Mac due to crbug.com/650859.
+  // manager, but it's disabled for Mac due to crbug.com/40486728.
   parent_widget_->Activate();
   widget_->Activate();
 #endif

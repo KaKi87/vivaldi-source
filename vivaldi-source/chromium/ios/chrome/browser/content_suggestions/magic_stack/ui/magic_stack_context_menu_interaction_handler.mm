@@ -53,26 +53,8 @@ BOOL AllowsLongPressForModuleType(ContentSuggestionsModuleType type) {
 NSString* GetContextMenuTitleForType(ContentSuggestionsModuleType type,
                                      MagicStackModule* config) {
   switch (type) {
-    case ContentSuggestionsModuleType::kTabResumption: {
-      TabResumptionConfig* tabResumptionItemConfig =
-          static_cast<TabResumptionConfig*>(config);
-      if ((commerce::kShopCardVariation.Get().contains(
-               commerce::kShopCardArm3) ||
-           commerce::kShopCardVariation.Get() == commerce::kShopCardArm4) &&
-          tabResumptionItemConfig.shopCardData) {
-        if (tabResumptionItemConfig.shopCardData.shopCardItemType ==
-                ShopCardItemType::kPriceDropOnTab &&
-            tabResumptionItemConfig.shopCardData.priceDrop.has_value()) {
-          return l10n_util::GetNSString(
-              IDS_IOS_CONTENT_SUGGESTIONS_SHOPCARD_PRICE_DROP_CONTEXT_MENU_TITLE);
-        } else if (tabResumptionItemConfig.shopCardData.shopCardItemType ==
-                   ShopCardItemType::kPriceTrackableProductOnTab) {
-          return l10n_util::GetNSString(
-              IDS_IOS_CONTENT_SUGGESTIONS_SHOPCARD_TRACK_PRICE_CONTEXT_MENU_TITLE);
-        }
-      }
+    case ContentSuggestionsModuleType::kTabResumption:
       return l10n_util::GetNSString(IDS_IOS_TAB_RESUMPTION_CONTEXT_MENU_TITLE);
-    }
     case ContentSuggestionsModuleType::kSafetyCheck:
       return l10n_util::GetNSString(IDS_IOS_SAFETY_CHECK_CONTEXT_MENU_TITLE);
     case ContentSuggestionsModuleType::kPriceTrackingPromo:
@@ -104,18 +86,9 @@ NSString* GetContextMenuHideDescriptionForType(
     ContentSuggestionsModuleType type,
     MagicStackModule* config) {
   switch (type) {
-    case ContentSuggestionsModuleType::kTabResumption: {
-      TabResumptionConfig* tabResumptionItemConfig =
-          static_cast<TabResumptionConfig*>(config);
-      if (tabResumptionItemConfig.shopCardData &&
-          tabResumptionItemConfig.shopCardData.shopCardItemType ==
-              ShopCardItemType::kPriceTrackableProductOnTab) {
-        return l10n_util::GetNSString(
-            IDS_IOS_CONTENT_SUGGESTIONS_SHOPCARD_TRACK_PRICE_HIDE_ALT);
-      }
+    case ContentSuggestionsModuleType::kTabResumption:
       return l10n_util::GetNSString(
           IDS_IOS_TAB_RESUMPTION_CONTEXT_MENU_DESCRIPTION);
-    }
     case ContentSuggestionsModuleType::kSafetyCheck:
       return l10n_util::GetNSString(
           IDS_IOS_SAFETY_CHECK_CONTEXT_MENU_DESCRIPTION);

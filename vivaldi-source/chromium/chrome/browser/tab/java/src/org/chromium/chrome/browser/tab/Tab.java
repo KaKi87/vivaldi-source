@@ -13,8 +13,10 @@ import androidx.annotation.ColorInt;
 import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.base.Callback;
 import org.chromium.base.Token;
 import org.chromium.base.UserDataHost;
+import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -86,7 +88,7 @@ public interface Tab extends TabLifecycle {
     void removeObserver(TabObserver observer);
 
     /** Returns if the given {@link TabObserver} is present. */
-    boolean hasObserver(TabObserver observer);
+    boolean hasObserverForTesting(TabObserver observer);
 
     /**
      * Returns the {@link UserDataHost} that manages {@link UserData} objects attached to. This is
@@ -303,10 +305,10 @@ public interface Tab extends TabLifecycle {
     /**
      * Loads the tab if it's not loaded (e.g. frozen, lazily loaded, it was background, etc.).
      *
-     * @param caller The caller of this method.
+     * @param forceBackingSize Whether to force setting the physical backing size.
      * @return true iff the Tab handled the request.
      */
-    boolean loadIfNeeded(int caller);
+    boolean loadIfNeeded(boolean forceBackingSize);
 
     /** Reloads the current page content. */
     void reload();
@@ -503,6 +505,20 @@ public interface Tab extends TabLifecycle {
 
     /** Returns whether the tab has a TabInterfaceAndroid object. */
     boolean hasTabInterfaceAndroid();
+
+    /** Returns the supplier for whether the tab is currently being used for offscreen rendering. */
+    NonNullObservableSupplier<Boolean> getIsOffscreenRenderingSupplier();
+
+    /** Starts offscreen rendering for this tab. */
+    void startOffscreenRendering();
+
+    /** Resets the offscreen rendering state for this tab. */
+    void stopOffscreenRendering();
+
+    /** Gets the memory usage of this tab in bytes asynchronously. */
+    default void getMemoryUsageBytes(Callback<Long> callback) {
+        callback.onResult(0L);
+    }
 
     /** Vivaldi: This is will exchange the webcontents. */
     public void changeWebContents(WebContents newWebContents);

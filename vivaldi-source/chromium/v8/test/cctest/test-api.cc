@@ -44,8 +44,10 @@
 #include "include/cppgc/allocation.h"
 #include "include/cppgc/persistent.h"
 #include "include/v8-cpp-heap-external.h"
+#include "include/v8-data.h"
 #include "include/v8-date.h"
 #include "include/v8-extension.h"
+#include "include/v8-external.h"
 #include "include/v8-fast-api-calls.h"
 #include "include/v8-function.h"
 #include "include/v8-initialization.h"
@@ -446,10 +448,10 @@ THREADED_TEST(HulIgennem) {
   v8::HandleScope scope(isolate);
   v8::Local<v8::Primitive> undef = v8::Undefined(isolate);
   Local<String> undef_str = undef->ToString(env.local()).ToLocalChecked();
-  size_t buffer_size = undef_str->Utf8LengthV2(isolate) + 1;
+  size_t buffer_size = undef_str->Utf8Length(isolate) + 1;
   char* value = i::NewArray<char>(buffer_size);
-  undef_str->WriteUtf8V2(isolate, value, buffer_size,
-                         String::WriteFlags::kNullTerminate);
+  undef_str->WriteUtf8(isolate, value, buffer_size,
+                       String::WriteFlags::kNullTerminate);
   CHECK_EQ(0, strcmp(value, "undefined"));
   i::DeleteArray(value);
 }
@@ -1592,6 +1594,7 @@ static void TestExternalPointerWrapping() {
                    "foo(), true")
             ->BooleanValue(isolate));
 
+  expected_ptr = nullptr;
   delete ptr;
 }
 
@@ -1600,6 +1603,7 @@ THREADED_TEST(ExternalWrap) {
   int* ptr = new int;
   expected_ptr = ptr;
   TestExternalPointerWrapping();
+  expected_ptr = nullptr;
   delete ptr;
 
   // Check stack allocated object.
@@ -2014,7 +2018,7 @@ THREADED_TEST(BigIntObject) {
   CHECK(unboxed_bigint->BooleanValue(isolate));
   v8::Local<v8::String> string =
       unboxed_bigint->ToString(context).ToLocalChecked();
-  CHECK_EQ(0, strcmp("42", *v8::String::Utf8Value(isolate, string)));
+  CHECK_EQ(v8::String::Utf8Value(isolate, string).as_view(), "42");
 
   // IntegerValue throws.
   CHECK(unboxed_bigint->IntegerValue(context).IsNothing());
@@ -2935,11 +2939,9 @@ THREADED_TEST(AccessorIsPreservedOnAttributeChange) {
   v8::Local<v8::Value> res = CompileRun("var a = []; a;");
   i::DirectHandle<i::JSReceiver> a(
       v8::Utils::OpenHandle(v8::Object::Cast(*res)));
-  CHECK_EQ(1,
-           a->map()->instance_descriptors(i_isolate)->number_of_descriptors());
+  CHECK_EQ(1, a->map()->instance_descriptors()->number_of_descriptors());
   CompileRun("Object.defineProperty(a, 'length', { writable: false });");
-  CHECK_EQ(0,
-           a->map()->instance_descriptors(i_isolate)->number_of_descriptors());
+  CHECK_EQ(0, a->map()->instance_descriptors()->number_of_descriptors());
   // But we should still have an AccessorInfo.
   i::DirectHandle<i::String> name = i_isolate->factory()->length_string();
   i::LookupIterator it(i_isolate, a, name,
@@ -3237,8 +3239,8 @@ TEST(InternalFieldsSubclassing) {
           i::Cast<i::JSObject>(v8::Utils::OpenDirectHandle(*value));
 #ifdef VERIFY_HEAP
       i_value->HeapObjectVerify(i_isolate);
-      i_value->map()->HeapObjectVerify(i_isolate);
-      i_value->map()->FindRootMap(i_isolate)->HeapObjectVerify(i_isolate);
+      i::Object::ObjectVerify(i_value->map(), i_isolate);
+      i::Object::ObjectVerify(i_value->map()->FindRootMap(), i_isolate);
 #endif
       CHECK_EQ(nof_embedder_fields, value->InternalFieldCount());
       if (in_object_only) {
@@ -3249,7 +3251,7 @@ TEST(InternalFieldsSubclassing) {
 
       // Make sure we get the precise property count.
       i::MapUpdater::CompleteInobjectSlackTracking(
-          i_isolate, i_value->map()->FindRootMap(i_isolate));
+          i_isolate, i_value->map()->FindRootMap());
       // TODO(cbruni): fix accounting to make this condition true.
       // CHECK_EQ(0, i_value->map()->UnusedPropertyFields());
       if (in_object_only) {
@@ -6624,10 +6626,10 @@ void TryCatchMixedNestingCheck(v8::TryCatch* try_catch) {
   CHECK(try_catch->HasCaught());
   Local<Message> message = try_catch->Message();
   Local<Value> resource = message->GetScriptOrigin().ResourceName();
-  CHECK_EQ(
-      0, strcmp(*v8::String::Utf8Value(CcTest::isolate(), resource), "inner"));
-  CHECK_EQ(0, strcmp(*v8::String::Utf8Value(CcTest::isolate(), message->Get()),
-                     "Uncaught Error: a"));
+  CHECK_EQ(v8::String::Utf8Value(CcTest::isolate(), resource).as_view(),
+           "inner");
+  CHECK_EQ(v8::String::Utf8Value(CcTest::isolate(), message->Get()).as_view(),
+           "Uncaught Error: a");
   CHECK_EQ(1, message->GetLineNumber(CcTest::isolate()->GetCurrentContext())
                   .FromJust());
   CHECK_EQ(0, message->GetStartColumn(CcTest::isolate()->GetCurrentContext())
@@ -8711,94 +8713,94 @@ THREADED_TEST(StringWrite) {
   size_t processed_characters;
 
   memset(utf8buf, 0x1, 1000);
-  len = v8::String::Empty(isolate)->WriteUtf8V2(
+  len = v8::String::Empty(isolate)->WriteUtf8(
       isolate, utf8buf, sizeof(utf8buf), String::WriteFlags::kNullTerminate);
   CHECK_EQ(1, len);
   CHECK_EQ(0, strcmp(utf8buf, ""));
 
   memset(utf8buf, 0x1, 1000);
-  len = str2->WriteUtf8V2(isolate, utf8buf, sizeof(utf8buf),
-                          String::WriteFlags::kNullTerminate);
+  len = str2->WriteUtf8(isolate, utf8buf, sizeof(utf8buf),
+                        String::WriteFlags::kNullTerminate);
   CHECK_EQ(9, len);
   CHECK_EQ(0, strcmp(utf8buf, "abc\xC3\xB0\xE2\x98\x83"));
 
   memset(utf8buf, 0x1, 1000);
-  len = str2->WriteUtf8V2(isolate, utf8buf, 8, String::WriteFlags::kNone,
-                          &processed_characters);
+  len = str2->WriteUtf8(isolate, utf8buf, 8, String::WriteFlags::kNone,
+                        &processed_characters);
   CHECK_EQ(8, len);
   CHECK_EQ(5, processed_characters);
   CHECK_EQ(0, strncmp(utf8buf, "abc\xC3\xB0\xE2\x98\x83\x01", 9));
 
   memset(utf8buf, 0x1, 1000);
-  len = str2->WriteUtf8V2(isolate, utf8buf, 7);
+  len = str2->WriteUtf8(isolate, utf8buf, 7);
   CHECK_EQ(5, len);
   CHECK_EQ(0, strncmp(utf8buf, "abc\xC3\xB0\x01", 5));
 
   memset(utf8buf, 0x1, 1000);
-  len = str2->WriteUtf8V2(isolate, utf8buf, 6);
+  len = str2->WriteUtf8(isolate, utf8buf, 6);
   CHECK_EQ(5, len);
   CHECK_EQ(0, strncmp(utf8buf, "abc\xC3\xB0\x01", 5));
 
   memset(utf8buf, 0x1, 1000);
-  len = str2->WriteUtf8V2(isolate, utf8buf, 5);
+  len = str2->WriteUtf8(isolate, utf8buf, 5);
   CHECK_EQ(5, len);
   CHECK_EQ(0, strncmp(utf8buf, "abc\xC3\xB0\x01", 5));
 
   memset(utf8buf, 0x1, 1000);
-  len = str2->WriteUtf8V2(isolate, utf8buf, 4);
+  len = str2->WriteUtf8(isolate, utf8buf, 4);
   CHECK_EQ(3, len);
   CHECK_EQ(0, strncmp(utf8buf, "abc\x01", 4));
 
   memset(utf8buf, 0x1, 1000);
-  len = str2->WriteUtf8V2(isolate, utf8buf, 3);
+  len = str2->WriteUtf8(isolate, utf8buf, 3);
   CHECK_EQ(3, len);
   CHECK_EQ(0, strncmp(utf8buf, "abc\x01", 4));
 
   memset(utf8buf, 0x1, 1000);
-  len = str2->WriteUtf8V2(isolate, utf8buf, 2);
+  len = str2->WriteUtf8(isolate, utf8buf, 2);
   CHECK_EQ(2, len);
   CHECK_EQ(0, strncmp(utf8buf, "ab\x01", 3));
 
   // always write a null terminator if requested, even if there isn't enough
   // space for all characters of the string
   memset(utf8buf, 0x1, 1000);
-  len = str2->WriteUtf8V2(isolate, utf8buf, 4,
-                          String::WriteFlags::kNullTerminate);
+  len =
+      str2->WriteUtf8(isolate, utf8buf, 4, String::WriteFlags::kNullTerminate);
   CHECK_EQ(4, len);
   CHECK_EQ(0, strcmp(utf8buf, "abc"));
 
   memset(utf8buf, 0x1, 1000);
-  len = str2->WriteUtf8V2(isolate, utf8buf, 5,
-                          String::WriteFlags::kNullTerminate);
+  len =
+      str2->WriteUtf8(isolate, utf8buf, 5, String::WriteFlags::kNullTerminate);
   CHECK_EQ(4, len);
   CHECK_EQ(0, strcmp(utf8buf, "abc"));
 
   memset(utf8buf, 0x1, 1000);
-  len = str2->WriteUtf8V2(isolate, utf8buf, 6,
-                          String::WriteFlags::kNullTerminate);
+  len =
+      str2->WriteUtf8(isolate, utf8buf, 6, String::WriteFlags::kNullTerminate);
   CHECK_EQ(6, len);
   CHECK_EQ(0, strcmp(utf8buf, "abc\xC3\xB0"));
 
   // allow orphan surrogates by default
   memset(utf8buf, 0x1, 1000);
-  len = orphans_str->WriteUtf8V2(isolate, utf8buf, sizeof(utf8buf),
-                                 String::WriteFlags::kNullTerminate);
+  len = orphans_str->WriteUtf8(isolate, utf8buf, sizeof(utf8buf),
+                               String::WriteFlags::kNullTerminate);
   CHECK_EQ(13, len);
   CHECK_EQ(0, strcmp(utf8buf, "ab\xED\xA0\x80wx\xED\xB0\x80yz"));
 
   // replace orphan surrogates with Unicode replacement character
   memset(utf8buf, 0x1, 1000);
-  len = orphans_str->WriteUtf8V2(isolate, utf8buf, sizeof(utf8buf),
-                                 String::WriteFlags::kNullTerminate |
-                                     String::WriteFlags::kReplaceInvalidUtf8);
+  len = orphans_str->WriteUtf8(isolate, utf8buf, sizeof(utf8buf),
+                               String::WriteFlags::kNullTerminate |
+                                   String::WriteFlags::kReplaceInvalidUtf8);
   CHECK_EQ(13, len);
   CHECK_EQ(0, strcmp(utf8buf, "ab\xEF\xBF\xBDwx\xEF\xBF\xBDyz"));
 
   // replace orphan lead surrogates even if we hit buffer capacity
   memset(utf8buf, 0x1, 1000);
-  len = orphans_str->WriteUtf8V2(isolate, utf8buf, 5,
-                                 String::WriteFlags::kReplaceInvalidUtf8,
-                                 &processed_characters);
+  len = orphans_str->WriteUtf8(isolate, utf8buf, 5,
+                               String::WriteFlags::kReplaceInvalidUtf8,
+                               &processed_characters);
   CHECK_EQ(5, len);
   CHECK_EQ(0, strncmp(utf8buf, "ab\xEF\xBF\xBD", 5));
   CHECK_EQ(3, processed_characters);
@@ -8806,34 +8808,34 @@ THREADED_TEST(StringWrite) {
   // Encode orphan lead surrogates as their WTF-8 equivalent
   // if ReplaceInvalidUtf8 flag is not passed
   memset(utf8buf, 0x1, 1000);
-  len = orphans_str->WriteUtf8V2(isolate, utf8buf, 5, String::WriteFlags::kNone,
-                                 &processed_characters);
+  len = orphans_str->WriteUtf8(isolate, utf8buf, 5, String::WriteFlags::kNone,
+                               &processed_characters);
   CHECK_EQ(5, len);
   CHECK_EQ(0, strncmp(utf8buf, "ab\xED\xA0\x80", 5));
   CHECK_EQ(3, processed_characters);
 
   // replace single lead surrogate with Unicode replacement character
   memset(utf8buf, 0x1, 1000);
-  len = lead_str->WriteUtf8V2(isolate, utf8buf, sizeof(utf8buf),
-                              String::WriteFlags::kNullTerminate |
-                                  String::WriteFlags::kReplaceInvalidUtf8);
+  len = lead_str->WriteUtf8(isolate, utf8buf, sizeof(utf8buf),
+                            String::WriteFlags::kNullTerminate |
+                                String::WriteFlags::kReplaceInvalidUtf8);
   CHECK_EQ(4, len);
   CHECK_EQ(0, strcmp(utf8buf, "\xEF\xBF\xBD"));
 
   // replace single trail surrogate with Unicode replacement character
   memset(utf8buf, 0x1, 1000);
-  len = trail_str->WriteUtf8V2(isolate, utf8buf, sizeof(utf8buf),
-                               String::WriteFlags::kNullTerminate |
-                                   String::WriteFlags::kReplaceInvalidUtf8);
+  len = trail_str->WriteUtf8(isolate, utf8buf, sizeof(utf8buf),
+                             String::WriteFlags::kNullTerminate |
+                                 String::WriteFlags::kReplaceInvalidUtf8);
   CHECK_EQ(4, len);
   CHECK_EQ(0, strcmp(utf8buf, "\xEF\xBF\xBD"));
 
   // do not replace / write anything if surrogate pair does not fit the buffer
   // space
   memset(utf8buf, 0x1, 1000);
-  len = pair_str->WriteUtf8V2(isolate, utf8buf, 3,
-                              String::WriteFlags::kReplaceInvalidUtf8,
-                              &processed_characters);
+  len = pair_str->WriteUtf8(isolate, utf8buf, 3,
+                            String::WriteFlags::kReplaceInvalidUtf8,
+                            &processed_characters);
   CHECK_EQ(0, len);
   CHECK_EQ(0, processed_characters);
   CHECK_EQ(0, strncmp(utf8buf, "\x01\x01\x01", 3));
@@ -8841,18 +8843,18 @@ THREADED_TEST(StringWrite) {
   // do not replace / write anything if surrogate pair does not fit the buffer
   // space regardless of String::WriteFlags::kReplaceInvalidUtf8
   memset(utf8buf, 0x1, 1000);
-  len = pair_str->WriteUtf8V2(isolate, utf8buf, 3, String::WriteFlags::kNone,
-                              &processed_characters);
+  len = pair_str->WriteUtf8(isolate, utf8buf, 3, String::WriteFlags::kNone,
+                            &processed_characters);
   CHECK_EQ(0, len);
   CHECK_EQ(0, processed_characters);
   CHECK_EQ(0, strncmp(utf8buf, "\x01\x01\x01", 3));
 
   memset(utf8buf, 0x1, sizeof(utf8buf));
-  len = left_tree->Utf8LengthV2(isolate);
+  len = left_tree->Utf8Length(isolate);
   int utf8_expected =
       (0x80 + (0x800 - 0x80) * 2 + (0xD800 - 0x800) * 3) / kStride;
   CHECK_EQ(utf8_expected, len);
-  len = left_tree->WriteUtf8V2(isolate, utf8buf, utf8_expected);
+  len = left_tree->WriteUtf8(isolate, utf8buf, utf8_expected);
   CHECK_EQ(utf8_expected, len);
   CHECK_EQ(0xED, static_cast<unsigned char>(utf8buf[utf8_expected - 3]));
   CHECK_EQ(0x9F, static_cast<unsigned char>(utf8buf[utf8_expected - 2]));
@@ -8861,9 +8863,9 @@ THREADED_TEST(StringWrite) {
   CHECK_EQ(1, utf8buf[utf8_expected]);
 
   memset(utf8buf, 0x1, sizeof(utf8buf));
-  len = right_tree->Utf8LengthV2(isolate);
+  len = right_tree->Utf8Length(isolate);
   CHECK_EQ(utf8_expected, len);
-  len = right_tree->WriteUtf8V2(isolate, utf8buf, utf8_expected);
+  len = right_tree->WriteUtf8(isolate, utf8buf, utf8_expected);
   CHECK_EQ(utf8_expected, len);
   CHECK_EQ(0xED, static_cast<unsigned char>(utf8buf[0]));
   CHECK_EQ(0x9F, static_cast<unsigned char>(utf8buf[1]));
@@ -8872,68 +8874,67 @@ THREADED_TEST(StringWrite) {
 
   memset(buf, 0x1, sizeof(buf));
   memset(wbuf, 0x1, sizeof(wbuf));
-  str->WriteOneByteV2(isolate, 0, str->Length(),
-                      reinterpret_cast<uint8_t*>(buf),
-                      String::WriteFlags::kNullTerminate);
-  str->WriteV2(isolate, 0, str->Length(), wbuf,
-               String::WriteFlags::kNullTerminate);
+  str->WriteOneByte(isolate, 0, str->Length(), reinterpret_cast<uint8_t*>(buf),
+                    String::WriteFlags::kNullTerminate);
+  str->Write(isolate, 0, str->Length(), wbuf,
+             String::WriteFlags::kNullTerminate);
   CHECK_EQ(0, strcmp("abcde", buf));
   uint16_t answer1[] = {'a', 'b', 'c', 'd', 'e', '\0'};
   CHECK_EQ(0, StrCmp16(answer1, wbuf));
 
   memset(buf, 0x1, sizeof(buf));
   memset(wbuf, 0x1, sizeof(wbuf));
-  str->WriteOneByteV2(isolate, 0, 4, reinterpret_cast<uint8_t*>(buf));
-  str->WriteV2(isolate, 0, 4, wbuf);
+  str->WriteOneByte(isolate, 0, 4, reinterpret_cast<uint8_t*>(buf));
+  str->Write(isolate, 0, 4, wbuf);
   CHECK_EQ(0, strncmp("abcd\x01", buf, 5));
   uint16_t answer2[] = {'a', 'b', 'c', 'd', 0x101};
   CHECK_EQ(0, StrNCmp16(answer2, wbuf, 5));
 
   memset(buf, 0x1, sizeof(buf));
   memset(wbuf, 0x1, sizeof(wbuf));
-  str->WriteOneByteV2(isolate, 0, 5, reinterpret_cast<uint8_t*>(buf));
-  str->WriteV2(isolate, 0, 5, wbuf);
+  str->WriteOneByte(isolate, 0, 5, reinterpret_cast<uint8_t*>(buf));
+  str->Write(isolate, 0, 5, wbuf);
   CHECK_EQ(0, strncmp("abcde\x01", buf, 6));
   uint16_t answer3[] = {'a', 'b', 'c', 'd', 'e', 0x101};
   CHECK_EQ(0, StrNCmp16(answer3, wbuf, 6));
 
   memset(buf, 0x1, sizeof(buf));
   memset(wbuf, 0x1, sizeof(wbuf));
-  str->WriteOneByteV2(isolate, 0, 5, reinterpret_cast<uint8_t*>(buf),
-                      String::WriteFlags::kNullTerminate);
-  str->WriteV2(isolate, 0, 5, wbuf, String::WriteFlags::kNullTerminate);
+  str->WriteOneByte(isolate, 0, 5, reinterpret_cast<uint8_t*>(buf),
+                    String::WriteFlags::kNullTerminate);
+  str->Write(isolate, 0, 5, wbuf, String::WriteFlags::kNullTerminate);
   CHECK_EQ(0, strcmp("abcde", buf));
   uint16_t answer4[] = {'a', 'b', 'c', 'd', 'e', '\0'};
   CHECK_EQ(0, StrCmp16(answer4, wbuf));
 
   memset(buf, 0x1, sizeof(buf));
   memset(wbuf, 0x1, sizeof(wbuf));
-  str->WriteOneByteV2(isolate, 4, 1, reinterpret_cast<uint8_t*>(buf),
-                      String::WriteFlags::kNullTerminate);
-  str->WriteV2(isolate, 4, 1, wbuf, String::WriteFlags::kNullTerminate);
+  str->WriteOneByte(isolate, 4, 1, reinterpret_cast<uint8_t*>(buf),
+                    String::WriteFlags::kNullTerminate);
+  str->Write(isolate, 4, 1, wbuf, String::WriteFlags::kNullTerminate);
   CHECK_EQ(0, strcmp("e", buf));
   uint16_t answer5[] = {'e', '\0'};
   CHECK_EQ(0, StrCmp16(answer5, wbuf));
 
   memset(buf, 0x1, sizeof(buf));
   memset(wbuf, 0x1, sizeof(wbuf));
-  str->WriteOneByteV2(isolate, 4, 1, reinterpret_cast<uint8_t*>(buf));
-  str->WriteV2(isolate, 4, 1, wbuf);
+  str->WriteOneByte(isolate, 4, 1, reinterpret_cast<uint8_t*>(buf));
+  str->Write(isolate, 4, 1, wbuf);
   CHECK_EQ(0, strncmp("e\x01", buf, 2));
   uint16_t answer6[] = {'e', 0x101};
   CHECK_EQ(0, StrNCmp16(answer6, wbuf, 2));
 
   memset(buf, 0x1, sizeof(buf));
   memset(wbuf, 0x1, sizeof(wbuf));
-  str->WriteOneByteV2(isolate, 3, 1, reinterpret_cast<uint8_t*>(buf));
-  str->WriteV2(isolate, 3, 1, wbuf);
+  str->WriteOneByte(isolate, 3, 1, reinterpret_cast<uint8_t*>(buf));
+  str->Write(isolate, 3, 1, wbuf);
   CHECK_EQ(0, strncmp("d\x01", buf, 2));
   uint16_t answer7[] = {'d', 0x101};
   CHECK_EQ(0, StrNCmp16(answer7, wbuf, 2));
 
   memset(wbuf, 0x1, sizeof(wbuf));
   wbuf[5] = 'X';
-  str->WriteV2(isolate, 0, 5, wbuf);
+  str->Write(isolate, 0, 5, wbuf);
   CHECK_EQ('X', wbuf[5]);
   uint16_t answer8a[] = {'a', 'b', 'c', 'd', 'e'};
   uint16_t answer8b[] = {'a', 'b', 'c', 'd', 'e', '\0'};
@@ -8944,7 +8945,7 @@ THREADED_TEST(StringWrite) {
 
   memset(buf, 0x1, sizeof(buf));
   buf[5] = 'X';
-  str->WriteOneByteV2(isolate, 0, 5, reinterpret_cast<uint8_t*>(buf));
+  str->WriteOneByte(isolate, 0, 5, reinterpret_cast<uint8_t*>(buf));
   CHECK_EQ('X', buf[5]);
   CHECK_EQ(0, strncmp("abcde", buf, 5));
   CHECK_NE(0, strcmp("abcde", buf));
@@ -8953,40 +8954,40 @@ THREADED_TEST(StringWrite) {
 
   memset(buf, 0x1, sizeof(buf));
   memset(wbuf, 0x1, sizeof(wbuf));
-  str2->WriteOneByteV2(isolate, 0, 5, reinterpret_cast<uint8_t*>(buf));
-  str2->WriteV2(isolate, 0, 5, wbuf);
+  str2->WriteOneByte(isolate, 0, 5, reinterpret_cast<uint8_t*>(buf));
+  str2->Write(isolate, 0, 5, wbuf);
   CHECK_EQ(0, strncmp("abc\xf0\x03\x01", buf, 6));
   uint16_t answer9[] = {'a', 'b', 'c', 0xf0, 0x2603, 0x101};
   CHECK_EQ(0, StrNCmp16(answer9, wbuf, 6));
 
   memset(buf, 0x1, sizeof(buf));
   memset(wbuf, 0x1, sizeof(wbuf));
-  str2->WriteOneByteV2(isolate, 0, 3, reinterpret_cast<uint8_t*>(buf));
-  str2->WriteV2(isolate, 0, 3, wbuf);
+  str2->WriteOneByte(isolate, 0, 3, reinterpret_cast<uint8_t*>(buf));
+  str2->Write(isolate, 0, 3, wbuf);
   CHECK_EQ(0, strncmp("abc\x01\x01\x01", buf, 6));
   uint16_t answer10[] = {'a', 'b', 'c', 0x101, 0x101, 0x101};
   CHECK_EQ(0, StrNCmp16(answer10, wbuf, 6));
 
   memset(buf, 0x1, sizeof(buf));
   memset(wbuf, 0x1, sizeof(wbuf));
-  str2->WriteOneByteV2(isolate, 1, 3, reinterpret_cast<uint8_t*>(buf));
-  str2->WriteV2(isolate, 1, 3, wbuf);
+  str2->WriteOneByte(isolate, 1, 3, reinterpret_cast<uint8_t*>(buf));
+  str2->Write(isolate, 1, 3, wbuf);
   CHECK_EQ(0, strncmp("bc\xf0\x01\x01\x01", buf, 6));
   uint16_t answer11[] = {'b', 'c', 0xf0, 0x101, 0x101, 0x101};
   CHECK_EQ(0, StrNCmp16(answer11, wbuf, 6));
 
   memset(buf, 0x1, sizeof(buf));
   memset(wbuf, 0x1, sizeof(wbuf));
-  str2->WriteOneByteV2(isolate, 4, 1, reinterpret_cast<uint8_t*>(buf),
-                       String::WriteFlags::kNullTerminate);
-  str2->WriteV2(isolate, 4, 1, wbuf, String::WriteFlags::kNullTerminate);
+  str2->WriteOneByte(isolate, 4, 1, reinterpret_cast<uint8_t*>(buf),
+                     String::WriteFlags::kNullTerminate);
+  str2->Write(isolate, 4, 1, wbuf, String::WriteFlags::kNullTerminate);
   CHECK_EQ(0, strcmp("\x03", buf));
   uint16_t answer12[] = {0x2603, '\0'};
   CHECK_EQ(0, StrCmp16(answer12, wbuf));
 
   memset(utf8buf, 0x1, sizeof(utf8buf));
   utf8buf[8] = 'X';
-  str2->WriteUtf8V2(isolate, utf8buf, sizeof(utf8buf));
+  str2->WriteUtf8(isolate, utf8buf, sizeof(utf8buf));
   CHECK_EQ('X', utf8buf[8]);
   CHECK_EQ(0, strncmp(utf8buf, "abc\xC3\xB0\xE2\x98\x83", 8));
   CHECK_NE(0, strcmp(utf8buf, "abc\xC3\xB0\xE2\x98\x83"));
@@ -8995,8 +8996,8 @@ THREADED_TEST(StringWrite) {
 
   memset(utf8buf, 0x1, sizeof(utf8buf));
   utf8buf[5] = 'X';
-  len = str->WriteUtf8V2(isolate, utf8buf, sizeof(utf8buf),
-                         String::WriteFlags::kNone, &processed_characters);
+  len = str->WriteUtf8(isolate, utf8buf, sizeof(utf8buf),
+                       String::WriteFlags::kNone, &processed_characters);
   CHECK_EQ(5, len);
   CHECK_EQ(5, processed_characters);
   CHECK_EQ('X', utf8buf[5]);  // Test that the sixth character is untouched.
@@ -9004,16 +9005,16 @@ THREADED_TEST(StringWrite) {
   CHECK_EQ(0, strcmp(utf8buf, "abcde"));
 
   memset(buf, 0x1, sizeof(buf));
-  str3->WriteOneByteV2(isolate, 0, str3->Length(),
-                       reinterpret_cast<uint8_t*>(buf),
-                       String::WriteFlags::kNullTerminate);
+  str3->WriteOneByte(isolate, 0, str3->Length(),
+                     reinterpret_cast<uint8_t*>(buf),
+                     String::WriteFlags::kNullTerminate);
   CHECK_EQ(0, strcmp("abc", buf));
   CHECK_EQ(0, buf[3]);
   CHECK_EQ(0, strcmp("def", buf + 4));
 
-  str->WriteOneByteV2(isolate, 0, 0, nullptr);
-  str->WriteV2(isolate, 0, 0, nullptr);
-  len = str->WriteUtf8V2(isolate, nullptr, 0);
+  str->WriteOneByte(isolate, 0, 0, nullptr);
+  str->Write(isolate, 0, 0, nullptr);
+  len = str->WriteUtf8(isolate, nullptr, 0);
   CHECK_EQ(0, len);
 
   std::tuple<const char*, size_t, size_t> cases[] = {
@@ -9032,8 +9033,7 @@ THREADED_TEST(StringWrite) {
         String::NewFromUtf8(isolate, std::get<0>(test_case)).ToLocalChecked();
     auto test_buffer_capacity = std::get<1>(test_case);
     char test_buffer[4];
-    len =
-        test_str->WriteUtf8V2(isolate, test_buffer, test_buffer_capacity,
+    len = test_str->WriteUtf8(isolate, test_buffer, test_buffer_capacity,
                               String::WriteFlags::kNone, &processed_characters);
     CHECK_EQ(std::get<2>(test_case), len);
     CHECK_EQ(0, processed_characters);
@@ -9053,7 +9053,7 @@ static void Utf16Helper(LocalContext& context, const char* name,
         Local<v8::String>::Cast(a->Get(context.local(), i).ToLocalChecked());
     Local<v8::Number> expected_len = Local<v8::Number>::Cast(
         alens->Get(context.local(), i).ToLocalChecked());
-    size_t length = string->Utf8LengthV2(context.isolate());
+    size_t length = string->Utf8Length(context.isolate());
     CHECK_EQ(expected_len->Value(), length);
   }
 }
@@ -9067,7 +9067,7 @@ void TestUtf8DecodingAgainstReference(
 
     uint32_t length = str->Length();
     std::unique_ptr<uint16_t[]> buffer(new uint16_t[length]);
-    str->WriteV2(isolate, 0, length, buffer.get());
+    str->Write(isolate, 0, length, buffer.get());
 
     for (size_t i = 0; i < unicode_expected[test_ix].size(); ++i) {
       CHECK_EQ(unicode_expected[test_ix][i], buffer[i]);
@@ -10920,14 +10920,16 @@ THREADED_TEST(ObjectGetOwnPropertyNames) {
   for (uint32_t i = 0; i < properties->Length(); ++i) {
     CHECK(properties->Get(context.local(), i).ToLocal(&property));
     if (!property->IsString()) continue;
-    if (!concat_found)
+    if (!concat_found) {
       concat_found = property.As<v8::String>()
                          ->Equals(context.local(), v8_str("concat"))
                          .FromMaybe(false);
-    if (!starts_with_found)
+    }
+    if (!starts_with_found) {
       starts_with_found = property.As<v8::String>()
                               ->Equals(context.local(), v8_str("startsWith"))
                               .FromMaybe(false);
+    }
   }
   CHECK(concat_found && starts_with_found);
 }
@@ -13830,13 +13832,15 @@ void ApiTestFuzzer::TearDown() {
 
 void ApiTestFuzzer::CallTest() {
   v8::Isolate::Scope scope(CcTest::isolate());
-  if (kLogThreading)
+  if (kLogThreading) {
     printf("Start test %s #%d\n",
            RegisterThreadedTest::nth(test_number_)->name(), test_number_);
+  }
   (RegisterThreadedTest::nth(test_number_)->callback())();
-  if (kLogThreading)
+  if (kLogThreading) {
     printf("End test %s #%d\n", RegisterThreadedTest::nth(test_number_)->name(),
            test_number_);
+  }
 }
 
 #define THREADING_TEST(INDEX, NAME)            \
@@ -14324,8 +14328,9 @@ static bool FunctionNameIs(const char* expected,
     return true;
   }
 
-  if (tail_len != expected_len)
+  if (tail_len != expected_len) {
     return false;
+  }
 
   return strncmp(tail, expected, expected_len) == 0;
 }
@@ -15590,9 +15595,9 @@ THREADED_TEST(MorphCompositeStringTest) {
     // This should UTF-8 without flattening, since everything is ASCII.
     Local<String> cons =
         v8_compile("cons")->Run(env.local()).ToLocalChecked().As<String>();
-    CHECK_EQ(128, cons->Utf8LengthV2(isolate));
-    CHECK_EQ(129, cons->WriteUtf8V2(isolate, utf_buffer, sizeof(utf_buffer),
-                                    String::WriteFlags::kNullTerminate));
+    CHECK_EQ(128, cons->Utf8Length(isolate));
+    CHECK_EQ(129, cons->WriteUtf8(isolate, utf_buffer, sizeof(utf_buffer),
+                                  String::WriteFlags::kNullTerminate));
     CHECK_EQ(0, strcmp(
         utf_buffer,
         "Now is the time for all good men to come to the aid of the party"
@@ -15629,14 +15634,16 @@ THREADED_TEST(MorphCompositeStringTest) {
               .FromJust());
 
     // This avoids the GC from trying to free a stack allocated resource.
-    if (IsExternalOneByteString(*ilhs))
+    if (IsExternalOneByteString(*ilhs)) {
       i::Cast<i::ExternalOneByteString>(*ilhs)->SetResource(i_isolate, nullptr);
-    else
+    } else {
       i::Cast<i::ExternalTwoByteString>(*ilhs)->SetResource(i_isolate, nullptr);
-    if (IsExternalOneByteString(*irhs))
+    }
+    if (IsExternalOneByteString(*irhs)) {
       i::Cast<i::ExternalOneByteString>(*irhs)->SetResource(i_isolate, nullptr);
-    else
+    } else {
       i::Cast<i::ExternalTwoByteString>(*irhs)->SetResource(i_isolate, nullptr);
+    }
   }
   i::DeleteArray(two_byte_string);
 }
@@ -16429,6 +16436,7 @@ void PromiseRejectCallback(v8::PromiseRejectMessage reject_message) {
       CHECK(reject_message.GetValue().IsEmpty());
       break;
     }
+      START_ALLOW_USE_DEPRECATED();
     case v8::kPromiseRejectAfterResolved: {
       promise_reject_after_resolved_counter++;
       break;
@@ -16437,6 +16445,7 @@ void PromiseRejectCallback(v8::PromiseRejectMessage reject_message) {
       promise_resolve_after_resolved_counter++;
       break;
     }
+      END_ALLOW_USE_DEPRECATED();
   }
 }
 
@@ -17360,6 +17369,7 @@ TEST(PromiseHook) {
   CHECK_EQ(promise_hook_data->promise_hook_count, 5);
 
   delete promise_hook_data;
+  promise_hook_data = nullptr;
   isolate->SetPromiseHook(nullptr);
 }
 
@@ -17383,8 +17393,8 @@ TEST(EvalWithSourceURLInMessageScriptResourceNameOrSourceURL) {
 
   Local<v8::Message> message = try_catch.Message();
   Local<Value> sourceURL = message->GetScriptOrigin().ResourceName();
-  CHECK_EQ(0, strcmp(*v8::String::Utf8Value(context.isolate(), sourceURL),
-                     "source_url"));
+  CHECK_EQ(v8::String::Utf8Value(context.isolate(), sourceURL).as_view(),
+           "source_url");
 }
 
 
@@ -17407,8 +17417,8 @@ TEST(RecursionWithSourceURLInMessageScriptResourceNameOrSourceURL) {
 
   Local<v8::Message> message = try_catch.Message();
   Local<Value> sourceURL = message->GetScriptOrigin().ResourceName();
-  CHECK_EQ(0, strcmp(*v8::String::Utf8Value(context.isolate(), sourceURL),
-                     "source_url"));
+  CHECK_EQ(v8::String::Utf8Value(context.isolate(), sourceURL).as_view(),
+           "source_url");
 }
 
 
@@ -17419,47 +17429,36 @@ TEST(Regress2333) {
   }
 }
 
-static uint32_t* stack_limit;
+static uintptr_t stack_limit;
 
 static void GetStackLimitCallback(
     const v8::FunctionCallbackInfo<v8::Value>& args) {
-  stack_limit = reinterpret_cast<uint32_t*>(
-      CcTest::i_isolate()->stack_guard()->real_climit());
+  stack_limit = CcTest::i_isolate()->stack_guard()->real_climit();
 }
 
 
 // Uses the address of a local variable to determine the stack top now.
 // Given a size, returns an address that is that far from the current
 // top of stack.
-static uint32_t* ComputeStackLimit(uint32_t size) {
-  // Disable the gcc error which (very correctly) notes that this is an
-  // out-of-bounds access.
-#if V8_CC_GNU
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Warray-bounds"
-#endif  // V8_CC_GNU
-  uint32_t* answer = &size - (size / sizeof(size));
-#if V8_CC_GNU
-#pragma GCC diagnostic pop
-#endif  // V8_CC_GNU
+static uintptr_t ComputeStackLimit(uint32_t size) {
+  uintptr_t addr = reinterpret_cast<uintptr_t>(&size);
+  if (addr >= size) return addr - size;
   // If the size is very large and the stack is very near the bottom of
-  // memory then the calculation above may wrap around and give an address
+  // memory then the calculation above would wrap around and give an address
   // that is above the (downwards-growing) stack.  In that case we return
   // a very low address.
-  if (answer > &size) return reinterpret_cast<uint32_t*>(sizeof(size));
-  return answer;
+  return sizeof(size);
 }
-
 
 // We need at least 165kB for an x64 debug build with clang and ASAN.
 static const int stack_breathing_room = 256 * i::KB;
 
 
 TEST(SetStackLimit) {
-  uint32_t* set_limit = ComputeStackLimit(stack_breathing_room);
+  uintptr_t set_limit = ComputeStackLimit(stack_breathing_room);
 
   // Set stack limit.
-  CcTest::isolate()->SetStackLimit(reinterpret_cast<uintptr_t>(set_limit));
+  CcTest::isolate()->SetStackLimit(set_limit);
 
   // Execute a script.
   LocalContext env;
@@ -17472,18 +17471,18 @@ TEST(SetStackLimit) {
             .FromJust());
   CompileRun("get_stack_limit();");
 
-  CHECK(stack_limit == set_limit);
+  CHECK_EQ(stack_limit, set_limit);
 }
 
 
 TEST(SetStackLimitInThread) {
-  uint32_t* set_limit;
+  uintptr_t set_limit;
   {
     v8::Locker locker(CcTest::isolate());
     set_limit = ComputeStackLimit(stack_breathing_room);
 
     // Set stack limit.
-    CcTest::isolate()->SetStackLimit(reinterpret_cast<uintptr_t>(set_limit));
+    CcTest::isolate()->SetStackLimit(set_limit);
 
     // Execute a script.
     v8::HandleScope scope(CcTest::isolate());
@@ -17496,11 +17495,11 @@ TEST(SetStackLimitInThread) {
               .FromJust());
     CompileRun("get_stack_limit();");
 
-    CHECK(stack_limit == set_limit);
+    CHECK_EQ(stack_limit, set_limit);
   }
   {
     v8::Locker locker(CcTest::isolate());
-    CHECK(stack_limit == set_limit);
+    CHECK_EQ(stack_limit, set_limit);
   }
 }
 
@@ -18252,9 +18251,9 @@ THREADED_TEST(ScriptOrigin) {
       env->Global()->Get(env.local(), v8_str("g")).ToLocalChecked());
 
   v8::ScriptOrigin script_origin_f = f->GetScriptOrigin();
-  CHECK_EQ(0,
-           strcmp("test", *v8::String::Utf8Value(
-                              env.isolate(), script_origin_f.ResourceName())));
+  CHECK_EQ(v8::String::Utf8Value(env.isolate(), script_origin_f.ResourceName())
+               .as_view(),
+           "test");
   CHECK_EQ(1, script_origin_f.LineOffset());
   CHECK(script_origin_f.Options().IsSharedCrossOrigin());
   CHECK(script_origin_f.Options().IsOpaque());
@@ -18264,20 +18263,20 @@ THREADED_TEST(ScriptOrigin) {
             ->Get(isolate, 0)
             ->IsSymbol());
 
-  CHECK_EQ(0, strcmp("http://sourceMapUrl",
-                     *v8::String::Utf8Value(env.isolate(),
-                                            script_origin_f.SourceMapUrl())));
+  CHECK_EQ(v8::String::Utf8Value(env.isolate(), script_origin_f.SourceMapUrl())
+               .as_view(),
+           "http://sourceMapUrl");
 
   v8::ScriptOrigin script_origin_g = g->GetScriptOrigin();
-  CHECK_EQ(0,
-           strcmp("test", *v8::String::Utf8Value(
-                              env.isolate(), script_origin_g.ResourceName())));
+  CHECK_EQ(v8::String::Utf8Value(env.isolate(), script_origin_g.ResourceName())
+               .as_view(),
+           "test");
   CHECK_EQ(1, script_origin_g.LineOffset());
   CHECK(script_origin_g.Options().IsSharedCrossOrigin());
   CHECK(script_origin_g.Options().IsOpaque());
-  CHECK_EQ(0, strcmp("http://sourceMapUrl",
-                     *v8::String::Utf8Value(env.isolate(),
-                                            script_origin_g.SourceMapUrl())));
+  CHECK_EQ(v8::String::Utf8Value(env.isolate(), script_origin_g.SourceMapUrl())
+               .as_view(),
+           "http://sourceMapUrl");
   CHECK(script_origin_g.GetHostDefinedOptions()
             .As<v8::PrimitiveArray>()
             ->Get(isolate, 0)
@@ -18298,8 +18297,8 @@ THREADED_TEST(FunctionGetInferredName) {
       .ToLocalChecked();
   v8::Local<v8::Function> f = v8::Local<v8::Function>::Cast(
       env->Global()->Get(env.local(), v8_str("f")).ToLocalChecked());
-  CHECK_EQ(0, strcmp("foo.bar.baz", *v8::String::Utf8Value(
-                                        env.isolate(), f->GetInferredName())));
+  CHECK_EQ(v8::String::Utf8Value(env.isolate(), f->GetInferredName()).as_view(),
+           "foo.bar.baz");
 }
 
 
@@ -20777,10 +20776,12 @@ static void MicrotaskTwo(const v8::FunctionCallbackInfo<Value>& info) {
 
 void* g_passed_to_three = nullptr;
 
-static void MicrotaskThree(void* data) {
-  g_passed_to_three = data;
+static void MicrotaskThree(v8::Local<v8::Data> data) {
+  g_passed_to_three =
+      data->IsValue() && data.As<v8::Value>()->IsExternal()
+          ? data.As<v8::External>()->Value(v8::kExternalPointerTypeTagDefault)
+          : nullptr;
 }
-
 
 TEST(EnqueueMicrotask) {
   LocalContext env;
@@ -20818,7 +20819,7 @@ TEST(EnqueueMicrotask) {
   CHECK_EQ(2, CompileRun("ext2Calls")->Int32Value(env.local()).FromJust());
 
   g_passed_to_three = nullptr;
-  env.isolate()->EnqueueMicrotask(MicrotaskThree);
+  env.isolate()->EnqueueMicrotask(MicrotaskThree, v8::Undefined(env.isolate()));
   CompileRun("1+1;");
   CHECK(!g_passed_to_three);
   CHECK_EQ(2, CompileRun("ext1Calls")->Int32Value(env.local()).FromJust());
@@ -20827,7 +20828,9 @@ TEST(EnqueueMicrotask) {
   int dummy;
   env.isolate()->EnqueueMicrotask(
       Function::New(env.local(), MicrotaskOne).ToLocalChecked());
-  env.isolate()->EnqueueMicrotask(MicrotaskThree, &dummy);
+  env.isolate()->EnqueueMicrotask(
+      MicrotaskThree, v8::External::New(env.isolate(), &dummy,
+                                        v8::kExternalPointerTypeTagDefault));
   env.isolate()->EnqueueMicrotask(
       Function::New(env.local(), MicrotaskTwo).ToLocalChecked());
   CompileRun("1+1;");
@@ -20896,13 +20899,13 @@ TEST(RunMicrotasksIgnoresThrownExceptions) {
            CompileRun("exception2Calls")->Int32Value(env.local()).FromJust());
 }
 
-static void ThrowExceptionMicrotask(void* data) {
+static void ThrowExceptionMicrotask(v8::Local<v8::Data> data) {
   CcTest::isolate()->ThrowException(v8_str("exception"));
 }
 
 int microtask_callback_count = 0;
 
-static void IncrementCounterMicrotask(void* data) {
+static void IncrementCounterMicrotask(v8::Local<v8::Data> data) {
   microtask_callback_count++;
 }
 
@@ -20930,8 +20933,9 @@ TEST_WITH_PLATFORM(RunMicrotasksIgnoresThrownExceptionsFromApi, MockPlatform) {
   v8::TryCatch try_catch(isolate);
   {
     CHECK(!isolate->IsExecutionTerminating());
-    isolate->EnqueueMicrotask(ThrowExceptionMicrotask);
-    isolate->EnqueueMicrotask(IncrementCounterMicrotask);
+    isolate->EnqueueMicrotask(ThrowExceptionMicrotask, v8::Undefined(isolate));
+    isolate->EnqueueMicrotask(IncrementCounterMicrotask,
+                              v8::Undefined(isolate));
     CHECK(!platform.dump_without_crashing_called());
     isolate->PerformMicrotaskCheckpoint();
     CHECK(platform.dump_without_crashing_called());
@@ -21064,10 +21068,11 @@ TEST(RunMicrotasksWithoutEnteringContext) {
   isolate->SetMicrotasksPolicy(v8::MicrotasksPolicy::kAuto);
 }
 
-static void Regress808911_MicrotaskCallback(void* data) {
+static void Regress808911_MicrotaskCallback(v8::Local<v8::Data> data) {
   // So here we expect "current context" to be context1 and
   // "entered or microtask context" to be context2.
-  v8::Isolate* isolate = static_cast<v8::Isolate*>(data);
+  v8::Isolate* isolate = static_cast<v8::Isolate*>(
+      data.As<v8::External>()->Value(v8::kExternalPointerTypeTagDefault));
   CHECK(isolate->GetCurrentContext() !=
         isolate->GetEnteredOrMicrotaskContext());
 }
@@ -21079,7 +21084,9 @@ static void Regress808911_CurrentContextWrapper(
   v8::Isolate* isolate = info.GetIsolate();
   CHECK(isolate->GetCurrentContext() !=
         isolate->GetEnteredOrMicrotaskContext());
-  isolate->EnqueueMicrotask(Regress808911_MicrotaskCallback, isolate);
+  isolate->EnqueueMicrotask(
+      Regress808911_MicrotaskCallback,
+      v8::External::New(isolate, isolate, v8::kExternalPointerTypeTagDefault));
   isolate->PerformMicrotaskCheckpoint();
 }
 
@@ -22283,6 +22290,85 @@ TEST(RequestInterruptTestWithMathAbs) {
   RequestInterruptTestWithMathAbs().RunTest();
 }
 
+// Test that RequestInterrupt works when iterating over a C++ API-backed
+// iterator, where the .next() method is a pure C++ callback that never
+// enters JS. Without a stack/interrupt check in the iterator loop builtin,
+// the interrupt would never be processed.
+class RequestInterruptTestWithCppIterator
+    : public RequestInterruptTestBaseWithSimpleInterrupt {
+ public:
+  void TestBody() override {
+    // Create the iterator object template with a .next() C++ callback.
+    iterator_template_.Reset(isolate_, v8::ObjectTemplate::New(isolate_));
+    Local<v8::ObjectTemplate> iterator_template =
+        iterator_template_.Get(isolate_);
+    iterator_template->Set(isolate_, "next",
+                           v8::FunctionTemplate::New(
+                               isolate_, IteratorNextCallback,
+                               v8::External::New(isolate_, this, kTestPtrTag)));
+
+    // Create the iterable object template with [Symbol.iterator]() returning
+    // the iterator.
+    Local<v8::ObjectTemplate> iterable_template =
+        v8::ObjectTemplate::New(isolate_);
+    iterable_template->Set(v8::Symbol::GetIterator(isolate_),
+                           v8::FunctionTemplate::New(
+                               isolate_, GetIteratorCallback,
+                               v8::External::New(isolate_, this, kTestPtrTag)));
+
+    // Instantiate the iterable and expose it to JS.
+    Local<v8::Object> iterable =
+        iterable_template->NewInstance(env_.local()).ToLocalChecked();
+    CHECK(env_->Global()
+              ->Set(env_.local(), v8_str("iterable"), iterable)
+              .FromJust());
+
+    // Use Array.from which iterates entirely inside a builtin (not through
+    // the interpreter's bytecode loop, which has its own back-edge interrupt
+    // check). This tests that the builtin-level iterator loop processes
+    // interrupts.
+    CompileRun("Array.from(iterable);");
+  }
+
+ private:
+  static void GetIteratorCallback(
+      const v8::FunctionCallbackInfo<v8::Value>& info) {
+    RequestInterruptTestWithCppIterator* test =
+        reinterpret_cast<RequestInterruptTestWithCppIterator*>(
+            info.Data().As<v8::External>()->Value(kTestPtrTag));
+    v8::Isolate* isolate = info.GetIsolate();
+    Local<v8::ObjectTemplate> tmpl = test->iterator_template_.Get(isolate);
+    Local<v8::Object> iterator =
+        tmpl->NewInstance(isolate->GetCurrentContext()).ToLocalChecked();
+    info.GetReturnValue().Set(iterator);
+  }
+
+  static void IteratorNextCallback(
+      const v8::FunctionCallbackInfo<v8::Value>& info) {
+    RequestInterruptTestWithCppIterator* test =
+        reinterpret_cast<RequestInterruptTestWithCppIterator*>(
+            info.Data().As<v8::External>()->Value(kTestPtrTag));
+    v8::Isolate* isolate = info.GetIsolate();
+    Local<v8::Context> context = isolate->GetCurrentContext();
+
+    bool keep_going = test->ShouldContinue();
+
+    // Return {value: 1, done: !keep_going}.
+    Local<v8::Object> result = v8::Object::New(isolate);
+    result->Set(context, v8_str("value"), v8::Integer::New(isolate, 1))
+        .FromJust();
+    result->Set(context, v8_str("done"), v8::Boolean::New(isolate, !keep_going))
+        .FromJust();
+    info.GetReturnValue().Set(result);
+  }
+
+  v8::Global<v8::ObjectTemplate> iterator_template_;
+};
+
+TEST(RequestInterruptTestWithCppIterator) {
+  RequestInterruptTestWithCppIterator().RunTest();
+}
+
 class RequestMultipleInterrupts : public RequestInterruptTestBase {
  public:
   RequestMultipleInterrupts() : i_thread(this), counter_(0) {}
@@ -22562,7 +22648,7 @@ TEST(EscapableHandleScope) {
 }
 
 static void SetterWhichExpectsThisAndHolderToDiffer(
-    Local<Name>, Local<Value>, const v8::PropertyCallbackInfo<void>& info) {
+    Local<Name>, Local<Value>, const v8::PropertyCallbackInfo<Boolean>& info) {
   // Writes through prototypes do not trigger interceptor setter callback.
   UNREACHABLE();
 }
@@ -23435,6 +23521,117 @@ TEST(PromiseCatchCallsBuiltin) {
                   .ToLocalChecked()
                   ->Int32Value(context.local())
                   .FromJust());
+}
+
+TEST(PromiseResolverIsNativeResolverInvokedTest) {
+  LocalContext context;
+  v8::Isolate* isolate = context.isolate();
+  v8::HandleScope scope(isolate);
+
+  isolate->SetMicrotasksPolicy(v8::MicrotasksPolicy::kExplicit);
+
+  // 1. Create the first promise.
+  v8::Local<v8::Promise::Resolver> resolver1 =
+      v8::Promise::Resolver::New(context.local()).ToLocalChecked();
+  v8::Local<v8::Promise> promise1 = resolver1->GetPromise();
+
+  // 2. Create the second promise.
+  v8::Local<v8::Promise::Resolver> resolver2 =
+      v8::Promise::Resolver::New(context.local()).ToLocalChecked();
+  v8::Local<v8::Promise> promise2 = resolver2->GetPromise();
+
+  // 3. Resolve the second promise to the first one
+  CHECK(resolver2->Resolve(context.local(), promise1).FromJust());
+
+  // 4. Attempt to resolve the second promise again with a different value
+  // or reject it immediately (should be ignored).
+  CHECK(resolver2->Resolve(context.local(), v8::Integer::New(isolate, 100))
+            .FromJust());
+  v8::Local<v8::Value> error =
+      v8::Exception::Error(v8_str("This should be ignored!"));
+  CHECK(resolver2->Reject(context.local(), error).FromJust());
+
+  // Both promises must be in pending state.
+  CHECK_EQ(v8::Promise::kPending, promise1->State());
+  CHECK_EQ(v8::Promise::kPending, promise2->State());
+
+  // 5. Resolve the first promise
+  CHECK(resolver1->Resolve(context.local(), v8::Integer::New(isolate, 42))
+            .FromJust());
+
+  // promise1 is fulfilled synchronously, promise2 remains pending until
+  // microtasks run.
+  CHECK_EQ(v8::Promise::kFulfilled, promise1->State());
+  CHECK_EQ(v8::Promise::kPending, promise2->State());
+
+  isolate->PerformMicrotaskCheckpoint();
+
+  // Both promises must be resolved to 42.
+  CHECK_EQ(v8::Promise::kFulfilled, promise1->State());
+  CHECK_EQ(v8::Promise::kFulfilled, promise2->State());
+
+  CHECK_EQ(42, promise1->Result()->Int32Value(context.local()).FromJust());
+  CHECK_EQ(42, promise2->Result()->Int32Value(context.local()).FromJust());
+}
+
+namespace {
+void ResolveCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
+  v8::Isolate* isolate = info.GetIsolate();
+  v8::Local<v8::Context> context = isolate->GetCurrentContext();
+  v8::Local<v8::Promise::Resolver>* resolver =
+      GetData<v8::Local<v8::Promise::Resolver>>(info);
+  v8::Local<v8::Value> value = info[0];
+  CHECK((*resolver)->Resolve(context, value).FromJust());
+}
+}  // namespace
+
+TEST(PromiseResolverDoubleResolveThenableSideEffects) {
+  LocalContext context;
+  v8::Isolate* isolate = context.isolate();
+  v8::HandleScope scope(isolate);
+
+  isolate->SetMicrotasksPolicy(v8::MicrotasksPolicy::kExplicit);
+
+  v8::Local<v8::Promise::Resolver> resolver =
+      v8::Promise::Resolver::New(context.local()).ToLocalChecked();
+  v8::Local<v8::Promise> promise = resolver->GetPromise();
+
+  v8::Local<v8::FunctionTemplate> t = v8::FunctionTemplate::New(
+      isolate, ResolveCallback, MakeData(isolate, &resolver));
+  v8::Local<v8::Function> fn = t->GetFunction(context.local()).ToLocalChecked();
+  context->Global()
+      ->Set(context.local(), v8_str("resolvePromise"), fn)
+      .FromJust();
+
+  // Create a thenable with a custom getter for "then" that calls
+  // resolve1 as a side effect.
+  v8::Local<v8::Value> thenable = CompileRun(
+      "(( {\n"
+      "  get then() {\n"
+      "    resolvePromise('nested-value');\n"
+      "    return function(resolve) {\n"
+      "      resolve('late-value');\n"
+      "    };\n"
+      "  }\n"
+      "} ))");
+
+  CHECK(thenable->IsObject());
+
+  // Resolve with thenable. This triggers the "then" getter.
+  CHECK(resolver->Resolve(context.local(), thenable).FromJust());
+
+  // The promise should still be pending because the nested resolve was ignored.
+  CHECK_EQ(v8::Promise::kPending, promise->State());
+
+  // Perform microtask checkpoint. This runs the thenable resolution microtask.
+  isolate->PerformMicrotaskCheckpoint();
+
+  // The promise should now be fulfilled with 'late-value', NOT 'nested-value'.
+  CHECK_EQ(v8::Promise::kFulfilled, promise->State());
+  v8::Local<v8::Value> result = promise->Result();
+  CHECK(result->IsString());
+  v8::String::Utf8Value utf8(isolate, result);
+  CHECK_EQ(0, strcmp(*utf8, "late-value"));
 }
 
 TEST(PromiseStateAndValue) {
@@ -25509,46 +25706,6 @@ TEST(StringConcatOverflow) {
   CHECK(!try_catch.HasCaught());
 }
 
-TEST(TurboAsmDisablesDetach) {
-#if !defined(V8_LITE_MODE) && defined(V8_ENABLE_TURBOFAN)
-  if (i::v8_flags.disable_optimizing_compilers) return;
-
-  i::v8_flags.turbofan = true;
-  i::v8_flags.allow_natives_syntax = true;
-  v8::HandleScope scope(CcTest::isolate());
-  LocalContext context;
-  const char* load =
-      "function Module(stdlib, foreign, heap) {"
-      "  'use asm';"
-      "  var MEM32 = new stdlib.Int32Array(heap);"
-      "  function load() { return MEM32[0] | 0; }"
-      "  return { load: load };"
-      "}"
-      "var buffer = new ArrayBuffer(4096);"
-      "var module = Module(this, {}, buffer);"
-      "module.load();"
-      "buffer";
-
-  v8::Local<v8::ArrayBuffer> result = CompileRun(load).As<v8::ArrayBuffer>();
-  CHECK(!result->IsDetachable());
-
-  const char* store =
-      "function Module(stdlib, foreign, heap) {"
-      "  'use asm';"
-      "  var MEM32 = new stdlib.Int32Array(heap);"
-      "  function store() { MEM32[0] = 0; }"
-      "  return { store: store };"
-      "}"
-      "var buffer = new ArrayBuffer(4096);"
-      "var module = Module(this, {}, buffer);"
-      "module.store();"
-      "buffer";
-
-  result = CompileRun(store).As<v8::ArrayBuffer>();
-  CHECK(!result->IsDetachable());
-#endif  // !defined(V8_LITE_MODE) && defined(V8_ENABLE_TURBOFAN)
-}
-
 TEST(ClassPrototypeCreationContext) {
   v8::Isolate* isolate = CcTest::isolate();
   v8::HandleScope handle_scope(isolate);
@@ -26881,7 +27038,7 @@ void ContextCheckGetter(Local<Name> name,
 }
 
 void ContextCheckSetter(Local<Name> name, Local<Value>,
-                        const v8::PropertyCallbackInfo<void>& info) {
+                        const v8::PropertyCallbackInfo<Boolean>& info) {
   CHECK(i::ValidateCallbackInfo(info));
   CheckContexts(info.GetIsolate());
 }
@@ -28588,33 +28745,30 @@ bool SetupTest(v8::Local<v8::Value> initial_value, LocalContext* env,
     try_catch.emplace(isolate);
   }
 
-  v8::CFunction c_func;
-  if (has_options) {
 #ifdef V8_USE_SIMULATOR_WITH_GENERIC_C_CALLS
-    c_func =
-        v8::CFunction::Make(BasicApiChecker<Value, Impl, Ret>::FastCallback,
-                            FastCallbackPatch<Value, Impl, Ret>);
+  static v8::CFunction c_func_options =
+      v8::CFunction::Make(BasicApiChecker<Value, Impl, Ret>::FastCallback,
+                          FastCallbackPatch<Value, Impl, Ret>);
+  static v8::CFunction c_func_no_options = v8::CFunction::Make(
+      BasicApiChecker<Value, Impl, Ret>::FastCallbackNoOptions,
+      FastCallbackNoOptionsWrapper<Value, Impl, Ret>);
 #else   // V8_USE_SIMULATOR_WITH_GENERIC_C_CALLS
-    c_func =
-        v8::CFunction::Make(BasicApiChecker<Value, Impl, Ret>::FastCallback);
+  static v8::CFunction c_func_options =
+      v8::CFunction::Make(BasicApiChecker<Value, Impl, Ret>::FastCallback);
+  static v8::CFunction c_func_no_options = v8::CFunction::Make(
+      BasicApiChecker<Value, Impl, Ret>::FastCallbackNoOptions);
 #endif  // V8_USE_SIMULATOR_WITH_GENERIC_C_CALLS
-  } else {
-#ifdef V8_USE_SIMULATOR_WITH_GENERIC_C_CALLS
-    c_func = v8::CFunction::Make(
-        BasicApiChecker<Value, Impl, Ret>::FastCallbackNoOptions,
-        FastCallbackNoOptionsWrapper<Value, Impl, Ret>);
-#else   // V8_USE_SIMULATOR_WITH_GENERIC_C_CALLS
-    c_func = v8::CFunction::Make(
-        BasicApiChecker<Value, Impl, Ret>::FastCallbackNoOptions);
-#endif  // V8_USE_SIMULATOR_WITH_GENERIC_C_CALLS
-  }
-  CHECK_EQ(c_func.ArgumentInfo(0).GetType(), v8::CTypeInfo::Type::kV8Value);
+
+  v8::CFunction* c_func_ptr =
+      has_options ? &c_func_options : &c_func_no_options;
+  CHECK_EQ(c_func_ptr->ArgumentInfo(0).GetType(),
+           v8::CTypeInfo::Type::kV8Value);
 
   Local<v8::FunctionTemplate> checker_templ = v8::FunctionTemplate::New(
       isolate, BasicApiChecker<Value, Impl, Ret>::SlowCallback,
       v8::Number::New(isolate, 42.5), v8::Local<v8::Signature>(), 1,
       v8::ConstructorBehavior::kThrow, v8::SideEffectType::kHasSideEffect,
-      &c_func);
+      c_func_ptr);
   if (!accept_any_receiver) {
     checker_templ->SetAcceptAnyReceiver(false);
   }
@@ -28857,7 +29011,7 @@ void CheckFastCallsWithConstructor() {
 
   CHECK_NULL(fast_calls_error_message);
 
-  v8::CFunction c_func_ctor =
+  static v8::CFunction c_func_ctor =
       v8::CFunction::Make(ApiObjectChecker::FastCallback);
   v8::FunctionTemplate::New(isolate, ApiObjectChecker::SlowCallback,
                             Local<v8::Value>(), v8::Local<v8::Signature>(), 1,
@@ -28871,7 +29025,7 @@ void CheckFastCallsWithConstructor() {
   CHECK_EQ(0, strcmp(fast_calls_error_location, "FunctionTemplate::New"));
 
   fast_calls_error_message = nullptr;
-  const v8::CFunction c_func_ctor_overloads[] = {c_func_ctor};
+  static const v8::CFunction c_func_ctor_overloads[] = {c_func_ctor};
   v8::FunctionTemplate::NewWithCFunctionOverloads(
       isolate, ApiObjectChecker::SlowCallback, Local<v8::Value>(),
       v8::Local<v8::Signature>(), 1, v8::ConstructorBehavior::kAllow,
@@ -29536,10 +29690,6 @@ TEST(FastApiCalls) {
                         Behavior::kNoException, ApiCheckerResult::kSlowCalled,
                         v8_num(static_cast<double>(1ull << 63) * 3 + 4096));
 
-  // Corner cases - uint64_t
-  CallAndCheck<uint64_t>(static_cast<double>(1ull << 63) * 2 - 2048,
-                         Behavior::kNoException, ApiCheckerResult::kSlowCalled,
-                         v8_num(static_cast<double>(1ull << 63) * 2 - 2048));
   // TODO(mslekova): We deopt for unsafe integers, but ultimately we want to
   // stay on the fast path.
   CallAndCheck<uint64_t>(0, Behavior::kNoException,
@@ -29605,6 +29755,9 @@ TEST(FastApiCalls) {
                         v8_num(-0.0));
 
   // Corner cases - uint64_t
+  CallAndCheck<uint64_t>(static_cast<double>(1ull << 63) * 2 - 2048,
+                         Behavior::kNoException, expected_path_for_64bit_test,
+                         v8_num(static_cast<double>(1ull << 63) * 2 - 2048));
   CallAndCheck<uint64_t>(static_cast<uint64_t>(i::Smi::kMaxValue) + 1,
                          Behavior::kNoException, expected_path_for_64bit_test,
                          v8_num(static_cast<uint64_t>(i::Smi::kMaxValue) + 1));
@@ -29613,16 +29766,17 @@ TEST(FastApiCalls) {
                          v8_num(std::numeric_limits<uint64_t>::min()));
   CallAndCheck<uint64_t>(1ll << 62, Behavior::kNoException,
                          expected_path_for_64bit_test, v8_num(1ll << 62));
+  // Negative numbers are outside the range of uint64_t.
   CallAndCheck<uint64_t>(
       std::numeric_limits<uint64_t>::max() - ((1ll << 62) - 1),
-      Behavior::kNoException, expected_path_for_64bit_test,
+      Behavior::kNoException, ApiCheckerResult::kSlowCalled,
       v8_num(-(1ll << 62)));
   CallAndCheck<uint64_t>(i::kMaxSafeIntegerUint64, Behavior::kNoException,
                          expected_path_for_64bit_test,
                          v8_num(i::kMaxSafeInteger));
   CallAndCheck<uint64_t>(
       std::numeric_limits<uint64_t>::max() - (i::kMaxSafeIntegerUint64 - 1),
-      Behavior::kNoException, expected_path_for_64bit_test,
+      Behavior::kNoException, ApiCheckerResult::kSlowCalled,
       v8_num(-i::kMaxSafeInteger));
   CallAndCheck<uint64_t>(0, Behavior::kNoException,
                          expected_path_for_64bit_test, v8_num(-0.0));
@@ -29643,7 +29797,7 @@ TEST(FastApiCalls) {
                         Behavior::kNoException, ApiCheckerResult::kSlowCalled,
                         v8_num(-static_cast<double>(1ll << 63)));
   CallAndCheck<uint64_t>(1ull << 63, Behavior::kNoException,
-                         ApiCheckerResult::kSlowCalled,
+                         expected_path_for_64bit_test,
                          v8_num(static_cast<double>(1ull << 63)));
 
   // Corner cases - float and double
@@ -31345,9 +31499,10 @@ TEST(ContinuationPreservedEmbedderDataClearedAndRestored) {
 }
 
 static bool did_callback_microtask_run = false;
-static void CallbackTaskMicrotask(void* data) {
+static void CallbackTaskMicrotask(v8::Local<v8::Data> data) {
   did_callback_microtask_run = true;
-  v8::Isolate* isolate = static_cast<v8::Isolate*>(data);
+  v8::Isolate* isolate = static_cast<v8::Isolate*>(
+      data.As<v8::External>()->Value(v8::kExternalPointerTypeTagDefault));
 #if V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
   CHECK(v8_str("foo")->SameValue(
       GetContinuationPreservedEmbedderDataAsValue(isolate)));
@@ -31362,7 +31517,9 @@ TEST(EnqueMicrotaskContinuationPreservedEmbedderData_CallbackTask) {
   v8::HandleScope scope(isolate);
 
   isolate->SetContinuationPreservedEmbedderDataV2(v8_str("foo"));
-  isolate->EnqueueMicrotask(&CallbackTaskMicrotask, isolate);
+  isolate->EnqueueMicrotask(
+      &CallbackTaskMicrotask,
+      v8::External::New(isolate, isolate, v8::kExternalPointerTypeTagDefault));
   isolate->SetContinuationPreservedEmbedderDataV2(v8::Undefined(isolate));
 
   isolate->PerformMicrotaskCheckpoint();

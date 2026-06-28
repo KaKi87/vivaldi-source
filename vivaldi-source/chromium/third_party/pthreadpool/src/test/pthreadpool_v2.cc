@@ -146,7 +146,8 @@ class SimpleThreadPoolExecutor : public PthreadpoolExecutor {
   }
 
  private:
-  static void ThreadMain(SimpleThreadPoolExecutor* executor) {
+  static PTHREADPOOL_NO_SANITIZE_FUNCTION void ThreadMain(
+      SimpleThreadPoolExecutor* executor) {
     Task task;
     while (true) {
       {

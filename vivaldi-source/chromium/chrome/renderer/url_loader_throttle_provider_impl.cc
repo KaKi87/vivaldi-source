@@ -35,13 +35,13 @@
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "extensions/common/switches.h"
 #include "extensions/renderer/extension_throttle_manager.h"
 #endif
 
 #if BUILDFLAG(ENABLE_REQUEST_HEADER_INTEGRITY)
-#include "chrome/common/request_header_integrity/request_header_integrity_url_loader_throttle.h"  // nogncheck crbug.com/1125897
+#include "chrome/common/request_header_integrity/request_header_integrity_url_loader_throttle.h"  // nogncheck crbug.com/40147906
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -58,7 +58,7 @@
 
 namespace {
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 std::unique_ptr<extensions::ExtensionThrottleManager>
 CreateExtensionThrottleManager() {
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -216,7 +216,7 @@ URLLoaderThrottleProviderImpl::CreateThrottles(
     }
   }
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   if (!extension_throttle_manager_) {
     extension_throttle_manager_ = CreateExtensionThrottleManager();
   }
@@ -310,7 +310,7 @@ URLLoaderThrottleProviderImpl::CreateThrottles(
 }
 
 void URLLoaderThrottleProviderImpl::SetOnline(bool is_online) {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   if (extension_throttle_manager_) {
     extension_throttle_manager_->SetOnline(is_online);
   }

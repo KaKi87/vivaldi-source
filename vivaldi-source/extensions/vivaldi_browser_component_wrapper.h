@@ -60,7 +60,7 @@ enum class WindowType;
 
 namespace url {
 class Origin;
-} // namespace url
+}  // namespace url
 
 namespace content {
 class BrowserContext;
@@ -265,9 +265,9 @@ class VivaldiBrowserComponentWrapper {
       content::MediaResponseCallback callback,
       const extensions::Extension* extension) = 0;
   virtual bool CheckMediaAccessPermission(
-    content::RenderFrameHost* render_frame_host,
-    const url::Origin& security_origin,
-    blink::mojom::MediaStreamType type) = 0;
+      content::RenderFrameHost* render_frame_host,
+      const url::Origin& security_origin,
+      blink::mojom::MediaStreamType type) = 0;
   virtual std::vector<Profile*> GetLoadedProfiles() = 0;
   virtual void CloseAllDevtools() = 0;
   virtual void AttemptRestart() = 0;

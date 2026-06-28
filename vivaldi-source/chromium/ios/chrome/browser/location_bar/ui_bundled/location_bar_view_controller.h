@@ -88,6 +88,7 @@ class Tracker;
 
 // Vivaldi
 - (void)locationBarContentsTintColorDidChange:(UIColor*)tintColor;
+- (void)locationBarCopySanitizedLinkTapped;
 // End Vivaldi
 
 @end
@@ -229,11 +230,17 @@ class Tracker;
 // Records the lens overlay entrypoint availability in the location bar.
 - (void)recordLensOverlayAvailability;
 
+// Updates the visibility of the AI Hub "New" feature badge.
+- (void)updateAIHubNewBadgeVisibility;
+
 // Moves the focus of VoiceOver to the steady view.
 - (void)focusSteadyViewForVoiceOver;
 
 // Creates a visual copy of the location bar steady view.
 - (UIView*)locationBarSteadyViewVisualCopy;
+
+// Sets the custom leading view visibility, optionally animated.
+- (void)setCustomLeadingViewVisible:(BOOL)visible animated:(BOOL)animated;
 
 // Vivaldi
 @property(nonatomic, strong) UIColor* locationBarContainerColor;

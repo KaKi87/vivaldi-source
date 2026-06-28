@@ -40,6 +40,8 @@ class OmniboxPopupViewViewsTest : public InProcessBrowserTest {
     test::ThemeServiceChangedWaiter waiter_;
   };
 
+  void SetUpOnMainThread() override;
+
   views::Widget* CreatePopupForTestQuery();
   views::Widget* GetPopupWidget() { return popup_view()->GetWidget(); }
   OmniboxHeaderView* GetHeaderViewAt(int index) {
@@ -63,7 +65,7 @@ class OmniboxPopupViewViewsTest : public InProcessBrowserTest {
   OmniboxEditModel* edit_model() { return controller()->edit_model(); }
   OmniboxPopupViewViews* popup_view() {
     return static_cast<OmniboxPopupViewViews*>(
-        location_bar()->GetOmniboxPopupViewForTesting());
+        location_bar()->GetOmniboxPopupView());
   }
 
   SkColor GetSelectedColor(Browser* browser) {

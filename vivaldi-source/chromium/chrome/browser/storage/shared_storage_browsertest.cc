@@ -82,7 +82,7 @@
 #include "chrome/browser/ui/browser.h"
 #endif
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "extensions/browser/extension_registrar.h"
 #include "extensions/test/test_extension_dir.h"
@@ -381,9 +381,7 @@ class SharedStorageChromeBrowserTestBase : public PlatformBrowserTest {
 
     scoped_feature_list_.InitWithFeatures(
         /*enabled_features=*/{network::features::kSharedStorageAPI,
-                              features::kPrivacySandboxAdsAPIsOverride,
-                              privacy_sandbox::
-                                  kOverridePrivacySandboxSettingsLocalTesting},
+                              features::kPrivacySandboxAdsAPIsOverride},
         /*disabled_features=*/{});
   }
 
@@ -1748,7 +1746,7 @@ IN_PROC_BROWSER_TEST_P(SharedStorageChromeBrowserTest,
   histogram_tester_.ExpectUniqueSample(kWorkletNumPerPageHistogram, 1, 1);
 }
 
-// See crbug.com/1453981: A CL on V8 side (https://crrev.com/c/4582948) made
+// See crbug.com/40916708: A CL on V8 side (https://crrev.com/c/4582948) made
 // each Api call slower in Android debug mode compared to what we had before
 // because of additional DCHECKs. So we disable on Android debug builds where
 // this test times out.
@@ -1851,7 +1849,7 @@ IN_PROC_BROWSER_TEST_P(SharedStorageChromeBrowserTest,
   histogram_tester_.ExpectUniqueSample(kWorkletNumPerPageHistogram, 1, 1);
 }
 
-// See crbug.com/1453981: A CL on V8 side (https://crrev.com/c/4582948) made
+// See crbug.com/40916708: A CL on V8 side (https://crrev.com/c/4582948) made
 // each Api call slower in Android debug mode compared to what we had before
 // because of additional DCHECKs. So we disable on Android debug builds where
 // this test times out.
@@ -4779,7 +4777,7 @@ class SharedStorageChromeNoParamsBrowserTest
   base::test::ScopedFeatureList attestation_feature_;
 };
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 namespace {
 
 constexpr char kBackgroundJSTemplate[] = R"(
@@ -4820,7 +4818,6 @@ class SharedStorageExtensionBrowserTest
         /*enabled_features=*/
         {network::features::kSharedStorageAPI,
          features::kPrivacySandboxAdsAPIsOverride,
-         privacy_sandbox::kOverridePrivacySandboxSettingsLocalTesting,
          blink::features::kFencedFrames,
          blink::features::kFencedFramesAPIChanges,
          privacy_sandbox::kEnforcePrivacySandboxAttestations},
@@ -4878,8 +4875,6 @@ class SharedStorageExtensionBrowserTest
   content::WebContents* GetActiveWebContents() {
     return chrome_test_utils::GetActiveWebContents(this);
   }
-
-  Profile* GetProfile() { return browser()->profile(); }
 
   const extensions::Extension* InstallExtension(
       std::optional<std::string> value_to_set) {
@@ -5396,6 +5391,6 @@ IN_PROC_BROWSER_TEST_F(
                         ->GetPrimaryMainFrame()
                         ->GetStoragePartition()));
 }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 
 }  // namespace storage

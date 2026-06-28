@@ -43,7 +43,6 @@ class Browser;
 class BrowserActions;
 class BrowserWindowFeatures;
 class DesktopBrowserWindowCapabilities;
-class ExclusiveAccessManager;
 class GURL;
 class TabStripModel;
 #endif  // BUILDFLAG(IS_ANDROID)
@@ -238,9 +237,6 @@ class BrowserWindowInterface : public content::PageNavigator {
   // initialized.
   virtual bool IsTabStripVisible() = 0;
 
-  // Returns true if the browser controls are hidden due to being in fullscreen.
-  virtual bool ShouldHideUIForFullscreen() const = 0;
-
   // Register callbacks invoked when browser attempted to close but the close
   // operation was cancelled.
   using BrowserCloseCancelledCallback =
@@ -301,9 +297,6 @@ class BrowserWindowInterface : public content::PageNavigator {
       base::RepeatingCallback<void(BrowserWindowInterface*)>;
   virtual base::CallbackListSubscription RegisterDidBecomeInactive(
       DidBecomeInactiveCallback callback) = 0;
-
-  // This class is responsible for controlling fullscreen and pointer lock.
-  virtual ExclusiveAccessManager* GetExclusiveAccessManager() = 0;
 
   // This class manages actions that a user can take that are scoped to a
   // browser window (e.g. most of the 3-dot menu actions).

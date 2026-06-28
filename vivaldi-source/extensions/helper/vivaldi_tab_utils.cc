@@ -3,7 +3,6 @@
 #include "extensions/helper/vivaldi_tab_utils.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chromium/chrome/browser/ui/browser_list.h"
 #include "components/ext_data/tab_ext_data.h"
 #include "extensions/api/guest_view/parent_tab_user_data.h"
 

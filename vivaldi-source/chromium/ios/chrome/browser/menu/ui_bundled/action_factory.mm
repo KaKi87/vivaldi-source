@@ -466,16 +466,12 @@ constexpr CGFloat kEmojiCanvasPaddingRatio = 1.3;
     image = CustomSymbolWithPointSize(vMenuClose,
                                       kSymbolActionPointSize);  // End Vivaldi
 
-  int titleID;
-  if (base::FeatureList::IsEnabled(kTabSwitcherOverflowMenu)) {
-    titleID = IDS_IOS_TAB_SWITCHER_CLOSE_ALL_ACTION_BUTTON;
-  } else {
-    titleID = IDS_IOS_CONTENT_CONTEXT_CLOSEALLTABSANDGROUPS;
-  }
-  UIAction* action = [self actionWithTitle:l10n_util::GetNSString(titleID)
-                                     image:image
-                                      type:MenuActionType::CloseAllTabs
-                                     block:block];
+  UIAction* action =
+      [self actionWithTitle:l10n_util::GetNSString(
+                                IDS_IOS_CONTENT_CONTEXT_CLOSEALLTABSANDGROUPS)
+                      image:image
+                       type:MenuActionType::CloseAllTabs
+                      block:block];
   action.attributes = UIMenuElementAttributesDestructive;
   return action;
 }
@@ -949,16 +945,6 @@ constexpr CGFloat kEmojiCanvasPaddingRatio = 1.3;
                          block:block];
 }
 
-- (UIAction*)actionToManageLinkInNewTabWithBlock:(ProceduralBlock)block {
-  UIImage* image =
-      DefaultSymbolWithPointSize(kExternalLinkSymbol, kSymbolActionPointSize);
-
-  return [self actionWithTitle:l10n_util::GetNSString(
-                                   IDS_IOS_CONTENT_CONTEXT_OPENMANAGEINNEWTAB)
-                         image:image
-                          type:MenuActionType::ManageInNewTab
-                         block:block];
-}
 
 - (UIAction*)actionToShowRecentActivity:(ProceduralBlock)block {
   UIImage* image =

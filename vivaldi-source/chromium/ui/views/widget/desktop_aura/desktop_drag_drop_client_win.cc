@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "base/auto_reset.h"
 #include "base/notimplemented.h"
 #include "base/scoped_observation.h"
 #include "base/threading/hang_watcher.h"
@@ -51,19 +52,21 @@ class SourceWindowObserver : public aura::WindowObserver {
       scoped_observation_;
 };
 
+bool g_is_dragging = false;
+
 }  // namespace
 
 DesktopDragDropClientWin::DesktopDragDropClientWin(
     aura::Window* root_window,
     HWND window,
     DesktopWindowTreeHostWin* desktop_host)
-    : drag_drop_in_progress_(false), desktop_host_(desktop_host) {
+    : desktop_host_(desktop_host) {
   drop_target_ = new DesktopDropTargetWin(root_window);
   drop_target_->Init(window);
 }
 
 DesktopDragDropClientWin::~DesktopDragDropClientWin() {
-  if (drag_drop_in_progress_) {
+  if (g_is_dragging) {
     DragCancel();
   }
 }
@@ -75,10 +78,13 @@ ui::mojom::DragOperation DesktopDragDropClientWin::StartDragAndDrop(
     const gfx::Point& screen_location,
     int allowed_operations,
     ui::mojom::DragEventSource source) {
-  CHECK(!drag_drop_in_progress_);
+  CHECK(!g_is_dragging);
+  if (desktop_host_->IsInNativeMoveResizeLoop()) {
+    return ui::PreferredDragOperation(
+        ui::DragDropTypes::DropEffectToDragOperation(DROPEFFECT_NONE));
+  }
   gfx::Point touch_screen_point;
   if (source == ui::mojom::DragEventSource::kTouch) {
-    source_window->GetHost()->ConvertDIPToPixels(&touch_screen_point);
     display::Screen* screen = display::Screen::Get();
     CHECK(screen);
     aura::Window* window =
@@ -101,8 +107,6 @@ ui::mojom::DragOperation DesktopDragDropClientWin::StartDragAndDrop(
   SourceWindowObserver source_window_observer(source_window);
   base::WeakPtr<DesktopDragDropClientWin> alive(weak_factory_.GetWeakPtr());
 
-  drag_drop_in_progress_ = true;
-
   if (vivaldi::IsVivaldiRunning()) {
     drag_source_ = Microsoft::WRL::Make<vivaldi::CustomDragSourceWin>(
         vivaldi::IsTabDragInProgress());
@@ -117,6 +121,7 @@ ui::mojom::DragOperation DesktopDragDropClientWin::StartDragAndDrop(
       true);
 
   DWORD effect;
+  base::AutoReset<bool> drag_scoper(&g_is_dragging, true);
 
   // Never consider the current scope as hung. The hang watching deadline (if
   // any) is not valid since the user can take unbounded time to complete the
@@ -140,10 +145,6 @@ ui::mojom::DragOperation DesktopDragDropClientWin::StartDragAndDrop(
   }
   drag_source_copy->set_data(nullptr);
 
-  if (alive) {
-    drag_drop_in_progress_ = false;
-  }
-
   if (result != DRAGDROP_S_DROP) {
     effect = DROPEFFECT_NONE;
   }
@@ -155,11 +156,13 @@ ui::mojom::DragOperation DesktopDragDropClientWin::StartDragAndDrop(
 }
 
 void DesktopDragDropClientWin::DragCancel() {
-  drag_source_->CancelDrag();
+  if (drag_source_) {
+    drag_source_->CancelDrag();
+  }
 }
 
 bool DesktopDragDropClientWin::IsDragDropInProgress() {
-  return drag_drop_in_progress_;
+  return g_is_dragging;
 }
 
 void DesktopDragDropClientWin::AddObserver(

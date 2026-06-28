@@ -8,11 +8,13 @@
 #include "base/i18n/number_formatting.h"
 #include "base/strings/string_util.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/glic/public/glic_enabling.h"
+//#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/global_features.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/skills/skills_service_factory.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/webui/sanitized_image/sanitized_image_source.h"
 #include "chrome/browser/ui/webui/skills/skills_dialog_handler.h"
 #include "chrome/browser/ui/webui/skills/skills_page_handler.h"
@@ -44,18 +46,21 @@ SkillsUI::SkillsUI(content::WebUI* web_ui) : ui::MojoWebUIController(web_ui) {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   source->AddBoolean("isGlicEnabled",
                      glic::GlicEnabling::IsReadyForProfile(profile));
+  source->AddBoolean("isSkillsEnabled",
+                     SkillsServiceFactory::IsSkillsEnabledForProfile(profile));
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
   source->AddInteger("MAX_NAME_CHAR_COUNT", kMaxNameCharCount);
   source->AddInteger("MAX_PROMPT_CHAR_COUNT", kMaxPromptCharCount);
+  source->AddBoolean("isRefinementEnabled",
+                     // Disable refinement whenever browseSkillsPage is disabled
+                     // (non-en locales).
+                     !ShouldDisableBrowseSkillsPage());
   source->AddBoolean(
-      "isRefinementEnabled",
-      base::FeatureList::IsEnabled(features::kSkillsRefinementEnabled));
+      "isSubheadersEnabled",
+      base::FeatureList::IsEnabled(features::kSkillsSubheadersEnabled));
   source->AddBoolean(
       "isAutocompleteEnabled",
       base::FeatureList::IsEnabled(features::kSkillsAutocomplete));
-  source->AddBoolean(
-      "isPartnerPicksEnabled",
-      base::FeatureList::IsEnabled(features::kSkillsPartnerPicks));
   source->AddBoolean("shouldDisableBrowseSkillsPage",
                      ShouldDisableBrowseSkillsPage());
 
@@ -68,9 +73,9 @@ SkillsUI::SkillsUI(content::WebUI* web_ui) : ui::MojoWebUIController(web_ui) {
       {"save", IDS_SAVE},
       {"delete", IDS_SKILL_PAGE_USER_SKILLS_DELETE},
       {"add", IDS_ADD},
+      {"all", IDS_SKILLS_PAGE_ALL_CATEGORY},
+      {"curatedByPrefix", IDS_SKILLS_CURATED_PREFIX},
       {"browseSkillsTitle", IDS_SKILL_PAGE_BROWSE_SKILLS_TITLE},
-      // TODO(b/503394871): Remove this string.
-      {"topPicksTitle", IDS_SKILL_PAGE_BROWSE_SKILLS_TOP_PICKS_TITLE},
       {"firstPartyAddSkillErrorToast",
        IDS_SKILL_PAGE_FIRST_PARTY_ADD_SKILL_ERROR_TOAST},
       {"emptyStateTitle", IDS_SKILL_PAGE_EMPTY_STATE_TITLE},
@@ -83,6 +88,9 @@ SkillsUI::SkillsUI(content::WebUI* web_ui) : ui::MojoWebUIController(web_ui) {
       {"mainMenu", IDS_SKILL_PAGE_MAIN_MENU},
       {"errorPageTitle", IDS_SKILLS_ERROR_PAGE_TITLE},
       {"errorPageDescription", IDS_SKILLS_ERROR_PAGE_DESCRIPTION},
+      {"disabledErrorPageDescription",
+       IDS_SKILLS_DISABLED_ERROR_PAGE_DESCRIPTION},
+      {"goToSettings", IDS_SKILLS_GO_TO_SETTINGS},
       {"footerText", IDS_SKILLS_SIDEBAR_FOOTER_TEXT},
       {"footerBranding", IDS_SKILLS_SIDEBAR_FOOTER_BRANDING},
       {"addSkillHeader", IDS_SKILLS_DIALOG_ADD_SKILL_HEADER},
@@ -117,6 +125,10 @@ SkillsUI::SkillsUI(content::WebUI* web_ui) : ui::MojoWebUIController(web_ui) {
       "charLimitError",
       l10n_util::GetStringFUTF16(IDS_SKILLS_DIALOG_CHAR_LIMIT_ERROR,
                                  base::FormatNumber(kMaxPromptCharCount)));
+
+  source->AddString("webuiRefresh2026", features::IsWebuiRefresh2026Enabled()
+                                            ? "webui-refresh-2026"
+                                            : "");
 }
 
 void SkillsUI::InitializeDialog(base::WeakPtr<SkillsDialogDelegate> delegate,

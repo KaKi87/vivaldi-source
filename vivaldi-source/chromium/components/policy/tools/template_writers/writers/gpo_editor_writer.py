@@ -16,10 +16,14 @@ class GpoEditorWriter(template_writer.TemplateWriter):
   '''
 
   def IsDeprecatedPolicySupported(self, policy):
-    # Include deprecated policies in the output.
-    return True
+    # VB-125639 - Vivaldi does not support deprecated policies.
+    return False
 
   def IsVersionSupported(self, policy, supported_on):
+    # VB-125639 - Vivaldi does not support removed policies.
+    if not super().IsVersionSupported(policy, supported_on):
+      return False
+
     # Include deprecated policies in the 'DeprecatedPolicies' group, even if
     # they aren't supported anymore.
     major_version = self._GetChromiumMajorVersion()

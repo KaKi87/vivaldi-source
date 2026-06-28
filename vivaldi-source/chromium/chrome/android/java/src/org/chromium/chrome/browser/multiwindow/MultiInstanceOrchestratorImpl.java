@@ -7,7 +7,10 @@ package org.chromium.chrome.browser.multiwindow;
 import static org.chromium.chrome.browser.multiwindow.MultiInstanceManager.INVALID_WINDOW_ID;
 
 import android.app.Activity;
+import android.app.ApplicationExitInfo;
 import android.content.Intent;
+import android.os.Build;
+import android.os.Bundle;
 
 import androidx.annotation.StringRes;
 
@@ -23,9 +26,11 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.app.tab_activity_glue.ReparentingTabsTask;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.NewWindowAppSource;
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.PersistedInstanceType;
+import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab.TabUtils;
@@ -34,10 +39,13 @@ import org.chromium.chrome.browser.tabmodel.TabGroupMetadata;
 import org.chromium.chrome.browser.tabmodel.TabList;
 import org.chromium.chrome.browser.util.AndroidTaskUtils;
 import org.chromium.content_public.browser.LoadUrlParams;
+import org.chromium.content_public.browser.WebContents;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 /** Implements {@link MultiInstanceOrchestrator} as a singleton. */
@@ -49,6 +57,23 @@ import java.util.Set;
     private final TabReparentingDelegate mTabReparentingDelegate;
     private final Map<Activity, MultiInstanceManager> mActivityMultiInstanceManagerAssignments =
             new HashMap<>();
+
+    /**
+     * List of crashed windows pending recovery. This is used during deferred recovery, when a crash
+     * is detected during browser process initialization but before any eligible {@link
+     * ChromeTabbedActivity} has registered. Once a tabbed activity is initialized, it consumes this
+     * list to trigger the recovery flow.
+     */
+    private List<CrashRecoveryWindowInfo> mWindowsPendingCrashRecovery = new ArrayList<>();
+
+    /**
+     * List of crashed windows captured at the very beginning of the process lifetime, during the
+     * registration of the first activity. Storing this initial snapshot avoids a race condition
+     * where the newly launched activity marks itself as recoverable during its early
+     * initialization, which would otherwise corrupt the crash recovery data before the
+     * process-level exit reason is processed.
+     */
+    private @Nullable List<CrashRecoveryWindowInfo> mInitialCrashedWindows;
 
     /** Returns the singleton instance for {@link MultiInstanceOrchestrator}. */
     public static MultiInstanceOrchestrator getInstance() {
@@ -72,62 +97,135 @@ import java.util.Set;
     public void onInitialize(Activity activity, MultiInstanceManager multiInstanceManager) {
         assert !mActivityMultiInstanceManagerAssignments.containsKey(activity)
                 : "A MultiInstanceManager for this Activity already exists.";
+        if (mActivityMultiInstanceManagerAssignments.isEmpty()) {
+            mInitialCrashedWindows = ChromeMultiInstancePersistentStore.readCrashRecoveryData();
+        }
         mActivityMultiInstanceManagerAssignments.put(activity, multiInstanceManager);
+        if (ChromeMultiInstancePersistentStore.readIsCrashRecoveryPending()) {
+            // Initiate any pending crash recovery tasks.
+            if (activity instanceof ChromeTabbedActivity tabbedActivity) {
+                TabbedCrashRecoveryDelegate.getInstance()
+                        .initiateCrashRecovery(
+                                tabbedActivity.getModalDialogManagerSupplier(),
+                                tabbedActivity,
+                                mWindowsPendingCrashRecovery);
+                ChromeMultiInstancePersistentStore.writeIsCrashRecoveryPending(false);
+                mWindowsPendingCrashRecovery = new ArrayList<>();
+            }
+        }
     }
 
     @Override
-    public @Nullable Intent createNewWindowIntent(
-            Activity sourceActivity, boolean isIncognito, @NewWindowAppSource int source) {
-        boolean isInMultiWindowMode =
-                MultiWindowUtils.getInstance().isInMultiWindowMode(sourceActivity);
-        boolean isInMultiDisplayMode =
-                MultiWindowUtils.getInstance().isInMultiDisplayMode(sourceActivity);
+    public void onForegroundBrowserProcessInitialized(int previousProcessExitReason) {
+        if (!ChromeFeatureList.sSessionRestoreAfterCrash.isEnabled()
+                || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return;
 
-        if (MultiWindowUtils.isMultiInstanceApi31Enabled()) {
-            boolean openAdjacently =
-                    (MultiWindowUtils.canEnterMultiWindowMode()
-                                    || isInMultiWindowMode
-                                    || isInMultiDisplayMode)
-                            && MultiWindowUtils.shouldOpenInAdjacentWindow(sourceActivity);
+        // Set up the orchestrator to initiate crash recovery for windows from a
+        // previous session if and when applicable.
+        boolean crashRecoveryNeeded =
+                (previousProcessExitReason == ApplicationExitInfo.REASON_CRASH
+                        || previousProcessExitReason == ApplicationExitInfo.REASON_CRASH_NATIVE
+                        || previousProcessExitReason == ApplicationExitInfo.REASON_ANR);
+        // TODO(crbug.com/513629106): Try to include ApplicationExitInfo.REASON_EXIT_SELF but
+        // only for debug build
+        if (!crashRecoveryNeeded) return;
 
-            Intent intent =
-                    MultiWindowUtils.createNewWindowIntent(
-                            sourceActivity,
-                            MultiInstanceManager.INVALID_WINDOW_ID,
-                            /* preferNew= */ true,
-                            openAdjacently,
-                            source);
-            intent.putExtra(IntentHandler.EXTRA_OPEN_NEW_INCOGNITO_WINDOW, isIncognito);
-            return intent;
+        List<CrashRecoveryWindowInfo> crashedWindows =
+                mInitialCrashedWindows != null
+                        ? mInitialCrashedWindows
+                        : ChromeMultiInstancePersistentStore.readCrashRecoveryData();
+        mInitialCrashedWindows = null;
+
+        // If there are no crash-recoverable instances (for example, there were no
+        // active ChromeTabbedActivity's when the previous process crashed), there is
+        // nothing to do.
+        if (crashedWindows == null || crashedWindows.isEmpty()) return;
+
+        // Prepare for deferred crash recovery.
+        if (mActivityMultiInstanceManagerAssignments.isEmpty()) {
+            // This means that there are no eligible activities to initiate crash
+            // recovery when the browser process starts after an unclean exit. Track
+            // this as a pending task that can be addressed when the next
+            // ChromeTabbedActivity is registered with the orchestrator.
+            ChromeMultiInstancePersistentStore.writeIsCrashRecoveryPending(true);
+            mWindowsPendingCrashRecovery = crashedWindows;
+            return;
         }
 
-        assert !isIncognito : "Opening an incognito window isn't supported";
-        assert isInMultiWindowMode || isInMultiDisplayMode
-                : "Current windowing mode doesn't support opening a new window";
+        // Initiate crash recovery immediately.
+        assert mActivityMultiInstanceManagerAssignments.size() == 1
+                : "Expected only one activity to be launched.";
 
-        Class<? extends Activity> targetActivity =
-                MultiWindowUtils.getInstance().getOpenInOtherWindowActivity(sourceActivity);
-        if (targetActivity == null) return null;
+        Entry<Activity, MultiInstanceManager> assignment =
+                mActivityMultiInstanceManagerAssignments.entrySet().iterator().next();
+        Activity activity = assignment.getKey();
+        assert activity instanceof ChromeTabbedActivity;
+        ChromeTabbedActivity tabbedActivity = (ChromeTabbedActivity) activity;
+        TabbedCrashRecoveryDelegate.getInstance()
+                .initiateCrashRecovery(
+                        tabbedActivity.getModalDialogManagerSupplier(),
+                        tabbedActivity,
+                        crashedWindows);
+    }
 
-        Intent intent = new Intent(sourceActivity, targetActivity);
-        MultiWindowUtils.setOpenInOtherWindowIntentExtras(intent, sourceActivity, targetActivity);
+    @Override
+    public boolean createNewWindow(
+            Activity sourceActivity,
+            boolean isIncognito,
+            @Nullable Bundle additionalIntentExtras,
+            @Nullable Bundle startActivityOptions,
+            @NewWindowAppSource int source) {
+        Intent intent = MultiWindowUtils.createNewWindowIntent(sourceActivity, isIncognito, source);
+        if (intent == null) return false;
 
-        intent.putExtra(IntentHandler.EXTRA_NEW_WINDOW_APP_SOURCE, source);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-
-        if (MultiWindowUtils.shouldOpenInAdjacentWindow(sourceActivity)) {
-            intent.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT);
+        if (additionalIntentExtras != null) {
+            intent.putExtras(additionalIntentExtras);
         }
 
-        return intent;
+        MultiInstanceManager.onMultiInstanceModeStarted();
+        try {
+            sourceActivity.startActivity(intent, startActivityOptions);
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    @Override
+    public boolean createNewWindowFromWebContents(
+            Activity sourceActivity,
+            Profile profile,
+            WebContents webContents,
+            @Nullable Bundle additionalIntentExtras,
+            @Nullable Bundle startActivityOptions,
+            @NewWindowAppSource int source) {
+        if (!MultiWindowUtils.isMultiInstanceApi31Enabled()) return false;
+
+        if (!MultiWindowUtils.isWithinInstanceLimit()) {
+            var multiInstanceManager = getMultiInstanceManager(sourceActivity);
+            if (multiInstanceManager != null) {
+                multiInstanceManager.showInstanceCreationLimitMessage();
+            }
+            return false;
+        }
+
+        return mTabReparentingDelegate.createNewWindowFromWebContents(
+                sourceActivity,
+                profile,
+                webContents,
+                additionalIntentExtras,
+                startActivityOptions,
+                source);
     }
 
     @Override
     public void moveTabsToNewWindow(
-            List<Tab> tabs, @Nullable Runnable finalizeCallback, @NewWindowAppSource int source) {
+            @Nullable Activity sourceActivity,
+            List<Tab> tabs,
+            @Nullable Runnable finalizeCallback,
+            @NewWindowAppSource int source) {
         if (!MultiWindowUtils.isMultiInstanceApi31Enabled()) return;
         if (tabs.isEmpty()) return;
-        Activity sourceActivity = TabUtils.getActivity(tabs.get(0));
         if (sourceActivity == null) return;
 
         if (!MultiWindowUtils.isWithinInstanceLimit()) {
@@ -138,9 +236,9 @@ import java.util.Set;
             return;
         }
 
-        boolean openAdjacently = MultiWindowUtils.shouldOpenInAdjacentWindow(sourceActivity);
+        boolean openAdjacently = shouldMoveTabsInAdjacentWindow(sourceActivity, tabs.size());
         mTabReparentingDelegate.reparentTabsToNewWindow(
-                tabs, INVALID_WINDOW_ID, openAdjacently, finalizeCallback, source);
+                sourceActivity, tabs, INVALID_WINDOW_ID, openAdjacently, finalizeCallback, source);
     }
 
     @Override
@@ -180,8 +278,9 @@ import java.util.Set;
             Activity sourceActivity = TabUtils.getActivity(tabs.get(0));
             boolean openAdjacently =
                     sourceActivity != null
-                            && MultiWindowUtils.shouldOpenInAdjacentWindow(sourceActivity);
+                            && shouldMoveTabsInAdjacentWindow(sourceActivity, tabs.size());
             mTabReparentingDelegate.reparentTabsToNewWindow(
+                    tabs.get(0).getContext(),
                     tabs,
                     destWindowId,
                     openAdjacently,
@@ -210,7 +309,7 @@ import java.util.Set;
         Activity sourceActivity = TabUtils.getActivity(tabs.get(0));
         MultiInstanceManager multiInstanceManager = getMultiInstanceManager(sourceActivity);
         if (instanceCount <= 1) {
-            moveTabsToNewWindow(tabs, /* finalizeCallback= */ null, source);
+            moveTabsToNewWindow(sourceActivity, tabs, /* finalizeCallback= */ null, source);
 
             // Close the source instance window, if needed.
             if (multiInstanceManager != null) {
@@ -253,7 +352,9 @@ import java.util.Set;
                 multiInstanceManager.showInstanceCreationLimitMessage();
             }
         } else {
-            boolean openAdjacently = MultiWindowUtils.shouldOpenInAdjacentWindow(sourceActivity);
+            boolean openAdjacently =
+                    shouldMoveTabsInAdjacentWindow(
+                            sourceActivity, tabGroupMetadata.tabIdsToUrls.size());
             mTabReparentingDelegate.reparentTabGroupToNewWindow(
                     tabGroupMetadata, INVALID_WINDOW_ID, openAdjacently, source);
         }
@@ -278,7 +379,8 @@ import java.util.Set;
         } else {
             boolean openAdjacently =
                     sourceActivity != null
-                            && MultiWindowUtils.shouldOpenInAdjacentWindow(sourceActivity);
+                            && shouldMoveTabsInAdjacentWindow(
+                                    sourceActivity, tabGroupMetadata.tabIdsToUrls.size());
             mTabReparentingDelegate.reparentTabGroupToNewWindow(
                     tabGroupMetadata,
                     destWindowId,
@@ -521,7 +623,7 @@ import java.util.Set;
 
     private static void addOpenUrlInNewWindowIntentExtras(
             Activity sourceActivity, Intent intent, boolean isIncognitoWindow) {
-        if (!MultiWindowUtils.shouldOpenInAdjacentWindow(sourceActivity)) {
+        if (!MultiWindowUtils.shouldOpenInAdjacentWindow(sourceActivity, isIncognitoWindow)) {
             intent.setFlags(intent.getFlags() & ~Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT);
         }
         intent.putExtra(IntentHandler.EXTRA_NEW_WINDOW_APP_SOURCE, NewWindowAppSource.URL_LAUNCH);
@@ -531,6 +633,28 @@ import java.util.Set;
             intent.addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
             intent.putExtra(IntentHandler.EXTRA_OPEN_NEW_INCOGNITO_WINDOW, isIncognitoWindow);
         }
+    }
+
+    /**
+     * Helps determine whether FLAG_ACTIVITY_LAUNCH_ADJACENT needs to be set in the intent to create
+     * a new window when tabs are moved.
+     */
+    private static boolean shouldMoveTabsInAdjacentWindow(
+            Activity sourceActivity, int moveTabCount) {
+        if (sourceActivity.isInMultiWindowMode()) return true;
+        boolean isSourceIncognito = false;
+        if (sourceActivity instanceof ChromeTabbedActivity tabbedActivity) {
+            isSourceIncognito = tabbedActivity.isIncognitoWindow();
+            int totalTabCount = tabbedActivity.getTabModelSelector().getTotalTabCount();
+            if (totalTabCount == moveTabCount) {
+                // It is likely that some features will finish the source window's activity when the
+                // last set of tabs from a fullscreen window are moved. To avoid unexpected system
+                // UX to launch the new window adjacently while the source window is getting closed,
+                // we will generally avoid setting the flag in this scenario.
+                return false;
+            }
+        }
+        return MultiWindowUtils.shouldOpenInAdjacentWindow(sourceActivity, isSourceIncognito);
     }
 
     private void onActivityStateChange(Activity activity, @ActivityState int newState) {
@@ -549,5 +673,11 @@ import java.util.Set;
     /* package */ static void setTabReparentingDelegateForTesting(TabReparentingDelegate delegate) {
         sTabReparentingDelegateForTesting = delegate;
         ResettersForTesting.register(() -> sTabReparentingDelegateForTesting = null);
+    }
+
+    /* package */ void clearAssignmentsForTesting() {
+        mActivityMultiInstanceManagerAssignments.clear();
+        mWindowsPendingCrashRecovery = new ArrayList<>();
+        mInitialCrashedWindows = null;
     }
 }

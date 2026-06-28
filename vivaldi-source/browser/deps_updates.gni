@@ -1,6 +1,6 @@
 import("//build/config/ui.gni")
 import("//extensions/buildflags/buildflags.gni")
-import ("//vivaldi/testing/testing.gni")
+import("//vivaldi/testing/testing.gni")
 
 if (!is_android && !is_mac) {
   update_target("//chrome:chrome_initial") {
@@ -15,9 +15,7 @@ if (!is_android && !is_mac) {
 
 if (is_win) {
   update_target("//chrome:chrome_dll") {
-    deps += [
-      "//vivaldi/browser",
-    ]
+    deps += [ "//vivaldi/browser" ]
   }
 
   update_target("//chrome:chrome_initial") {
@@ -30,35 +28,28 @@ if (is_win) {
 }
 
 update_target("//chrome:dependencies") {
-  public_deps += [
-    "//vivaldi/browser",
-  ]
+  public_deps += [ "//vivaldi/browser" ]
 }
 
 if (is_android) {
   update_target("//chrome:chrome_android_core") {
-    deps += [
-      "//vivaldi/browser",
-    ]
+    deps += [ "//vivaldi/browser" ]
   }
 }
 
 update_target("//chrome/browser:browser") {
   public_deps += [
     "//vivaldi/browser",
-    "//vivaldi/browser/ad_blocker",
-    "//vivaldi/browser/kagi_token",
     "//vivaldi/browser:features",
     "//vivaldi/browser:internal_handlers",
     "//vivaldi/browser:removed_partners_tracker",
+    "//vivaldi/browser/ad_blocker",
+    "//vivaldi/browser/kagi_token",
     "//vivaldi/components:tabs",
+    "//vivaldi/components/policy:vivaldi_policy_handlers",
   ]
-  allow_circular_includes_from += [
-    "//vivaldi/browser",
-  ]
-  configs += [
-     "//vivaldi/gn/config:release_kind"
-  ]
+  allow_circular_includes_from += [ "//vivaldi/browser" ]
+  configs += [ "//vivaldi/gn/config:release_kind" ]
 
   if (!is_android) {
     deps -= [
@@ -68,9 +59,8 @@ update_target("//chrome/browser:browser") {
       "//chrome/browser/ui/webui/default_browser:default_browser_modal",
       "//chrome/browser/ui/webui/default_browser:modal_mojo_bindings",
     ]
-    allow_circular_includes_from -= [
-      "//chrome/browser/ui/startup/default_browser_prompt:impl",
-    ]
+    allow_circular_includes_from -=
+        [ "//chrome/browser/ui/startup/default_browser_prompt:impl" ]
   }
   if (is_win || is_mac) {
     deps -= [
@@ -80,54 +70,58 @@ update_target("//chrome/browser:browser") {
       "//chrome/browser/ui/startup/default_browser_prompt/pin_infobar:impl",
     ]
   }
+  if (is_win) {
+    deps -= [ "//chrome/browser/ui/webui/default_browser:visual_guided_setter" ]
+  }
 }
 
 if (!is_android) {
-  update_target("//chrome/browser/ui/toolbar:impl") {
+  update_target("//chrome/browser/notifications:impl") {
+    deps -= [ "//chrome/browser/default_browser" ]
+  }
+  update_target("//chrome/browser:core") {
     deps -= [
+      "//chrome/browser/default_browser",
       "//chrome/browser/ui/startup/default_browser_prompt",
     ]
+  }
+
+  update_target("//chrome/browser/ui/toolbar:impl") {
+    deps -= [ "//chrome/browser/ui/startup/default_browser_prompt" ]
   }
 
   update_target("//chrome/browser/ui/webui:configs") {
-    deps -= [
-      "//chrome/browser/ui/webui/default_browser:default_browser_modal",
-    ]
+    deps -=
+        [ "//chrome/browser/ui/webui/default_browser:default_browser_modal" ]
+    if (is_win) {
+      deps -=
+          [ "//chrome/browser/ui/webui/default_browser:visual_guided_setter" ]
+    }
   }
 
   update_target("//chrome/browser/ui/webui/infobar_internals:impl") {
-    deps -= [
-      "//chrome/browser/ui/startup/default_browser_prompt",
-    ]
+    deps -= [ "//chrome/browser/ui/startup/default_browser_prompt" ]
   }
 
   update_target("//chrome/browser/resources:resources") {
-    public_deps -= [
-       "default_browser/default_browser_modal:resources",
-    ]
+    public_deps -= [ "default_browser/default_browser_modal:resources" ]
   }
 }
 
 update_target("//chrome/browser/ui:ui") {
   public_deps += [
-    "//components/sessions:sessions",
+    "//components/sessions",
     "//vivaldi/browser",
     "//vivaldi/prefs:prefs_strings",
   ]
   if (is_mac) {
     public_deps += [ "//vivaldi/browser:init_sparkle" ]
   }
-  allow_circular_includes_from += [
-    "//vivaldi/browser",
-  ]
+  allow_circular_includes_from += [ "//vivaldi/browser" ]
   if (enable_extensions) {
-    allow_circular_includes_from += [
-      "//components/guest_view/browser",
-    ]
+    allow_circular_includes_from += [ "//components/guest_view/browser" ]
   }
-  deps += [
-    "//chrome/services/sharing/public/proto",
-  ]
+  deps += [ "//chrome/services/sharing/public/proto" ]
 }
 
 update_target("//content/browser:browser") {
@@ -142,16 +136,22 @@ update_target("//components/input:input") {
 }
 
 if (!is_android) {
-#  update_target("//chrome/browser/password_manager/actor_login/internal:delegate") {
-#    deps += [
-#      "//components/paint_preview/buildflags",
-#      "//pdf:buildflags",
-#    ]
-#  }
+  #  update_target("//chrome/browser/password_manager/actor_login/internal:delegate") {
+  #    deps += [
+  #      "//components/paint_preview/buildflags",
+  #      "//pdf:buildflags",
+  #    ]
+  #  }
 
   update_target("//chrome/browser/safe_browsing:safe_browsing") {
-    deps += [
-      "//components/themes:ntp_background_proto",
-    ]
+    deps += [ "//components/themes:ntp_background_proto" ]
   }
+}
+
+update_target("//chrome/browser/ui/webui/version:version") {
+  configs += [ "//vivaldi/gn/config:release_kind" ]
+}
+
+update_target("//chrome/browser/page_load_metrics:impl") {
+  deps += [ "//components/contextual_search/footprints/public/proto:footprints_oneplatform_proto" ]
 }

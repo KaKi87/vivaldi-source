@@ -27,8 +27,7 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.components.dom_distiller.core.DomDistillerUrlUtils;
 import org.chromium.components.omnibox.AutocompleteInput;
 import org.chromium.components.omnibox.AutocompleteMatch;
-import org.chromium.components.omnibox.OmniboxFeatures;
-import org.chromium.components.omnibox.OmniboxSuggestionType;
+import org.chromium.components.omnibox.OmniboxCapabilities;
 import org.chromium.components.omnibox.suggestions.OmniboxSuggestionUiType;
 import org.chromium.components.ukm.UkmRecorder;
 import org.chromium.ui.base.Clipboard;
@@ -66,15 +65,13 @@ public class EditUrlSuggestionProcessor extends BaseSuggestionViewProcessor {
         // cases. If the first suggestion isn't the one we want, ignore all subsequent suggestions.
         if (position != 0) return false;
 
-        if (OmniboxFeatures.sRemoveSearchReadyOmnibox.isEnabled()) return false;
-
         // Note(david@vivaldi.com): We always want to show the actions on mobile. We activated the
         // omnibox feature RETAIN_OMNIBOX_ON_FOCUS in Vivaldi for VAB-10175, but in this case we are
         // skipping the check since we then lose all the action buttons for the first suggestion.
         if (!BuildConfig.IS_VIVALDI)
         // Fall back to the base suggestion processor when retaining omnibox on focus so as not to
         // show mobile-optimized actions in a desktop-like context.
-        if (OmniboxFeatures.shouldRetainOmniboxOnFocus()) return false;
+        if (OmniboxCapabilities.hasDesktopExperience(mContext)) return false;
 
         Tab activeTab = mTabSupplier.get();
         if (activeTab == null
@@ -84,9 +81,7 @@ public class EditUrlSuggestionProcessor extends BaseSuggestionViewProcessor {
             return false;
         }
 
-        if ((suggestion.getType() != OmniboxSuggestionType.URL_WHAT_YOU_TYPED
-                        && suggestion.getType() != OmniboxSuggestionType.SEARCH_WHAT_YOU_TYPED)
-                || !suggestion.getUrl().equals(activeTab.getUrl())) {
+        if (!suggestion.isWhatYouTyped() || !suggestion.getUrl().equals(activeTab.getUrl())) {
             return false;
         }
 

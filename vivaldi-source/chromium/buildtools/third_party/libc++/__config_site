@@ -79,6 +79,7 @@
 
 #define _LIBCPP_LIBC_PICOLIBC 0
 #define _LIBCPP_LIBC_NEWLIB 0
+#define _LIBCPP_LIBC_LLVM_LIBC 0
 
 // Settings below aren't part of __config_site upstream.
 // We set them here since we want them to take effect everywhere,
@@ -105,6 +106,9 @@
 
 // Disable header include for parallel algorithms.
 #define _LIBCPP_HAS_NO_INCOMPLETE_PSTL
+
+// TODO(thakis): If upstream adds a "latest" magic number, switch to that.
+#define _LIBCPP_AVAILABILITY_MINIMUM_HEADER_VERSION 999
 
 // NOTE(andre@vivaldi.com) : Update notifier are using unsigned int for 32bit
 // chars, and there are no char_traits defined for this. VB-100878 & VB-104892.

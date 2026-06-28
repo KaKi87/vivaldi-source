@@ -2,12 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {assert} from 'chai';
+
 import * as SDK from '../../core/sdk/sdk.js';
+import type * as Protocol from '../../generated/protocol.js';
 import type * as Trace from '../../models/trace/trace.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
 
 import * as LiveMetrics from './live-metrics.js';
+import * as Spec from './web-vitals-injected/spec/spec.js';
 
 type Milli = Trace.Types.Timing.Milli;
 
@@ -61,6 +65,83 @@ describeWithMockConnection('LiveMetrics', () => {
 
       assert.strictEqual(liveMetrics.interactions.size, 0);
       assert.lengthOf(liveMetrics.layoutShifts, 0);
+    });
+  });
+
+  describe('binding events', () => {
+    let runtimeModel: SDK.RuntimeModel.RuntimeModel;
+    let primaryExecutionContextId: Protocol.Runtime.ExecutionContextId;
+    let childFrameExecutionContextId: Protocol.Runtime.ExecutionContextId;
+
+    beforeEach(async () => {
+      await liveMetrics.targetAdded(primaryTarget);
+
+      const runtimeModelFromTarget = primaryTarget.model(SDK.RuntimeModel.RuntimeModel);
+      assert.exists(runtimeModelFromTarget);
+      runtimeModel = runtimeModelFromTarget;
+
+      const resourceTreeModel = primaryTarget.model(SDK.ResourceTreeModel.ResourceTreeModel);
+      assert.exists(resourceTreeModel?.mainFrame);
+
+      primaryExecutionContextId = 1 as Protocol.Runtime.ExecutionContextId;
+      childFrameExecutionContextId = 2 as Protocol.Runtime.ExecutionContextId;
+
+      runtimeModel.executionContextCreated({
+        id: primaryExecutionContextId,
+        uniqueId: 'primary-context',
+        origin: 'https://example.com',
+        name: 'DevTools Performance Metrics',
+        auxData: {
+          isDefault: false,
+          frameId: resourceTreeModel.mainFrame.id,
+        },
+      });
+
+      runtimeModel.executionContextCreated({
+        id: childFrameExecutionContextId,
+        uniqueId: 'child-context',
+        origin: 'https://example.com',
+        name: 'DevTools Performance Metrics',
+        auxData: {
+          isDefault: false,
+          frameId: 'child-frame-id',
+        },
+      });
+    });
+
+    const lcpEvent = (value: number): Spec.LcpChangeEvent => ({
+      name: 'LCP',
+      value: value as Milli,
+      phases: {
+        timeToFirstByte: 0 as Milli,
+        resourceLoadDelay: 0 as Milli,
+        resourceLoadTime: 0 as Milli,
+        elementRenderDelay: 0 as Milli,
+      },
+      startedHidden: false,
+    });
+
+    const emitBindingCalled =
+        async(executionContextId: Protocol.Runtime.ExecutionContextId, payload: Spec.WebVitalsEvent): Promise<void> => {
+      runtimeModel.bindingCalled({
+        name: Spec.EVENT_BINDING_NAME,
+        payload: JSON.stringify(payload),
+        executionContextId,
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    };
+
+    it('ignores non-primary frame events', async () => {
+      await emitBindingCalled(primaryExecutionContextId, {name: 'reset'});
+      await emitBindingCalled(primaryExecutionContextId, lcpEvent(111));
+
+      assert.strictEqual(liveMetrics.lcpValue?.value, 111);
+
+      await emitBindingCalled(childFrameExecutionContextId, {name: 'reset'});
+      await emitBindingCalled(childFrameExecutionContextId, lcpEvent(999));
+
+      assert.strictEqual(liveMetrics.lcpValue?.value, 111);
     });
   });
 

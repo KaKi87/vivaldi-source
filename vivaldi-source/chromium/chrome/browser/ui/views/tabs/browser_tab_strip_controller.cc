@@ -30,9 +30,9 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tab_ui_helper.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
@@ -54,16 +54,15 @@
 #include "chrome/browser/ui/views/frame/browser_widget.h"
 #include "chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h"
 #include "chrome/browser/ui/views/tabs/groups/tab_group_accessibility.h"
+#include "chrome/browser/ui/views/tabs/shared/tab_strip_types.h"
 #include "chrome/browser/ui/views/tabs/tab.h"
 #include "chrome/browser/ui/views/tabs/tab/tab_accessibility.h"
 #include "chrome/browser/ui/views/tabs/tab/tab_context_menu_controller.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
-#include "chrome/browser/ui/views/tabs/tab_strip_types.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/url_constants.h"
-#include "chrome/grit/generated_resources.h"
 #include "components/feature_engagement/public/feature_constants.h"
 #include "components/feature_engagement/public/tracker.h"
 #include "components/omnibox/browser/autocomplete_classifier.h"
@@ -517,15 +516,17 @@ void BrowserTabStripController::ShowContextMenuForTab(
     return;
   }
 
-  context_menu_controller_ =
-      std::make_unique<TabContextMenuController>(tab_index.value(), this);
+  context_menu_controller_ = std::make_unique<TabContextMenuController>(
+      model_->GetTabAtIndex(tab_index.value())->GetHandle(), this);
 
   auto model = menu_model_factory_->Create(
       context_menu_controller_.get(),
       GetBrowserWindowInterface()->GetFeatures().tab_menu_model_delegate(),
       model_, tab_index.value());
 
-  context_menu_controller_->LoadModel(std::move(model));
+  ui::SimpleMenuModel* model_ptr = model.get();
+  context_menu_controller_->LoadModel(
+      std::move(model), menu_model_factory_->AsTabMenuModel(model_ptr));
 
   context_menu_controller_->RunMenuAt(p, source_type, tabstrip_->GetWidget());
   base::UmaHistogramEnumeration("TabStrip.Tab.Views.ActivationAction",
@@ -558,20 +559,6 @@ void BrowserTabStripController::CreateNewTab(NewTabTypes context) {
   chrome::NewTab(browser_view_->browser(), context);
 }
 
-void BrowserTabStripController::CreateNewTabWithLocation(
-    const std::u16string& location) {
-  // Use autocomplete to clean up the text, going so far as to turn it into
-  // a search query if necessary.
-  AutocompleteMatch match;
-  AutocompleteClassifierFactory::GetForProfile(
-      GetBrowserWindowInterface()->GetProfile())
-      ->Classify(location, false, false, metrics::OmniboxEventProto::BLANK,
-                 &match, nullptr);
-  if (match.destination_url.is_valid()) {
-    model_->delegate()->AddTabAt(match.destination_url, -1, true);
-  }
-}
-
 void BrowserTabStripController::OnStartedDragging() {
   if (!immersive_reveal_lock_.get()) {
     // The top-of-window views should be revealed while the user is dragging
@@ -590,7 +577,7 @@ void BrowserTabStripController::OnStoppedDragging() {
 
 void BrowserTabStripController::TabKeyboardFocusChangedTo(
     const tabs::TabInterface* tab) {
-  std::optional<int> index = std::nullopt;
+  std::optional<int> index;
   if (tab) {
     index = model_->GetIndexOfTab(tab);
   }
@@ -661,8 +648,12 @@ gfx::Range BrowserTabStripController::ListTabsInGroup(
 
 std::u16string BrowserTabStripController::GetAccessibleTabName(
     const Tab* tab) const {
-  int tab_index = tabstrip_->GetModelIndexOf(tab).value();
-  return tabs::GetAccessibleTabLabel(model_->GetTabAtIndex(tab_index),
+  tabs::TabInterface* interface = tab->tab_handle().Get();
+  if (!interface) {
+    return std::u16string();
+  }
+
+  return tabs::GetAccessibleTabLabel(interface,
                                      /*is_for_tab=*/true);
 }
 
@@ -919,9 +910,10 @@ bool BrowserTabStripController::IsContextMenuCommandChecked(
 }
 
 bool BrowserTabStripController::IsContextMenuCommandEnabled(
-    int index,
+    tabs::TabInterface* tab,
     TabStripModel::ContextMenuCommand command_id) {
-  return model_->IsContextMenuCommandEnabled(index, command_id);
+  return model_->IsContextMenuCommandEnabled(model_->GetIndexOfTab(tab),
+                                             command_id);
 }
 
 bool BrowserTabStripController::IsContextMenuCommandAlerted(
@@ -930,10 +922,10 @@ bool BrowserTabStripController::IsContextMenuCommandAlerted(
 }
 
 void BrowserTabStripController::ExecuteContextMenuCommand(
-    int index,
+    tabs::TabInterface* tab,
     TabStripModel::ContextMenuCommand command_id,
     int event_flags) {
-  model_->ExecuteContextMenuCommand(index, command_id);
+  model_->ExecuteContextMenuCommand(model_->GetIndexOfTab(tab), command_id);
 }
 
 bool BrowserTabStripController::GetContextMenuAccelerator(

@@ -412,7 +412,9 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
                         this,
                         sProviderForTests != null ? sProviderForTests : historyProvider,
                         mHistorySyncPromoCoordinator,
-                        shouldClusterByDomain);
+                        shouldClusterByDomain,
+                        snackbarManager,
+                        mProfile.isOffTheRecord() ? null : mProfile);
 
         // Create a recycler view.
         mRecyclerView =
@@ -568,6 +570,8 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
     }
 
     /** Binds the ViewHolder with the given HistoryItem. */
+    @SuppressWarnings(
+            "unchecked") // ViewHolder param from override; always SelectableItemViewHolder.
     public void bindViewHolderForHistoryItem(ViewHolder holder, HistoryItem item) {
         item.setHistoryManager(this);
         SelectableItemViewHolder<HistoryItem> selectableHolder =
@@ -1015,9 +1019,5 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
 
     public void querySearch(String searchText) {
         mHistoryAdapter.search(searchText);
-    }
-
-    public boolean useBookmarkStyleSearch() {
-        return BuildConfig.IS_VIVALDI;
     }
 }

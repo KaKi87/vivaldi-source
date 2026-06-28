@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
 
@@ -32,7 +33,7 @@ std::enable_if_t<NumTraits<typename MatrixType::Scalar>::IsComplex, typename Mat
 
 // Check at compile-time that T1==T2, and at runtime-time that a==b
 template <typename T1, typename T2>
-std::enable_if_t<internal::is_same<T1, T2>::value, bool> is_same_block(const T1& a, const T2& b) {
+std::enable_if_t<std::is_same<T1, T2>::value, bool> is_same_block(const T1& a, const T2& b) {
   return a.isApprox(b);
 }
 
@@ -46,6 +47,21 @@ template <typename MatrixType>
 std::enable_if_t<((MatrixType::Flags & RowMajorBit) != 0), void> check_left_top(const MatrixType& m, Index r, Index c,
                                                                                 Index /*unused*/, Index cols) {
   if (r > 0) VERIFY_IS_EQUAL(m.topRows(r).coeff(c + r * cols), m(r, c));
+}
+
+template <typename MatrixType>
+std::enable_if_t<((MatrixType::Flags & RowMajorBit) == 0), void> checkInnerVector(const MatrixType& m, Index /*r*/,
+                                                                                  Index c, Index /*rows*/, Index cols) {
+  VERIFY_IS_CWISE_EQUAL(m.innerVector(c), m.col(c));
+  VERIFY_IS_CWISE_EQUAL(m.innerVectors(c, cols), m.middleCols(c, cols));
+}
+
+template <typename MatrixType>
+std::enable_if_t<((MatrixType::Flags & RowMajorBit) != 0), void> checkInnerVector(const MatrixType& m, Index r,
+                                                                                  Index /*c*/, Index rows,
+                                                                                  Index /*cols*/) {
+  VERIFY_IS_CWISE_EQUAL(m.innerVector(r), m.row(r));
+  VERIFY_IS_CWISE_EQUAL(m.innerVectors(r, rows), m.middleRows(r, rows));
 }
 
 template <typename MatrixType>
@@ -72,6 +88,7 @@ void block(const MatrixType& m) {
   Index c2 = internal::random<Index>(c1, cols - 1);
 
   block_real_only(m1, r1, r2, c1, c1, s1);
+  checkInnerVector(m1, r1, c1, r2 - r1, c2 - c1);
 
   // test fill logic with innerpanel and non-innerpanel blocks
   m1.row(r1).setConstant(s1);

@@ -1591,6 +1591,39 @@ TEST_F(ChromeDownloadManagerDelegateTest, InsecureDownloadsBlocked) {
   }
 }
 
+// Regression test for crbug.com/497394061. PageTransition core values are
+// sequential integers, not bitmasks. This test ensures that transition types
+// like AUTO_SUBFRAME and FORM_SUBMIT are not incorrectly flagged as TYPED or
+// RELOAD due to bitwise logic errors, which would cause a security downgrade
+// for mixed-content downloads.
+TEST_F(ChromeDownloadManagerDelegateTest, InsecureDownloadsBlocked_Regression) {
+  const GURL kInsecureFile("http://example.com/foo");
+  const auto kSecureOrigin = Origin::Create(GURL("https://example.org"));
+
+  // Regression test for bitwise logic error in PageTransition core types.
+  // PAGE_TRANSITION_AUTO_SUBFRAME (3) and PAGE_TRANSITION_FORM_SUBMIT (7)
+  // should not be incorrectly flagged as TYPED (1) or RELOAD (8).
+  const ui::PageTransition kTransitionTypes[] = {
+      ui::PAGE_TRANSITION_AUTO_SUBFRAME,
+      ui::PAGE_TRANSITION_FORM_SUBMIT,
+  };
+
+  for (auto transition_type : kTransitionTypes) {
+    std::unique_ptr<download::MockDownloadItem> download_item =
+        PrepareDownloadItemForInsecureBlocking(kInsecureFile, kSecureOrigin,
+                                               std::nullopt);
+    ON_CALL(*download_item, GetTransitionType())
+        .WillByDefault(::testing::Return(transition_type));
+
+    download::DownloadTargetInfo target_info =
+        DetermineDownloadTarget(download_item.get());
+
+    EXPECT_EQ(download::DownloadItem::InsecureDownloadStatus::SILENT_BLOCK,
+              target_info.insecure_download_status)
+        << "Failed for transition type: " << transition_type;
+  }
+}
+
 // Verify that insecure downloads not blocked normally are blocked when
 // HTTPS-First mode is enabled.
 TEST_F(ChromeDownloadManagerDelegateTest,
@@ -1969,6 +2002,43 @@ class ChromeDownloadManagerDelegateTestWithSafeBrowsing
     return download_item;
   }
 
+  void RunUnknownVerdictTest(base::FilePath::StringViewType file_name,
+                             download::DownloadDangerType expected) {
+#if BUILDFLAG(IS_ANDROID)
+    // Enable telemetry-only mode to prevent UNKNOWN verdicts from triggering the
+    // DangerousDownloadDialog, which would block the UI thread and timeout the test.
+    base::test::ScopedFeatureList feature_list;
+    base::FieldTrialParams params = {
+        {std::string(
+             safe_browsing::kMaliciousApkDownloadCheckTelemetryOnly.name),
+         "true"}};
+    feature_list.InitAndEnableFeatureWithParameters(
+        safe_browsing::kMaliciousApkDownloadCheck, params);
+#endif
+
+    std::unique_ptr<download::MockDownloadItem> download_item =
+        CreateActiveDownloadItem(0);
+    EXPECT_CALL(*delegate(), GetDownloadProtectionService());
+    EXPECT_CALL(*download_protection_service(), MockCheckClientDownload())
+        .WillOnce(Return(safe_browsing::DownloadCheckResult::UNKNOWN));
+    EXPECT_CALL(*download_item, GetDangerType())
+        .WillRepeatedly(Return(download::DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS));
+    EXPECT_CALL(*download_item, RequireSafetyChecks())
+        .WillRepeatedly(Return(true));
+
+    ON_CALL(*download_item, GetFileNameToReportUser())
+        .WillByDefault(Return(base::FilePath(file_name)));
+
+    EXPECT_CALL(*download_item,
+                OnContentCheckCompleted(
+                    expected, download::DOWNLOAD_INTERRUPT_REASON_NONE));
+
+    base::RunLoop run_loop;
+    ASSERT_FALSE(delegate()->ShouldCompleteDownload(download_item.get(),
+                                                    run_loop.QuitClosure()));
+    run_loop.Run();
+  }
+
  private:
   std::unique_ptr<TestDownloadProtectionService>
       test_download_protection_service_;
@@ -2313,6 +2383,40 @@ TEST_P(ChromeDownloadManagerDelegateTestWithSafeBrowsing,
   ASSERT_TRUE(delegate()->ShouldCompleteDownload(download_item.get(),
                                                  run_loop.QuitClosure()));
 }
+
+#if BUILDFLAG(IS_ANDROID)
+TEST_F(ChromeDownloadManagerDelegateTestWithSafeBrowsing,
+       AndroidApkCheck_UnknownApk_IsDangerous) {
+  RunUnknownVerdictTest(FILE_PATH_LITERAL("test.apk"),
+                        download::DOWNLOAD_DANGER_TYPE_DANGEROUS_FILE);
+  RunUnknownVerdictTest(FILE_PATH_LITERAL("test.APK"),
+                        download::DOWNLOAD_DANGER_TYPE_DANGEROUS_FILE);
+  RunUnknownVerdictTest(FILE_PATH_LITERAL("test.txt.apk"),
+                        download::DOWNLOAD_DANGER_TYPE_DANGEROUS_FILE);
+}
+
+TEST_F(ChromeDownloadManagerDelegateTestWithSafeBrowsing,
+       AndroidApkCheck_UnknownNonApk_IsNotDangerous) {
+  RunUnknownVerdictTest(FILE_PATH_LITERAL("test.txt"),
+                        download::DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS);
+  RunUnknownVerdictTest(FILE_PATH_LITERAL("test.apk.txt"),
+                        download::DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS);
+}
+#else
+TEST_F(ChromeDownloadManagerDelegateTestWithSafeBrowsing,
+       NonAndroidApkCheck_IsNotDangerous) {
+  RunUnknownVerdictTest(FILE_PATH_LITERAL("test.apk"),
+                        download::DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS);
+  RunUnknownVerdictTest(FILE_PATH_LITERAL("test.APK"),
+                        download::DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS);
+  RunUnknownVerdictTest(FILE_PATH_LITERAL("test.txt.apk"),
+                        download::DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS);
+  RunUnknownVerdictTest(FILE_PATH_LITERAL("test.txt"),
+                        download::DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS);
+  RunUnknownVerdictTest(FILE_PATH_LITERAL("test.apk.txt"),
+                        download::DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS);
+}
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 // Auto cancel is only available on platforms with download bubble.
 // TODO(crbug.com/397407934): Support auto cancel reports on Android.

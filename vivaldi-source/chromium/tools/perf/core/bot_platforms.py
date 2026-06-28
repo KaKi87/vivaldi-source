@@ -458,19 +458,40 @@ def _speedometer3_crossbench(estimated_runtime: int = 60,
                           flags=flags)
 
 
+@_register("speedometer3-turbolev_future.crossbench")
+def _speedometer3_turbolev_future_crossbench(estimated_runtime: int = 60,
+                                             flags: tuple[str, ...] = ()):
+  flags += ("--js-flags=--turbolev-future", )
+  return CrossbenchConfig(
+      "speedometer3-turbolev_future.crossbench",
+      "speedometer_3",
+      estimated_runtime=estimated_runtime,
+      flags=flags,
+  )
+
 @_register('browser_startup.crossbench')
 def _browser_startup_crossbench(estimated_runtime: int = 60,
                                 flags: tuple[str, ...] = ()):
   """Browser startup benchmark for InitialWebUI vs Baseline."""
-  return CrossbenchConfig(
-      'browser_startup.crossbench',
-      'loading',
-      estimated_runtime=estimated_runtime,
-      flags=('--browser-config',
-             'config/benchmark/browser_startup/browser.config.hjson',
-             '--probe-config', 'config/benchmark/browser_startup/probe.hjson',
-             '--page-config', 'config/benchmark/browser_startup/story.hjson',
-             *flags))
+  # We cannot use --browser-config here because it conflicts with the
+  # --browser flag automatically added by the Chromium test runner.
+
+  # NOTE: Keep this list in sync with:
+  # third_party/crossbench/config/benchmark/browser_startup/browser.config.hjson
+  INITIAL_WEBUI_FEATURES = (
+      "InitialWebUI:high_stream_priority/true,"
+      "WebUIReloadButton:WebUIReloadButtonDeferBrowserViewShow/true/"
+      "WebUIReloadButtonKeepVisibleUntilPaint/true/"
+      "WebUIReloadButtonPrewarmWebUI/true,"
+      "SkipIPCChannelPausingForNonGuests,WebUIInProcessResourceLoadingV2,"
+      "InitialWebUISyncNavStartToCommit,InitialWebUIWithoutExtensions,"
+      "WebUIBundledCodeCache,SendGPUChannelEarly"
+  )
+  return CrossbenchConfig('browser_startup.crossbench',
+                          'browser-startup',
+                          estimated_runtime=estimated_runtime,
+                          flags=(f'--enable-features={INITIAL_WEBUI_FEATURES}',
+                                 *flags))
 
 
 @_register('speedometer_main.crossbench')
@@ -651,7 +672,8 @@ def _crossbench_loading(estimated_runtime: int = 750,
   return CrossbenchConfig('loading.crossbench',
                           'loading',
                           estimated_runtime=estimated_runtime,
-                          flags=flags)
+                          flags=flags,
+                          auto_enable_field_trials=False)
 
 
 @_register('embedder.crossbench')
@@ -660,7 +682,18 @@ def _crossbench_embedder(estimated_runtime: int = 900,
   return CrossbenchConfig('embedder.crossbench',
                           'embedder',
                           estimated_runtime=estimated_runtime,
-                          flags=flags)
+                          flags=flags,
+                          auto_enable_field_trials=False)
+
+
+@_register('gma.embedder.crossbench')
+def _crossbench_gma_embedder(estimated_runtime: int = 900,
+                            flags: tuple[str, ...] = ()):
+  return CrossbenchConfig('gma.embedder.crossbench',
+                          'embedder',
+                          estimated_runtime=estimated_runtime,
+                          flags=flags,
+                          auto_enable_field_trials=False)
 
 
 @_register('devtools_frontend.crossbench')
@@ -756,6 +789,18 @@ PLATFORM_INFO = {
         'platform_os': 'mac',
         'is_fyi': False
     },
+    'mac-m4-pro-perf': {
+        'description': 'MacBook Pro M4 ARM',
+        'num_shards': 15,
+        'platform_os': 'mac',
+        'is_fyi': False
+    },
+    'mac-m5-pro-perf': {
+        'description': 'Mac M5 PRO ARM',
+        'num_shards': 2,
+        'platform_os': 'mac',
+        'is_fyi': False
+    },
     'win-10_laptop_low_end-perf': {
         'description': ('Low end windows 10 HP laptops. HD Graphics 5500, '
                         'x86-64-i3-5005U, SSD, 4GB RAM.'),
@@ -840,7 +885,7 @@ PLATFORM_INFO = {
     },
     'android-brya-kano-i5-8gb-perf': {
         'description': 'Brya SKU kano_12th_Gen_IntelR_CoreTM_i5_1235U_8GB',
-        'num_shards': 4,
+        'num_shards': 2,
         'platform_os': 'android',
         'is_fyi': False
     },
@@ -881,21 +926,9 @@ PLATFORM_INFO = {
         'platform_os': 'android',
         'is_fyi': False
     },
-    'android-pixel6-perf': {
-        'description': 'Android U',
-        'num_shards': 14,
-        'platform_os': 'android',
-        'is_fyi': False
-    },
     'android-pixel6-perf-pgo': {
         'description': 'Android U',
         'num_shards': 8,
-        'platform_os': 'android',
-        'is_fyi': False
-    },
-    'android-pixel6-pro-perf': {
-        'description': 'Android T',
-        'num_shards': 10,
         'platform_os': 'android',
         'is_fyi': False
     },
@@ -908,7 +941,7 @@ PLATFORM_INFO = {
     },
     'android-pixel-fold-perf': {
         'description': 'Android U',
-        'num_shards': 10,
+        'num_shards': 8,
         'platform_os': 'android',
         'is_fyi': False
     },
@@ -948,15 +981,15 @@ PLATFORM_INFO = {
         'platform_os': 'android',
         'is_fyi': False
     },
-    'android-pixel25-ultra-perf': {
+    'android-pixel10-perf': {
         'description': 'Android B',
-        'num_shards': 4,
+        'num_shards': 25,
         'platform_os': 'android',
         'is_fyi': False
     },
-    'android-pixel25-ultra-xl-perf': {
+    'android-pixel10_webview-perf': {
         'description': 'Android B',
-        'num_shards': 3,
+        'num_shards': 23,
         'platform_os': 'android',
         'is_fyi': False
     },

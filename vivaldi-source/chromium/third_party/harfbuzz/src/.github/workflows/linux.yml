@@ -18,7 +18,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Setup Ccache
-      uses: hendrikmuhs/ccache-action@1bbbcda0748b3e340dee71a314fa68ffcbd6df79 # v1.2.21
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         key: ${{ github.job }}-${{ runner.os }}-${{ runner.arch }}
     - name: Install Dependencies
@@ -27,7 +27,6 @@ jobs:
         sudo apt-get install \
           gcc \
           gobject-introspection \
-          gtk-doc-tools \
           libcairo2-dev \
           libchafa-dev \
           libfreetype6-dev \
@@ -36,6 +35,9 @@ jobs:
           libgraphite2-dev \
           libicu-dev \
           libpng-dev \
+          libglew-dev \
+          libglfw3-dev \
+          libgl-dev \
           pkg-config \
           zlib1g-dev \
           help2man
@@ -53,7 +55,7 @@ jobs:
           -Dgraphite=enabled \
           -Dkbts=enabled \
           -Doptimization=2 \
-          -Ddoc_tests=true \
+          -Ddocs=disabled \
           -Dragel_subproject=true
     - name: Build
       run: meson compile -Cbuild
@@ -63,16 +65,8 @@ jobs:
       run: |
         git reset --hard HEAD # ragel may have modified the source tree
         meson dist --no-tests -Cbuild
-    - name: Generate Documentations
-      run: ninja -Cbuild harfbuzz-doc
-    - name: Deploy Documentations
-      if: github.ref_type == 'tag'
-      run: .ci/deploy-docs.sh
-      env:
-        GH_TOKEN: ${{ secrets.DOCS_PUSH_TOKEN }}
-        REVISION: ${{ github.sha }}
     - name: Archive artifacts
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: harfbuzz
         path: build/meson-dist/harfbuzz-*.tar.xz

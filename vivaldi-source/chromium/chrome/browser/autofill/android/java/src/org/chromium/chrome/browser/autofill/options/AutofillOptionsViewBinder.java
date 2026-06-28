@@ -4,14 +4,14 @@
 
 package org.chromium.chrome.browser.autofill.options;
 
-import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.AUTOFILL_AI_ACCESSIBILITY_ANNOTATOR_VISIBLE;
+import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.AUTOFILL_AI_PERSONAL_CONTEXT_VISIBLE;
 import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.AUTOFILL_AI_REAUTH_SETTING_ON;
 import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.AUTOFILL_AI_REAUTH_TOGGLE_VISIBLE;
 import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.AUTOFILL_AI_SETTING_ELIGIBLE;
 import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.AUTOFILL_AI_SETTING_ON;
 import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.AUTOFILL_AI_VISIBLE;
 import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.FRAGMENT_TITLE;
-import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.ON_AUTOFILL_AI_ACCESSIBILITY_ANNOTATOR_CLICKED;
+import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.ON_AUTOFILL_AI_PERSONAL_CONTEXT_CLICKED;
 import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.ON_AUTOFILL_AI_REAUTH_SETTING_TOGGLED;
 import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.ON_AUTOFILL_AI_SETTING_TOGGLED;
 import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProperties.ON_THIRD_PARTY_TOGGLE_CHANGED;
@@ -22,8 +22,11 @@ import static org.chromium.chrome.browser.autofill.options.AutofillOptionsProper
 import androidx.preference.Preference;
 
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.chrome.browser.autofill.PersonalDataManager;
+import org.chromium.chrome.browser.autofill.PersonalDataManagerFactory;
 import org.chromium.chrome.browser.autofill.autofill_ai.EntityDataManager;
 import org.chromium.chrome.browser.autofill.autofill_ai.EntityDataManagerFactory;
+import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.settings.ChromeManagedPreferenceDelegate;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -103,22 +106,14 @@ class AutofillOptionsViewBinder {
                                 @Override
                                 public boolean isPreferenceControlledByPolicy(
                                         Preference preference) {
-                                    EntityDataManager manager =
-                                            EntityDataManagerFactory.getForProfile(
-                                                    view.getProfile());
-                                    if (manager == null) {
-                                        return false;
-                                    }
-                                    return manager.getIsAutofillAiDisabledByEnterprisePolicy();
+                                    return isAutofillAiDisabledByEnterprisePolicy(
+                                            view.getProfile());
                                 }
 
                                 @Override
                                 public boolean isPreferenceClickDisabled(Preference preference) {
-                                    EntityDataManager manager =
-                                            EntityDataManagerFactory.getForProfile(
-                                                    view.getProfile());
-                                    return manager != null
-                                            && manager.getIsAutofillAiDisabledByEnterprisePolicy();
+                                    return isAutofillAiDisabledByEnterprisePolicy(
+                                            view.getProfile());
                                 }
                             });
         } else if (key == AUTOFILL_AI_REAUTH_SETTING_ON) {
@@ -132,18 +127,17 @@ class AutofillOptionsViewBinder {
                                         .onResult((boolean) newValue);
                                 return true;
                             });
-        } else if (key == AUTOFILL_AI_ACCESSIBILITY_ANNOTATOR_VISIBLE) {
-            Preference accessibilityAnnotatorPref = view.getAutofillAiAccessibilityAnnotator();
-            if (accessibilityAnnotatorPref != null) {
-                accessibilityAnnotatorPref.setVisible(
-                        model.get(AUTOFILL_AI_ACCESSIBILITY_ANNOTATOR_VISIBLE));
+        } else if (key == AUTOFILL_AI_PERSONAL_CONTEXT_VISIBLE) {
+            Preference personalContextPref = view.getAutofillAiPersonalContext();
+            if (personalContextPref != null) {
+                personalContextPref.setVisible(model.get(AUTOFILL_AI_PERSONAL_CONTEXT_VISIBLE));
             }
-        } else if (key == ON_AUTOFILL_AI_ACCESSIBILITY_ANNOTATOR_CLICKED) {
-            Preference accessibilityAnnotatorPref = view.getAutofillAiAccessibilityAnnotator();
-            if (accessibilityAnnotatorPref != null) {
-                accessibilityAnnotatorPref.setOnPreferenceClickListener(
+        } else if (key == ON_AUTOFILL_AI_PERSONAL_CONTEXT_CLICKED) {
+            Preference personalContextPref = view.getAutofillAiPersonalContext();
+            if (personalContextPref != null) {
+                personalContextPref.setOnPreferenceClickListener(
                         preference -> {
-                            model.get(ON_AUTOFILL_AI_ACCESSIBILITY_ANNOTATOR_CLICKED).run();
+                            model.get(ON_AUTOFILL_AI_PERSONAL_CONTEXT_CLICKED).run();
                             return true;
                         });
             }
@@ -181,6 +175,17 @@ class AutofillOptionsViewBinder {
         } else {
             assert false : "Unhandled property: " + key;
         }
+    }
+
+    private static boolean isAutofillAiDisabledByEnterprisePolicy(Profile profile) {
+        EntityDataManager manager = EntityDataManagerFactory.getForProfile(profile);
+        PersonalDataManager personalDataManager = PersonalDataManagerFactory.getForProfile(profile);
+        boolean addressManagedAndDisabled =
+                personalDataManager.isAutofillProfileManaged()
+                        && !personalDataManager.isAutofillProfileEnabled();
+
+        return (manager != null && manager.getIsAutofillAiDisabledByEnterprisePolicy())
+                || addressManagedAndDisabled;
     }
 
     private AutofillOptionsViewBinder() {}

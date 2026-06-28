@@ -20,10 +20,11 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
 #include "chrome/browser/ui/find_bar/find_bar_controller.h"
@@ -100,8 +101,8 @@ class FindInPageControllerTest : public InProcessBrowserTest {
     views::test::WaitForAnimatingLayoutManager(
         static_cast<PinnedToolbarActionsContainer*>(
             BrowserView::GetBrowserViewForBrowser(browser())
-                ->toolbar()
-                ->pinned_toolbar_actions()));
+                ->toolbar_button_provider()
+                ->GetPinnedToolbarActions()));
   }
 
   bool GetFindBarWindowInfoForBrowser(Browser* browser,
@@ -182,7 +183,9 @@ class FindInPageControllerTest : public InProcessBrowserTest {
                    bool forward,
                    bool case_sensitive,
                    int* ordinal) {
-    Browser* browser = chrome::FindBrowserWithTab(web_contents);
+    BrowserWindowInterface* browser =
+        GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+            web_contents);
     browser->GetFeatures()
         .GetFindBarController()
         ->find_bar()
@@ -408,7 +411,7 @@ IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, NoAudibleAlertOnNavigation) {
   EXPECT_EQ(0u, GetFindBarAudibleAlertsForBrowser(browser()));
 }
 
-// See http://crbug.com/1131780
+// See http://crbug.com/40721569
 IN_PROC_BROWSER_TEST_F(FindInPageControllerTest,
                        AudibleAlertsWithPrepopulatedFind) {
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GetURL(kSimple)));
@@ -780,7 +783,7 @@ IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, FindInPageMultiFramesOrdinal) {
 }
 
 // We could get ordinals out of whack when restarting search in subframes.
-// See http://crbug.com/5132.
+// See http://crbug.com/41190311.
 IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, FindInPage_Issue5132) {
   // First we navigate to our page.
   GURL url = GetURL(kFramePage);
@@ -810,7 +813,7 @@ IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, FindInPage_Issue5132) {
 }
 
 // This tests that the ordinal and match count is cleared after a navigation,
-// as reported in issue http://crbug.com/126468.
+// as reported in issue http://crbug.com/40203489.
 IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, NavigateClearsOrdinal) {
   // First we navigate to our test content.
   GURL url = GetURL(kSimple);
@@ -1023,7 +1026,7 @@ IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, FindCrash_Issue1341577) {
   EXPECT_EQ(0, ordinal);
 }
 
-// Try to reproduce the crash seen in http://crbug.com/14491, where an assert
+// Try to reproduce the crash seen in http://crbug.com/40914636, where an assert
 // hits in the BitStack size comparison in WebKit.
 IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, FindCrash_Issue14491) {
   // First we navigate to our page.
@@ -1068,13 +1071,13 @@ IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, FindRestarts_Issue70505) {
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
 
   // If this test hangs on the FindInPage call, then it might be a regression
-  // such as the one found in issue http://crbug.com/70505.
+  // such as the one found in issue http://crbug.com/40512476.
   int ordinal = 0;
   FindInPageASCII(browser()->tab_strip_model()->GetActiveWebContents(), "a",
                   kFwd, kIgnoreCase, &ordinal);
   EXPECT_EQ(1, ordinal);
   // TODO(finnur): We cannot reliably get the matchcount for this Find call
-  // until we fix issue http://crbug.com/71176.
+  // until we fix issue http://crbug.com/40515702.
 }
 
 // This tests bug 11761: FindInPage terminates search prematurely.
@@ -1308,7 +1311,7 @@ IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, StayActive) {
 }
 
 // Make sure F3 works after you FindNext a couple of times and end the Find
-// session. See issue http://crbug.com/28306.
+// session. See issue http://crbug.com/41044734.
 IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, RestartSearchFromF3) {
   // First we navigate to a simple page.
   GURL url = GetURL(kSimple);
@@ -1339,7 +1342,7 @@ IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, RestartSearchFromF3) {
 // When re-opening the find bar with F3, the find bar should be re-populated
 // with the last search from the same tab rather than the last overall search.
 // The only exception is if there is a global pasteboard (for example on Mac).
-// http://crbug.com/30006
+// http://crbug.com/41059697
 #if BUILDFLAG(IS_MAC)
 #define MAYBE_PreferPreviousSearch DISABLED_PreferPreviousSearch
 #else
@@ -1390,7 +1393,7 @@ IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, MAYBE_PreferPreviousSearch) {
 }
 
 // This tests that whenever you close and reopen the Find bar, it should show
-// the last search entered in that tab. http://crbug.com/40121.
+// the last search entered in that tab. http://crbug.com/41124530.
 IN_PROC_BROWSER_TEST_F(FindInPageControllerTest, PrepopulateSameTab) {
   // First we navigate to any page.
   GURL url = GetURL(kSimple);
@@ -1671,9 +1674,9 @@ IN_PROC_BROWSER_TEST_F(FindInPageControllerTest,
 // Verify that if there's a global pasteboard (for example on Mac) then doing
 // a search on one tab will clear the matches label on the other tabs.
 #if BUILDFLAG(IS_MAC)
-// TODO(http://crbug.com/843878): Remove the interactive UI test
+// TODO(http://crbug.com/41389476): Remove the interactive UI test
 // FindBarPlatformHelperMacInteractiveUITest.GlobalPasteBoardClearMatches
-// once http://crbug.com/843878 is fixed.
+// once http://crbug.com/41389476 is fixed.
 #define MAYBE_GlobalPasteBoardClearMatches DISABLED_GlobalPasteBoardClearMatches
 #else
 #define MAYBE_GlobalPasteBoardClearMatches GlobalPasteBoardClearMatches

@@ -57,7 +57,7 @@ class TabModelJniBridge : public TabModel {
                                  TabAndroid* tab,
                                  long android_browser_window_ptr,
                                  int new_index);
-  void MoveTabGroupToWindowForTesting(JNIEnv* env,
+  bool MoveTabGroupToWindowForTesting(JNIEnv* env,
                                       const base::Token& group_id,
                                       long android_browser_window_ptr,
                                       int new_index);
@@ -72,6 +72,7 @@ class TabModelJniBridge : public TabModel {
   int GetTabCount() const override;
   int GetActiveIndex() const override;
   tabs::TabInterface* GetActiveTab() override;
+  std::vector<tabs::TabHandle> GetOrderedMultiSelectedTabs() const override;
   content::WebContents* GetWebContentsAt(int index) const override;
   TabAndroid* GetTabAt(int index) const override;
   base::android::ScopedJavaLocalRef<jobject> GetJavaObject() const override;
@@ -123,7 +124,9 @@ class TabModelJniBridge : public TabModel {
   // TODO(crbug.com/415351293): Implement these.
   // TabListInterface implementation.
   void ActivateTab(tabs::TabHandle tab) override;
-  tabs::TabInterface* OpenTab(const GURL& url, int index) override;
+  tabs::TabInterface* OpenTab(const GURL& url,
+                              int index,
+                              bool foregrond) override;
   void SetOpenerForTab(tabs::TabHandle target, tabs::TabHandle opener) override;
   tabs::TabInterface* GetOpenerForTab(tabs::TabHandle target) override;
   tabs::TabInterface* InsertWebContentsAt(
@@ -160,7 +163,7 @@ class TabModelJniBridge : public TabModel {
   void MoveTabToWindow(tabs::TabHandle tab,
                        SessionID destination_window_id,
                        int destination_index) override;
-  void MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
+  bool MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
                             SessionID destination_window_id,
                             int destination_index) override;
   bool IsThisTabListEditable() override;

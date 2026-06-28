@@ -120,7 +120,7 @@
   if (!gurl.is_valid())
     return;
   UIViewController* presentedController =
-    self.baseViewController.presentedViewController;
+      self.baseViewController.presentedViewController;
   if (!presentedController) {
     [self loadGURLInNewTab:gurl];
     [self stop];

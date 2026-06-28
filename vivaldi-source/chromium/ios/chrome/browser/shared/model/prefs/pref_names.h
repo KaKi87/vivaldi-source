@@ -38,6 +38,11 @@ inline constexpr char kBrowserLockdownModeEnabled[] =
 // (serverID) and creation timestamp.
 inline constexpr char kBwgSessionMap[] = "ios.bwg.session_map";
 
+// Map of scene session IDs to booleans which indicates if a cobrowse session is
+// active.
+inline constexpr char kCobrowseSessionActiveMap[] =
+    "ios.cobrowse.session_active_map";
+
 // Number of times the "BWG" settings "new" IPH badge has been shown.
 // This is set to INT_MAX when the user visites the "BWG" settings page.
 inline constexpr char kBWGSettingsNewBadgeShownCount[] =
@@ -71,9 +76,6 @@ inline constexpr char kLegacyProfileMap[] = "profile.legacy_profiles.map";
 
 // A boolean recording whether the legacy profiles have been marked as such.
 inline constexpr char kLegacyProfileHidden[] = "profile.legacy_profiles.hidden";
-
-inline constexpr char kClearBrowsingDataHistoryNoticeShownTimes[] =
-    "browser.clear_data.history_notice_shown_times";
 
 // A dictionary mapping content notification enrollment eligibilities. This is
 // stored in Profile prefs.
@@ -224,12 +226,6 @@ inline constexpr char kIosCredentialProviderPromoPolicyEnabled[] =
 // the promo for the user.
 inline constexpr char kIosCredentialProviderPromoStopPromo[] =
     "ios.credential_provider_promo.stop_promo";
-
-// Boolean to represent if the Credential Provider Promo has registered with
-// Promo Manager.
-inline constexpr char
-    kIosCredentialProviderPromoHasRegisteredWithPromoManager[] =
-        "ios.credential_provider_promo.has_registered_with_promo_manager";
 
 // The timestamp of the first time default browser blue dot promo was shown.
 inline constexpr char kIosDefaultBrowserBlueDotPromoFirstDisplay[] =
@@ -396,6 +392,11 @@ inline constexpr char kIosSavedThemeSpecificsIos[] =
 inline constexpr char kIosUserUploadedBackground[] =
     "ios.user_uploaded_background";
 
+// Dictionary pref storing cached user-uploaded background image path and
+// framing data.
+inline constexpr char kIosCachedUserUploadedBackground[] =
+    "ios.cached_user_uploaded_background";
+
 // List pref storing recently used NTP backgrounds.
 inline constexpr char kIosRecentlyUsedBackgrounds[] =
     "ios.recently_used_backgrounds";
@@ -467,6 +468,17 @@ inline constexpr char kIosReadingListSettingsPromoAlreadySeen[] =
 inline constexpr char kIosReadingListSigninPromoDisplayedCount[] =
     "ios.reading_list.signin_promo_displayed_count";
 
+// Preference that holds a boolean indicating if the user has already dismissed
+// the sign-in promo in the autofill and passwords settings.
+inline constexpr char kIosSettingsAutofillAndPasswordsPromoAlreadySeen[] =
+    "ios.settings.autofill_and_passwords.promo_already_seen";
+
+// Integer to represent the number of times the sign-in promo has been displayed
+// in the autofill and passwords settings.
+inline constexpr char
+    kIosSettingsAutofillAndPasswordsSigninPromoDisplayedCount[] =
+        "ios.settings.autofill_and_passwords.signin_promo_displayed_count";
+
 // Preference that holds a boolean indicating whether the "Reading mode
 // available" message is shown.
 inline constexpr char kIosReaderModeShowAvailability[] =
@@ -481,10 +493,25 @@ inline constexpr char kLinkPreviewEnabled[] = "ios.link_preview_enabled";
 inline constexpr char kLensOverlayConditionsAccepted[] =
     "ios.lens_overlay_conditions_accepted";
 
+// List of completed tasks in the Level Up feature.
+inline constexpr char kLevelUpCompletedTasks[] = "level_up.completed_tasks";
+
+// Highest level achieved in the Level Up feature.
+inline constexpr char kLevelUpHighestLevel[] = "level_up.highest_level";
+
+// Whether the Level Up feature UI is enabled.
+inline constexpr char kLevelUpUIEnabled[] = "level_up.ui_enabled";
+
 // Preference that holds a boolean indicating whether the suggestions on the NTP
 // are enabled.
 inline constexpr char kNTPContentSuggestionsEnabled[] =
     "ios.ntp.content_suggestions_enabled";
+
+// Added in M149 to resolve an issue where images were stored too large on disk
+// after being upscaled and transcoded. This will be removed after M153 when the
+// migration is complete.
+inline constexpr char kIosImageFetcherShouldClearCache[] =
+    "ios.image_fetcher_should_clear_cache";
 
 // Preference that holds a boolean indicating whether suggestions for supervised
 // users on the NTP are enabled.
@@ -540,9 +567,6 @@ inline constexpr char kOverflowMenuActionsOrder[] =
 // Boolean that is true when Suggest support is enabled.
 inline constexpr char kSearchSuggestEnabled[] = "search.suggest_enabled";
 
-// Boolean that is true when the TabPickup feature is enabled.
-inline constexpr char kTabPickupEnabled[] = "ios.tab_pickup_enabled";
-
 // Boolean indicating if displaying price drops for shopping URLs on Tabs
 // in the Tab Switching UI is enabled.
 inline constexpr char kTrackPricesOnTabsEnabled[] =
@@ -559,11 +583,6 @@ inline constexpr char kLensLastOpened[] = "ios.lens.last_opened";
 // Date when the Lens Overlay was last presented.
 inline constexpr char kLensOverlayLastPresented[] =
     "ios.lens_overlay.last_presented";
-
-// Number of times the NTP Lens button "new" IPH badge has been shown.
-// This is set to INT_MAX when the user taps the button.
-inline constexpr char kNTPLensEntryPointNewBadgeShownCount[] =
-    "ios.ntp_lens_new_badge_shown_count";
 
 // Dict preference indicating what web annotation type is enabled by policy.
 inline constexpr char kWebAnnotationsPolicy[] = "ios.web_annotations_policy";
@@ -643,6 +662,10 @@ inline constexpr char kLastBackgroundedTime[] = "ios.last_backgrounded_time";
 // browser policy.
 inline constexpr char kLastSigninTimestamp[] = "signin.last_signin_timestamp";
 
+// Timestamp tracking when a sign-out was triggered due to age mismatch.
+inline constexpr char kAgeMismatchSignoutTimestamp[] =
+    "ios.signin.age_mismatch_signout_timestamp";
+
 // Bool that represents whether iCloud backups are allowed by policy.
 inline constexpr char kAllowChromeDataInBackups[] =
     "ios.allow_chrome_data_in_backups";
@@ -706,11 +729,6 @@ inline constexpr char kUserAgentWasChanged[] = "UserAgentWasChanged";
 inline constexpr char kLastApplicationStorageMetricsLogTime[] =
     "LastApplicationStorageMetricsLogTime";
 
-// Count the number of times the Search Engine Choice Screen was skipped
-// because the application was started via an external Intent.
-inline constexpr char kChoiceScreenSkippedCount[] =
-    "ios.search_engine_choice_screen.skip_count";
-
 // Prefs indicating whether Home surface modules are enabled.
 inline constexpr char kHomeCustomizationMostVisitedEnabled[] =
     "ios.home_customization.most_visited.enabled";
@@ -744,11 +762,6 @@ inline constexpr char kIdentityConfirmationSnackbarLastPromptTime[] =
 // snackbar. Used to limit the frequency of this snackbar.
 inline constexpr char kIdentityConfirmationSnackbarDisplayCount[] =
     "ios.identity_confirmation_snackbar_display_count";
-
-// The number of times that the new badge has been shown on the Home
-// Customization menu's entrypoint.
-inline constexpr char kNTPHomeCustomizationNewBadgeImpressionCount[] =
-    "ios.home_customization.new_badge_impressions";
 
 // The number of times that the prominence alert about the user's push
 // notification silent authorization state has been shown.
@@ -802,6 +815,10 @@ inline constexpr char kIOSBWGPageContentSetting[] =
 inline constexpr char kIOSBWGPromoImpressionCount[] =
     "ios.bwg.promo_impressions";
 
+// A boolean specifying whether the Gemini Live intro sequence has been played.
+inline constexpr char kIOSGeminiLiveIntroPlayed[] =
+    "ios.gemini.live_intro_played";
+
 // A boolean specifying whether the Gemini camera permission setting is enabled.
 inline constexpr char kIOSGeminiCameraSetting[] = "ios.gemini.camera.setting";
 
@@ -812,6 +829,13 @@ inline constexpr char kLastGeminiInteractionTimestamp[] =
 // The URL where the user last had a Gemini interaction.
 inline constexpr char kLastGeminiInteractionURL[] =
     "ios.gemini.last_interaction_url";
+
+// A boolean specifying if the promotional event for App Store Gemini promo has
+// triggered. Startup parameters are not visible during first run, so instead,
+// we use a pref to notify first run components of startup events from the
+// external action related to the Gemini app store promo.
+inline constexpr char kAppStoreGeminiPromoTriggered[] =
+    "ios.first_run.app_store_gemini_promo_triggered";
 
 // Timestamp tracking the last time the Gemini contextual chip was displayed.
 inline constexpr char kLastGeminiContextualChipDisplayedTimestamp[] =

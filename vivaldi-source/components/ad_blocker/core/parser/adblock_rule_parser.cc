@@ -164,6 +164,12 @@ constexpr auto kAbpIsolatedSnippetNames =
 #include "vivaldi/components/ad_blocker/core/abp_snippets_lists/isolated-lite.inc"
     });
 
+RE2::Options GetRe2Options() {
+  RE2::Options options;
+  options.set_log_errors(false);
+  return options;
+}
+
 std::optional<std::string_view> GetMetadata(std::string_view comment,
                                             std::string_view tag_name) {
   if (!comment.starts_with(tag_name))
@@ -452,7 +458,7 @@ bool ParseDomainConstraints(std::string_view constraints,
         return false;
       }
 
-      if (constraint.empty() || !re2::RE2(constraint).ok()) {
+      if (constraint.empty() || !re2::RE2(constraint, GetRe2Options()).ok()) {
         return false;
       }
 
@@ -898,7 +904,7 @@ RuleParser::Result RuleParser::ParseRequestFilterRule(
     pattern.remove_prefix(1);
     pattern.remove_suffix(1);
     // No need to compile this rule if we can't handle the pattern.
-    if (!re2::RE2(pattern).ok()) {
+    if (!re2::RE2(pattern, GetRe2Options()).ok()) {
       return kUnsupported;
     }
     rule.pattern_type = RequestFilterRule::kRegex;

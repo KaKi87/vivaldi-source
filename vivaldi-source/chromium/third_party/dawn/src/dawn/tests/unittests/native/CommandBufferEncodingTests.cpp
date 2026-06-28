@@ -28,12 +28,13 @@
 #include <utility>
 #include <vector>
 
-#include "dawn/native/CommandBuffer.h"
-#include "dawn/native/Commands.h"
-#include "dawn/native/ComputePassEncoder.h"
-#include "dawn/tests/DawnNativeTest.h"
-#include "dawn/utils/TestUtils.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/native/CommandBuffer.h"
+#include "src/dawn/native/Commands.h"
+#include "src/dawn/native/ComputePassEncoder.h"
+#include "src/dawn/tests/DawnNativeTest.h"
+#include "src/dawn/utils/TestUtils.h"
+#include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/compiler.h"
 
 namespace dawn::native {
 namespace {
@@ -182,7 +183,7 @@ TEST_F(CommandBufferEncodingTests, ComputePassEncoderIndirectDispatchStateRestor
             ASSERT_EQ(ToAPI(cmd->group.Get()), bg.Get());
             ASSERT_EQ(cmd->dynamicOffsetCount, offsets.size());
             for (uint32_t i = 0; i < cmd->dynamicOffsetCount; ++i) {
-                ASSERT_EQ(dynamicOffsets[i], offsets[i]);
+                DAWN_UNSAFE_TODO(ASSERT_EQ(dynamicOffsets[i], offsets[i]));
             }
         };
     };

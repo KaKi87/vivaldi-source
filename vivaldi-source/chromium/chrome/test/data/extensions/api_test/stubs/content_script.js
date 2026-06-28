@@ -6,14 +6,15 @@
 // background page, so that the latter can output the message via the
 // chrome.test.log() function.
 function logToConsoleAndStdout(msg) {
-  console.log(msg);
-  chrome.extension.sendRequest(`log: ${msg}`);
+  console.info(msg);
+  chrome.runtime.sendMessage(`log: ${msg}`);
 }
 
 // We ask the background page to get the extension API to test against. When it
 // responds we start the test.
-console.log('asking for api ...');
-chrome.extension.sendRequest('getApi', function(apis) {
+console.info('asking for api ...');
+chrome.runtime.sendMessage('getApi', function(apis) {
+  const manifestVersion = chrome.runtime.getManifest().manifest_version;
   const apiFeatures = chrome.test.getApiFeatures();
   // TODO(crbug.com/41478937): This really should support more than two levels
   // of inheritance.
@@ -21,7 +22,7 @@ chrome.extension.sendRequest('getApi', function(apis) {
     const results = {
       NULL: 'null',
       NOT_FOUND: 'not_found',
-      FOUND: 'found'
+      FOUND: 'found',
     };
     function searchContexts(contexts) {
       // This is tricky because the context can be either:
@@ -32,7 +33,7 @@ chrome.extension.sendRequest('getApi', function(apis) {
       if (!contexts) {
         return results.NULL;
       }
-      if (contexts == 'all' || contexts.includes('content_script')) {
+      if (contexts === 'all' || contexts.includes('content_script')) {
         return results.FOUND;
       }
       return results.NOT_FOUND;
@@ -41,13 +42,22 @@ chrome.extension.sendRequest('getApi', function(apis) {
     function searchFeature(feature) {
       if (!feature.length) {
         // Simple feature, not an array. Can return results.NULL,
-        // because feature.context may be undefined.
+        // because feature.context may be undefined. Don't return features
+        // that are not supported by the current manifest version.
+        if (feature.max_manifest_version &&
+            feature.max_manifest_version < manifestVersion) {
+          return results.NOT_FOUND;
+        }
         return searchContexts(feature.contexts);
       }
       // Complex feature. We need to return results.NULL if we didn't
       // find any contexts.
       let foundContext = false;
       for (let i = 0; i < feature.length; ++i) {
+        if (feature[i].max_manifest_version &&
+            feature[i].max_manifest_version < manifestVersion) {
+          continue;
+        }
         const currentResult = searchContexts(feature[i].contexts);
         if (currentResult === results.FOUND) {
           return results.FOUND;
@@ -58,35 +68,37 @@ chrome.extension.sendRequest('getApi', function(apis) {
     }
 
     const pathFeature = apiFeatures[path];
-    if (!!pathFeature) {
+    if (pathFeature) {
       const result = searchFeature(pathFeature);
       // If we found something, use that result.
       if (result !== results.NULL) {
-          return result === results.FOUND;
+        return result === results.FOUND;
       }
     }
 
     const namespaceFeature = apiFeatures[namespace];
     // Check the namespace, if it's defined.
-    if (!!namespaceFeature) {
+    if (namespaceFeature) {
       return searchFeature(namespaceFeature) === results.FOUND;
     }
     return false;
   } /* isAvailableToContentScripts */
 
-  console.log('got api response');
+  console.info('got api response');
   const privilegedPaths = [];
   const unprivilegedPaths = [];
   apis.forEach(function(module) {
     const namespace = module.namespace;
 
     ['functions', 'events'].forEach(function(section) {
-      if (typeof(module[section]) == 'undefined')
+      if (typeof (module[section]) === 'undefined') {
         return;
+      }
       module[section].forEach(function(entry) {
         // Ignore entries that are not applicable to the manifest that we're
         // running under.
-        if (entry.maximumManifestVersion && entry.maximumManifestVersion < 2) {
+        if (entry.maximumManifestVersion &&
+            entry.maximumManifestVersion < manifestVersion) {
           return;
         }
 
@@ -102,8 +114,13 @@ chrome.extension.sendRequest('getApi', function(apis) {
 
     if (module.properties) {
       for (const propName in module.properties) {
+        const prop = module.properties[propName];
+        if (prop.maximumManifestVersion &&
+            prop.maximumManifestVersion < manifestVersion) {
+          continue;
+        }
         const path = `${namespace}.${propName}`;
-        if (module.unprivileged || module.properties[propName].unprivileged ||
+        if (module.unprivileged || prop.unprivileged ||
             isAvailableToContentScripts(namespace, path)) {
           unprivilegedPaths.push(path);
         } else {
@@ -128,15 +145,15 @@ function testPath(path, expectError) {
       // Not the last component. Allowed to be undefined because some paths are
       // only defined on some platforms.
       module = module[parts[i]];
-      if (typeof(module) == 'undefined')
+      if (typeof (module) === 'undefined') {
         return true;
+      }
     } else {
       // This is the last component - we expect it to either be undefined or
       // to throw an error on access.
-      if (typeof(module[parts[i]]) == 'undefined' &&
+      if (typeof (module[parts[i]]) === 'undefined' &&
           // lastError being defined depends on there being an error obviously.
-          path != 'extension.lastError' &&
-          path != 'runtime.lastError') {
+          path !== 'runtime.lastError') {
         if (expectError) {
           return true;
         } else {
@@ -160,7 +177,7 @@ function displayResult(status) {
 
 function reportSuccess() {
   displayResult('pass');
-  chrome.extension.sendRequest('pass');
+  chrome.runtime.sendMessage('pass');
 }
 
 function reportFailure() {
@@ -168,14 +185,14 @@ function reportFailure() {
   // Let the "fail" show for a little while so you can see it when running
   // browser_tests in the debugger.
   setTimeout(function() {
-    chrome.extension.sendRequest('fail');
+    chrome.runtime.sendMessage('fail');
   }, 1000);
 }
 
 // Runs over each string path in privilegedPaths and unprivilegedPaths, testing
 // to ensure a proper error is thrown on access or the path is defined.
 function doTest(privilegedPaths, unprivilegedPaths) {
-  console.log('starting');
+  console.info('starting');
 
   if (!privilegedPaths || privilegedPaths.length < 1 || !unprivilegedPaths ||
       unprivilegedPaths.length < 1) {
@@ -191,9 +208,8 @@ function doTest(privilegedPaths, unprivilegedPaths) {
     return function(path) {
       // runtime.connect and runtime.sendMessage are available in all contexts,
       // unlike the runtime API in general.
-      const expectErrorForPath = expectError &&
-                               path != 'runtime.connect' &&
-                               path != 'runtime.sendMessage';
+      const expectErrorForPath = expectError && path !== 'runtime.connect' &&
+          path !== 'runtime.sendMessage';
       if (!testPath(path, expectErrorForPath)) {
         success = false;
         failures.push(path);
@@ -203,11 +219,12 @@ function doTest(privilegedPaths, unprivilegedPaths) {
   privilegedPaths.forEach(makeTestFunction(true));
   unprivilegedPaths.forEach(makeTestFunction(false));
 
-  console.log(success ? 'pass' : 'fail');
+  console.info(success ? 'pass' : 'fail');
   if (success) {
     reportSuccess();
   } else {
-    logToConsoleAndStdout(`failures on:\n${failures.join('\n')}\n\n\n` +
+    logToConsoleAndStdout(
+        `failures on:\n${failures.join('\n')}\n\n\n` +
         '>>> See comment in stubs_apitest.cc for a ' +
         'hint about fixing this failure.\n\n');
     reportFailure();

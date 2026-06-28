@@ -49,7 +49,7 @@ class FetchInstallabilityForChromeManagementTest : public WebAppTest {
   blink::mojom::ManifestPtr CreateManifest() {
     auto manifest = blink::mojom::Manifest::New();
     manifest->start_url = kWebAppUrl;
-    manifest->id = GenerateManifestIdFromStartUrlOnly(kWebAppUrl);
+    manifest->id = GenerateManifestIdFromStartUrlOnly(kWebAppUrl).value();
     manifest->scope = kWebAppScope;
     manifest->short_name = base::ASCIIToUTF16(kWebAppName);
     return manifest;
@@ -65,7 +65,7 @@ class FetchInstallabilityForChromeManagementTest : public WebAppTest {
 
   struct FetchResult {
     InstallableCheckResult result = InstallableCheckResult::kInstallable;
-    std::optional<webapps::AppId> app_id = std::nullopt;
+    std::optional<webapps::AppId> app_id;
   };
 
   FetchResult ScheduleCommandAndWait(

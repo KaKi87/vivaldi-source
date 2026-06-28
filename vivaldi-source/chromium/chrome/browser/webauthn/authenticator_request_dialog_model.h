@@ -108,9 +108,6 @@ using UIPresentation =
   AUTHENTICATOR_REQUEST_EVENT_0(OnChromeProfileCreatePasskeyAccepted)         \
   /* Called when the user accepts passkey creation dialog. */                 \
   AUTHENTICATOR_REQUEST_EVENT_0(OnGPMCreationConfirmed)                       \
-  /* Called when the user accepts the warning dialog for creating a GPM */    \
-  /* passkey in incognito mode.*/                                             \
-  AUTHENTICATOR_REQUEST_EVENT_0(OnGPMConfirmOffTheRecordCreate)               \
   /* Called when the user clicks "Forgot PIN" during UV. */                   \
   AUTHENTICATOR_REQUEST_EVENT_0(OnGPMForgotPinPressed)                        \
   /* OnOffTheRecordInterstitialAccepted is called when the user accepts */    \
@@ -234,7 +231,6 @@ struct AuthenticatorRequestDialogModel
     // will be recorded.
     kOffTheRecordInterstitial,
     // Phone as a security key.
-    kCableActivate,
     kCableV2QRCode,
     kCableV2Connecting,
     kCableV2Connected,
@@ -276,7 +272,6 @@ struct AuthenticatorRequestDialogModel
     kGPMTouchID,
     // GPM passkey creation.
     kGPMCreatePasskey,
-    kGPMConfirmOffTheRecordCreate,
     kChromeProfileCreatePasskey,
     kGPMError,
     kGPMConnecting,
@@ -287,8 +282,6 @@ struct AuthenticatorRequestDialogModel
     // Changing GPM PIN.
     kGPMReauthForPinReset,
     kGPMLockedPin,
-    // ChallengeUrl failure.
-    kErrorFetchingChallenge,
     // OS authentication after selecting a password.
     kPasswordOsAuth,
     // The request is being dispatched to a platform authenticator.
@@ -382,14 +375,6 @@ struct AuthenticatorRequestDialogModel
     std::u16string description;
     const raw_ref<const gfx::VectorIcon> icon;
     const base::RepeatingClosure callback;
-  };
-
-  // CableUIType enumerates the different types of caBLE UI that we've ended
-  // up with.
-  enum class CableUIType {
-    CABLE_V1,
-    CABLE_V2_SERVER_LINK,
-    CABLE_V2_2ND_FACTOR,
   };
 
   // Returns a user-friendly description for a |type|.
@@ -500,9 +485,6 @@ struct AuthenticatorRequestDialogModel
   std::optional<int> pin_attempts;
   std::optional<int> uv_attempts;
   device::pin::PINEntryError pin_error = device::pin::PINEntryError::kNoError;
-
-  // cable_ui_type contains the type of UI to display for a caBLE transaction.
-  std::optional<CableUIType> cable_ui_type;
 
   std::optional<std::string> cable_qr_string;
 

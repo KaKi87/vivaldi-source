@@ -5,7 +5,5 @@ source_set("notes") {
     "notes_contenthelper.cc",
     "notes_contenthelper.h",
   ]
-  deps = [
-    "//base",
-  ]
+  deps = [ "//base" ]
 }

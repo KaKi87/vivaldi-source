@@ -5,9 +5,7 @@
 #import "ios/chrome/browser/first_run/public/features.h"
 
 #import "base/metrics/field_trial_params.h"
-#import "components/regional_capabilities/regional_capabilities_service.h"
-#import "ios/chrome/browser/regional_capabilities/model/regional_capabilities_service_factory.h"
-#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
 
 namespace first_run {
 
@@ -54,6 +52,9 @@ BASE_FEATURE_PARAM(
                          kAnimationWithActionButtons));
 
 BestFeaturesScreenVariationType GetBestFeaturesScreenVariationType() {
+  if (IsBestOfAppBestFeaturesEnabled()) {
+    return BestFeaturesScreenVariationType::kBestOfApp;
+  }
   if (!base::FeatureList::IsEnabled(kBestFeaturesScreenInFirstRun)) {
     return BestFeaturesScreenVariationType::kDisabled;
   }
@@ -61,12 +62,8 @@ BestFeaturesScreenVariationType GetBestFeaturesScreenVariationType() {
       kBestFeaturesScreenInFirstRunParamFeature.Get());
 }
 
-UpdatedFRESequenceVariationType GetUpdatedFRESequenceVariation(
-    ProfileIOS* profile) {
-  regional_capabilities::RegionalCapabilitiesService* regional_capabilities =
-      ios::RegionalCapabilitiesServiceFactory::GetForProfile(profile);
-  if (!base::FeatureList::IsEnabled(kUpdatedFirstRunSequence) ||
-      regional_capabilities->IsInSearchEngineChoiceScreenRegion()) {
+UpdatedFRESequenceVariationType GetUpdatedFRESequenceVariation() {
+  if (!base::FeatureList::IsEnabled(kUpdatedFirstRunSequence)) {
     return UpdatedFRESequenceVariationType::kDisabled;
   }
   return static_cast<UpdatedFRESequenceVariationType>(

@@ -30,9 +30,9 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.components.permissions.DeviceItemAdapter;
@@ -167,11 +167,11 @@ public class ItemChooserDialogTest implements ItemChooserDialog.ItemSelectedCall
     }
 
     private ImageView getIconImageView(Dialog dialog, int position) {
-        return (ImageView) getRowView(dialog, position).findViewById(R.id.icon);
+        return getRowView(dialog, position).findViewById(R.id.icon);
     }
 
     private TextView getDescriptionTextView(Dialog dialog, int position) {
-        return (TextView) getRowView(dialog, position).findViewById(R.id.description);
+        return getRowView(dialog, position).findViewById(R.id.description);
     }
 
     @Test
@@ -944,7 +944,7 @@ public class ItemChooserDialogTest implements ItemChooserDialog.ItemSelectedCall
                             return dialog1;
                         });
 
-        Button cancelButton = (Button) dialog.findViewById(R.id.negative);
+        Button cancelButton = dialog.findViewById(R.id.negative);
         CriteriaHelper.pollUiThread(
                 () -> Criteria.checkThat(cancelButton.getVisibility(), Matchers.is(View.VISIBLE)));
         CriteriaHelper.pollUiThread(

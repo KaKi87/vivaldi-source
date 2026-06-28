@@ -140,6 +140,8 @@
 }
 
 - (void)focusOmniboxAnimated:(BOOL)animated {
+  BOOL swapIcon = ![self isTriggerNTP];
+
   // Cleans up after the animation.
   void (^cleanup)() = ^{
     [self.locationBarAnimatee setEditViewHidden:NO];
@@ -155,18 +157,21 @@
     // Prepare for animation.
     BOOL shouldCrossfadeEditAndSteadyViews = ![self isTriggerUnpinnedFakebox];
     if (shouldCrossfadeEditAndSteadyViews) {
-      [self.locationBarAnimatee offsetTextFieldToMatchSteadyView];
+      //      [self.locationBarAnimatee offsetTextFieldToMatchSteadyView];
       [self.locationBarAnimatee setEditViewFaded:YES];
     }
 
-    // Hide badge and entrypoint views before the transform regardless of
-    // current displayed state to prevent them from being visible outside of the
-    // location bar as the steadView moves outside to the leading side of the
-    // location bar.
-    [self.locationBarAnimatee hideSteadyViewBadgeAndEntrypointViews];
+    if (swapIcon) {
+      // Hide badge and entrypoint views before the transform regardless of
+      // current displayed state to prevent them from being visible outside of
+      // the location bar as the steadView moves outside to the leading side of
+      // the location bar.
+      [self.locationBarAnimatee hideSteadyViewBadgeAndEntrypointViews];
+      [self.editViewAnimatee setLeadingIconScale:0];
+    }
     // Make edit view transparent, but not hidden.
     [self.locationBarAnimatee setEditViewHidden:NO];
-    [self.editViewAnimatee setLeadingIconScale:0];
+
     [self.editViewAnimatee setClearButtonFaded:YES];
 
     self.inProgressAnimationCount += 1;
@@ -213,7 +218,8 @@
                                   relativeDuration:0.75
                                         animations:^{
                                           [self.editViewAnimatee
-                                              setLeadingIconScale:1.3];
+                                              setLeadingIconScale:swapIcon ? 1.3
+                                                                           : 1];
                                         }];
           [UIView addKeyframeWithRelativeStartTime:0.75
                                   relativeDuration:0.25
@@ -239,6 +245,8 @@
 }
 
 - (void)defocusOmniboxAnimated:(BOOL)animated {
+  BOOL swapIcon = ![self isTriggerNTP];
+
   // Cleans up after the animation.
   void (^cleanup)() = ^{
     [self.locationBarAnimatee setEditViewHidden:YES];
@@ -279,7 +287,7 @@
     self.inProgressAnimationCount += 1;
     [UIView animateWithDuration:0.2 * duration
         animations:^{
-          [self.editViewAnimatee setLeadingIconScale:0];
+          [self.editViewAnimatee setLeadingIconScale:swapIcon ? 0 : 1];
           [self.editViewAnimatee setClearButtonFaded:YES];
         }
         completion:^(BOOL finished) {
@@ -501,6 +509,18 @@
 // pinned state.
 - (BOOL)isTriggerPinnedFakebox {
   return _trigger == OmniboxFocusTrigger::kPinnedFakebox;
+}
+
+// Returns YES if the focus event is triggered from an NTP.
+- (BOOL)isTriggerNTP {
+  switch (_trigger) {
+    case OmniboxFocusTrigger::kPinnedFakebox:
+    case OmniboxFocusTrigger::kUnpinnedFakebox:
+    case OmniboxFocusTrigger::kNTPOmnibox:
+      return YES;
+    case OmniboxFocusTrigger::kOther:
+      return NO;
+  }
 }
 
 #pragma mark: VIVALDI

@@ -71,7 +71,8 @@ class ContextualTasksComposeboxHandler
                    bool alt_key,
                    bool ctrl_key,
                    bool meta_key,
-                   bool shift_key) override;
+                   bool shift_key,
+                   bool is_voice_search) override;
   void DeleteContext(const base::UnguessableToken& file_token,
                      bool from_automatic_chip) override;
   void HandleFileUpload(bool is_image) override;
@@ -81,14 +82,14 @@ class ContextualTasksComposeboxHandler
   void AddTabContext(int32_t tab_id,
                      bool delay_upload,
                      AddTabContextCallback callback) override;
-  void AddDriveContext(const std::string& drive_id,
-                       const std::string& resource_key,
-                       const std::string& mime_type_string,
-                       AddDriveContextCallback callback) override;
+  void StartPlatformVoiceRecognition() override;
 
   // We override this method to inject an existing `InputStateModel` if one is
   // provided by the ContextualTasksUI via the `take_input_model_callback_`.
   void InitializeInputStateModel() override;
+
+  void SetAimThreadRestoredTabs(
+      std::vector<searchbox::mojom::TabInfoPtr> tabs) override;
 
   void AddFileContextFromBrowser(
       searchbox::mojom::SelectedFileInfoPtr file_info,
@@ -103,24 +104,26 @@ class ContextualTasksComposeboxHandler
       const std::optional<contextual_search::ContextUploadErrorType>&
           error_type) override;
 
-  void CreateAndSendQueryMessage(const std::string& query);
+  void CreateAndSendQueryMessage(const std::string& query,
+                                 bool is_voice_search);
 
   void ResetInputStateModel() override;
-  void UpdateModelFromUrl(const GURL& url) override;
+  void UpdateStateFromUrl(const GURL& url) override;
   void UpdateSuggestedTabContext(
-      std::unique_ptr<contextual_tasks::SuggestedTabInfo> suggested_tab)
-      override;
-  bool has_suggested_tab_context() const override;
-  void ResetBlocklistedSuggestions() override;
+      const contextual_tasks::SuggestedTabInfo* suggested_tab) override;
   void OnTaskChanged() override;
 
+  std::vector<int32_t> GetSelectedTabIds() const override;
+
   void ClearFiles(bool should_block_auto_suggested_tabs) override;
+#if !BUILDFLAG(IS_ANDROID)
   void HandleLensButtonClick() override;
   void OnLensThumbnailCreated(const std::string& thumbnail_data);
   virtual void CloseLensOverlay(
       lens::LensOverlayDismissalSource dismissal_source);
   void CloseLensOverlayFromWebUI(
       composebox::mojom::LensOverlayDismissalSource dismissal_source) override;
+#endif
 
   // Callbacks for QueryContextualizer:
 
@@ -137,6 +140,8 @@ class ContextualTasksComposeboxHandler
   }
   // ui::SelectFileDialog::Listener:
   void FileSelected(const ui::SelectedFileInfo& file, int index) override;
+  void MultiFilesSelected(
+      const std::vector<ui::SelectedFileInfo>& files) override;
   void FileSelectionCanceled() override;
   void OnFileRead(std::unique_ptr<FileData> file_data);
 
@@ -151,7 +156,9 @@ class ContextualTasksComposeboxHandler
 
  protected:
   virtual contextual_tasks::ContextualTasksService* GetContextualTasksService();
+#if !BUILDFLAG(IS_ANDROID)
   virtual std::optional<base::UnguessableToken> GetLensOverlayToken();
+#endif
 
  private:
   // Returns the context ID for the active tab, if any.
@@ -170,14 +177,17 @@ class ContextualTasksComposeboxHandler
   void ContinueCreateAndSendQueryMessage(
       std::string query,
       std::optional<base::Uuid> original_task_id,
-      std::optional<base::UnguessableToken> overlay_token);
+      std::optional<base::UnguessableToken> overlay_token,
+      bool is_voice_search);
 
+#if !BUILDFLAG(IS_ANDROID)
   void OnVisualSelectionAdded(
       base::UnguessableToken overlay_token,
       base::expected<base::UnguessableToken,
                      contextual_search::ContextUploadErrorType> token);
 
   virtual LensSearchController* GetLensSearchController() const;
+#endif  // !BUILDFLAG(IS_ANDROID)
 
   // Called when a non-delayed context upload (file or tab) has finished.
   // Potentially submits query if no other context is uploading.
@@ -189,9 +199,6 @@ class ContextualTasksComposeboxHandler
 
   // Helper to send the pending query if all uploads are complete.
   void MaybeSendPendingQuery();
-
-  // Sends an update to AIM that an injected input has been deleted.
-  void SendDeleteInjectedInputUpdate(const std::string& id);
 
   TakeInputStateModelCallback take_input_model_callback_;
   raw_ptr<contextual_tasks::ContextualTasksUIInterface> web_ui_interface_;
@@ -214,15 +221,6 @@ class ContextualTasksComposeboxHandler
   // submits the query in the composebox.
   std::map<base::UnguessableToken, int32_t> delayed_tabs_;
 
-  // List of auto-suggested tab URLs that have been explicitly dismissed by the
-  // user. Those URLs will not be auto-suggested again for the same task in the
-  // same session, unless the user explicitly adds the tab via "+" button or
-  // switches to a new thread in which case the whole list will be cleared.
-  std::set<GURL> blocklisted_suggestions_;
-
-  // The URL of the current suggested tab context.
-  std::optional<GURL> current_suggestion_;
-
   // The pending query request info to be sent once uploads are complete.
   std::unique_ptr<contextual_search::ContextualSearchContextController::
                       CreateClientToAimRequestInfo>
@@ -243,6 +241,7 @@ class ContextualTasksComposeboxHandler
   // Number of recontextualization flows currently in progress.
   int recontextualization_pending_count_ = 0;
 
+#if !BUILDFLAG(IS_ANDROID)
   // The token associated with the visual selection. This does not actually
   // correspond to a real file upload, but is used to represent the visual
   // selection in the UI and in the event that the user submits a query with
@@ -255,6 +254,7 @@ class ContextualTasksComposeboxHandler
   // reset or closed, but the visual selection should still be associated with
   // the overlay token that created it.
   std::optional<base::UnguessableToken> visual_selection_overlay_token_;
+#endif
   base::WeakPtrFactory<ContextualTasksComposeboxHandler> weak_factory_{this};
 };
 

@@ -55,8 +55,8 @@
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_features.h"
 #include "extensions/common/extension_usage.h"
+#include "extensions/common/manifest_handlers/manifest_url_handlers.h"
 #include "extensions/common/manifest_handlers/options_page_info.h"
-#include "extensions/common/manifest_url_handlers.h"
 #include "extensions/common/permissions/api_permission.h"
 #include "extensions/common/permissions/permissions_data.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
@@ -65,6 +65,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/models/menu_separator_types.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 
 #if !BUILDFLAG(IS_ANDROID)
@@ -400,6 +401,10 @@ bool ExtensionContextMenuModel::IsCommandIdChecked(int command_id) const {
       command_id == PAGE_ACCESS_RUN_ON_SITE ||
       command_id == PAGE_ACCESS_RUN_ON_ALL_SITES) {
     auto* permissions = PermissionsManager::Get(profile_);
+    if (extension->permissions_data()->IsRestrictedUrl(origin_.GetURL(),
+                                                       nullptr)) {
+      return false;
+    }
     PermissionsManager::UserSiteAccess current_access =
         permissions->GetUserSiteAccess(*extension, origin_.GetURL());
     return current_access == CommandIdToSiteAccess(command_id);
@@ -625,7 +630,7 @@ void ExtensionContextMenuModel::ExecuteCommand(int command_id,
       // Do nothing if the extension cannot have its site permissions updated.
       // Page access option should only be enabled when the extension site
       // permissions can be changed. However, sometimes the command still gets
-      // invoked (crbug.com/1468151). Thus, we exit early to prevent any
+      // invoked (crbug.com/40068180). Thus, we exit early to prevent any
       // crashes.
       if (!PermissionsManager::Get(profile_)->CanAffectExtension(*extension)) {
         return;
@@ -633,7 +638,7 @@ void ExtensionContextMenuModel::ExecuteCommand(int command_id,
 
       SitePermissionsHelper permissions(profile_);
       permissions.UpdateSiteAccess(*extension, web_contents,
-                                   CommandIdToSiteAccess(command_id));
+                                   CommandIdToSiteAccess(command_id), origin_);
       break;
     }
     case PAGE_ACCESS_PERMISSIONS_PAGE:
@@ -783,7 +788,9 @@ void ExtensionContextMenuModel::InitMenuWithFeature(
         page_access_submenu_->AddSeparator(ui::NORMAL_SEPARATOR);
         page_access_submenu_->AddItemWithStringIdAndIcon(
             POLICY_INSTALLED, IDS_EXTENSIONS_INSTALLED_BY_ADMIN,
-            ui::ImageModel::FromVectorIcon(vector_icons::kBusinessIcon,
+            ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                               ? vector_icons::kDomainIcon
+                                               : vector_icons::kBusinessOldIcon,
                                            ui::kColorIcon, 16));
         policy_entry_in_subpage = true;
       }
@@ -823,7 +830,9 @@ void ExtensionContextMenuModel::InitMenuWithFeature(
     // TODO (kylixrd): Investigate the usage of the hard-coded color.
     AddItemWithStringIdAndIcon(
         POLICY_INSTALLED, IDS_EXTENSIONS_INSTALLED_BY_ADMIN,
-        ui::ImageModel::FromVectorIcon(vector_icons::kBusinessIcon,
+        ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                           ? vector_icons::kDomainIcon
+                                           : vector_icons::kBusinessOldIcon,
                                        ui::kColorIcon, 16));
   }
 
@@ -838,7 +847,9 @@ void ExtensionContextMenuModel::InitMenuWithFeature(
     if (IsExtensionForcePinned(*extension, profile_)) {
       AddItemWithStringIdAndIcon(
           TOGGLE_VISIBILITY, IDS_EXTENSIONS_PINNED_BY_ADMIN,
-          ui::ImageModel::FromVectorIcon(vector_icons::kBusinessIcon,
+          ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                             ? vector_icons::kDomainIcon
+                                             : vector_icons::kBusinessOldIcon,
                                          ui::kColorIcon, 16));
     } else {
       int message_id = is_pinned_
@@ -880,7 +891,9 @@ void ExtensionContextMenuModel::InitMenuWithFeature(
     } else {
       AddItemWithStringIdAndIcon(
           INSPECT_POPUP, IDS_EXTENSION_ACTION_INSPECT_POPUP,
-          ui::ImageModel::FromVectorIcon(vector_icons::kBusinessIcon,
+          ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                             ? vector_icons::kDomainIcon
+                                             : vector_icons::kBusinessOldIcon,
                                          ui::kColorIcon, 16));
     }
   }
@@ -927,7 +940,9 @@ void ExtensionContextMenuModel::InitMenu(const Extension* extension,
       // TODO (kylixrd): Investigate the usage of the hard-coded color.
       AddItemWithStringIdAndIcon(
           POLICY_INSTALLED, IDS_EXTENSIONS_INSTALLED_BY_ADMIN,
-          ui::ImageModel::FromVectorIcon(vector_icons::kBusinessIcon,
+          ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                             ? vector_icons::kDomainIcon
+                                             : vector_icons::kBusinessOldIcon,
                                          ui::kColorIcon, 16));
 
     } else {
@@ -944,9 +959,11 @@ void ExtensionContextMenuModel::InitMenu(const Extension* extension,
     if (IsExtensionForcePinned(*extension, profile_)) {
       size_t toggle_visibility_index =
           GetIndexOfCommandId(TOGGLE_VISIBILITY).value();
-      SetIcon(toggle_visibility_index,
-              ui::ImageModel::FromVectorIcon(vector_icons::kBusinessIcon,
-                                             ui::kColorIcon, 16));
+      SetIcon(toggle_visibility_index, ui::ImageModel::FromVectorIcon(
+                                           features::IsRoundedIconsEnabled()
+                                               ? vector_icons::kDomainIcon
+                                               : vector_icons::kBusinessOldIcon,
+                                           ui::kColorIcon, 16));
     }
   }
 

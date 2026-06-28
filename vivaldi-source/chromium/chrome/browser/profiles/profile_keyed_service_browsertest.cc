@@ -281,6 +281,7 @@ IN_PROC_BROWSER_TEST_F(ProfileKeyedServiceBrowserTest,
 
     // in chrome: using `BrowserContextKeyedServiceShutdownNotifierFactory`:
     // which does not yet have an implementation using `ProfileSelections`.
+    "BrowserManagerService",
 #if BUILDFLAG(IS_CHROMEOS)
     "GalleryWatchManager",
     "MediaFileSystemRegistry",
@@ -334,6 +335,7 @@ IN_PROC_BROWSER_TEST_F(ProfileKeyedServiceBrowserTest,
 
     // in chrome: using `BrowserContextKeyedServiceShutdownNotifierFactory`:
     // which does not yet have an implementation using `ProfileSelections`.
+    "BrowserManagerService",
 #if BUILDFLAG(IS_CHROMEOS)
     "GalleryWatchManager",
     "MediaFileSystemRegistry",
@@ -395,13 +397,18 @@ IN_PROC_BROWSER_TEST_F(ProfileKeyedServiceGuestBrowserTest,
     "AutocompleteHistoryManager",
     "BackgroundContentsService",
     "BackgroundSyncService",
+#if BUILDFLAG(IS_CHROMEOS)
     "BluetoothApiAdvertisementManager",
     "BluetoothApiSocketManager",
     "BluetoothLowEnergyConnectionManager",
     "BluetoothLowEnergyNotifySessionManager",
     "BluetoothSocketEventDispatcher",
+#endif  // BUILDFLAG(IS_CHROMEOS)
     "BrowserManagerService",
     "BrowsingDataLifetimeManager",
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+    "ChromeDeviceAuthenticator",
+#endif
     "ContextualSearchService",
     "ContextualTasksService",
     "ContextualTasksUiService",
@@ -463,6 +470,7 @@ IN_PROC_BROWSER_TEST_F(ProfileKeyedServiceGuestBrowserTest,
     "PrivacySandboxSettings",
     "ProcessManager",
     "ProfileNetworkContextService",
+    "ProtocolHandlerRegistry",
     "ReadAnythingServiceFactory",
     "RealtimeReportingClient",
     "ReduceAcceptLanguage",
@@ -619,6 +627,7 @@ IN_PROC_BROWSER_TEST_F(ProfileKeyedServiceGuestBrowserTest,
     "BackgroundContentsService",
     "BackgroundSyncService",
     "Blocklist",
+#if BUILDFLAG(IS_CHROMEOS)
     "BluetoothAPI",
     "BluetoothApiSocketManager",
     "BluetoothApiAdvertisementManager",
@@ -627,6 +636,7 @@ IN_PROC_BROWSER_TEST_F(ProfileKeyedServiceGuestBrowserTest,
     "BluetoothLowEnergyNotifySessionManager",
     "BluetoothPrivateAPI",
     "BluetoothSocketEventDispatcher",
+#endif  // BUILDFLAG(IS_CHROMEOS)
     "BookmarkManagerPrivateAPI",
 #if defined(TOOLKIT_VIEWS)
     "BookmarkExpandedStateTracker",
@@ -667,7 +677,6 @@ IN_PROC_BROWSER_TEST_F(ProfileKeyedServiceGuestBrowserTest,
     "DelayedInstallManager",
 #endif
     "DeveloperPrivateAPI",
-    "DeviceInfoSyncService",
 #if !BUILDFLAG(IS_CHROMEOS)
     "DownloadCoreService",
 #endif
@@ -757,6 +766,9 @@ IN_PROC_BROWSER_TEST_F(ProfileKeyedServiceGuestBrowserTest,
     "MediaRouter",
     "MediaRouterUIService",
     "MenuManager",
+#if BUILDFLAG(ENABLE_EXTENSIONS)
+    "MimeHandlerRegistry",
+#endif
     "NavigationPredictorKeyedService",
     "NetworkingPrivateEventRouter",
     "NotificationDisplayService",
@@ -825,11 +837,6 @@ IN_PROC_BROWSER_TEST_F(ProfileKeyedServiceGuestBrowserTest,
     "SafeBrowsingPrivateEventRouter",
     "SafeBrowsingTailoredSecurityService",
     "SearchEngineChoiceServiceFactory",
-#if !BUILDFLAG(IS_CHROMEOS)
-    // TODO(crbug.com/374351946): Investigate if this is necessary on CrOS.
-    "SendTabToSelfClientService",
-#endif  // !BUILDFLAG(IS_CHROMEOS)
-    "SendTabToSelfSyncService",
 #if BUILDFLAG(IS_CHROMEOS)
     "SerialConnectionManager",
     "SerialPortManager",
@@ -839,7 +846,6 @@ IN_PROC_BROWSER_TEST_F(ProfileKeyedServiceGuestBrowserTest,
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
     "SessionDataService",
     "SessionProtoDBFactory",
-    "SessionSyncService",
     "SessionsAPI",
     "sessions::TabRestoreService",
     "SettingsOverridesAPI",
@@ -861,8 +867,6 @@ IN_PROC_BROWSER_TEST_F(ProfileKeyedServiceGuestBrowserTest,
     "StorageFrontend",
     "StorageNotificationService",
     "SupervisedUserService",
-    "SyncInvalidationsService",
-    "SyncSessionsWebContentsRouter",
     "SystemInfoAPI",
     "TCPServerSocketEventDispatcher",
     "TCPSocketEventDispatcher",
@@ -903,7 +907,6 @@ IN_PROC_BROWSER_TEST_F(ProfileKeyedServiceGuestBrowserTest,
     "WebRequestAPI",
     "WebRequestEventRouter",
     "WebRtcEventLogManagerKeyedService",
-    "WebrtcAudioPrivateEventService",
     "WriteQuotaChecker",
     "feedback::FeedbackUploaderChrome",
     "sct_reporting::Factory",
@@ -946,7 +949,6 @@ IN_PROC_BROWSER_TEST_F(ProfileKeyedServiceGuestBrowserTest,
     "OwnerSettingsService",
     "Pkcs12Migrator",
     "PlatformKeysService",
-    "PluginVmEngagementMetricsService",
     "PolicyCertService",
     "PrintJobHistoryService",
     "PrintJobReportingServiceFactory",

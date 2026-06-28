@@ -22,10 +22,10 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.compositor.layouts.content.TitleBitmapFactory;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabFavicon;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabGroupTitleUtils;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
@@ -67,6 +67,7 @@ public class LayerTitleCache {
     private final Map<Token, Integer> mSharedAvatarResIds = new HashMap<>();
     private final HashSet<Integer> mTabBubbles = new HashSet<>();
     private final BitmapDynamicResource mGlicButtonTextRes;
+    private final BitmapDynamicResource mGlicActorButtonTextRes;
     private final int mFaviconSize;
     private final int mSharedGroupAvatarPaddingPx;
     private final int mBubbleOuterCircleSize;
@@ -94,8 +95,8 @@ public class LayerTitleCache {
      * @param context The Android {@link Context}.
      * @param resourceManager The manager for static resources to be used by native layers.
      * @param tabStripHeightPx The height of the tab strip in pixels.
-     * @param tabModelSelector The {@link TabModelSelector} to retrieve {@link TabGroupModelFilter}
-     *     and get {@link Tab} by id.
+     * @param tabModelSelector The {@link TabModelSelector} to retrieve {@link TabModel} and get
+     *     {@link Tab} by id.
      */
     public LayerTitleCache(
             Context context,
@@ -122,6 +123,7 @@ public class LayerTitleCache {
         mDarkTitleBitmapFactory =
                 new TitleBitmapFactory(context, /* incognito= */ true, tabStripHeightPx);
         mGlicButtonTextRes = new BitmapDynamicResource(View.generateViewId());
+        mGlicActorButtonTextRes = new BitmapDynamicResource(View.generateViewId());
         mDefaultFaviconHelper = new DefaultFaviconHelper();
         mBubbleOuterCircleSize =
                 res.getDimensionPixelSize(R.dimen.compositor_tab_title_favicon_bubble_outer_size);
@@ -193,7 +195,6 @@ public class LayerTitleCache {
         // will initially show default favicon. But favicons are stored in the history database, so
         // we will fetch favicons asynchronously from database.
         String titleString = getTitleForTab(tab, defaultTitle);
-
         Bitmap tabFavicon = TabFavicon.getBitmap(tab);
         getUpdatedTitleInternal(tab, titleString, tabFavicon);
         if (tabFavicon == null) fetchFaviconForTab(tab);
@@ -214,6 +215,7 @@ public class LayerTitleCache {
             tabFavicon = getDefaultFavicon(tab);
         }
         assert tabFavicon != null;
+
         TitleBitmapFactory titleBitmapFactory =
                 isDarkTheme ? mDarkTitleBitmapFactory : mStandardTitleBitmapFactory;
 
@@ -296,10 +298,9 @@ public class LayerTitleCache {
             title.register();
         }
 
-        TabGroupModelFilter filter = mTabModelSelector.getCurrentTabGroupModelFilter();
-        assert filter != null;
+        TabModel tabModel = mTabModelSelector.getCurrentModel();
         Bitmap titleBitmap =
-                titleBitmapFactory.getGroupTitleBitmap(filter, mContext, groupId, titleString);
+                titleBitmapFactory.getGroupTitleBitmap(tabModel, mContext, groupId, titleString);
         if (titleBitmap == null) return;
         title.set(titleBitmap);
 
@@ -353,26 +354,23 @@ public class LayerTitleCache {
      * Updates the Glic button text texture.
      *
      * @param titleString the text to be displayed on the button
+     * @param isActor whether the button is the actor button
      * @return the resource ID for the generated text bitmap.
      */
-    public int getUpdatedGlicButtonText(@Nullable String titleString) {
+    public int getUpdatedGlicButtonText(@Nullable String titleString, boolean isActor) {
+        BitmapDynamicResource res = isActor ? mGlicActorButtonTextRes : mGlicButtonTextRes;
         if (TextUtils.isEmpty(titleString)) {
-            mResourceManager
-                    .getDynamicResourceLoader()
-                    .unregisterResource(mGlicButtonTextRes.getResId());
+            mResourceManager.getDynamicResourceLoader().unregisterResource(res.getResId());
             return Resources.ID_NULL;
         }
 
         Bitmap titleBitmap = mStandardTitleBitmapFactory.getButtonTextBitmap(titleString);
-        mGlicButtonTextRes.setBitmap(titleBitmap);
-        if (mResourceManager.getDynamicResourceLoader().getResource(mGlicButtonTextRes.getResId())
-                == null) {
-            mResourceManager
-                    .getDynamicResourceLoader()
-                    .registerResource(mGlicButtonTextRes.getResId(), mGlicButtonTextRes);
+        res.setBitmap(titleBitmap);
+        if (mResourceManager.getDynamicResourceLoader().getResource(res.getResId()) == null) {
+            mResourceManager.getDynamicResourceLoader().registerResource(res.getResId(), res);
         }
 
-        return mGlicButtonTextRes.getResId();
+        return res.getResId();
     }
 
     private void fetchFaviconForTab(final Tab tab) {
@@ -388,15 +386,16 @@ public class LayerTitleCache {
     public void fetchFaviconWithCallback(final Tab tab, FaviconImageCallback callback) {
         if (mFaviconHelper == null) mFaviconHelper = new FaviconHelper();
 
+        boolean fallbackToHost = !ChromeFeatureList.sFaviconDisableHostFallback.isEnabled();
         if (tab.getTabGroupId() != null && !tab.isOffTheRecord()) {
             // This mirrors the async tab favicon request implementation for tab list.
             // See TabListFaviconProvider#getFaviconForTabAsync for more detailed notes.
             // TODO(crbug.com/394165786): Unify with the aforementioned TabListFaviconProvider code.
             mFaviconHelper.getForeignFaviconImageForURL(
-                    tab.getProfile(), tab.getUrl(), mFaviconSize, callback);
+                    tab.getProfile(), tab.getUrl(), mFaviconSize, fallbackToHost, callback);
         } else {
             mFaviconHelper.getLocalFaviconImageForURL(
-                    tab.getProfile(), tab.getUrl(), mFaviconSize, callback);
+                    tab.getProfile(), tab.getUrl(), mFaviconSize, fallbackToHost, callback);
         }
     }
 
@@ -451,10 +450,9 @@ public class LayerTitleCache {
         // Note(david@vivaldi.com): Retrieve group title if applicable.
         if (!VivaldiTabModelUtils.isAccordionStack()) {
             if (tab.getTabGroupId() != null && !mIsStackStrip && mTabModelSelector != null) {
-                TabGroupModelFilter filter = mTabModelSelector.getCurrentTabGroupModelFilter();
+                TabModel filter = mTabModelSelector.getCurrentModel();
                 assumeNonNull(filter);
-                title = TabGroupTitleUtils.getDisplayableTitle(
-                        mContext, filter, tab.getTabGroupId());
+                title = TabGroupTitleUtils.getDisplayableTitle(mContext, filter, tab.getTabGroupId());
             }
         }
 

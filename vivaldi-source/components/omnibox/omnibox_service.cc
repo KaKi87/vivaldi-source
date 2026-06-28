@@ -58,16 +58,14 @@ void OmniboxService::StartSearch(
   if (template_url &&
       template_url->is_active() != TemplateURLData::ActiveStatus::kFalse &&
       has_keyword && !autocomplete_input.from_search_field) {
-    autocomplete_input.set_keyword_mode_entry_method(
-        metrics::OmniboxEventProto::SPACE_IN_MIDDLE);
+    autocomplete_input.set_in_keyword_mode(true);
     if (template_url->starter_pack_id() >
         template_url_starter_pack_data::StarterPackId::kNone) {
       autocomplete_input.set_prefer_keyword(true);
       autocomplete_input.set_allow_exact_keyword_match(true);
     }
   } else {
-    autocomplete_input.set_keyword_mode_entry_method(
-        metrics::OmniboxEventProto::INVALID);
+    autocomplete_input.set_in_keyword_mode(false);
   }
 
   if (input.clear_state_before_searching) {

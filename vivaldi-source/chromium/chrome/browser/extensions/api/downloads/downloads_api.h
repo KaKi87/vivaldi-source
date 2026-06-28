@@ -75,6 +75,7 @@ class DownloadsDownloadFunction : public ExtensionFunction {
   void OnStarted(const base::FilePath& creator_suggested_filename,
                  extensions::api::downloads::FilenameConflictAction
                      creator_conflict_action,
+                 const base::FilePath& mail_attachment_folder_path,
                  download::DownloadItem* item,
                  download::DownloadInterruptReason interrupt_reason);
 };

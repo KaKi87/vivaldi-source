@@ -1,4 +1,3 @@
-
 declare_args() {
   # Build the Enterprise MSIX version of Vivaldi, based on the normal installer
   # NOTE: Requires running in an elevated shell, or accept UAC dialog

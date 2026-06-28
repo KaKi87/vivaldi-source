@@ -39,9 +39,7 @@
 #include "src/codegen/macro-assembler-inl.h"
 #include "src/codegen/script-details.h"
 #include "src/common/globals.h"
-#include "src/debug/debug.h"
 #include "src/deoptimizer/deoptimizer.h"
-#include "src/execution/execution.h"
 #include "src/flags/flags.h"
 #include "src/handles/global-handles-inl.h"
 #include "src/heap/combined-heap.h"
@@ -54,16 +52,14 @@
 #include "src/heap/incremental-marking.h"
 #include "src/heap/large-page-inl.h"
 #include "src/heap/large-spaces.h"
+#include "src/heap/local-heap-inl.h"
 #include "src/heap/mark-compact-inl.h"
-#include "src/heap/mark-compact.h"
 #include "src/heap/marking-barrier.h"
 #include "src/heap/marking-state-inl.h"
 #include "src/heap/memory-reducer.h"
 #include "src/heap/mutable-page.h"
-#include "src/heap/parked-scope.h"
 #include "src/heap/remembered-set-inl.h"
 #include "src/heap/safepoint.h"
-#include "src/ic/ic.h"
 #include "src/numbers/hash-seed-inl.h"
 #include "src/objects/allocation-site.h"
 #include "src/objects/call-site-info-inl.h"
@@ -74,6 +70,7 @@
 #include "src/objects/js-collection-inl.h"
 #include "src/objects/managed-inl.h"
 #include "src/objects/objects-inl.h"
+#include "src/objects/objects.h"
 #include "src/objects/slots.h"
 #include "src/objects/transitions.h"
 #include "src/regexp/regexp.h"
@@ -106,7 +103,7 @@ static void CheckMap(Tagged<Map> map, int type, int instance_size) {
 TEST(HeapMaps) {
   CcTest::InitializeVM();
   ReadOnlyRoots roots(CcTest::heap());
-  CheckMap(roots.meta_map(), MAP_TYPE, Map::kSize);
+  CheckMap(roots.meta_map(), MAP_TYPE, kVariableSizeSentinel);
   CheckMap(roots.heap_number_map(), HEAP_NUMBER_TYPE, sizeof(HeapNumber));
   CheckMap(roots.fixed_array_map(), FIXED_ARRAY_TYPE, kVariableSizeSentinel);
   CheckMap(roots.hash_table_map(), HASH_TABLE_TYPE, kVariableSizeSentinel);
@@ -198,12 +195,10 @@ static void CheckNumber(Isolate* isolate, double value, const char* string) {
 void CheckEmbeddedObjectsAreEqual(Isolate* isolate, DirectHandle<Code> lhs,
                                   DirectHandle<Code> rhs) {
   int mode_mask = RelocInfo::ModeMask(RelocInfo::FULL_EMBEDDED_OBJECT);
-  PtrComprCageBase cage_base(isolate);
   RelocIterator lhs_it(*lhs, mode_mask);
   RelocIterator rhs_it(*rhs, mode_mask);
   while (!lhs_it.done() && !rhs_it.done()) {
-    CHECK_EQ(lhs_it.rinfo()->target_object(cage_base),
-             rhs_it.rinfo()->target_object(cage_base));
+    CHECK_EQ(lhs_it.rinfo()->target_object(), rhs_it.rinfo()->target_object());
 
     lhs_it.next();
     rhs_it.next();
@@ -219,8 +214,6 @@ static void CheckGcSafeFindCodeForInnerPointer(Isolate* isolate) {
 
   __ nop();  // supported on all architectures
 
-  PtrComprCageBase cage_base(isolate);
-
   CodeDesc desc;
   assm.GetCode(isolate, &desc);
   DirectHandle<InstructionStream> code(
@@ -228,12 +221,12 @@ static void CheckGcSafeFindCodeForInnerPointer(Isolate* isolate) {
           .Build()
           ->instruction_stream(),
       isolate);
-  CHECK(IsInstructionStream(*code, cage_base));
+  CHECK(IsInstructionStream(*code));
 
   Tagged<HeapObject> obj = Cast<HeapObject>(*code);
   Address obj_addr = obj.address();
 
-  for (int i = 0; i < obj->Size(cage_base); i += kTaggedSize) {
+  for (int i = 0; i < obj->Size(); i += kTaggedSize) {
     Tagged<Code> lookup_result =
         isolate->heap()->FindCodeForInnerPointer(obj_addr + i);
     CHECK_EQ(*code, lookup_result->instruction_stream());
@@ -246,7 +239,7 @@ static void CheckGcSafeFindCodeForInnerPointer(Isolate* isolate) {
       isolate);
   Tagged<HeapObject> obj_copy = Cast<HeapObject>(*copy);
   Tagged<Code> not_right = isolate->heap()->FindCodeForInnerPointer(
-      obj_copy.address() + obj_copy->Size(cage_base) / 2);
+      obj_copy.address() + obj_copy->Size() / 2);
   CHECK_NE(not_right->instruction_stream(), *code);
   CHECK_EQ(not_right->instruction_stream(), *copy);
 }
@@ -881,6 +874,78 @@ TEST(JSObjectMaps) {
   CHECK(*initial_map != obj->map());
 }
 
+// Checks that extended Maps handling works as expected regarding Map
+// transitions, object creation and so on.
+TEST(JSInterceptorMap) {
+  CcTest::InitializeVM();
+  Isolate* isolate = CcTest::i_isolate();
+  Factory* factory = isolate->factory();
+  Heap* heap = CcTest::heap();
+
+  HandleScope sc(isolate);
+
+  DirectHandle<InterceptorInfo> named_interceptor =
+      factory->NewInterceptorInfo(InterceptorKind::kNamed);
+  DirectHandle<InterceptorInfo> indexed_interceptor =
+      factory->NewInterceptorInfo(InterceptorKind::kIndexed);
+
+  DirectHandle<Map> last_map;
+  {
+    HandleScope sc1(isolate);
+
+    const size_t N = 100;
+    DirectHandleVector<JSObject> objects(isolate);
+    objects.reserve(N);
+    DirectHandle<JSInterceptorMap> map;
+
+    for (size_t i = 0; i < N; i++) {
+      if (i % 10 == 0) {
+        // Create a fresh map every now and then.
+        const int inobject_properties = 2;
+        map = Cast<JSInterceptorMap>(factory->NewExtendedMapWithMetaMap(
+            isolate->meta_map(), ExtendedMapKind::kJSInterceptorMap,
+            JS_OBJECT_TYPE,
+            JSObject::kHeaderSize + inobject_properties * kTaggedSize,
+            TERMINAL_FAST_ELEMENTS_KIND, inobject_properties));
+        map->clear_extended_padding();
+        map->set_named_interceptor(*named_interceptor);
+        map->set_indexed_interceptor(*indexed_interceptor);
+      }
+
+      Handle<JSObject> obj = factory->NewJSObjectFromMap(map);
+      Object::SetProperty(isolate, obj, factory->a_string(), obj).Check();
+      Object::SetProperty(isolate, obj, factory->b_string(), obj).Check();
+      Object::SetProperty(isolate, obj, factory->c_string(), obj).Check();
+      Object::SetProperty(isolate, obj, factory->d_string(), obj).Check();
+
+#ifdef VERIFY_HEAP
+      obj->HeapObjectVerify(isolate);
+      obj->map()->HeapObjectVerify(isolate);
+#endif  // VERIFY_HEAP
+      objects.emplace_back(obj);
+      if (i == N / 2) {
+        InvokeMajorGC(heap);
+        InvokeMajorGC(heap);
+      }
+    }
+
+    InvokeMajorGC(heap);
+    InvokeMajorGC(heap);
+    last_map = sc1.CloseAndEscape(map);
+  }
+  InvokeMajorGC(heap);
+  InvokeMajorGC(heap);
+
+  CHECK(IsJSObjectMap(*last_map));
+  CHECK(last_map->is_extended_map());
+
+  CHECK_EQ(UncheckedCast<ExtendedMap>(last_map)->map_kind(),
+           ExtendedMapKind::kJSInterceptorMap);
+  DirectHandle<JSInterceptorMap> map = Cast<JSInterceptorMap>(last_map);
+  CHECK_EQ(map->named_interceptor(), *named_interceptor);
+  CHECK_EQ(map->indexed_interceptor(), *indexed_interceptor);
+}
+
 TEST(JSArray) {
   CcTest::InitializeVM();
   Isolate* isolate = CcTest::i_isolate();
@@ -1251,6 +1316,76 @@ TEST(TestMultiReferencedBytecodeFlushing) {
 
 TEST(TestMultiReferencedBytecodeFlushingWithSparkplug) {
   TestMultiReferencedBytecodeFlushing(/*sparkplug_compile=*/true);
+}
+
+TEST(TestMultiReferencedBytecodeFlushingBothOld) {
+#if !defined(V8_LITE_MODE) && defined(V8_ENABLE_TURBOFAN)
+  v8_flags.turbofan = false;
+  i::v8_flags.optimize_for_size = false;
+#endif  // !defined(V8_LITE_MODE) && defined(V8_ENABLE_TURBOFAN)
+#ifdef V8_ENABLE_SPARKPLUG
+  v8_flags.always_sparkplug = false;
+  v8_flags.flush_baseline_code = true;
+#endif  // V8_ENABLE_SPARKPLUG
+  i::v8_flags.flush_bytecode = true;
+  i::v8_flags.allow_natives_syntax = true;
+
+  ManualGCScope manual_gc_scope;
+  CcTest::InitializeVM();
+  v8::Isolate* isolate = CcTest::isolate();
+  Isolate* i_isolate = CcTest::i_isolate();
+  Heap* heap = CcTest::heap();
+  Factory* factory = i_isolate->factory();
+
+  {
+    v8::HandleScope scope(isolate);
+    v8::Context::New(isolate)->Enter();
+    const char* source =
+        "function foo() {"
+        "  var x = 42;"
+        "  var y = 42;"
+        "  var z = x + y;"
+        "};"
+        "foo()";
+    IndirectHandle<String> foo_name = factory->InternalizeUtf8String("foo");
+
+    // This compile will add the code to the compilation cache.
+    {
+      v8::HandleScope new_scope(isolate);
+      CompileRun(source);
+    }
+
+    // Check function is compiled.
+    IndirectHandle<Object> func_value =
+        Object::GetProperty(i_isolate, i_isolate->global_object(), foo_name)
+            .ToHandleChecked();
+    CHECK(IsJSFunction(*func_value));
+    IndirectHandle<JSFunction> function = Cast<JSFunction>(func_value);
+    IndirectHandle<SharedFunctionInfo> shared(function->shared(), i_isolate);
+    CHECK(shared->is_compiled());
+
+    // Make a copy of the SharedFunctionInfo which points to the same bytecode.
+    IndirectHandle<SharedFunctionInfo> copy =
+        i_isolate->factory()->CloneSharedFunctionInfo(shared);
+
+    // Verify that both SFIs share the same BytecodeArray.
+    CHECK_EQ(shared->GetBytecodeArray(i_isolate),
+             copy->GetBytecodeArray(i_isolate));
+
+    i::SharedFunctionInfo::EnsureOldForTesting(*shared);
+    i::SharedFunctionInfo::EnsureOldForTesting(*copy);
+
+    {
+      // We need to invoke GC without stack, otherwise some objects may not be
+      // reclaimed because of conservative stack scanning.
+      DisableConservativeStackScanningScopeForTesting no_stack_scanning(heap);
+      heap::InvokeMajorGC(heap);
+    }
+
+    // Both should be decompiled (flushed) because both were old.
+    CHECK(!shared->is_compiled());
+    CHECK(!copy->is_compiled());
+  }
 }
 
 HEAP_TEST(Regress10560) {
@@ -1859,7 +1994,7 @@ static void OptimizeEmptyFunction(const char* name) {
 int CountNativeContexts() {
   int count = 0;
   Tagged<Object> object = CcTest::heap()->native_contexts_list();
-  while (!IsUndefined(object, CcTest::i_isolate())) {
+  while (!IsUndefined(object)) {
     count++;
     object = Cast<Context>(object)->next_context_link();
   }
@@ -1873,8 +2008,9 @@ TEST(TestInternalWeakLists) {
   // and hence are incompatible with this test case.
   if (v8_flags.gc_global || v8_flags.stress_compaction ||
       v8_flags.stress_incremental_marking || v8_flags.single_generation ||
-      v8_flags.stress_concurrent_allocation)
+      v8_flags.stress_concurrent_allocation) {
     return;
+  }
   v8_flags.retain_maps_for_n_gc = 0;
 
   static const int kNumTestContexts = 10;
@@ -1990,9 +2126,7 @@ TEST(TestSizeOfRegExpCode) {
 
   LocalContext context;
 
-  // Adjust source below and this check to match
-  // RegExp::kRegExpTooLargeToOptimize.
-  CHECK_EQ(i::RegExp::kRegExpTooLargeToOptimize, 20 * KB);
+  CHECK_EQ(i::RegExp::kMaxOptimizedPatternLength, 20 * KB);
 
   // Compile a regexp that is much larger if we are using regexp optimizations.
   CompileRun(
@@ -2326,13 +2460,12 @@ TEST(TestSizeOfObjectsVsHeapObjectIteratorPrecision) {
   // are correct.
   CcTest::heap()->DisableInlineAllocation();
   HeapObjectIterator iterator(CcTest::heap());
-  PtrComprCageBase cage_base(CcTest::i_isolate());
   intptr_t size_of_objects_1 = CcTest::heap()->SizeOfObjects();
   intptr_t size_of_objects_2 = 0;
   for (Tagged<HeapObject> obj = iterator.Next(); !obj.is_null();
        obj = iterator.Next()) {
-    if (!IsFreeSpace(obj, cage_base)) {
-      size_of_objects_2 += obj->Size(cage_base);
+    if (!IsFreeSpace(obj)) {
+      size_of_objects_2 += obj->Size();
     }
   }
   // Delta must be within 5% of the larger result.
@@ -2929,8 +3062,9 @@ TEST(OptimizedPretenuringDoubleArrayProperties) {
   if (!CcTest::i_isolate()->use_optimizer()) return;
   if (v8_flags.gc_global || v8_flags.stress_compaction ||
       v8_flags.stress_incremental_marking || v8_flags.single_generation ||
-      v8_flags.stress_concurrent_allocation || v8_flags.scavenger_chaos_mode)
+      v8_flags.stress_concurrent_allocation || v8_flags.scavenger_chaos_mode) {
     return;
+  }
   v8::HandleScope scope(CcTest::isolate());
   ManualGCScope manual_gc_scope;
   GrowNewSpaceToMaximumCapacity(CcTest::heap());
@@ -3167,8 +3301,9 @@ TEST(OptimizedAllocationArrayLiterals) {
   CcTest::InitializeVM();
   if (!CcTest::i_isolate()->use_optimizer()) return;
   if (v8_flags.gc_global || v8_flags.stress_compaction ||
-      v8_flags.stress_incremental_marking)
+      v8_flags.stress_incremental_marking) {
     return;
+  }
   v8::HandleScope scope(CcTest::isolate());
   v8::Local<v8::Context> ctx = CcTest::isolate()->GetCurrentContext();
   v8::Local<v8::Value> res = CompileRun(
@@ -3851,8 +3986,9 @@ TEST(Regress169928) {
   // and hence are incompatible with this test case.
   if (v8_flags.gc_global || v8_flags.stress_compaction ||
       v8_flags.stress_incremental_marking || v8_flags.single_generation ||
-      v8_flags.minor_ms)
+      v8_flags.minor_ms) {
     return;
+  }
 
   // Prepare the environment
   CompileRun(
@@ -4519,7 +4655,7 @@ TEST(ObjectsInEagerlyDeoptimizedCodeAreWeak) {
     code = handle(bar->code(isolate), isolate);
     CompileRun("%DeoptimizeFunction(bar);");
     CHECK(code->marked_for_deoptimization());
-    CHECK(!code->SafeEquals(bar->code(isolate)));
+    CHECK(!(*code).SafeEquals(bar->code(isolate)));
     code = scope.CloseAndEscape(code);
   }
 
@@ -5450,7 +5586,7 @@ static void CheckLeak(const v8::FunctionCallbackInfo<v8::Value>& info) {
   Isolate* isolate = CcTest::i_isolate();
   Tagged<Object> message(
       *reinterpret_cast<Address*>(isolate->pending_message_address()));
-  CHECK(IsTheHole(message, isolate));
+  CHECK(IsTheHole(message));
 }
 
 TEST(MessageObjectLeak) {
@@ -5633,8 +5769,9 @@ HEAP_TEST(Regress587004) {
 }
 
 HEAP_TEST(Regress589413) {
-  if (!v8_flags.incremental_marking || v8_flags.stress_concurrent_allocation)
+  if (!v8_flags.incremental_marking || v8_flags.stress_concurrent_allocation) {
     return;
+  }
   v8_flags.stress_compaction = true;
   ManualGCScope manual_gc_scope;
   heap::ManualEvacuationCandidatesSelectionScope
@@ -6369,8 +6506,9 @@ TEST(RememberedSet_RemoveStaleOnScavenge) {
   arr->set(1, ReadOnlyRoots(CcTest::heap()).undefined_value());
   DirectHandle<FixedArrayBase> tail(heap->LeftTrimFixedArray(*arr, 1), isolate);
 
-  // None of the actions above should have updated the remembered set.
-  CHECK_EQ(3, GetRememberedSetSize<OLD_TO_NEW>(*tail));
+  // The first slot should be removed from the remembered set since the length
+  // is now in that place and represented as a uint32_t.
+  CHECK_EQ(2, GetRememberedSetSize<OLD_TO_NEW>(*tail));
 
   // Run GC to promote the remaining young object and fixup the stale entries in
   // the remembered set.
@@ -6672,8 +6810,9 @@ UNINITIALIZED_TEST(OutOfMemory) {
 UNINITIALIZED_TEST(OutOfMemoryIneffectiveGC) {
   if (!v8_flags.detect_ineffective_gcs_near_heap_limit) return;
   if (v8_flags.stress_incremental_marking ||
-      v8_flags.stress_concurrent_allocation)
+      v8_flags.stress_concurrent_allocation) {
     return;
+  }
 #ifdef VERIFY_HEAP
   if (v8_flags.verify_heap) return;
 #endif
@@ -7139,7 +7278,7 @@ UNINITIALIZED_TEST(HugeHeapLimit) {
   v8::Isolate* isolate = v8::Isolate::New(create_params);
   Isolate* i_isolate = reinterpret_cast<Isolate*>(isolate);
 #ifdef V8_COMPRESS_POINTERS
-  size_t kExpectedHeapLimit = Heap::AllocatorLimitOnMaxOldGenerationSize(0);
+  size_t kExpectedHeapLimit = Heap::kAllocatorLimitOnMaxOldGenerationSize;
 #else
   size_t kExpectedHeapLimit = size_t{4} * GB;
 #endif
@@ -7150,7 +7289,7 @@ UNINITIALIZED_TEST(HugeHeapLimit) {
 #endif
 
 UNINITIALIZED_TEST(HeapLimit) {
-  uint64_t kMemoryGB = 8;
+  uint64_t kMemoryGB = 16;
   v8_flags.high_end_android_physical_memory_threshold =
       static_cast<unsigned int>(kMemoryGB);
   v8::Isolate::CreateParams create_params;
@@ -7161,7 +7300,7 @@ UNINITIALIZED_TEST(HeapLimit) {
 #if defined(V8_TARGET_ARCH_64_BIT)
   // Because we explicitly set --high_end_android_physical_memory_threshold,
   // Android has the same expected heap limit.
-  size_t kExpectedHeapLimit = size_t{2} * GB;
+  size_t kExpectedHeapLimit = size_t{4} * GB;
 #else
   size_t kExpectedHeapLimit = size_t{1} * GB;
 #endif

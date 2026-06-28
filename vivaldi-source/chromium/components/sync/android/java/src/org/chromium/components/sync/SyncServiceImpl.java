@@ -44,13 +44,13 @@ public class SyncServiceImpl implements SyncService, AccountsChangeObserver {
     // a dangling pointer.
     private long mSyncServiceAndroidBridge;
 
-    private int mSetupInProgressCounter;
-
     // Sync state changes more often than listeners are added/removed, so using CopyOnWrite.
     private final List<SyncStateChangedListener> mListeners =
             new CopyOnWriteArrayList<SyncStateChangedListener>();
 
     private final ThreadChecker mThreadChecker = new ThreadChecker();
+
+    private int mSetupInProgressCounter; // Vivaldi
 
     @CalledByNative
     private SyncServiceImpl(long ptr) {
@@ -83,20 +83,6 @@ public class SyncServiceImpl implements SyncService, AccountsChangeObserver {
     }
 
     @Override
-    public boolean isSyncFeatureEnabled() {
-        mThreadChecker.assertOnValidThread();
-        assert mSyncServiceAndroidBridge != 0;
-        return SyncServiceImplJni.get().isSyncFeatureEnabled(mSyncServiceAndroidBridge);
-    }
-
-    @Override
-    public boolean isSyncFeatureActive() {
-        mThreadChecker.assertOnValidThread();
-        assert mSyncServiceAndroidBridge != 0;
-        return SyncServiceImplJni.get().isSyncFeatureActive(mSyncServiceAndroidBridge);
-    }
-
-    @Override
     public GoogleServiceAuthError getAuthError() {
         mThreadChecker.assertOnValidThread();
         assert mSyncServiceAndroidBridge != 0;
@@ -115,13 +101,6 @@ public class SyncServiceImpl implements SyncService, AccountsChangeObserver {
         mThreadChecker.assertOnValidThread();
         assert mSyncServiceAndroidBridge != 0;
         return SyncServiceImplJni.get().getAccountInfo(mSyncServiceAndroidBridge);
-    }
-
-    @Override
-    public boolean hasSyncConsent() {
-        mThreadChecker.assertOnValidThread();
-        assert mSyncServiceAndroidBridge != 0;
-        return SyncServiceImplJni.get().hasSyncConsent(mSyncServiceAndroidBridge);
     }
 
     @Override
@@ -183,76 +162,10 @@ public class SyncServiceImpl implements SyncService, AccountsChangeObserver {
     }
 
     @Override
-    public boolean hasKeepEverythingSynced() {
-        mThreadChecker.assertOnValidThread();
-        assert mSyncServiceAndroidBridge != 0;
-        return SyncServiceImplJni.get().hasKeepEverythingSynced(mSyncServiceAndroidBridge);
-    }
-
-    @Override
-    public void setSelectedTypes(boolean syncEverything, Set<Integer> enabledTypes) {
-        mThreadChecker.assertOnValidThread();
-        assert mSyncServiceAndroidBridge != 0;
-        SyncServiceImplJni.get()
-                .setSelectedTypes(
-                        mSyncServiceAndroidBridge,
-                        syncEverything,
-                        userSelectableTypeSetToArray(enabledTypes));
-    }
-
-    @Override
     public void setSelectedType(@UserSelectableType int type, boolean isTypeOn) {
         mThreadChecker.assertOnValidThread();
         assert mSyncServiceAndroidBridge != 0;
         SyncServiceImplJni.get().setSelectedType(mSyncServiceAndroidBridge, type, isTypeOn);
-    }
-
-    @Override
-    public void setInitialSyncFeatureSetupComplete(int syncFirstSetupCompleteSource) {
-        mThreadChecker.assertOnValidThread();
-        assert mSyncServiceAndroidBridge != 0;
-        SyncServiceImplJni.get()
-                .setInitialSyncFeatureSetupComplete(
-                        mSyncServiceAndroidBridge, syncFirstSetupCompleteSource);
-    }
-
-    @Override
-    public boolean isInitialSyncFeatureSetupComplete() {
-        mThreadChecker.assertOnValidThread();
-        assert mSyncServiceAndroidBridge != 0;
-        return SyncServiceImplJni.get()
-                .isInitialSyncFeatureSetupComplete(mSyncServiceAndroidBridge);
-    }
-
-    @Override
-    public SyncSetupInProgressHandle getSetupInProgressHandle() {
-        mThreadChecker.assertOnValidThread();
-        assert mSyncServiceAndroidBridge != 0;
-        if (++mSetupInProgressCounter == 1) {
-            setSetupInProgress(true);
-        }
-
-        return new SyncSetupInProgressHandle() {
-            private boolean mClosed;
-
-            @Override
-            public void close() {
-                mThreadChecker.assertOnValidThread();
-                if (mClosed) return;
-                mClosed = true;
-
-                assert mSetupInProgressCounter > 0;
-                if (--mSetupInProgressCounter == 0) {
-                    setSetupInProgress(false);
-                }
-            }
-        };
-    }
-
-    private void setSetupInProgress(boolean inProgress) {
-        mThreadChecker.assertOnValidThread();
-        assert mSyncServiceAndroidBridge != 0;
-        SyncServiceImplJni.get().setSetupInProgress(mSyncServiceAndroidBridge, inProgress);
     }
 
     @Override
@@ -534,20 +447,9 @@ public class SyncServiceImpl implements SyncService, AccountsChangeObserver {
         void acknowledgeBookmarksLimitExceededError(
                 long nativeSyncServiceAndroidBridge, int source);
 
-        boolean isSyncFeatureEnabled(long nativeSyncServiceAndroidBridge);
-
-        boolean isSyncFeatureActive(long nativeSyncServiceAndroidBridge);
-
         boolean isSyncDisabledByEnterprisePolicy(long nativeSyncServiceAndroidBridge);
 
         boolean isEngineInitialized(long nativeSyncServiceAndroidBridge);
-
-        void setSetupInProgress(long nativeSyncServiceAndroidBridge, boolean inProgress);
-
-        boolean isInitialSyncFeatureSetupComplete(long nativeSyncServiceAndroidBridge);
-
-        void setInitialSyncFeatureSetupComplete(
-                long nativeSyncServiceAndroidBridge, int syncFirstSetupCompleteSource);
 
         @JniType("std::vector<int32_t>")
         int[] getActiveDataTypes(long nativeSyncServiceAndroidBridge);
@@ -569,11 +471,6 @@ public class SyncServiceImpl implements SyncService, AccountsChangeObserver {
         boolean isTypeManagedByPolicy(long nativeSyncServiceAndroidBridge, int type);
 
         boolean isTypeManagedByCustodian(long nativeSyncServiceAndroidBridge, int type);
-
-        void setSelectedTypes(
-                long nativeSyncServiceAndroidBridge,
-                boolean syncEverything,
-                @JniType("std::vector<int32_t>") int[] userSelectableTypeArray);
 
         void setSelectedType(
                 long nativeSyncServiceAndroidBridge,
@@ -615,14 +512,10 @@ public class SyncServiceImpl implements SyncService, AccountsChangeObserver {
 
         @Nullable CoreAccountInfo getAccountInfo(long nativeSyncServiceAndroidBridge);
 
-        boolean hasSyncConsent(long nativeSyncServiceAndroidBridge);
-
         boolean isPassphrasePromptMutedForCurrentProductVersion(
                 long nativeSyncServiceAndroidBridge);
 
         void markPassphrasePromptMutedForCurrentProductVersion(long nativeSyncServiceAndroidBridge);
-
-        boolean hasKeepEverythingSynced(long nativeSyncServiceAndroidBridge);
 
         boolean shouldOfferTrustedVaultOptIn(long nativeSyncServiceAndroidBridge);
 
@@ -633,5 +526,102 @@ public class SyncServiceImpl implements SyncService, AccountsChangeObserver {
         void keepAccountSettingsPrefsOnlyForUsers(
                 long nativeSyncServiceAndroidBridge,
                 @JniType("std::vector<std::string>") String[] gaiaIds);
+
+        // Vivaldi Native methods
+        boolean isSyncFeatureActive(long nativeSyncServiceAndroidBridge);
+
+        boolean hasSyncConsent(long nativeSyncServiceAndroidBridge);
+
+        boolean hasKeepEverythingSynced(long nativeSyncServiceAndroidBridge);
+
+        void setSelectedTypes(
+                long nativeSyncServiceAndroidBridge,
+                boolean syncEverything,
+                @JniType("std::vector<int32_t>") int[] userSelectableTypeArray);
+
+        void setInitialSyncFeatureSetupComplete(
+                long nativeSyncServiceAndroidBridge/*, int syncFirstSetupCompleteSource*/);
+
+        boolean isInitialSyncFeatureSetupComplete(long nativeSyncServiceAndroidBridge);
+
+        void setSetupInProgress(long nativeSyncServiceAndroidBridge, boolean inProgress);
+        // End Vivaldi
     }
+
+    // Vivaldi - Legacy Sync methods, Ref: VAB-13135
+    @Override
+    public boolean isSyncFeatureActive() {
+        mThreadChecker.assertOnValidThread();
+        assert mSyncServiceAndroidBridge != 0;
+        return SyncServiceImplJni.get().isSyncFeatureActive(mSyncServiceAndroidBridge);
+    }
+
+    @Override
+    public boolean hasSyncConsent() {
+        mThreadChecker.assertOnValidThread();
+        assert mSyncServiceAndroidBridge != 0;
+        return SyncServiceImplJni.get().hasSyncConsent(mSyncServiceAndroidBridge);
+    }
+
+    @Override
+    public boolean hasKeepEverythingSynced() {
+        mThreadChecker.assertOnValidThread();
+        assert mSyncServiceAndroidBridge != 0;
+        return SyncServiceImplJni.get().hasKeepEverythingSynced(mSyncServiceAndroidBridge);
+    }
+
+    @Override
+    public void setSelectedTypes(boolean syncEverything, Set<Integer> enabledTypes) {
+        mThreadChecker.assertOnValidThread();
+        assert mSyncServiceAndroidBridge != 0;
+        SyncServiceImplJni.get().setSelectedTypes(mSyncServiceAndroidBridge, syncEverything,
+                userSelectableTypeSetToArray(enabledTypes));
+    }
+
+    @Override
+    public void setInitialSyncFeatureSetupComplete() {
+        mThreadChecker.assertOnValidThread();
+        assert mSyncServiceAndroidBridge != 0;
+        SyncServiceImplJni.get().setInitialSyncFeatureSetupComplete(mSyncServiceAndroidBridge);
+    }
+
+    @Override
+    public boolean isInitialSyncFeatureSetupComplete() {
+        mThreadChecker.assertOnValidThread();
+        assert mSyncServiceAndroidBridge != 0;
+        return SyncServiceImplJni.get().isInitialSyncFeatureSetupComplete(
+                mSyncServiceAndroidBridge);
+    }
+
+    @Override
+    public SyncSetupInProgressHandle getSetupInProgressHandle() {
+        mThreadChecker.assertOnValidThread();
+        assert mSyncServiceAndroidBridge != 0;
+        if (++mSetupInProgressCounter == 1) {
+            setSetupInProgress(true);
+        }
+
+        return new SyncSetupInProgressHandle() {
+            private boolean mClosed;
+
+            @Override
+            public void close() {
+                mThreadChecker.assertOnValidThread();
+                if (mClosed) return;
+                mClosed = true;
+
+                assert mSetupInProgressCounter > 0;
+                if (--mSetupInProgressCounter == 0) {
+                    setSetupInProgress(false);
+                }
+            }
+        };
+    }
+
+    private void setSetupInProgress(boolean inProgress) {
+        mThreadChecker.assertOnValidThread();
+        assert mSyncServiceAndroidBridge != 0;
+        SyncServiceImplJni.get().setSetupInProgress(mSyncServiceAndroidBridge, inProgress);
+    }
+    // End Vivaldi
 }

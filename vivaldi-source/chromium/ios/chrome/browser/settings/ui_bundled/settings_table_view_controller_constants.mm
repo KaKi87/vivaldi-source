@@ -26,6 +26,12 @@ NSString* const kSettingsPaymentMethodsCellId =
     @"kSettingsPaymentMethodsCellId";
 NSString* const kSettingsAddressesAndMoreCellId =
     @"kSettingsAddressesAndMoreCellId";
+NSString* const kSettingsIdentityDocsCellId = @"kSettingsIdentityDocsCellId";
+NSString* const kSettingsTravelInfoCellId = @"kSettingsTravelInfoCellId";
+NSString* const kSettingsAutofillAndPasswordsCellId =
+    @"kSettingsAutofillAndPasswordsCellId";
+NSString* const kSettingsAutofillSettingsCellId =
+    @"kSettingsAutofillSettingsCellId";
 NSString* const kSettingsPrivacyCellId = @"kSettingsPrivacyCellId";
 NSString* const kSettingsArticleSuggestionsCellId =
     @"kSettingsArticleSuggestionsCellId";
@@ -51,7 +57,7 @@ NSString* const kSettingsShowReadingModeAvailableCellId =
     @"kSettingsShowReadingModeAvailableCellId";
 NSString* const kSettingsDetectAddressesCellId =
     @"kSettingsDetectAddressesCellId";
-NSString* const kSettingsMimiMapNativeCellId = @"kSettingsMimiMapNativeCellId";
+NSString* const kSettingsMiniMapNativeCellId = @"kSettingsMiniMapNativeCellId";
 NSString* const kSettingsDefaultAppsCellId = @"kSettingsDefaultAppsCellId";
 NSString* const kSettingsAddLanguageCellId = @"kSettingsAddLanguageCellId";
 NSString* const kSettingsClearBrowsingDataCellId =

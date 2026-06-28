@@ -10,6 +10,7 @@
 
 #include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
+#include "base/scoped_observation.h"
 #include "chrome/browser/ui/tabs/tab_data.h"
 #include "chrome/browser/ui/tabs/tab_style.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
@@ -19,7 +20,7 @@
 #include "chrome/common/buildflags.h"
 #include "components/performance_manager/public/freezing/freezing.h"
 #include "components/tabs/public/tab_interface.h"
-#include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
+#include "third_party/skia/include/core/SkScalar.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/gfx/canvas.h"
 #include "ui/views/context_menu_controller.h"
@@ -27,6 +28,7 @@
 #include "ui/views/layout/flex_layout.h"
 #include "ui/views/masked_targeter_delegate.h"
 #include "ui/views/view.h"
+#include "ui/views/view_observer.h"
 
 class GlowHoverController;
 class TabCloseButton;
@@ -34,10 +36,14 @@ class TabCollectionNode;
 class TabIcon;
 class TabTitle;
 
+namespace base {
+class TimeDelta;
+}  // namespace base
+
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 namespace glic {
 class TabUnderlineView;
-}
+}  // namespace glic
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 // The view class for the tab. It is responsible for painting the
@@ -50,10 +56,14 @@ class VerticalTabView : public views::View,
                         public views::MaskedTargeterDelegate,
                         public AlertIndicatorButton::Delegate,
                         public views::ContextMenuController,
-                        public HoverCardAnchorTarget {
+                        public HoverCardAnchorTarget,
+                        public views::ViewObserver {
   METADATA_HEADER(VerticalTabView, views::View)
 
  public:
+  static constexpr base::TimeDelta kGlowHoverAnimationDuration =
+      base::Milliseconds(50);
+
   explicit VerticalTabView(TabCollectionNode* collection_node);
   VerticalTabView(const VerticalTabView&) = delete;
   VerticalTabView& operator=(const VerticalTabView&) = delete;
@@ -82,8 +92,8 @@ class VerticalTabView : public views::View,
   // HoverCardAnchorTarget:
   bool NeedsToShowThumbnail() const override;
   bool IsValidHoverCardTarget() const override;
+  views::BubbleAnchor GetAnchor() override;
   views::BubbleBorder::Arrow GetAnchorPosition() const override;
-  const views::View* GetAnchorView() const override;
 
  private:
   // views::View
@@ -104,17 +114,21 @@ class VerticalTabView : public views::View,
   void OnBlur() override;
   void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
   void OnThemeChanged() override;
+  void UpdateParentLayer() override;
+
+  // views::ViewObserver:
+  void OnViewFocused(views::View* observed_view) override;
+  void OnViewBlurred(views::View* observed_view) override;
 
   // Tab Painting Helpers
-  void PaintTabBackgroundWithImages(
-      gfx::Canvas* canvas,
-      std::optional<int> active_tab_fill_id,
-      std::optional<int> inactive_tab_fill_id) const;
+  void PaintTabBackgroundWithImages(gfx::Canvas* canvas,
+                                    std::optional<int> active_tab_fill_id,
+                                    std::optional<int> inactive_tab_fill_id);
   float GetCurrentActiveOpacity() const;
   void PaintTabBackgroundFill(gfx::Canvas* canvas,
                               TabStyle::TabSelectionState selection_state,
                               bool hovered,
-                              std::optional<int> fill_id) const;
+                              std::optional<int> fill_id);
   bool ShouldPaintTabBackgroundColor(
       TabStyle::TabSelectionState selection_state,
       bool has_custom_background,
@@ -165,11 +179,12 @@ class VerticalTabView : public views::View,
   void OnAXNameChanged(ax::mojom::StringAttribute attribute,
                        const std::optional<std::string>& name);
   void OnCollapseStateChanged(tabs::VerticalTabStripCollapseState state);
-  void OnDataChanged();
+  void OnTabStateChanged();
+  void OnTabDataChanged(TabChangeType change_type, const tabs::TabData& data);
   void SetSelection(bool selected);
-  void UpdateTabData(tabs::TabInterface* tab);
+  void UpdateTabData(const tabs::TabInterface* tab);
 
-  void UpdateTitle();
+  void UpdateTitle(std::u16string title, bool should_render_loading_title);
   void UpdateBorder();
   void UpdateThemeColors();
   void UpdateColors();
@@ -196,6 +211,11 @@ class VerticalTabView : public views::View,
 
   const tabs::TabInterface* GetTabInterface() const;
 
+  SkScalar GetCornerRadius() const;
+
+  // Applies rounded corners to the view's layer.
+  void UpdateLayerRoundedCorners();
+
   raw_ptr<TabCollectionNode> collection_node_ = nullptr;
 
   std::vector<TabChildConfig> tab_children_configs_;
@@ -211,10 +231,11 @@ class VerticalTabView : public views::View,
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi keep disabled
 
   base::CallbackListSubscription node_destroyed_subscription_;
-  base::CallbackListSubscription data_changed_subscription_;
+  base::CallbackListSubscription tab_state_changed_subscription_;
   base::CallbackListSubscription collapsed_state_changed_subscription_;
   base::CallbackListSubscription paint_as_active_subscription_;
   base::CallbackListSubscription ax_name_changed_subscription_;
+  base::CallbackListSubscription tab_data_changed_subscription_;
 
   tabs::TabData tab_data_;
   bool active_ = false;
@@ -235,6 +256,11 @@ class VerticalTabView : public views::View,
   bool should_fill_background_tab_color_ = false;
 
   std::optional<performance_manager::freezing::FreezingVote> freezing_vote_;
+
+  std::unique_ptr<tabs::TabDataObserver> tab_data_observer_;
+
+  base::ScopedObservation<views::View, views::ViewObserver>
+      close_button_observation_{this};
 
   base::WeakPtrFactory<VerticalTabView> weak_ptr_factory_{this};
 };

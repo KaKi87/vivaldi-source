@@ -15,6 +15,7 @@ import org.chromium.base.Log;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.ui.theme.ChromeSemanticColorUtils;
 
 /**
  * Layout for the new tab page. This positions the page elements in the correct vertical positions.
@@ -41,6 +42,7 @@ public class NewTabPageLayout extends LinearLayout {
     private static final String TAG = "NewTabPageLayout";
 
     private @Nullable Delegate mDelegate;
+    private @Nullable View mSearchBoxView;
 
     /** Constructor for inflating from XML. */
     public NewTabPageLayout(Context context, AttributeSet attrs) {
@@ -51,9 +53,7 @@ public class NewTabPageLayout extends LinearLayout {
     protected void onFinishInflate() {
         super.onFinishInflate();
 
-        setBackgroundColor(
-                getResources()
-                        .getColor(R.color.home_surface_background_color, getContext().getTheme()));
+        setBackgroundColor(ChromeSemanticColorUtils.getHomeSurfaceBackgroundColor(getContext()));
 
         // TODO(crbug.com/347509698): Remove the log statements after fixing the bug.
         Log.i(TAG, "NewTabPageLayout.onFinishInflate before insertSiteSectionView");
@@ -105,6 +105,11 @@ public class NewTabPageLayout extends LinearLayout {
         mDelegate = delegate;
     }
 
+    /** Sets the search box view. */
+    public void setSearchBoxView(View view) {
+        mSearchBoxView = view;
+    }
+
     /**
      * Sets the translation_y of the fakebox and all views above it, but not the views below. Used
      * when the url focus animation is combined with the omnibox suggestions list animation to
@@ -114,7 +119,7 @@ public class NewTabPageLayout extends LinearLayout {
         for (int i = 0; i < getChildCount(); i++) {
             View view = getChildAt(i);
             view.setTranslationY(translationY);
-            if (view.getId() == R.id.search_box) return;
+            if (view == mSearchBoxView) return;
         }
     }
 }

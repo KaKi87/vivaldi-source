@@ -11,12 +11,15 @@ import org.jni_zero.NativeMethods;
 import org.chromium.base.Callback;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.components.contextual_search.ContextUploadErrorType;
 import org.chromium.components.contextual_search.ContextUploadStatus;
 import org.chromium.components.contextual_search.InputState;
 import org.chromium.components.omnibox.OmniboxFeatures;
@@ -24,6 +27,8 @@ import org.chromium.content_public.browser.WebContents;
 import org.chromium.url.GURL;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -42,23 +47,38 @@ public class ComposeboxQueryControllerBridge {
         /**
          * @param token Unique string identifier for the context.
          * @param status The status of the context's upload.
+         * @param errorType The error type if the upload failed.
          */
-        void onContextUploadStatusChanged(String token, @ContextUploadStatus int status);
+        void onContextUploadStatusChanged(
+                String token,
+                @ContextUploadStatus int status,
+                @ContextUploadErrorType int errorType);
     }
 
     private long mNativeInstance;
     private @Nullable ContextUploadObserver mContextUploadObserver;
     private final SettableMonotonicObservableSupplier<InputState> mInputStateSupplier =
             ObservableSuppliers.createMonotonic();
+    private final SettableNonNullObservableSupplier<List<SuggestedTabInfo>> mSuggestedTabsSupplier =
+            ObservableSuppliers.createNonNull(List.of());
 
     private ComposeboxQueryControllerBridge() {}
 
-    /** Create a new ComposeboxQueryControllerBridge using the given profile. */
-    public static @Nullable ComposeboxQueryControllerBridge createForProfile(Profile profile) {
+    /**
+     * Create a new ComposeboxQueryControllerBridge using the given profile and WebUI WebContents.
+     *
+     * @param profile The profile for the session.
+     * @param webContents The WebContents hosting the WebUI that needs to be communicated with.
+     * @param isTaskScoped Whether the session is scoped to a specific AI task.
+     */
+    public static @Nullable ComposeboxQueryControllerBridge create(
+            Profile profile, @Nullable WebContents webContents, boolean isTaskScoped) {
         if (sInstanceForTesting != null) return sInstanceForTesting.orElse(null);
 
         ComposeboxQueryControllerBridge javaInstance = new ComposeboxQueryControllerBridge();
-        long nativeInstance = ComposeboxQueryControllerBridgeJni.get().init(profile, javaInstance);
+        long nativeInstance =
+                ComposeboxQueryControllerBridgeJni.get()
+                        .init(javaInstance, profile, webContents, isTaskScoped);
         if (nativeInstance == 0L) return null;
         javaInstance.mNativeInstance = nativeInstance;
         return javaInstance;
@@ -68,6 +88,13 @@ public class ComposeboxQueryControllerBridge {
         ComposeboxQueryControllerBridgeJni.get().destroy(mNativeInstance);
         mNativeInstance = 0;
         mContextUploadObserver = null;
+    }
+
+    /** Called when the WebUI controller is destroyed. */
+    public void onWebUIDestroyed() {
+        if (mNativeInstance != 0) {
+            ComposeboxQueryControllerBridgeJni.get().onWebUIDestroyed(mNativeInstance);
+        }
     }
 
     public long getNativeInstance() {
@@ -85,9 +112,13 @@ public class ComposeboxQueryControllerBridge {
     }
 
     @CalledByNative
-    void onContextUploadStatusChanged(String token, @ContextUploadStatus int contextUploadStatus) {
+    void onContextUploadStatusChanged(
+            String token,
+            @ContextUploadStatus int contextUploadStatus,
+            @ContextUploadErrorType int errorType) {
         if (mContextUploadObserver != null) {
-            mContextUploadObserver.onContextUploadStatusChanged(token, contextUploadStatus);
+            mContextUploadObserver.onContextUploadStatusChanged(
+                    token, contextUploadStatus, errorType);
         }
     }
 
@@ -119,19 +150,19 @@ public class ComposeboxQueryControllerBridge {
      * Uploads the given tab, adding it to the current session. If the upload can't be performed,
      * null is returned.
      */
-    @Nullable String addTabContext(Tab tab) {
+    @Nullable String addTabContext(Tab tab, boolean isSuggestedTab) {
         if (tab.getWebContents() == null) return null;
         return ComposeboxQueryControllerBridgeJni.get()
-                .addTabContext(mNativeInstance, tab.getWebContents());
+                .addTabContext(mNativeInstance, tab.getWebContents(), isSuggestedTab);
     }
 
     /**
      * Uploads the given tab, adding it to the current session. If the upload can't be performed,
      * null is returned.
      */
-    @Nullable String addTabContextFromCache(long tabId) {
+    @Nullable String addTabContextFromCache(long tabId, boolean isSuggestedTab) {
         return ComposeboxQueryControllerBridgeJni.get()
-                .addTabContextFromCache(mNativeInstance, tabId);
+                .addTabContextFromCache(mNativeInstance, tabId, isSuggestedTab);
     }
 
     public void getAimUrl(GURL url, String queryText, Callback<GURL> callback) {
@@ -160,6 +191,17 @@ public class ComposeboxQueryControllerBridge {
         return ComposeboxQueryControllerBridgeJni.get().isFuseboxEligible(mNativeInstance);
     }
 
+    /**
+     * Returns whether the client is eligible for Fusebox for the given profile.
+     *
+     * <p>This is a static stateless helper to allow components in unfocused contexts (like the NTP
+     * fakebox or the unfocused omnibox status view) to check eligibility without having to
+     * instantiate a heavyweight native controller and session.
+     */
+    public static boolean isFuseboxEligibleForProfile(Profile profile) {
+        return ComposeboxQueryControllerBridgeJni.get().isFuseboxEligibleForProfile(profile);
+    }
+
     /** Returns whether the user is eligible for PDF uploads. */
     boolean isPdfUploadEligible() {
         return ComposeboxQueryControllerBridgeJni.get().isPdfUploadEligible(mNativeInstance);
@@ -185,6 +227,17 @@ public class ComposeboxQueryControllerBridge {
     }
 
     /**
+     * Submits a query to the AI backend via postmessage to the AI page.
+     *
+     * @param query The query text to submit.
+     */
+    public void submitQueryToAimPage(String query) {
+        if (mNativeInstance != 0) {
+            ComposeboxQueryControllerBridgeJni.get().submitQueryToAimPage(mNativeInstance, query);
+        }
+    }
+
+    /**
      * Returns an observable supplier for the current input state. This object contains the allowed
      * and disabled tools, models, and inputs. Updates are tied to the underlying C++
      * ContextualSearchSessionHandle, and may not be during other types of sessions. Callers should
@@ -192,6 +245,11 @@ public class ComposeboxQueryControllerBridge {
      */
     public MonotonicObservableSupplier<InputState> getInputStateSupplier() {
         return mInputStateSupplier;
+    }
+
+    /** Returns an observable supplier for the suggested tab info from the backend. */
+    public NonNullObservableSupplier<List<SuggestedTabInfo>> getSuggestedTabsSupplier() {
+        return mSuggestedTabsSupplier;
     }
 
     public static void setInstanceForTesting(@Nullable ComposeboxQueryControllerBridge instance) {
@@ -209,12 +267,22 @@ public class ComposeboxQueryControllerBridge {
         mInputStateSupplier.set(inputState);
     }
 
+    @CalledByNative
+    private void onSuggestedTabsUpdated(SuggestedTabInfo[] suggestedTabs) {
+        mSuggestedTabsSupplier.set(Arrays.asList(suggestedTabs));
+    }
+
     @NativeMethods
     public interface Natives {
         long init(
-                @JniType("Profile*") Profile profile, ComposeboxQueryControllerBridge javaInstance);
+                ComposeboxQueryControllerBridge javaInstance,
+                @JniType("Profile*") Profile profile,
+                @JniType("content::WebContents*") @Nullable WebContents webContents,
+                boolean isTaskScoped);
 
         void destroy(long nativeComposeboxQueryControllerBridge);
+
+        void onWebUIDestroyed(long nativeComposeboxQueryControllerBridge);
 
         void notifySessionStarted(long nativeComposeboxQueryControllerBridge);
 
@@ -228,33 +296,36 @@ public class ComposeboxQueryControllerBridge {
 
         @Nullable String addTabContext(
                 long nativeComposeboxQueryControllerBridge,
-                @JniType("content::WebContents*") WebContents webContents);
+                @JniType("content::WebContents*") WebContents webContents,
+                boolean isSuggestedTab);
 
         @Nullable String addTabContextFromCache(
-                long nativeComposeboxQueryControllerBridge, long tabId);
+                long nativeComposeboxQueryControllerBridge, long tabId, boolean isSuggestedTab);
 
         void getAimUrl(
                 long nativeComposeboxQueryControllerBridge,
                 @JniType("GURL") GURL url,
                 @JniType("std::string") String queryText,
-                Callback<@JniType("GURL") GURL> callback);
+                Callback<GURL> callback);
 
         void getImageGenerationUrl(
                 long nativeComposeboxQueryControllerBridge,
                 @JniType("GURL") GURL url,
                 @JniType("std::string") String queryText,
-                Callback<@JniType("GURL") GURL> callback);
+                Callback<GURL> callback);
 
         void getAimUrlFromInputState(
                 long nativeComposeboxQueryControllerBridge,
                 @JniType("GURL") GURL url,
                 @JniType("std::string") String queryText,
-                Callback<@JniType("GURL") GURL> callback);
+                Callback<GURL> callback);
 
         void removeAttachment(
                 long nativeComposeboxQueryControllerBridge, @JniType("std::string") String token);
 
         boolean isFuseboxEligible(long nativeComposeboxQueryControllerBridge);
+
+        boolean isFuseboxEligibleForProfile(@JniType("Profile*") Profile profile);
 
         boolean isPdfUploadEligible(long nativeComposeboxQueryControllerBridge);
 
@@ -267,5 +338,8 @@ public class ComposeboxQueryControllerBridge {
         void setActiveModel(
                 long nativeComposeboxQueryControllerBridge,
                 @JniType("omnibox::ModelMode") int modelMode);
+
+        void submitQueryToAimPage(
+                long nativeComposeboxQueryControllerBridge, @JniType("std::string") String query);
     }
 }

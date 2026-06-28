@@ -28,11 +28,11 @@
 #include <vector>
 
 #include "absl/types/span.h"  // TODO(343500108): Use std::span when we have C++20.
-#include "dawn/common/StringViewUtils.h"
-#include "dawn/wire/SupportedFeatures.h"
-#include "dawn/wire/WireResult.h"
-#include "dawn/wire/server/ObjectStorage.h"
-#include "dawn/wire/server/Server.h"
+#include "src/dawn/common/StringViewUtils.h"
+#include "src/dawn/wire/SupportedFeatures.h"
+#include "src/dawn/wire/WireResult.h"
+#include "src/dawn/wire/server/ObjectStorage.h"
+#include "src/dawn/wire/server/Server.h"
 
 namespace dawn::wire::server {
 
@@ -48,7 +48,7 @@ WireResult Server::DoAdapterRequestDevice(Known<WGPUAdapter> adapter,
     auto userdata = MakeUserdata<RequestDeviceUserdata>();
     userdata->eventManager = eventManager;
     userdata->future = future;
-    userdata->deviceObjectId = device.id;
+    userdata->device = device.AsHandle();
     userdata->deviceLostFuture = deviceLostFuture;
 
     // Update the descriptor with the device lost callback associated with this request.
@@ -134,7 +134,7 @@ void Server::OnRequestDeviceCallback(RequestDeviceUserdata* data,
 
     // Assign the handle and allocated status if the device is created successfully.
     Known<WGPUDevice> reservation;
-    if (FillReservation(data->deviceObjectId, device, &reservation) == WireResult::FatalError) {
+    if (FillReservation(data->device, device, &reservation) == WireResult::FatalError) {
         cmd.status = WGPURequestDeviceStatus_CallbackCancelled;
         cmd.message = ToOutputStringView("Destroyed before request was fulfilled.");
         SerializeCommand(cmd);

@@ -2,9 +2,7 @@ import("//vivaldi/testing/testing.gni")
 
 if (vivaldi_build_tests) {
   update_target("//chrome/test:browser_tests") {
-    sources += [
-      "//vivaldi/importer/viv_importer_browsertest.cpp",
-    ]
+    sources += [ "//vivaldi/importer/viv_importer_browsertest.cpp" ]
   }
 }
 
@@ -19,9 +17,8 @@ if (!is_android) {
   }
 
   update_target("//chrome/utility:utility") {
-    sources += [
-      "//vivaldi/importer/vivaldi_external_process_importer_bridge.cc",
-    ]
+    sources +=
+        [ "//vivaldi/importer/vivaldi_external_process_importer_bridge.cc" ]
   }
 }
 
@@ -39,8 +36,8 @@ if (is_android) {
       "//chromium/chrome/browser/importer/profile_writer.h",
     ]
     deps += [
-      "//components/user_data_importer/common",
       "//chrome/app:generated_resources",
+      "//components/user_data_importer/common",
     ]
   }
 }

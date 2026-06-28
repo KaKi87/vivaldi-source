@@ -65,6 +65,7 @@
 #include "ui/views/widget/widget_observer.h"
 #include "ui/views/widget/widget_removals_observer.h"
 #include "ui/views/window/dialog_delegate.h"
+#include "ui/wm/core/window_properties.h"
 
 #if BUILDFLAG(IS_LINUX)
 #include "ui/linux/linux_ui.h"
@@ -838,6 +839,15 @@ gfx::Rect Widget::GetWindowBoundsInScreen() const {
 gfx::Rect Widget::GetClientAreaBoundsInScreen() const {
   return native_widget_ ? native_widget_->GetClientAreaBoundsInScreen()
                         : gfx::Rect();
+}
+
+gfx::Rect Widget::GetNonDecoratedClientAreaBoundsInScreen() const {
+  if (non_client_view_ && non_client_view_->frame_view()) {
+    return non_client_view_->frame_view()
+        ->GetNonDecoratedClientAreaBoundsInScreen();
+  }
+
+  return GetClientAreaBoundsInScreen();
 }
 
 gfx::Rect Widget::GetRestoredBounds() const {
@@ -2271,7 +2281,12 @@ void Widget::OnMouseCaptureLost() {
 
   View* root_view = GetRootView();
   if (root_view) {
+    auto weak_this = GetWeakPtr();
     root_view->OnMouseCaptureLost();
+    // Widget may be deleted upon the capture lost event.
+    if (!weak_this) {
+      return;
+    }
   }
   is_mouse_button_pressed_ = false;
 }
@@ -2562,6 +2577,20 @@ void Widget::SetAllowScreenshots(bool allow) {
 bool Widget::AreScreenshotsAllowed() {
   return native_widget_ ? native_widget_->AreScreenshotsAllowed() : true;
 }
+
+#if BUILDFLAG(IS_WIN)
+void Widget::SetExcludeFromScreenCapture(bool exclude) {
+  if (native_widget_) {
+    native_widget_->SetExcludeFromScreenCapture(exclude);
+  }
+
+  // Propagate the exclusion property to children to ensure that context menus,
+  // etc. are also updated.
+  ForEachOwnedWidget(GetNativeView(), [exclude](Widget* child) {
+    child->SetExcludeFromScreenCapture(exclude);
+  });
+}
+#endif
 
 void Widget::UpdateAccessibleNameForRootView() {
   if (root_view_) {

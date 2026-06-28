@@ -99,7 +99,6 @@
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/tab_dialogs.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_utils.h"
@@ -124,9 +123,9 @@
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
 #include "chrome/browser/renderer_host/chrome_navigation_ui_data.h"
 #include "chrome/browser/tab_contents/tab_util.h"
-#include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 
 #include "components/user_agent/vivaldi_user_agent.h"
 #include "extensions/vivaldi_browser_component_wrapper.h"
@@ -415,9 +414,7 @@ void WebViewGuest::CleanUp(content::BrowserContext* browser_context,
 
   // Clean up web request event listeners for the WebView.
   WebRequestEventRouter::Get(browser_context)
-      // TODO(crbug.com/379869738): remove GetUnsafeValue
-      ->RemoveWebViewEventListeners(browser_context,
-                                    embedder_process_id.GetUnsafeValue(),
+      ->RemoveWebViewEventListeners(browser_context, embedder_process_id,
                                     view_instance_id);
 
   // Clean up content scripts for the WebView.

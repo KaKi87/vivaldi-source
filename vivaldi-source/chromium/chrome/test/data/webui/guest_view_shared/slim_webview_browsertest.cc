@@ -17,10 +17,17 @@
 #include "content/public/browser/web_ui_data_source.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
+#include "net/base/url_util.h"
+#include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/embedded_test_server/http_request.h"
 #include "net/test/embedded_test_server/http_response.h"
 #include "ui/base/device_form_factor.h"
+
+namespace {
+constexpr char kCrossOrigin[] = "cross.origin";
+constexpr char kSubCrossOrigin[] = "sub.cross.origin";
+}
 
 class SlimWebviewBrowserTest : public WebUIMochaBrowserTest {
  public:
@@ -43,6 +50,14 @@ class SlimWebviewBrowserTest : public WebUIMochaBrowserTest {
     ASSERT_TRUE(embedded_test_server()->Start());
   }
 
+  void SetUpOnMainThread() override {
+    WebUIMochaBrowserTest::SetUpOnMainThread();
+    // Add a domain name that resolves to the local server. This is used for
+    // cross-origin tests.
+    host_resolver()->AddRule(kCrossOrigin, "127.0.0.1");
+    host_resolver()->AddRule(kSubCrossOrigin, "127.0.0.1");
+  }
+
  protected:
   void OnWebContentsAvailable(content::WebContents* web_contents) override {
     auto* profile =
@@ -60,8 +75,10 @@ class SlimWebviewBrowserTest : public WebUIMochaBrowserTest {
                          settings->CanPromptToEnableSystemLocationSetting();
     }
     std::string script = content::JsReplace(
-        "window.canGetLocation = $1; window.testServerUrl = $2;",
-        can_get_location, embedded_test_server()->base_url().spec());
+        "window.canGetLocation = $1; window.testServerUrl = $2; "
+        "window.crossOriginUrl = $3;",
+        can_get_location, embedded_test_server()->base_url().spec(),
+        embedded_test_server()->GetURL(kCrossOrigin, "/").spec());
     ASSERT_TRUE(ExecJs(web_contents, script));
   }
 
@@ -72,11 +89,23 @@ class SlimWebviewBrowserTest : public WebUIMochaBrowserTest {
 
   std::unique_ptr<net::test_server::HttpResponse> HandleRequest(
       const net::test_server::HttpRequest& request) {
+    if (request.GetURL().path() == "/server-redirect") {
+      std::string dest;
+      if (net::GetValueForKeyInQuery(request.GetURL(), "url", &dest)) {
+        auto http_response =
+            std::make_unique<net::test_server::BasicHttpResponse>();
+        http_response->set_code(net::HTTP_FOUND);
+        http_response->AddCustomHeader("Location", dest);
+        return http_response;
+      }
+    }
     if (request.GetURL().path() == "/capture-headers") {
       auto http_response =
           std::make_unique<net::test_server::BasicHttpResponse>();
       http_response->set_code(net::HTTP_OK);
       http_response->set_content_type("application/json");
+      // Allow all origins to make this request.
+      http_response->AddCustomHeader("Access-Control-Allow-Origin", "*");
 
       base::DictValue root;
       for (const auto& [url, headers] : captured_headers_) {

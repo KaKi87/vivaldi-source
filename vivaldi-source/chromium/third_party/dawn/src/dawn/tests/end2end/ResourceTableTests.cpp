@@ -31,16 +31,22 @@
 #include <variant>
 #include <vector>
 
-#include "dawn/common/Enumerator.h"
-#include "dawn/common/MatchVariant.h"
-#include "dawn/tests/DawnTest.h"
-#include "dawn/utils/ComboRenderBundleEncoderDescriptor.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/ScopedIgnoreValidationErrors.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/common/Enumerator.h"
+#include "src/dawn/common/Range.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/utils/ComboRenderBundleEncoderDescriptor.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/ScopedIgnoreValidationErrors.h"
+#include "src/dawn/utils/WGPUHelpers.h"
 
 namespace dawn {
 namespace {
+
+// The number of unique default samplers on D3D12, derived form ResourceTableDefaultResources.
+// These necessarily take up a couple of slots in a resource table.
+constexpr uint32_t kUniqueDefaultSamplers = 2;
+// On D3D12, the max number of unique sampler descriptors available to the user in a ResourceTable.
+constexpr uint32_t kD3D12MaxUniqueSamplers = 2048 - kUniqueDefaultSamplers;
 
 class ResourceTableTests : public DawnTest {
   protected:
@@ -95,7 +101,7 @@ class ResourceTableTests : public DawnTest {
     // Test that the `table`, has resources of `wgslType` in the `expected` slots.
     void TestHasResource(wgpu::ResourceTable table,
                          std::vector<bool> expected,
-                         std::string wgslType = "texture_2d<f32, filterable>") {
+                         std::string wgslType = "texture_2d<f32>") {
         ASSERT_EQ(table.GetSize(), expected.size());
 
         // Create the test pipeline.
@@ -388,6 +394,73 @@ class ResourceTableTests : public DawnTest {
                               std::vector<std::optional<uint8_t>> expected) {
         TestHasU8BindingsAll({{table, expected}});
     }
+
+    // Creates a sampler by address mode
+    wgpu::Sampler CreateSampler(wgpu::AddressMode mode,
+                                wgpu::CompareFunction compare = wgpu::CompareFunction::Undefined) {
+        wgpu::SamplerDescriptor descriptor = {};
+        descriptor.addressModeU = mode;
+        descriptor.addressModeV = mode;
+        descriptor.addressModeW = mode;
+        descriptor.compare = compare;
+        return device.CreateSampler(&descriptor);
+    }
+
+    // Creates a 2x2 checkerboard texture, with red in the top left and bottom right corners, green
+    // in the other two.
+    wgpu::Texture CreateCheckerboardTexture() {
+        wgpu::TextureDescriptor descriptor;
+        descriptor.dimension = wgpu::TextureDimension::e2D;
+        descriptor.size = {2, 2};
+        descriptor.format = wgpu::TextureFormat::RGBA8Unorm;
+        descriptor.usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::TextureBinding;
+        auto texture = device.CreateTexture(&descriptor);
+
+        const uint32_t rowPixels = kTextureBytesPerRowAlignment / sizeof(utils::RGBA8);
+        std::array<utils::RGBA8, rowPixels * 2> pixels;
+        pixels[0] = pixels[rowPixels + 1] = utils::RGBA8::kRed;
+        pixels[1] = pixels[rowPixels] = utils::RGBA8::kGreen;
+
+        wgpu::TexelCopyTextureInfo srcInfo =
+            utils::CreateTexelCopyTextureInfo(texture, 0, {0, 0, 0});
+        wgpu::TexelCopyBufferLayout dstInfo = {};
+        dstInfo.bytesPerRow = kTextureBytesPerRowAlignment;
+        wgpu::Extent3D copySize = {2, 2, 1};
+        queue.WriteTexture(&srcInfo, pixels.data(), pixels.size() * sizeof(utils::RGBA8), &dstInfo,
+                           &copySize);
+
+        return texture;
+    }
+
+    wgpu::Texture CreateColorTexture(utils::RGBA8 color) {
+        wgpu::TextureDescriptor descriptor;
+        descriptor.dimension = wgpu::TextureDimension::e2D;
+        descriptor.size = {1, 1};
+        descriptor.format = wgpu::TextureFormat::RGBA8Unorm;
+        descriptor.usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::TextureBinding;
+        auto texture = device.CreateTexture(&descriptor);
+
+        const uint32_t rowPixels = kTextureBytesPerRowAlignment / sizeof(utils::RGBA8);
+        std::array<utils::RGBA8, rowPixels> pixels;
+        pixels[0] = color;
+
+        wgpu::TexelCopyTextureInfo srcInfo =
+            utils::CreateTexelCopyTextureInfo(texture, 0, {0, 0, 0});
+        wgpu::TexelCopyBufferLayout dstInfo = {};
+        dstInfo.bytesPerRow = kTextureBytesPerRowAlignment;
+        wgpu::Extent3D copySize = {1, 1, 1};
+        queue.WriteTexture(&srcInfo, pixels.data(), pixels.size() * sizeof(utils::RGBA8), &dstInfo,
+                           &copySize);
+
+        return texture;
+    }
+
+    wgpu::Sampler CreateUniqueSampler(uint32_t i) {
+        // Make samplers unique by making one of the values different for each
+        wgpu::SamplerDescriptor descriptor;
+        descriptor.lodMinClamp = (i + 1) / 1000.0f;
+        return device.CreateSampler(&descriptor);
+    }
 };
 
 // Test that creating resource tables doesn't crash in backends.
@@ -428,7 +501,7 @@ TEST_P(ResourceTableTests, ShaderWithResourceTableCreation) {
     csDesc.compute.module = utils::CreateShaderModule(device, R"(
         enable chromium_experimental_resource_table;
         @compute @workgroup_size(1) fn main() {
-            _ = hasResource<texture_2d<f32, filterable>>(0);
+            _ = hasResource<texture_2d<f32>>(0);
         }
     )");
     device.CreateComputePipeline(&csDesc);
@@ -438,7 +511,7 @@ TEST_P(ResourceTableTests, ShaderWithResourceTableCreation) {
         enable chromium_experimental_resource_table;
         @group(0) @binding(0) var t0 : texture_2d<f32>;
         @compute @workgroup_size(1) fn main() {
-            _ = hasResource<texture_2d<f32, filterable>>(0);
+            _ = hasResource<texture_2d<f32>>(0);
             _ = t0;
         }
     )");
@@ -451,7 +524,7 @@ TEST_P(ResourceTableTests, ShaderWithResourceTableCreation) {
         @group(1) @binding(0) var t1 : texture_2d<f32>;
         @group(2) @binding(0) var t2 : texture_2d<f32>;
         @compute @workgroup_size(1) fn main() {
-            _ = hasResource<texture_2d<f32, filterable>>(0);
+            _ = hasResource<texture_2d<f32>>(0);
             _ = t0;
             _ = t1;
             _ = t2;
@@ -530,7 +603,7 @@ TEST_P(ResourceTableTests, HasResourceFilterableToUnfilterable) {
     wgpu::ResourceTable table = MakeResourceTable(3, {{1, {.textureView = tex.CreateView()}}});
 
     tex.Pin(wgpu::TextureUsage::TextureBinding);
-    TestHasResource(table, {false, true, false}, "texture_2d<f32, unfilterable>");
+    TestHasResource(table, {false, true, false}, "texture_2d<f32>");
 }
 
 // Test that calling texture.Destroy() implicitly unpins it.
@@ -657,28 +730,22 @@ TEST_P(ResourceTableTests, HasResourceMultipleTexturesTable) {
 }
 
 constexpr auto kWgslSampledTextureTypes = std::array{
-    "texture_1d<f32, filterable>",
-    "texture_1d<f32, unfilterable>",
+    "texture_1d<f32>",
     "texture_1d<i32>",
     "texture_1d<u32>",
-    "texture_2d<f32, filterable>",
-    "texture_2d<f32, unfilterable>",
+    "texture_2d<f32>",
     "texture_2d<i32>",
     "texture_2d<u32>",
-    "texture_2d_array<f32, filterable>",
-    "texture_2d_array<f32, unfilterable>",
+    "texture_2d_array<f32>",
     "texture_2d_array<i32>",
     "texture_2d_array<u32>",
-    "texture_cube<f32, filterable>",
-    "texture_cube<f32, unfilterable>",
+    "texture_cube<f32>",
     "texture_cube<i32>",
     "texture_cube<u32>",
-    "texture_cube_array<f32, filterable>",
-    "texture_cube_array<f32, unfilterable>",
+    "texture_cube_array<f32>",
     "texture_cube_array<i32>",
     "texture_cube_array<u32>",
-    "texture_3d<f32, filterable>",
-    "texture_3d<f32, unfilterable>",
+    "texture_3d<f32>",
     "texture_3d<i32>",
     "texture_3d<u32>",
 
@@ -692,8 +759,7 @@ constexpr auto kWgslSampledTextureTypes = std::array{
     "texture_depth_cube_array",
     "texture_depth_multisampled_2d",
 
-    "sampler<non_filtering>",
-    "sampler<filtering>",
+    "sampler",
     "sampler_comparison",
 };
 
@@ -770,13 +836,12 @@ std::vector<ResourceDescForTypeIDCase> MakeDescForTypeIDCases() {
     using SamplerDesc = ResourceDescForTypeIDCase::SamplerDesc;
 
     // Regular 1D textures.
-    cases.push_back(
-        {.wgslTypes = {{"texture_1d<f32, filterable>"}, {"texture_1d<f32, unfilterable>"}},
-         .desc = TextureDesc{
-             .format = wgpu::TextureFormat::RGBA8Unorm,
-             .dimension = wgpu::TextureDimension::e1D,
-         }});
-    cases.push_back({.wgslTypes = {{"texture_1d<f32, unfilterable>"}},
+    cases.push_back({.wgslTypes = {{"texture_1d<f32>"}},
+                     .desc = TextureDesc{
+                         .format = wgpu::TextureFormat::RGBA8Unorm,
+                         .dimension = wgpu::TextureDimension::e1D,
+                     }});
+    cases.push_back({.wgslTypes = {{"texture_1d<f32>"}},
                      .desc = TextureDesc{
                          .format = wgpu::TextureFormat::RGBA32Float,
                          .dimension = wgpu::TextureDimension::e1D,
@@ -793,13 +858,12 @@ std::vector<ResourceDescForTypeIDCase> MakeDescForTypeIDCases() {
                      }});
 
     // Regular 2D textures.
-    cases.push_back(
-        {.wgslTypes = {{"texture_2d<f32, filterable>"}, {"texture_2d<f32, unfilterable>"}},
-         .desc = TextureDesc{
-             .format = wgpu::TextureFormat::RGBA8Unorm,
-             .dimension = wgpu::TextureDimension::e2D,
-         }});
-    cases.push_back({.wgslTypes = {{"texture_2d<f32, unfilterable>"}},
+    cases.push_back({.wgslTypes = {{"texture_2d<f32>"}},
+                     .desc = TextureDesc{
+                         .format = wgpu::TextureFormat::RGBA8Unorm,
+                         .dimension = wgpu::TextureDimension::e2D,
+                     }});
+    cases.push_back({.wgslTypes = {{"texture_2d<f32>"}},
                      .desc = TextureDesc{
                          .format = wgpu::TextureFormat::RGBA32Float,
                          .dimension = wgpu::TextureDimension::e2D,
@@ -816,14 +880,13 @@ std::vector<ResourceDescForTypeIDCase> MakeDescForTypeIDCases() {
                      }});
 
     // Regular 2D array textures.
-    cases.push_back({.wgslTypes = {{"texture_2d_array<f32, filterable>"},
-                                   {"texture_2d_array<f32, unfilterable>"}},
+    cases.push_back({.wgslTypes = {{"texture_2d_array<f32>"}},
                      .desc = TextureDesc{
                          .format = wgpu::TextureFormat::RGBA8Unorm,
                          .dimension = wgpu::TextureDimension::e2D,
                          .viewDimension = wgpu::TextureViewDimension::e2DArray,
                      }});
-    cases.push_back({.wgslTypes = {{"texture_2d_array<f32, unfilterable>"}},
+    cases.push_back({.wgslTypes = {{"texture_2d_array<f32>"}},
                      .desc = TextureDesc{
                          .format = wgpu::TextureFormat::RGBA32Float,
                          .dimension = wgpu::TextureDimension::e2D,
@@ -843,14 +906,13 @@ std::vector<ResourceDescForTypeIDCase> MakeDescForTypeIDCases() {
                      }});
 
     // Regular cube textures.
-    cases.push_back(
-        {.wgslTypes = {{"texture_cube<f32, filterable>"}, {"texture_cube<f32, unfilterable>"}},
-         .desc = TextureDesc{
-             .format = wgpu::TextureFormat::RGBA8Unorm,
-             .dimension = wgpu::TextureDimension::e2D,
-             .viewDimension = wgpu::TextureViewDimension::Cube,
-         }});
-    cases.push_back({.wgslTypes = {{"texture_cube<f32, unfilterable>"}},
+    cases.push_back({.wgslTypes = {{"texture_cube<f32>"}},
+                     .desc = TextureDesc{
+                         .format = wgpu::TextureFormat::RGBA8Unorm,
+                         .dimension = wgpu::TextureDimension::e2D,
+                         .viewDimension = wgpu::TextureViewDimension::Cube,
+                     }});
+    cases.push_back({.wgslTypes = {{"texture_cube<f32>"}},
                      .desc = TextureDesc{
                          .format = wgpu::TextureFormat::RGBA32Float,
                          .dimension = wgpu::TextureDimension::e2D,
@@ -870,14 +932,13 @@ std::vector<ResourceDescForTypeIDCase> MakeDescForTypeIDCases() {
                      }});
 
     // Regular cube array textures.
-    cases.push_back({.wgslTypes = {{"texture_cube_array<f32, filterable>"},
-                                   {"texture_cube_array<f32, unfilterable"}},
+    cases.push_back({.wgslTypes = {{"texture_cube_array<f32>"}},
                      .desc = TextureDesc{
                          .format = wgpu::TextureFormat::RGBA8Unorm,
                          .dimension = wgpu::TextureDimension::e2D,
                          .viewDimension = wgpu::TextureViewDimension::CubeArray,
                      }});
-    cases.push_back({.wgslTypes = {{"texture_cube_array<f32, unfilterable>"}},
+    cases.push_back({.wgslTypes = {{"texture_cube_array<f32>"}},
                      .desc = TextureDesc{
                          .format = wgpu::TextureFormat::RGBA32Float,
                          .dimension = wgpu::TextureDimension::e2D,
@@ -897,13 +958,12 @@ std::vector<ResourceDescForTypeIDCase> MakeDescForTypeIDCases() {
                      }});
 
     // Regular 3d textures.
-    cases.push_back(
-        {.wgslTypes = {{"texture_3d<f32, filterable>"}, {"texture_3d<f32, unfilterable>"}},
-         .desc = TextureDesc{
-             .format = wgpu::TextureFormat::RGBA8Unorm,
-             .dimension = wgpu::TextureDimension::e3D,
-         }});
-    cases.push_back({.wgslTypes = {{"texture_3d<f32, unfilterable>"}},
+    cases.push_back({.wgslTypes = {{"texture_3d<f32>"}},
+                     .desc = TextureDesc{
+                         .format = wgpu::TextureFormat::RGBA8Unorm,
+                         .dimension = wgpu::TextureDimension::e3D,
+                     }});
+    cases.push_back({.wgslTypes = {{"texture_3d<f32>"}},
                      .desc = TextureDesc{
                          .format = wgpu::TextureFormat::RGBA32Float,
                          .dimension = wgpu::TextureDimension::e3D,
@@ -920,6 +980,12 @@ std::vector<ResourceDescForTypeIDCase> MakeDescForTypeIDCases() {
                      }});
 
     // Color multisampled textures.
+    cases.push_back({.wgslTypes = {{"texture_multisampled_2d<f32>"}},
+                     .desc = TextureDesc{
+                         .format = wgpu::TextureFormat::RGBA8Unorm,
+                         .dimension = wgpu::TextureDimension::e2D,
+                         .sampleCount = 4,
+                     }});
     cases.push_back({.wgslTypes = {{"texture_multisampled_2d<f32>"}},
                      .desc = TextureDesc{
                          .format = wgpu::TextureFormat::RGBA16Float,
@@ -940,31 +1006,29 @@ std::vector<ResourceDescForTypeIDCase> MakeDescForTypeIDCases() {
                      }});
 
     // Depth textures (including multisampled).
-    cases.push_back({.wgslTypes = {{"texture_depth_2d"}, {"texture_2d<f32, unfilterable>"}},
+    cases.push_back({.wgslTypes = {{"texture_depth_2d"}, {"texture_2d<f32>"}},
                      .desc = TextureDesc{
                          .format = wgpu::TextureFormat::Depth32Float,
                          .dimension = wgpu::TextureDimension::e2D,
                      }});
-    cases.push_back(
-        {.wgslTypes = {{"texture_depth_2d_array"}, {"texture_2d_array<f32, unfilterable>"}},
-         .desc = TextureDesc{
-             .format = wgpu::TextureFormat::Depth32Float,
-             .dimension = wgpu::TextureDimension::e2D,
-             .viewDimension = wgpu::TextureViewDimension::e2DArray,
-         }});
-    cases.push_back({.wgslTypes = {{"texture_depth_cube"}, {"texture_cube<f32, unfilterable>"}},
+    cases.push_back({.wgslTypes = {{"texture_depth_2d_array"}, {"texture_2d_array<f32>"}},
+                     .desc = TextureDesc{
+                         .format = wgpu::TextureFormat::Depth32Float,
+                         .dimension = wgpu::TextureDimension::e2D,
+                         .viewDimension = wgpu::TextureViewDimension::e2DArray,
+                     }});
+    cases.push_back({.wgslTypes = {{"texture_depth_cube"}, {"texture_cube<f32>"}},
                      .desc = TextureDesc{
                          .format = wgpu::TextureFormat::Depth32Float,
                          .dimension = wgpu::TextureDimension::e2D,
                          .viewDimension = wgpu::TextureViewDimension::Cube,
                      }});
-    cases.push_back(
-        {.wgslTypes = {{"texture_depth_cube_array"}, {"texture_cube_array<f32, unfilterable>"}},
-         .desc = TextureDesc{
-             .format = wgpu::TextureFormat::Depth32Float,
-             .dimension = wgpu::TextureDimension::e2D,
-             .viewDimension = wgpu::TextureViewDimension::CubeArray,
-         }});
+    cases.push_back({.wgslTypes = {{"texture_depth_cube_array"}, {"texture_cube_array<f32>"}},
+                     .desc = TextureDesc{
+                         .format = wgpu::TextureFormat::Depth32Float,
+                         .dimension = wgpu::TextureDimension::e2D,
+                         .viewDimension = wgpu::TextureViewDimension::CubeArray,
+                     }});
     cases.push_back({.wgslTypes = {{"texture_depth_multisampled_2d"}},
                      .desc = TextureDesc{
                          .format = wgpu::TextureFormat::Depth32Float,
@@ -998,7 +1062,7 @@ std::vector<ResourceDescForTypeIDCase> MakeDescForTypeIDCases() {
                      }});
 
     // Depth-stencil textures with only one aspect selected.
-    cases.push_back({.wgslTypes = {{"texture_depth_2d"}, {"texture_2d<f32, unfilterable>"}},
+    cases.push_back({.wgslTypes = {{"texture_depth_2d"}, {"texture_2d<f32>"}},
                      .desc = TextureDesc{
                          .format = wgpu::TextureFormat::Depth24PlusStencil8,
                          .dimension = wgpu::TextureDimension::e2D,
@@ -1013,12 +1077,12 @@ std::vector<ResourceDescForTypeIDCase> MakeDescForTypeIDCases() {
 
     // Non-filtering sampler
     cases.push_back({
-        .wgslTypes = {{"sampler<non_filtering>"}},
+        .wgslTypes = {{"sampler"}},
         .desc = SamplerDesc{},
     });
     // Filtering sampler
     cases.push_back({
-        .wgslTypes = {{"sampler<non_filtering>"}, {"sampler<filtering>"}},
+        .wgslTypes = {{"sampler"}},
         .desc =
             SamplerDesc{
                 .filtering = true,
@@ -1049,10 +1113,10 @@ TEST_P(ResourceTableTests, HasResourceCompatibilityAllTypes) {
     for (auto [i, c] : Enumerate(cases)) {
         if (std::holds_alternative<ResourceDescForTypeIDCase::TextureDesc>(c.desc)) {
             wgpu::BindingResource resource = {.textureView = c.CreateTestView(device)};
-            table.Update(i, &resource);
+            EXPECT_EQ(wgpu::Status::Success, table.Update(i, &resource));
         } else if (std::holds_alternative<ResourceDescForTypeIDCase::SamplerDesc>(c.desc)) {
             wgpu::BindingResource resource = {.sampler = c.CreateTestSampler(device)};
-            table.Update(i, &resource);
+            EXPECT_EQ(wgpu::Status::Success, table.Update(i, &resource));
         }
     }
 
@@ -1080,17 +1144,17 @@ TEST_P(ResourceTableTests, HasResourceOOBIsFalse) {
         @group(0) @binding(0) var<storage, read_write> result : array<u32, 4>;
         var<immediate> resourceCount : u32;
         @compute @workgroup_size(1) fn getArrayLengths() {
-            result[0] = u32(hasResource<texture_2d<f32, filterable>>(resourceCount - 1));
-            result[1] = u32(hasResource<texture_2d<f32, filterable>>(resourceCount));
+            result[0] = u32(hasResource<texture_2d<f32>>(resourceCount - 1));
+            result[1] = u32(hasResource<texture_2d<f32>>(resourceCount));
 
             // Check against all the slots where the default resources are.
             var result2 = 0u;
             for (var i = 1u; i < 100; i++) {
-                result2 += u32(hasResource<texture_2d<f32, filterable>>(resourceCount + i));
+                result2 += u32(hasResource<texture_2d<f32>>(resourceCount + i));
             }
             result[2] = result2;
 
-            result[3] = u32(hasResource<texture_2d<f32, filterable>>(resourceCount + 10000000));
+            result[3] = u32(hasResource<texture_2d<f32>>(resourceCount + 10000000));
         }
     )");
     wgpu::ComputePipelineDescriptor csDesc = {.compute = {
@@ -1165,10 +1229,10 @@ TEST_P(ResourceTableTests, DefaultBindingsAreZeroAndSizeOne) {
         }
 
         @compute @workgroup_size(1) fn checkDefault() {
-            // Default texture_2d<f32, filterable>
+            // Default texture_2d<f32>
             {
-                check(!hasResource<texture_2d<f32, filterable>>(0));
-                let t = getResource<texture_2d<f32, filterable>>(0);
+                check(!hasResource<texture_2d<f32>>(0));
+                let t = getResource<texture_2d<f32>>(0);
                 check(all(textureDimensions(t) == vec2(1)));
                 check(textureNumLevels(t) == 1);
                 check(all(textureLoad(t, vec2(0), 0) == vec4(0, 0, 0, 1)));
@@ -1239,9 +1303,6 @@ TEST_P(ResourceTableTests, DefaultBindingsAreZeroAndSizeOne) {
 
 // Test that a resource table texture can be sampled by a resource table sampler.
 TEST_P(ResourceTableTests, Sampler) {
-    // TODO(https://issues.chromium.org/473354063): Support samplers on D3D12
-    DAWN_SUPPRESS_TEST_IF(IsD3D12());
-
     // TODO(https://issues.chromium.org/issues/490066027): Fails on Mali G78
     DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsARM());
 
@@ -1268,8 +1329,8 @@ TEST_P(ResourceTableTests, Sampler) {
         }
 
         @fragment fn fs() -> @location(0) vec4f {
-            let s = getResource<sampler<non_filtering>>(0);
-            let t = getResource<texture_2d<f32, filterable>>(1);
+            let s = getResource<sampler>(0);
+            let t = getResource<texture_2d<f32>>(1);
             return textureSample(t, s, vec2f(0.5, 0.5));
         }
     )");
@@ -1307,44 +1368,135 @@ TEST_P(ResourceTableTests, Sampler) {
 
 // Test that a resource table texture can be sampled by multiple resource table samplers.
 TEST_P(ResourceTableTests, MultipleSamplers) {
-    // TODO(https://issues.chromium.org/473354063): Support samplers on D3D12
-    DAWN_SUPPRESS_TEST_IF(IsD3D12());
+    // TODO(https://issues.chromium.org/issues/490066027): Fails on Mali G78
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsARM());
+    // TODO(https://crbug.com/510904606): Fails on LLVMPipe
+    DAWN_SUPPRESS_TEST_IF(IsMesaSoftware());
 
+    struct Case {
+        size_t tableSize;
+        uint32_t samplerIndex0;
+        uint32_t samplerIndex1;
+        uint32_t samplerIndex2;
+        uint32_t textureIndex;
+    };
+    constexpr auto kMax = kMaxResourceTableSize;
+    Case cases[] = {
+        {4, 0, 1, 2, 3},
+        {2048, 2048 - 1, 2048 - 2, 2048 - 3, 2048 - 4},
+        {kMax, kMax - 1, kMax - 2, kMax - 3, kMax - 4},
+        {2048, 2048 / 4 * 1 - 1, 2048 / 4 * 2 - 1, 2048 / 4 * 3 - 1, 2048 / 4 * 4 - 1},
+        {kMax, kMax / 4 * 1 - 1, kMax / 4 * 2 - 1, kMax / 4 * 3 - 1, kMax / 4 * 4 - 1},
+    };
+
+    for (auto c : cases) {
+        wgpu::ShaderModule module =
+            utils::CreateShaderModule(device, absl::StrFormat(R"(
+            enable chromium_experimental_resource_table;
+
+            @group(0) @binding(0) var<storage, read_write> results : array<vec4f>;
+
+            @vertex fn vs() -> @builtin(position) vec4f {
+                return vec4f(0, 0, 0.5, 0.5);
+            }
+
+            @fragment fn fs() -> @location(0) vec4f {
+                let samplerRepeat = getResource<sampler>(%u);
+                let samplerMirror = getResource<sampler>(%u);
+                let samplerClamp = getResource<sampler>(%u);
+                let t = getResource<texture_2d<f32>>(%u);
+
+                results[0] = textureSample(t, samplerRepeat, vec2f(1, 0));
+                results[1] = textureSample(t, samplerRepeat, vec2f(1.5, 0));
+
+                results[2] = textureSample(t, samplerMirror, vec2f(1, 0));
+                results[3] = textureSample(t, samplerMirror, vec2f(1.5, 0));
+
+                results[4] = textureSample(t, samplerClamp, vec2f(1, 0));
+                results[5] = textureSample(t, samplerClamp, vec2f(1.5, 0));
+
+                return vec4f(0);
+            }
+        )",
+                                                              c.samplerIndex0, c.samplerIndex1,
+                                                              c.samplerIndex2, c.textureIndex));
+
+        // Create the pipeline.
+        utils::ComboRenderPipelineDescriptor pDesc;
+        pDesc.vertex.module = module;
+        pDesc.cFragment.module = module;
+        pDesc.cTargets[0].format = wgpu::TextureFormat::RGBA8Unorm;
+        pDesc.primitive.topology = wgpu::PrimitiveTopology::PointList;
+        wgpu::RenderPipeline pipeline = device.CreateRenderPipeline(&pDesc);
+
+        // Create the texture
+        wgpu::Texture texture = CreateCheckerboardTexture();
+
+        // Create 3 samplers
+        wgpu::Sampler samplerRepeat = CreateSampler(wgpu::AddressMode::Repeat);
+        wgpu::Sampler samplerMirror = CreateSampler(wgpu::AddressMode::MirrorRepeat);
+        wgpu::Sampler samplerClamp = CreateSampler(wgpu::AddressMode::ClampToEdge);
+
+        // Create the result buffer resource
+        wgpu::BufferDescriptor bDesc = {
+            .usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc,
+            .size = sizeof(float) * 4 * 6,  // 6 vec4fs
+        };
+        wgpu::Buffer resultBuffer = device.CreateBuffer(&bDesc);
+        wgpu::BindGroup resultBG =
+            utils::MakeBindGroup(device, pipeline.GetBindGroupLayout(0), {{0, resultBuffer}});
+
+        // Create resource table and add the samplers and texture view to it
+        texture.Pin(wgpu::TextureUsage::TextureBinding);
+        wgpu::ResourceTable table = MakeResourceTable(
+            c.tableSize, {
+                             {c.samplerIndex0, {.sampler = samplerRepeat}},
+                             {c.samplerIndex1, {.sampler = samplerMirror}},
+                             {c.samplerIndex2, {.sampler = samplerClamp}},
+                             {c.textureIndex, {.textureView = texture.CreateView()}},
+                         });
+
+        utils::BasicRenderPass renderPass = utils::CreateBasicRenderPass(device, 1, 1);
+
+        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPass.renderPassInfo);
+        pass.SetPipeline(pipeline);
+        pass.SetBindGroup(0, resultBG);
+        pass.SetResourceTable(table);
+        pass.Draw(1);
+        pass.End();
+        wgpu::CommandBuffer commands = encoder.Finish();
+        queue.Submit(1, &commands);
+
+        float expectedGreen[4] = {0.0, 1.0, 0.0, 1.0};
+        float expectedRed[4] = {1.0, 0.0, 0.0, 1.0};
+
+        // repeat: 1,0 -> red, 1.5,0 -> green
+        EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedRed, resultBuffer, 0 * 4 * sizeof(float), 4);
+        EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedGreen, resultBuffer, 1 * 4 * sizeof(float), 4);
+
+        // mirror: 1,0 -> green, 1.5,0 -> red
+        EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedGreen, resultBuffer, 2 * 4 * sizeof(float), 4);
+        EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedRed, resultBuffer, 3 * 4 * sizeof(float), 4);
+
+        // clamp: 1,0 -> green, 1.5,0 -> green
+        EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedGreen, resultBuffer, 4 * 4 * sizeof(float), 4);
+        EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedGreen, resultBuffer, 5 * 4 * sizeof(float), 4);
+    }
+}
+
+// Test that default samplers are correctly created, and accessed when an invalid index it provided.
+TEST_P(ResourceTableTests, UseDefaultSamplers) {
     // TODO(https://issues.chromium.org/issues/490066027): Fails on Mali G78
     DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsARM());
 
-    // Creates a 2x2 checkerboard texture, with red in the top left and bottom right corners, green
-    // in the other two.
-    auto CreateCheckerboardTexture = [&]() {
+    auto CreateDepthTexture = [&]() {
         wgpu::TextureDescriptor descriptor;
-        descriptor.dimension = wgpu::TextureDimension::e2D;
-        descriptor.size = {2, 2};
-        descriptor.format = wgpu::TextureFormat::RGBA8Unorm;
+        // descriptor.dimension = wgpu::TextureDimension::e2D;
+        descriptor.size = {1, 1};
+        descriptor.format = wgpu::TextureFormat::Depth24Plus;
         descriptor.usage = wgpu::TextureUsage::CopyDst | wgpu::TextureUsage::TextureBinding;
-        auto texture = device.CreateTexture(&descriptor);
-
-        const uint32_t rowPixels = kTextureBytesPerRowAlignment / sizeof(utils::RGBA8);
-        std::array<utils::RGBA8, rowPixels * 2> pixels;
-        pixels[0] = pixels[rowPixels + 1] = utils::RGBA8::kRed;
-        pixels[1] = pixels[rowPixels] = utils::RGBA8::kGreen;
-
-        wgpu::TexelCopyTextureInfo srcInfo =
-            utils::CreateTexelCopyTextureInfo(texture, 0, {0, 0, 0});
-        wgpu::TexelCopyBufferLayout dstInfo = {};
-        dstInfo.bytesPerRow = 2 * sizeof(utils::RGBA8);
-        wgpu::Extent3D copySize = {2, 2, 1};
-        queue.WriteTexture(&srcInfo, pixels.data(), pixels.size() * sizeof(utils::RGBA8), &dstInfo,
-                           &copySize);
-
-        return texture;
-    };
-
-    auto CreateSampler = [&](wgpu::AddressMode mode) {
-        wgpu::SamplerDescriptor descriptor = {};
-        descriptor.addressModeU = mode;
-        descriptor.addressModeV = mode;
-        descriptor.addressModeW = mode;
-        return device.CreateSampler(&descriptor);
+        return device.CreateTexture(&descriptor);
     };
 
     wgpu::ShaderModule module = utils::CreateShaderModule(device, R"(
@@ -1357,19 +1509,21 @@ TEST_P(ResourceTableTests, MultipleSamplers) {
         }
 
         @fragment fn fs() -> @location(0) vec4f {
-            let samplerRepeat = getResource<sampler<non_filtering>>(0);
-            let samplerMirror = getResource<sampler<non_filtering>>(1);
-            let samplerClamp = getResource<sampler<non_filtering>>(2);
-            let t = getResource<texture_2d<f32, filterable>>(3);
+            let t = getResource<texture_2d<f32>>(0);
+            let dt = getResource<texture_depth_2d>(1);
 
-            results[0] = textureSample(t, samplerRepeat, vec2f(1, 0));
-            results[1] = textureSample(t, samplerRepeat, vec2f(1.5, 0));
+            let samplerNonFiltering = getResource<sampler>(2);
+            let samplerFiltering = getResource<sampler>(3);
+            let samplerComparison = getResource<sampler_comparison>(4);
 
-            results[2] = textureSample(t, samplerMirror, vec2f(1, 0));
-            results[3] = textureSample(t, samplerMirror, vec2f(1.5, 0));
+            results[0] = textureSample(t, samplerNonFiltering, vec2f(0.5, 0.5));
+            results[1] = textureSample(t, samplerNonFiltering, vec2f(0.6, 0.6));
 
-            results[4] = textureSample(t, samplerClamp, vec2f(1, 0));
-            results[5] = textureSample(t, samplerClamp, vec2f(1.5, 0));
+            results[2] = textureSample(t, samplerFiltering, vec2f(0.5, 0.5));
+            results[3] = textureSample(t, samplerFiltering, vec2f(0.6, 0.6));
+
+            let c = textureSampleCompare(dt, samplerComparison, vec2f(0.5, 0.5), 0.5);
+            results[4] = vec4f(c, 42.0f, c, 83.5f);
 
             return vec4f(0);
         }
@@ -1383,31 +1537,28 @@ TEST_P(ResourceTableTests, MultipleSamplers) {
     pDesc.primitive.topology = wgpu::PrimitiveTopology::PointList;
     wgpu::RenderPipeline pipeline = device.CreateRenderPipeline(&pDesc);
 
-    // Create the texture
-    wgpu::Texture texture = CreateCheckerboardTexture();
-
-    // Create 3 samplers
-    wgpu::Sampler samplerRepeat = CreateSampler(wgpu::AddressMode::Repeat);
-    wgpu::Sampler samplerMirror = CreateSampler(wgpu::AddressMode::MirrorRepeat);
-    wgpu::Sampler samplerClamp = CreateSampler(wgpu::AddressMode::ClampToEdge);
+    // Create the textures
+    wgpu::Texture colorTexture = CreateCheckerboardTexture();
+    wgpu::Texture depthTexture = CreateDepthTexture();
 
     // Create the result buffer resource
     wgpu::BufferDescriptor bDesc = {
         .usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc,
-        .size = sizeof(float) * 4 * 6,  // 6 vec4fs
+        .size = sizeof(float) * 4 * 5,  // 5 vec4fs
     };
     wgpu::Buffer resultBuffer = device.CreateBuffer(&bDesc);
     wgpu::BindGroup resultBG =
         utils::MakeBindGroup(device, pipeline.GetBindGroupLayout(0), {{0, resultBuffer}});
 
-    // Create resource table and add the samplers and texture view to it
-    texture.Pin(wgpu::TextureUsage::TextureBinding);
-    wgpu::ResourceTable table = MakeResourceTable(4, {
-                                                         {0, {.sampler = samplerRepeat}},
-                                                         {1, {.sampler = samplerMirror}},
-                                                         {2, {.sampler = samplerClamp}},
-                                                         {3, {.textureView = texture.CreateView()}},
-                                                     });
+    // Create resource table and only textures to it, no samplers, so that the default
+    // samplers get used
+    colorTexture.Pin(wgpu::TextureUsage::TextureBinding);
+    depthTexture.Pin(wgpu::TextureUsage::TextureBinding);
+    wgpu::ResourceTable table =
+        MakeResourceTable(10, {
+                                  {0, {.textureView = colorTexture.CreateView()}},
+                                  {1, {.textureView = depthTexture.CreateView()}},
+                              });
 
     utils::BasicRenderPass renderPass = utils::CreateBasicRenderPass(device, 1, 1);
 
@@ -1421,20 +1572,622 @@ TEST_P(ResourceTableTests, MultipleSamplers) {
     wgpu::CommandBuffer commands = encoder.Finish();
     queue.Submit(1, &commands);
 
+    float expectedRed[4] = {1.0, 0.0, 0.0, 1.0};
+    float expectedGreen[4] = {1.0, 0.0, 0.0, 1.0};
+
+    // The default non-filtering sampler should return red at (0.5, 0.5), and green at (0.6, 0.6)
+    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedRed, resultBuffer, 0 * 4 * sizeof(float), 4);
+    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedGreen, resultBuffer, 1 * 4 * sizeof(float), 4);
+
+    // The default filtering sampler is actually a non-filtering one, so should return the same
+    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedRed, resultBuffer, 2 * 4 * sizeof(float), 4);
+    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedGreen, resultBuffer, 3 * 4 * sizeof(float), 4);
+
+    // The comparison sampler is an 'always' one, so it should return 1.0, which the shader returns
+    // in two of the vector elements.
+    float expectedCompare[4] = {1.0, 42.0, 1.0, 83.5};
+    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedCompare, resultBuffer, 4 * 4 * sizeof(float), 4);
+}
+
+// Test that removing then adding a new sampler in a slot that already has a sampler of the same
+// type (e.g. filterable) works as expected. This ensures, for example, that the metadata buffer
+// gets an updated sampler index on D3D12.
+TEST_P(ResourceTableTests, RemoveThenAddSamplerInSameSlot) {
+    // TODO(https://issues.chromium.org/issues/490066027): Fails on Mali G78
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsARM());
+    // TODO(https://crbug.com/510904606): Fails on LLVMPipe
+    DAWN_SUPPRESS_TEST_IF(IsMesaSoftware());
+
+    wgpu::ShaderModule module = utils::CreateShaderModule(device, R"(
+        enable chromium_experimental_resource_table;
+
+        @group(0) @binding(0) var<storage, read_write> results : array<vec4f>;
+
+        @vertex fn vs() -> @builtin(position) vec4f {
+            return vec4f(0, 0, 0.5, 0.5);
+        }
+
+        @fragment fn fs() -> @location(0) vec4f {
+            let t = getResource<texture_2d<f32>>(0);
+            let s = getResource<sampler>(1);
+
+            results[0] = textureSample(t, s, vec2f(1, 0));
+            results[1] = textureSample(t, s, vec2f(1.5, 0));
+            return vec4f(0);
+        }
+    )");
+
+    // Create the pipeline.
+    utils::ComboRenderPipelineDescriptor pDesc;
+    pDesc.vertex.module = module;
+    pDesc.cFragment.module = module;
+    pDesc.cTargets[0].format = wgpu::TextureFormat::RGBA8Unorm;
+    pDesc.primitive.topology = wgpu::PrimitiveTopology::PointList;
+    wgpu::RenderPipeline pipeline = device.CreateRenderPipeline(&pDesc);
+
+    // Create texture
+    wgpu::Texture texture = CreateCheckerboardTexture();
+    texture.Pin(wgpu::TextureUsage::TextureBinding);
+
+    // Create samplers
+    wgpu::Sampler samplerRepeat = CreateSampler(wgpu::AddressMode::Repeat);
+    wgpu::Sampler samplerMirror = CreateSampler(wgpu::AddressMode::MirrorRepeat);
+
+    // Create the result buffer resource
+    wgpu::BufferDescriptor bDesc = {
+        .usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc,
+        .size = sizeof(float) * 4 * 2,  // 2 vec4fs
+    };
+    wgpu::Buffer resultBuffer = device.CreateBuffer(&bDesc);
+    wgpu::BindGroup resultBG =
+        utils::MakeBindGroup(device, pipeline.GetBindGroupLayout(0), {{0, resultBuffer}});
+
+    // Create resource table
+    wgpu::ResourceTable table = MakeResourceTable(2, {
+                                                         {0, {.textureView = texture.CreateView()}},
+                                                     });
+
+    utils::BasicRenderPass renderPass = utils::CreateBasicRenderPass(device, 1, 1);
+
+    auto draw = [&]() {
+        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPass.renderPassInfo);
+        pass.SetPipeline(pipeline);
+        pass.SetBindGroup(0, resultBG);
+        pass.SetResourceTable(table);
+        pass.Draw(1);
+        pass.End();
+        wgpu::CommandBuffer commands = encoder.Finish();
+        queue.Submit(1, &commands);
+    };
+
+    wgpu::BindingResource res;
     float expectedGreen[4] = {0.0, 1.0, 0.0, 1.0};
     float expectedRed[4] = {1.0, 0.0, 0.0, 1.0};
+
+    // Add repeat sampler and draw
+    res = {.sampler = samplerRepeat};
+    EXPECT_EQ(wgpu::Status::Success, table.Update(1, &res));
+    draw();
 
     // repeat: 1,0 -> red, 1.5,0 -> green
     EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedRed, resultBuffer, 0 * 4 * sizeof(float), 4);
     EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedGreen, resultBuffer, 1 * 4 * sizeof(float), 4);
 
+    // Now test removing then adding mirror sampler
+    EXPECT_EQ(wgpu::Status::Success, table.RemoveBinding(1));
+    WaitForAllOperations();
+    res = {.sampler = samplerMirror};
+    EXPECT_EQ(wgpu::Status::Success, table.Update(1, &res));
+    draw();
+
     // mirror: 1,0 -> green, 1.5,0 -> red
-    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedGreen, resultBuffer, 2 * 4 * sizeof(float), 4);
-    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedRed, resultBuffer, 3 * 4 * sizeof(float), 4);
+    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedGreen, resultBuffer, 0 * 4 * sizeof(float), 4);
+    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedRed, resultBuffer, 1 * 4 * sizeof(float), 4);
+}
+
+// Test that adding and removing samplers in the same slot between draws ensure that
+// backends only see the effective diff (first one added to last one added).
+TEST_P(ResourceTableTests, RemoveThenAddSamplerMultipleInSameSlot) {
+    // TODO(https://issues.chromium.org/issues/490066027): Fails on Mali G78
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsARM());
+
+    wgpu::ShaderModule module = utils::CreateShaderModule(device, R"(
+        enable chromium_experimental_resource_table;
+
+        @group(0) @binding(0) var<storage, read_write> results : array<vec4f>;
+
+        @vertex fn vs() -> @builtin(position) vec4f {
+            return vec4f(0, 0, 0.5, 0.5);
+        }
+
+        @fragment fn fs() -> @location(0) vec4f {
+            let t = getResource<texture_2d<f32>>(0);
+            let s = getResource<sampler>(1);
+
+            results[0] = textureSample(t, s, vec2f(1, 0));
+            results[1] = textureSample(t, s, vec2f(1.5, 0));
+            return vec4f(0);
+        }
+    )");
+
+    // Create the pipeline.
+    utils::ComboRenderPipelineDescriptor pDesc;
+    pDesc.vertex.module = module;
+    pDesc.cFragment.module = module;
+    pDesc.cTargets[0].format = wgpu::TextureFormat::RGBA8Unorm;
+    pDesc.primitive.topology = wgpu::PrimitiveTopology::PointList;
+    wgpu::RenderPipeline pipeline = device.CreateRenderPipeline(&pDesc);
+
+    // Create texture
+    wgpu::Texture texture = CreateCheckerboardTexture();
+    texture.Pin(wgpu::TextureUsage::TextureBinding);
+
+    // Create samplers
+    wgpu::Sampler samplerRepeat = CreateSampler(wgpu::AddressMode::Repeat);
+    wgpu::Sampler samplerMirror[] = {
+        // Create different types to make sure they don't get de-duped
+        CreateSampler(wgpu::AddressMode::MirrorRepeat, wgpu::CompareFunction::Always),
+        CreateSampler(wgpu::AddressMode::MirrorRepeat, wgpu::CompareFunction::Equal),
+        CreateSampler(wgpu::AddressMode::MirrorRepeat, wgpu::CompareFunction::GreaterEqual)};
+    wgpu::Sampler samplerClamp = CreateSampler(wgpu::AddressMode::ClampToEdge);
+
+    // Create the result buffer resource
+    wgpu::BufferDescriptor bDesc = {
+        .usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc,
+        .size = sizeof(float) * 4 * 2,  // 2 vec4fs
+    };
+    wgpu::Buffer resultBuffer = device.CreateBuffer(&bDesc);
+    wgpu::BindGroup resultBG =
+        utils::MakeBindGroup(device, pipeline.GetBindGroupLayout(0), {{0, resultBuffer}});
+
+    // Create resource table and add the samplers and texture view to it
+    wgpu::ResourceTable table = MakeResourceTable(2, {
+                                                         {0, {.textureView = texture.CreateView()}},
+                                                     });
+
+    utils::BasicRenderPass renderPass = utils::CreateBasicRenderPass(device, 1, 1);
+
+    auto draw = [&]() {
+        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPass.renderPassInfo);
+        pass.SetPipeline(pipeline);
+        pass.SetBindGroup(0, resultBG);
+        pass.SetResourceTable(table);
+        pass.Draw(1);
+        pass.End();
+        wgpu::CommandBuffer commands = encoder.Finish();
+        queue.Submit(1, &commands);
+    };
+
+    wgpu::BindingResource res;
+    float expectedGreen[4] = {0.0, 1.0, 0.0, 1.0};
+    float expectedRed[4] = {1.0, 0.0, 0.0, 1.0};
+
+    // Add repeat sampler and draw
+    res = {.sampler = samplerRepeat};
+    EXPECT_EQ(wgpu::Status::Success, table.Update(1, &res));
+    draw();
+
+    // repeat: 1,0 -> red, 1.5,0 -> green
+    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedRed, resultBuffer, 0 * 4 * sizeof(float), 4);
+    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedGreen, resultBuffer, 1 * 4 * sizeof(float), 4);
+
+    // Remove then add mirror samplers
+    for (auto sampler : samplerMirror) {
+        EXPECT_EQ(wgpu::Status::Success, table.RemoveBinding(1));
+        WaitForAllOperations();
+        res = {.sampler = sampler};
+        EXPECT_EQ(wgpu::Status::Success, table.Update(1, &res));
+    }
+
+    // Finally, remove and add clamp sampler
+    EXPECT_EQ(wgpu::Status::Success, table.RemoveBinding(1));
+    WaitForAllOperations();
+    res = {.sampler = samplerClamp};
+    EXPECT_EQ(wgpu::Status::Success, table.Update(1, &res));
+
+    // Now draw. Backends should basically ignore the adding and removal of the mirror sampler.
+    draw();
 
     // clamp: 1,0 -> green, 1.5,0 -> green
-    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedGreen, resultBuffer, 4 * 4 * sizeof(float), 4);
-    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedGreen, resultBuffer, 5 * 4 * sizeof(float), 4);
+    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedGreen, resultBuffer, 0 * 4 * sizeof(float), 4);
+    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedGreen, resultBuffer, 1 * 4 * sizeof(float), 4);
+}
+
+// Test what happens when we add more than kD3D12MaxUniqueSamplers unique samplers
+TEST_P(ResourceTableTests, AddUniqueSamplersOverLimit) {
+    // TODO(https://issues.chromium.org/issues/490066027): Fails on Mali G78
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsARM());
+
+    wgpu::ComputePipelineDescriptor csDesc;
+    csDesc.compute.module = utils::CreateShaderModule(device, R"(
+        enable chromium_experimental_resource_table;
+        @compute @workgroup_size(1) fn main() {
+            _ = hasResource<texture_2d<f32>>(0);
+        }
+    )");
+    auto pipeline = device.CreateComputePipeline(&csDesc);
+
+    auto dispatch = [&](wgpu::ResourceTable table, bool shouldSucceed = true) {
+        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+        wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+        pass.SetResourceTable(table);
+        pass.SetPipeline(pipeline);
+        pass.DispatchWorkgroups(1);
+        pass.End();
+        wgpu::CommandBuffer commands = encoder.Finish();
+        if (shouldSucceed) {
+            queue.Submit(1, &commands);
+        } else {
+            ASSERT_DEVICE_ERROR(queue.Submit(1, &commands));
+        }
+    };
+
+    wgpu::ResourceTable table = MakeResourceTable(2049);
+
+    // Initial draw so that default resources are processed
+    dispatch(table);
+
+    // Add kD3D12MaxUniqueSamplers, should all succeed
+    for (auto i : Range(kD3D12MaxUniqueSamplers)) {
+        wgpu::BindingResource br{.sampler = CreateUniqueSampler(i)};
+        EXPECT_EQ(wgpu::Status::Success, table.Update(i, &br));
+    }
+
+    dispatch(table);
+
+    // Now add one more, should fail
+    {
+        wgpu::BindingResource br{.sampler = CreateUniqueSampler(kD3D12MaxUniqueSamplers)};
+        EXPECT_EQ(wgpu::Status::Success, table.Update(kD3D12MaxUniqueSamplers, &br));
+    }
+
+    bool shouldSucceed = !IsD3D12();
+    dispatch(table, shouldSucceed);
+}
+
+// Test that adding a sampler, draw, then remove and add a duplicate sampler and draw works. This
+// tests that deduplication logic handles when no more refs are left to a sampler, and then a
+// duplicate sampler is added back. On D3D12, internally this may result in a new sampler index,
+// which should be fine.
+TEST_P(ResourceTableTests, RemoveAddDuplicateSampler) {
+    // TODO(https://issues.chromium.org/issues/490066027): Fails on Mali G78
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsARM());
+
+    wgpu::ComputePipelineDescriptor csDesc;
+    csDesc.compute.module = utils::CreateShaderModule(device, R"(
+        enable chromium_experimental_resource_table;
+        @compute @workgroup_size(1) fn main() {
+            _ = hasResource<texture_2d<f32>>(0);
+        }
+    )");
+    auto pipeline = device.CreateComputePipeline(&csDesc);
+
+    auto dispatch = [&](wgpu::ResourceTable table) {
+        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+        wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+        pass.SetResourceTable(table);
+        pass.SetPipeline(pipeline);
+        pass.DispatchWorkgroups(1);
+        pass.End();
+        wgpu::CommandBuffer commands = encoder.Finish();
+        queue.Submit(1, &commands);
+    };
+
+    wgpu::ResourceTable table = MakeResourceTable(2);
+
+    // Initial draw so that default resources are processed
+    dispatch(table);
+
+    {
+        // Add a unique sampler in slot 1
+        wgpu::BindingResource br{.sampler = CreateUniqueSampler(42)};
+        EXPECT_EQ(wgpu::Status::Success, table.Update(1, &br));
+    }
+    dispatch(table);
+
+    {
+        // Remove the sampler in slot 1
+        EXPECT_EQ(wgpu::Status::Success, table.RemoveBinding(1));
+
+        WaitForAllOperations();
+
+        // Add another sampler in slot 0
+        // This is to coax the backend into potentially assigning a different sampler index for this
+        // same sampler.
+        wgpu::BindingResource br{.sampler = CreateUniqueSampler(123)};
+        EXPECT_EQ(wgpu::Status::Success, table.Update(0, &br));
+
+        // Add back the origin sampler in slot 1
+        wgpu::BindingResource br2{.sampler = CreateUniqueSampler(42)};
+        EXPECT_EQ(wgpu::Status::Success, table.Update(1, &br2));
+    }
+
+    dispatch(table);
+}
+
+// On D3D12 the number of sampler descriptors in a GPU heap is limited to 2048. We deduplicate
+// samplers, so test that we can add more than 2048 samplers to the resource table, as long as there
+// are duplicates. We test this by creating a table of size 2*2048, add 2048 unique samplers in the
+// first half of the table, then add the same set of sampers in the second half of the table.
+TEST_P(ResourceTableTests, AddDuplicateSamplersTwice) {
+    // TODO(https://issues.chromium.org/issues/490066027): Fails on Mali G78
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsARM());
+
+    wgpu::ComputePipelineDescriptor csDesc;
+    csDesc.compute.module = utils::CreateShaderModule(device, R"(
+        enable chromium_experimental_resource_table;
+        @compute @workgroup_size(1) fn main() {
+            _ = hasResource<texture_2d<f32>>(0);
+        }
+    )");
+    auto pipeline = device.CreateComputePipeline(&csDesc);
+
+    auto dispatch = [&](wgpu::ResourceTable table) {
+        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+        wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+        pass.SetResourceTable(table);
+        pass.SetPipeline(pipeline);
+        pass.DispatchWorkgroups(1);
+        pass.End();
+        wgpu::CommandBuffer commands = encoder.Finish();
+        queue.Submit(1, &commands);
+    };
+
+    // Make a table with double the max number of unique samplers on D3D12.
+    wgpu::ResourceTable table = MakeResourceTable(kD3D12MaxUniqueSamplers * 2);
+
+    // Add samplers to slots 0..kD3D12MaxUniqueSamplers-1
+    for (uint32_t i : Range(kD3D12MaxUniqueSamplers)) {
+        wgpu::BindingResource br{.sampler = CreateUniqueSampler(i)};
+        EXPECT_EQ(wgpu::Status::Success, table.Update(i, &br));
+    }
+
+    // Draw so that the CPU to GPU sampler heap creation and copy occurs.
+    dispatch(table);
+
+    // Add the same samplers to slots kD3D12MaxUniqueSamplers..kD3D12MaxUniqueSamplers*2-1
+    for (uint32_t i : Range(kD3D12MaxUniqueSamplers)) {
+        wgpu::BindingResource br{.sampler = CreateUniqueSampler(i)};
+        EXPECT_EQ(wgpu::Status::Success, table.Update(i + kD3D12MaxUniqueSamplers, &br));
+    }
+
+    // Draw again. If we didn't handle removal of samplers correctly, this will fail
+    // for surpassing the 2048 sampler descriptor per heap limit.
+    dispatch(table);
+}
+
+// On D3D12 the number of sampler descriptors in a GPU heap is limited to 2048. This test
+// allocates a resource table larger than that, adds 2048 unique samplers, draws, removes them all,
+// then adds 2048 unique samplers (different from the first set) again in different slots,
+// and draws again, making sure this is supported. Effectively, this tests that the resource table
+// correctly handles removal of samplers.
+TEST_P(ResourceTableTests, AddAndRemoveMaxSamplersTwice) {
+    // TODO(https://issues.chromium.org/issues/490066027): Fails on Mali G78
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsARM());
+    // TODO(https://issues.chromium.org/issues/512829734): Fails on Vulkan if
+    // VkPhysicalDeviceLimits::maxSamplerAllocationCount <= 4K
+    DAWN_SUPPRESS_TEST_IF(IsVulkan() && IsWindows() && IsIntel());
+
+    wgpu::ComputePipelineDescriptor csDesc;
+    csDesc.compute.module = utils::CreateShaderModule(device, R"(
+        enable chromium_experimental_resource_table;
+        @compute @workgroup_size(1) fn main() {
+            _ = hasResource<texture_2d<f32>>(0);
+        }
+    )");
+    auto pipeline = device.CreateComputePipeline(&csDesc);
+
+    auto dispatch = [&](wgpu::ResourceTable table) {
+        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+        wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+        pass.SetResourceTable(table);
+        pass.SetPipeline(pipeline);
+        pass.DispatchWorkgroups(1);
+        pass.End();
+        wgpu::CommandBuffer commands = encoder.Finish();
+        queue.Submit(1, &commands);
+    };
+
+    // Make a table with double the max number of samplers on D3D12.
+    wgpu::ResourceTable table = MakeResourceTable(kD3D12MaxUniqueSamplers * 2);
+
+    // Add samplers to slots 0..kD3D12MaxUniqueSamplers-1
+    for (uint32_t i : Range(kD3D12MaxUniqueSamplers)) {
+        // Make samplers unique by making one of the values different for each
+        wgpu::BindingResource br{.sampler = CreateUniqueSampler(i)};
+        EXPECT_EQ(wgpu::Status::Success, table.Update(i, &br));
+    }
+
+    // Draw so that the CPU to GPU sampler heap creation and copy occurs.
+    dispatch(table);
+
+    // Remove all samplers
+    for (uint32_t i : Range(kD3D12MaxUniqueSamplers)) {
+        EXPECT_EQ(wgpu::Status::Success, table.RemoveBinding(i));
+    }
+
+    // Add different samplers to slots kD3D12MaxUniqueSamplers..kD3D12MaxUniqueSamplers*2-1
+    for (uint32_t i : Range(kD3D12MaxUniqueSamplers)) {
+        wgpu::BindingResource br{.sampler = CreateUniqueSampler(kD3D12MaxUniqueSamplers + i)};
+        EXPECT_EQ(wgpu::Status::Success, table.Update(i + kD3D12MaxUniqueSamplers, &br));
+    }
+
+    // Draw again. If we didn't handle removal of samplers correctly, this will fail
+    // for surpassing the 2048 sampler descriptor per heap limit.
+    dispatch(table);
+}
+
+// Test that removing then adding a texture in a slot works as expected.
+TEST_P(ResourceTableTests, RemoveThenAddTextureInSameSlot) {
+    // TODO(https://issues.chromium.org/issues/490066027): Fails on Mali G78
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsARM());
+
+    wgpu::ShaderModule module = utils::CreateShaderModule(device, R"(
+        enable chromium_experimental_resource_table;
+
+        @group(0) @binding(0) var<storage, read_write> results : array<vec4f>;
+
+        @vertex fn vs() -> @builtin(position) vec4f {
+            return vec4f(0, 0, 0.5, 0.5);
+        }
+
+        @fragment fn fs() -> @location(0) vec4f {
+            let t = getResource<texture_2d<f32>>(0);
+            let s = getResource<sampler>(1);
+            results[0] = textureSample(t, s, vec2f(0.5, 0.5));
+            return vec4f(0);
+        }
+    )");
+
+    // Create the pipeline.
+    utils::ComboRenderPipelineDescriptor pDesc;
+    pDesc.vertex.module = module;
+    pDesc.cFragment.module = module;
+    pDesc.cTargets[0].format = wgpu::TextureFormat::RGBA8Unorm;
+    pDesc.primitive.topology = wgpu::PrimitiveTopology::PointList;
+    wgpu::RenderPipeline pipeline = device.CreateRenderPipeline(&pDesc);
+
+    // Create textures
+    wgpu::Texture textureRed = CreateColorTexture(utils::RGBA8::kRed);
+    wgpu::Texture textureGreen = CreateColorTexture(utils::RGBA8::kGreen);
+    textureRed.Pin(wgpu::TextureUsage::TextureBinding);
+    textureGreen.Pin(wgpu::TextureUsage::TextureBinding);
+
+    // Create the result buffer resource
+    wgpu::BufferDescriptor bDesc = {
+        .usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc,
+        .size = sizeof(float) * 4,  // 1 vec4fs
+    };
+    wgpu::Buffer resultBuffer = device.CreateBuffer(&bDesc);
+    wgpu::BindGroup resultBG =
+        utils::MakeBindGroup(device, pipeline.GetBindGroupLayout(0), {{0, resultBuffer}});
+
+    // Create resource table
+    wgpu::ResourceTable table = MakeResourceTable(1);
+
+    utils::BasicRenderPass renderPass = utils::CreateBasicRenderPass(device, 1, 1);
+
+    auto draw = [&]() {
+        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPass.renderPassInfo);
+        pass.SetPipeline(pipeline);
+        pass.SetBindGroup(0, resultBG);
+        pass.SetResourceTable(table);
+        pass.Draw(1);
+        pass.End();
+        wgpu::CommandBuffer commands = encoder.Finish();
+        queue.Submit(1, &commands);
+    };
+
+    wgpu::BindingResource res;
+    float expectedRed[4] = {1.0, 0.0, 0.0, 1.0};
+    float expectedGreen[4] = {0.0, 1.0, 0.0, 1.0};
+
+    // Add red texture and draw
+    res = {.textureView = textureRed.CreateView()};
+    EXPECT_EQ(wgpu::Status::Success, table.Update(0, &res));
+    draw();
+    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedRed, resultBuffer, 0, 4);
+
+    // Now test removing and adding the green texture in the same slot
+    EXPECT_EQ(wgpu::Status::Success, table.RemoveBinding(0));
+    WaitForAllOperations();
+    res = {.textureView = textureGreen.CreateView()};
+    EXPECT_EQ(wgpu::Status::Success, table.Update(0, &res));
+    draw();
+    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedGreen, resultBuffer, 0, 4);
+}
+
+// Test that adding and removing textures in the same slot between draws ensure that
+// backends only see the effective diff (first one added to last one added).
+TEST_P(ResourceTableTests, RemoveThenAddTextureMultipleInSameSlot) {
+    // TODO(https://issues.chromium.org/issues/490066027): Fails on Mali G78
+    DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsARM());
+
+    wgpu::ShaderModule module = utils::CreateShaderModule(device, R"(
+        enable chromium_experimental_resource_table;
+
+        @group(0) @binding(0) var<storage, read_write> results : array<vec4f>;
+
+        @vertex fn vs() -> @builtin(position) vec4f {
+            return vec4f(0, 0, 0.5, 0.5);
+        }
+
+        @fragment fn fs() -> @location(0) vec4f {
+            let t = getResource<texture_2d<f32>>(0);
+            let s = getResource<sampler>(1);
+            results[0] = textureSample(t, s, vec2f(0.5, 0.5));
+            return vec4f(0);
+        }
+    )");
+
+    // Create the pipeline.
+    utils::ComboRenderPipelineDescriptor pDesc;
+    pDesc.vertex.module = module;
+    pDesc.cFragment.module = module;
+    pDesc.cTargets[0].format = wgpu::TextureFormat::RGBA8Unorm;
+    pDesc.primitive.topology = wgpu::PrimitiveTopology::PointList;
+    wgpu::RenderPipeline pipeline = device.CreateRenderPipeline(&pDesc);
+
+    // Create textures
+    wgpu::Texture textureRed = CreateColorTexture(utils::RGBA8::kRed);
+    wgpu::Texture textureGreen = CreateColorTexture(utils::RGBA8::kGreen);
+    wgpu::Texture textureBlue = CreateColorTexture(utils::RGBA8::kBlue);
+    textureRed.Pin(wgpu::TextureUsage::TextureBinding);
+    textureGreen.Pin(wgpu::TextureUsage::TextureBinding);
+    textureBlue.Pin(wgpu::TextureUsage::TextureBinding);
+
+    // Create the result buffer resource
+    wgpu::BufferDescriptor bDesc = {
+        .usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc,
+        .size = sizeof(float) * 4,  // 1 vec4fs
+    };
+    wgpu::Buffer resultBuffer = device.CreateBuffer(&bDesc);
+    wgpu::BindGroup resultBG =
+        utils::MakeBindGroup(device, pipeline.GetBindGroupLayout(0), {{0, resultBuffer}});
+
+    // Create resource table
+    wgpu::ResourceTable table = MakeResourceTable(1);
+
+    utils::BasicRenderPass renderPass = utils::CreateBasicRenderPass(device, 1, 1);
+
+    auto draw = [&]() {
+        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&renderPass.renderPassInfo);
+        pass.SetPipeline(pipeline);
+        pass.SetBindGroup(0, resultBG);
+        pass.SetResourceTable(table);
+        pass.Draw(1);
+        pass.End();
+        wgpu::CommandBuffer commands = encoder.Finish();
+        queue.Submit(1, &commands);
+    };
+
+    wgpu::BindingResource res;
+    float expectedRed[4] = {1.0, 0.0, 0.0, 1.0};
+    float expectedBlue[4] = {0.0, 0.0, 1.0, 1.0};
+
+    // Add red texture and draw
+    res = {.textureView = textureRed.CreateView()};
+    EXPECT_EQ(wgpu::Status::Success, table.Update(0, &res));
+    draw();
+    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedRed, resultBuffer, 0, 4);
+
+    // Remove then add green texture (this could be done in a loop with multiple textures)
+    EXPECT_EQ(wgpu::Status::Success, table.RemoveBinding(0));
+    WaitForAllOperations();
+    res = {.textureView = textureGreen.CreateView()};
+    EXPECT_EQ(wgpu::Status::Success, table.Update(0, &res));
+
+    // Now test removing and adding the blue texture in the same slot
+    EXPECT_EQ(wgpu::Status::Success, table.RemoveBinding(0));
+    WaitForAllOperations();
+    res = {.textureView = textureBlue.CreateView()};
+    EXPECT_EQ(wgpu::Status::Success, table.Update(0, &res));
+    draw();
+    EXPECT_BUFFER_FLOAT_RANGE_EQ(expectedBlue, resultBuffer, 0, 4);
 }
 
 // Check that Pin forces zero-initialization of the resources.
@@ -1789,7 +2542,7 @@ TEST_P(ResourceTableTests, SwitchUseResourceTableAndNot) {
         var<immediate> resultIndex : u32;
 
         @fragment fn yes_resource_table() -> @location(0) vec4f {
-            results[resultIndex] = 10 + u32(hasResource<texture_2d<f32, filterable>>(resultIndex));
+            results[resultIndex] = 10 + u32(hasResource<texture_2d<f32>>(resultIndex));
             return vec4();
         }
 
@@ -1878,6 +2631,13 @@ TEST_P(ResourceTableTests, SwitchUseResourceTableAndNot) {
     EXPECT_BUFFER_U32_EQ(10, resultBuffer, 4);
     EXPECT_BUFFER_U32_EQ(42, resultBuffer, 8);
 }
+
+// TODO(479179409): Add tests for dynamic validation of filterability
+//   - BGL has tex2d, shader has tex1d, swap in default tex1d
+//   - BGL has sampler_comparison, shader has sampler, swap in sampler
+//   - BGL has unfilterable texture and filtering sampler, swap sampler to non_filternig
+//   - BGL has unfilterable texture, bind-less filtering sampler, swap texture
+//   - bind-less unfilterable texture, BGL has filtering sampler, swap sampler
 
 DAWN_INSTANTIATE_TEST(ResourceTableTests, D3D12Backend(), MetalBackend(), VulkanBackend());
 

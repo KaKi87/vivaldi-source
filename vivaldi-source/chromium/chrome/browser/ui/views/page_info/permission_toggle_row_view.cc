@@ -47,8 +47,11 @@ const ui::ImageModel GetManagedPermissionIcon(
     const PageInfo::PermissionInfo& info) {
   const gfx::VectorIcon& managed_vector_icon =
       info.source == content_settings::SettingSource::kExtension
-          ? vector_icons::kExtensionIcon
-          : vector_icons::kBusinessIcon;
+          ? features::IsRoundedIconsEnabled()
+                ? vector_icons::kExtensionFilledIcon
+                : vector_icons::kExtensionOldIcon
+      : features::IsRoundedIconsEnabled() ? vector_icons::kDomainIcon
+                                          : vector_icons::kBusinessOldIcon;
   return PageInfoViewFactory::GetImageModel(managed_vector_icon);
 }
 
@@ -58,6 +61,8 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(PermissionToggleRowView,
                                       kRowSubTitleCameraElementId);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(PermissionToggleRowView,
                                       kRowSubTitleMicrophoneElementId);
+DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(PermissionToggleRowView,
+                                      kSubpageButtonElementId);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(
     PermissionToggleRowView,
     kPermissionDisabledAtSystemLevelElementId);
@@ -238,7 +243,12 @@ void PermissionToggleRowView::InitForUserSource(
                   row->permission_.type);
             },
             base::Unretained(this)),
-        vector_icons::kSubmenuArrowChromeRefreshIcon, icon_size);
+        features::IsRoundedIconsEnabled()
+            ? vector_icons::kKeyboardArrowRightFlippableIcon
+            : vector_icons::kSubmenuArrowChromeRefreshOldIcon,
+        icon_size);
+    subpage_button->SetProperty(views::kElementIdentifierKey,
+                                kSubpageButtonElementId);
     subpage_button->SetTooltipText(
         PageInfoUI::PermissionSubpageButtonTooltipString(permission_.type));
     views::InstallCircleHighlightPathGenerator(subpage_button.get());

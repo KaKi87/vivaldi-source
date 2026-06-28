@@ -8,10 +8,10 @@
 #include "base/notreached.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/passwords/passwords_model_delegate.h"
 #include "chrome/browser/ui/views/accessibility/theme_tracking_non_accessible_image_view.h"
 #include "chrome/browser/ui/views/bubble_anchor_util_views.h"
@@ -21,7 +21,6 @@
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/page_action/page_action_view.h"
-#include "chrome/browser/ui/views/passwords/manage_passwords_icon_views.h"
 #include "chrome/browser/ui/views/passwords/manage_passwords_view.h"
 #include "chrome/browser/ui/views/passwords/move_to_account_store_bubble_view.h"
 #include "chrome/browser/ui/views/passwords/password_add_username_view.h"
@@ -37,10 +36,10 @@
 #include "chrome/browser/ui/views/webauthn/passkey_saved_confirmation_view.h"
 #include "chrome/browser/ui/views/webauthn/passkey_updated_confirmation_view.h"
 #include "chrome/browser/ui/views/webauthn/passkey_upgrade_bubble_view.h"
-#include "chrome/grit/generated_resources.h"
 #include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/common/password_manager_ui.h"
+#include "components/tabs/public/tab_interface.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/controls/button/button.h"
 
@@ -65,24 +64,25 @@ PasswordBubbleViewBase* PasswordBubbleViewBase::g_manage_passwords_bubble_ =
 // static
 void PasswordBubbleViewBase::ShowBubble(content::WebContents* web_contents,
                                         DisplayReason reason) {
-  Browser* browser = chrome::FindBrowserWithTab(web_contents);
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents);
   DCHECK(browser);
-  DCHECK(browser->window());
+  DCHECK(browser->GetWindow());
   DCHECK(!g_manage_passwords_bubble_ ||
          !g_manage_passwords_bubble_->GetWidget()->IsVisible());
 
   if (browser->is_vivaldi()) {
     VivaldiBrowserWindow* window =
-        static_cast<VivaldiBrowserWindow*>(browser->window());
+        static_cast<VivaldiBrowserWindow*>(browser->GetWindow());
     views::View* contents_view = window->GetContentsView();
     bool is_fullscreen = window->IsFullscreen();
 
     extensions::VivaldiUtilitiesAPI* api =
         extensions::VivaldiUtilitiesAPI::GetFactoryInstance()->Get(
-            browser->profile());
+            browser->GetProfile());
 
     std::string flow_direction;
-    gfx::Rect rect(api->GetDialogPosition(browser->session_id().id(),
+    gfx::Rect rect(api->GetDialogPosition(browser->GetSessionID().id(),
                                           "password", &flow_direction));
 
     // Normalize the rect
@@ -98,8 +98,7 @@ void PasswordBubbleViewBase::ShowBubble(content::WebContents* web_contents,
     ConvertRectToScreen(contents_view, &rect);
     rect.set_x(pos.x() - (rect.width() / 2));
 
-    PasswordBubbleViewBase* bubble =
-        CreateBubble(web_contents, nullptr, reason);
+    PasswordBubbleViewBase* bubble = CreateBubble(web_contents, {}, reason);
     DCHECK(bubble);
     DCHECK(bubble == g_manage_passwords_bubble_);
 
@@ -117,7 +116,19 @@ void PasswordBubbleViewBase::ShowBubble(content::WebContents* web_contents,
     if (is_fullscreen) {
       g_manage_passwords_bubble_->AdjustForFullscreen(
           contents_view->GetBoundsInScreen());
+    } else {
+#if BUILDFLAG(IS_LINUX)
+      // Workaround for Linux/X11. Wayland does not need this, but use same
+      // behavior.
+      int right = contents_view->GetContentsBounds().right();
+      if (rect.x() + g_manage_passwords_bubble_->width() > right) {
+        int new_x = contents_view->GetBoundsInScreen().x() + right -
+            g_manage_passwords_bubble_->width();
+        rect.set_x(new_x < 0 ? 0 : new_x);
+      }
+#endif
     }
+
     g_manage_passwords_bubble_->ShowForReason(reason);
     g_manage_passwords_bubble_->RegisterWindowClosingCallback(
         base::BindOnce([]() { g_manage_passwords_bubble_ = nullptr; }));
@@ -161,14 +172,14 @@ void PasswordBubbleViewBase::ShowBubble(content::WebContents* web_contents,
       },
       bubble));
 
-    auto* passwords_action_item = actions::ActionManager::Get().FindAction(
-        kActionShowPasswordsBubbleOrPage,
-        browser->browser_actions()->root_action_item());
-    CHECK(passwords_action_item);
-    bool should_suppress_next_button_trigger =
-        g_manage_passwords_bubble_->ShouldCloseOnDeactivate();
-    passwords_action_item->SetIsShowingBubble(
-        should_suppress_next_button_trigger);
+  auto* passwords_action_item = actions::ActionManager::Get().FindAction(
+      kActionShowPasswordsBubbleOrPage,
+      browser->GetActions()->root_action_item());
+  CHECK(passwords_action_item);
+  bool should_suppress_next_button_trigger =
+      g_manage_passwords_bubble_->ShouldCloseOnDeactivate();
+  passwords_action_item->SetIsShowingBubble(
+      should_suppress_next_button_trigger);
 }
 
 // static
@@ -298,7 +309,12 @@ PasswordBubbleViewBase::PasswordBubbleViewBase(
       views::DISTANCE_BUBBLE_PREFERRED_WIDTH));
   set_close_on_deactivate(easily_dismissable);
 
-  browser_ = chrome::FindBrowserWithTab(web_contents);
+  // Unit tests can create password bubbles with bare TestWebContents that are
+  // not attached to a tab, so only cache the browser when one exists.
+  if (tabs::TabInterface* const tab =
+          tabs::TabInterface::MaybeGetFromContents(web_contents)) {
+    browser_ = tab->GetBrowserWindowInterface();
+  }
 }
 
 PasswordBubbleViewBase::~PasswordBubbleViewBase() {
@@ -307,7 +323,7 @@ PasswordBubbleViewBase::~PasswordBubbleViewBase() {
   if (browser_) {
     auto* passwords_action_item = actions::ActionManager::Get().FindAction(
         kActionShowPasswordsBubbleOrPage,
-        browser_->browser_actions()->root_action_item());
+        browser_->GetActions()->root_action_item());
     CHECK(passwords_action_item);
     passwords_action_item->SetIsShowingBubble(false);
   }

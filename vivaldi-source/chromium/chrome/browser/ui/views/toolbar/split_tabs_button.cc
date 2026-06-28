@@ -34,6 +34,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/menu_source_utils.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/vector_icon_types.h"
 #include "ui/menus/simple_menu_model.h"
@@ -41,9 +42,6 @@
 #include "ui/views/controls/button/menu_button_controller.h"
 #include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/view_class_properties.h"
-
-DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(SplitTabsToolbarButton,
-                                      kUpdatePinStateMenu);
 
 SplitTabsToolbarButton::SplitTabsToolbarButton(Browser* browser)
     : ToolbarButton(
@@ -55,7 +53,6 @@ SplitTabsToolbarButton::SplitTabsToolbarButton(Browser* browser)
       browser_(browser) {
   SetProperty(views::kElementIdentifierKey,
               kToolbarSplitTabsToolbarButtonElementId);
-  set_menu_identifier(kUpdatePinStateMenu);
   SetButtonController(std::make_unique<views::MenuButtonController>(
       this,
       base::BindRepeating(&SplitTabsToolbarButton::ButtonPressed,
@@ -145,6 +142,10 @@ bool SplitTabsToolbarButton::IsActiveTabInSplit() {
 
 void SplitTabsToolbarButton::ButtonPressed(const ui::Event& event) {
   if (IsActiveTabInSplit()) {
+    if (menu_runner_ && menu_runner_->IsRunning()) {
+      menu_runner_->Cancel();
+      return;
+    }
     menu_runner_ = std::make_unique<views::MenuRunner>(
         split_tab_menu_.get(), views::MenuRunner::HAS_MNEMONICS);
     menu_runner_->RunMenuAt(
@@ -153,7 +154,7 @@ void SplitTabsToolbarButton::ButtonPressed(const ui::Event& event) {
         GetAnchorBoundsInScreen(), views::MenuAnchorPosition::kTopLeft,
         ui::GetMenuSourceTypeForEvent(event));
   } else {
-    chrome::NewSplitTab(browser_,
+    chrome::NewSplitTab(browser_, split_tabs::SplitTabLayout::kSideBySide,
                         split_tabs::SplitTabCreatedSource::kToolbarButton);
   }
 }
@@ -161,7 +162,7 @@ void SplitTabsToolbarButton::ButtonPressed(const ui::Event& event) {
 void SplitTabsToolbarButton::UpdateButtonVisibility() {
   // Force the menu to close if it's open because the active tab or split may
   // have changed and invalidated the menu.
-  if (menu_runner_) {
+  if (menu_runner_ && menu_runner_->IsRunning()) {
     menu_runner_->Cancel();
   }
   const bool is_active_tab_in_split = IsActiveTabInSplit();
@@ -179,7 +180,14 @@ void SplitTabsToolbarButton::UpdateButtonIcon() {
     const split_tabs::SplitTabActiveLocation location =
         split_tabs::GetLastActiveTabLocation(tab_strip_model,
                                              active_tab->GetSplit().value());
-    constexpr auto icons =
+    constexpr auto kOldIcons = base::MakeFixedFlatMap<
+        split_tabs::SplitTabActiveLocation, const gfx::VectorIcon*>({
+        {split_tabs::SplitTabActiveLocation::kStart, &kSplitSceneLeftOldIcon},
+        {split_tabs::SplitTabActiveLocation::kEnd, &kSplitSceneRightOldIcon},
+        {split_tabs::SplitTabActiveLocation::kTop, &kSplitSceneUpOldIcon},
+        {split_tabs::SplitTabActiveLocation::kBottom, &kSplitSceneDownOldIcon},
+    });
+    constexpr auto kRoundedIcons =
         base::MakeFixedFlatMap<split_tabs::SplitTabActiveLocation,
                                const gfx::VectorIcon*>({
             {split_tabs::SplitTabActiveLocation::kStart, &kSplitSceneLeftIcon},
@@ -187,9 +195,14 @@ void SplitTabsToolbarButton::UpdateButtonIcon() {
             {split_tabs::SplitTabActiveLocation::kTop, &kSplitSceneUpIcon},
             {split_tabs::SplitTabActiveLocation::kBottom, &kSplitSceneDownIcon},
         });
-    SetVectorIcon(*icons.at(location));
+    if (features::IsRoundedIconsEnabled()) {
+      SetVectorIcon(*kRoundedIcons.at(location));
+    } else {
+      SetVectorIcon(*kOldIcons.at(location));
+    }
   } else {
-    SetVectorIcon(kSplitSceneIcon);
+    SetVectorIcon(features::IsRoundedIconsEnabled() ? kSplitSceneIcon
+                                                    : kSplitSceneOldIcon);
   }
 }
 

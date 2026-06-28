@@ -25,7 +25,7 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "dawn/fuzzers/DawnWireServerFuzzer.h"
+#include "src/dawn/fuzzers/DawnWireServerFuzzer.h"
 
 #include <webgpu/webgpu_cpp.h>
 
@@ -33,20 +33,16 @@
 #include <memory>
 #include <vector>
 
-#include "dawn/common/Assert.h"
-#include "dawn/common/DynamicLib.h"
-#include "dawn/common/Log.h"
-#include "dawn/common/StringViewUtils.h"
-#include "dawn/common/SystemUtils.h"
 #include "dawn/dawn_proc.h"
 #include "dawn/native/DawnNative.h"
-#include "dawn/utils/SystemUtils.h"
 #include "dawn/wire/WireServer.h"
-
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/439062058): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
+#include "src/dawn/common/Assert.h"
+#include "src/dawn/common/DynamicLib.h"
+#include "src/dawn/common/Log.h"
+#include "src/dawn/common/StringViewUtils.h"
+#include "src/dawn/common/SystemUtils.h"
+#include "src/dawn/utils/SystemUtils.h"
+#include "src/utils/compiler.h"
 
 namespace {
 
@@ -101,7 +97,7 @@ int DawnWireServerFuzzer::Run(const uint8_t* data,
 
     // Get and consume the injected error index.
     uint64_t injectedErrorIndex = *reinterpret_cast<const uint64_t*>(data);
-    data += sizeof(uint64_t);
+    DAWN_UNSAFE_TODO(data += sizeof(uint64_t));
     size -= sizeof(uint64_t);
 
     if (supportsErrorInjection) {

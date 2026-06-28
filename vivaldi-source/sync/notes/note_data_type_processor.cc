@@ -504,10 +504,6 @@ void NoteDataTypeProcessor::MigrateLegacyExceededLimitError(
 
 void NoteDataTypeProcessor::MaybeResetExceededLimitError(
     sync_pb::NotesModelMetadata* model_metadata) {
-  if (!base::FeatureList::IsEnabled(
-          syncer::kSyncResetBookmarksInitialMergeLimitExceededError)) {
-    return;
-  }
   if (!model_metadata
            ->has_initial_merge_remote_updates_exceeded_limit_timestamp_windows_epoch_micros()) {
     return;
@@ -851,7 +847,7 @@ void NoteDataTypeProcessor::ApplyFullUpdateAsIncrementalUpdate(
   for (const SyncedNoteTrackerEntity* entity :
        note_tracker_->GetAllEntities()) {
     // Don't create deletions for permanent nodes.
-    if (entity->note_node()->is_permanent_node()) {
+    if (entity->note_node() && entity->note_node()->is_permanent_node()) {
       continue;
     }
     if (entity->IsUnsyncedLocalCreation()) {

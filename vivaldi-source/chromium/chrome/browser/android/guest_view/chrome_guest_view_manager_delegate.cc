@@ -5,7 +5,10 @@
 #include "chrome/browser/android/guest_view/chrome_guest_view_manager_delegate.h"
 
 #include "base/check_is_test.h"
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) // Vivaldi: keep disabled
 #include "chrome/browser/glic/host/guest_util.h"
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi: keep disabled
+#include "chrome/browser/performance_manager/public/guest_view_policy.h"
 #include "chrome/browser/task_manager/web_contents_tags.h"
 #include "chrome/common/buildflags.h"
 #include "components/guest_view/browser/guest_view_manager.h"
@@ -31,6 +34,8 @@ void ChromeGuestViewManagerDelegate::OnGuestAdded(
   // Check if guest belongs to glic and apply specific customizations if so.
   glic::OnGuestAdded(guest_web_contents);
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
+  performance_manager::GuestViewAssociatedToWebContents(guest_web_contents);
 }
 
 void ChromeGuestViewManagerDelegate::DispatchEvent(

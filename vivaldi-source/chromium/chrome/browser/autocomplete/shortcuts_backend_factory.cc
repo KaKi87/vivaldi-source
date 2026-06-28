@@ -16,7 +16,7 @@
 #include "extensions/buildflags/buildflags.h"
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "chrome/browser/autocomplete/shortcuts_extensions_manager.h"
 
 namespace {
@@ -88,7 +88,7 @@ bool ShortcutsBackendFactory::ServiceIsNULLWhileTesting() const {
 
 void ShortcutsBackendFactory::BrowserContextShutdown(
     content::BrowserContext* context) {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   context->RemoveUserData(kShortcutsExtensionsManagerKey);
 #endif
 
@@ -105,7 +105,7 @@ scoped_refptr<ShortcutsBackend> ShortcutsBackendFactory::CreateShortcutsBackend(
       HistoryServiceFactory::GetForProfile(profile,
                                            ServiceAccessType::EXPLICIT_ACCESS),
       profile->GetPath().Append(kShortcutsDatabaseName), suppress_db));
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   auto extensions_manager =
       std::make_unique<ShortcutsExtensionsManager>(profile);
   profile->SetUserData(kShortcutsExtensionsManagerKey,

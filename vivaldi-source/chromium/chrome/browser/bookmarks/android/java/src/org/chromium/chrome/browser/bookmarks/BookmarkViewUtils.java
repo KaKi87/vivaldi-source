@@ -10,7 +10,6 @@ import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 
 import androidx.annotation.ColorInt;
-import androidx.appcompat.content.res.AppCompatResources;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.bookmarks.BookmarkUiPrefs.BookmarkRowDisplayPref;
@@ -25,6 +24,8 @@ import org.chromium.ui.UiUtils;
 import java.util.Objects;
 
 // Vivaldi
+import androidx.appcompat.content.res.AppCompatResources;
+
 import org.chromium.build.BuildConfig;
 import org.chromium.components.browser_ui.styles.ChromeColors;
 
@@ -167,8 +168,7 @@ public class BookmarkViewUtils {
             return ColorStateList.valueOf(
                     SemanticColorUtils.getDefaultIconColorOnAccent1Container(context));
         } else {
-            return AppCompatResources.getColorStateList(
-                    context, R.color.default_icon_color_secondary_tint_list);
+            return context.getColorStateList(R.color.default_icon_color_secondary_tint_list);
         }
     }
 

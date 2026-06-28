@@ -29,11 +29,11 @@
 #include <array>
 #include <vector>
 
-#include "dawn/common/Assert.h"
 #include "dawn/native/DawnNative.h"
-#include "dawn/tests/DawnTest.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/common/Assert.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/WGPUHelpers.h"
 
 namespace dawn {
 namespace {
@@ -54,6 +54,11 @@ class MultisampledRenderingTest : public DawnTest {
 
         // TODO(crbug.com/468061892): Fails on Windows 11/NVIDIA GTX 1660.
         DAWN_SUPPRESS_TEST_IF(IsWindows11() && IsNvidia() && IsD3D12() &&
+                              IsBackendValidationEnabled());
+
+        // TODO(crbug.com/468061892): Fails on Windows 11/AMD RX 5500 XT w/
+        // backend validation.
+        DAWN_SUPPRESS_TEST_IF(IsWindows11() && IsAMD() && IsD3D12() &&
                               IsBackendValidationEnabled());
     }
 
@@ -1053,6 +1058,61 @@ TEST_P(MultisampledRenderingTest, ResolveIntoMultipleResolveTargetsWithShaderOut
     VerifyResolveTarget(kGreen, resolveTexture2, 0, 0, kMSAACoverage);
 }
 
+// Test that the sample_mask input builtin has only the bit for the current sample set
+// when per-sample shading is active.
+TEST_P(MultisampledRenderingTest, SampleMaskInputWithSampleShading) {
+    // sample_mask is not supported in compat.
+    DAWN_TEST_UNSUPPORTED_IF(IsCompatibilityMode());
+
+    // TODO(crbug.com/dawn/673): Work around or enforce via validation that sample variables are not
+    // supported on some platforms.
+    DAWN_TEST_UNSUPPORTED_IF(HasToggleEnabled("disable_sample_variables"));
+
+    wgpu::CommandEncoder commandEncoder = device.CreateCommandEncoder();
+
+    // The fragment shader uses sample_index, which triggers per-sample shading.
+    // It verifies that the sample_mask input has only the bit for the current sample set.
+    const char* fs = R"(
+        struct U {
+            color : vec4f
+        }
+        @group(0) @binding(0) var<uniform> uBuffer : U;
+
+        struct FragmentOut {
+            @location(0) color : vec4f,
+        }
+
+        @fragment fn main(@builtin(sample_index) sampleIndex : u32,
+                          @builtin(sample_mask) mask : u32) -> FragmentOut {
+            var output : FragmentOut;
+            if (mask == (1u << sampleIndex)) {
+                output.color = vec4f(0.0, 1.0, 0.0, 1.0);
+            } else {
+                output.color = vec4f(1.0, 0.0, 0.0, 1.0);
+            }
+            _ = uBuffer.color;
+            return output;
+        })";
+
+    wgpu::RenderPipeline pipeline = CreateRenderPipelineForTest(fs, 1, false);
+
+    {
+        utils::ComboRenderPassDescriptor renderPass =
+            CreateComboRenderPassDescriptorForTest({mMultisampledColorView}, {mResolveView},
+                                                   wgpu::LoadOp::Clear, wgpu::LoadOp::Clear, false);
+
+        EncodeRenderPassForTest(commandEncoder, renderPass, pipeline, {0.0, 0.0, 0.0, 0.0});
+    }
+
+    wgpu::CommandBuffer commandBuffer = commandEncoder.Finish();
+    queue.Submit(1, &commandBuffer);
+
+    // All samples should have passed the check, so the resolved color should be green.
+    // We check pixel {2, 0} which is fully covered by the triangle.
+    utils::RGBA8 expectedColor = {0, 255, 0, 255};
+    EXPECT_TEXTURE_EQ(&expectedColor, mResolveTexture, {2, 0}, {1, 1});
+}
+
 // Test using one multisampled color attachment with resolve target can render correctly
 // with alphaToCoverageEnabled.
 TEST_P(MultisampledRenderingTest, ResolveInto2DTextureWithAlphaToCoverage) {
@@ -1285,6 +1345,9 @@ TEST_P(MultisampledRenderingTest, ResolveInto2DTextureWithAlphaToCoverageAndRast
     // TODO(crbug.com/458113207): Flaky w/ WARP.
     DAWN_SUPPRESS_TEST_IF(IsWindows() && IsWARP());
 
+    // TODO(crbug.com/500793601): Fails on Windows 11/AMD RX 5500 XT.
+    DAWN_TEST_UNSUPPORTED_IF(IsWindows11() && IsAMD());
+
     constexpr bool kTestDepth = false;
     constexpr float kMSAACoverage = 0.50f;
     constexpr uint32_t kSampleMask = 0xFFFFFFFF;
@@ -1372,6 +1435,46 @@ TEST_P(MultisampledRenderingTest, ResolveInto2DTextureWithScissor) {
     constexpr uint32_t kGreenY = 1;
     VerifyResolveTarget(kRed, mResolveTexture, 0, 0, kMSAACoverage, kRedX, kRedY);
     VerifyResolveTarget(kGreen, mResolveTexture, 0, 0, kMSAACoverage, kGreenX, kGreenY);
+}
+
+class MultisampledRenderingWithEmptyPassWorkaroundTest : public MultisampledRenderingTest {};
+
+TEST_P(MultisampledRenderingWithEmptyPassWorkaroundTest, ResolveOneMultisampledTextureTwice) {
+    constexpr bool kTestDepth = false;
+    wgpu::CommandEncoder commandEncoder = device.CreateCommandEncoder();
+
+    wgpu::Texture resolveTexture2 = CreateTextureForRenderAttachment(kColorFormat, 1);
+
+    // In first render pass clear the color view to green triangle resolve.
+    {
+        utils::ComboRenderPassDescriptor renderPass = CreateComboRenderPassDescriptorForTest(
+            {mMultisampledColorView}, {mResolveView}, wgpu::LoadOp::Clear, wgpu::LoadOp::Clear,
+            kTestDepth);
+        renderPass.cColorAttachments[0].clearValue = kGreen;
+
+        wgpu::RenderPassEncoder renderPassEncoder = commandEncoder.BeginRenderPass(&renderPass);
+        // No work done during the pass
+        renderPassEncoder.End();
+    }
+
+    // In second render pass load the previously cleared color view and resolve.
+    {
+        wgpu::TextureView resolveView2 = resolveTexture2.CreateView();
+        utils::ComboRenderPassDescriptor renderPass = CreateComboRenderPassDescriptorForTest(
+            {mMultisampledColorView}, {resolveView2}, wgpu::LoadOp::Load, wgpu::LoadOp::Load,
+            kTestDepth);
+
+        wgpu::RenderPassEncoder renderPassEncoder = commandEncoder.BeginRenderPass(&renderPass);
+        // No work done during the pass
+        renderPassEncoder.End();
+    }
+
+    wgpu::CommandBuffer commandBuffer = commandEncoder.Finish();
+    queue.Submit(1, &commandBuffer);
+
+    constexpr float kMSAACoverage = 1.0f;
+    VerifyResolveTarget(kGreen, mResolveTexture, 0, 0, kMSAACoverage);
+    VerifyResolveTarget(kGreen, resolveTexture2, 0, 0, kMSAACoverage);
 }
 
 class MultisampledRenderingWithTransientAttachmentTest : public MultisampledRenderingTest {};
@@ -2879,6 +2982,9 @@ DAWN_INSTANTIATE_TEST(MultisampledRenderingTest,
                       MetalBackend({"always_resolve_into_zero_level_and_layer"}),
                       MetalBackend({"always_resolve_into_zero_level_and_layer",
                                     "emulate_store_and_msaa_resolve"}));
+
+DAWN_INSTANTIATE_TEST(MultisampledRenderingWithEmptyPassWorkaroundTest,
+                      VulkanBackend({"vulkan_add_work_to_empty_resolve_pass"}));
 
 DAWN_INSTANTIATE_TEST(MultisampledRenderingWithTransientAttachmentTest,
                       D3D11Backend(),

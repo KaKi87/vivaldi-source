@@ -43,7 +43,7 @@ import {getTemplate} from './appearance_page.html.js';
 
 /**
  * This is the absolute difference maintained between standard and
- * fixed-width font sizes. http://crbug.com/91922.
+ * fixed-width font sizes. http://crbug.com/40608310.
  */
 const SIZE_DIFFERENCE_FIXED_STANDARD: number = 3;
 
@@ -193,23 +193,6 @@ export class SettingsAppearancePageElement extends
 
       showManagedThemeDialog_: Boolean,
 
-      sidePanelOptions_: {
-        readOnly: true,
-        type: Array,
-        value() {
-          return [
-            {
-              value: 'true',
-              name: loadTimeData.getString('uiFeatureAlignRight'),
-            },
-            {
-              value: 'false',
-              name: loadTimeData.getString('uiFeatureAlignLeft'),
-            },
-          ];
-        },
-      },
-
       tabStripOptions_: {
         readOnly: true,
         type: Array,
@@ -231,6 +214,31 @@ export class SettingsAppearancePageElement extends
         type: Boolean,
         value() {
           return loadTimeData.getBoolean('showVerticalTabsEnabled');
+        },
+      },
+
+      ntpSimplificationBookmarksBarEnabled_: {
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean(
+              'ntpSimplificationBookmarksBarEnabled');
+        },
+      },
+
+      // The values in this array must match the BookmarkBarVisibilityState enum
+      // defined in components/bookmarks/common/bookmark_bar_visibility_state.h.
+      bookmarksBarOptions_: {
+        readOnly: true,
+        type: Array,
+        value() {
+          return [
+            {value: 0, name: loadTimeData.getString('bookmarksBarAlwaysShow')},
+            {
+              value: 1,
+              name: loadTimeData.getString('bookmarksBarOnlyShowOnNtp'),
+            },
+            {value: 2, name: loadTimeData.getString('bookmarksBarAlwaysHide')},
+          ];
         },
       },
 
@@ -267,6 +275,41 @@ export class SettingsAppearancePageElement extends
         type: Boolean,
         value: false,
       },
+
+      showCtrlTabMru_: {
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean('showCtrlTabMru');
+        },
+      },
+      sidePanelAlignmentOptions_: {
+        readOnly: true,
+        type: Array,
+        value() {
+          return [
+            {
+              value: 'false',
+              name: loadTimeData.getString('uiFeatureAlignLeft'),
+            },
+            {
+              value: 'true',
+              name: loadTimeData.getString('uiFeatureAlignRight'),
+            },
+          ];
+        },
+      },
+
+      configurableSidePanels_: {
+        readOnly: true,
+        type: Array,
+        value() {
+          const json =
+              loadTimeData.valueExists('configurableSidePanelAlignments') ?
+              loadTimeData.getString('configurableSidePanelAlignments') :
+              '[]';
+          return JSON.parse(json);
+        },
+      },
     };
   }
 
@@ -278,9 +321,12 @@ export class SettingsAppearancePageElement extends
       // <if expr="is_linux">
       'systemThemePrefChanged_(prefs.extensions.theme.system_theme.value)',
       // </if>
+      // Keep this list in sync with `PinnedToolbarActionsModel::IsDefault()`.
       'toolbarPinningStateChanged_(prefs.toolbar.pinned_actions.value,' +
           'prefs.browser.show_home_button.value,' +
-          'prefs.browser.show_forward_button.value)',
+          'prefs.browser.show_forward_button.value,' +
+          'prefs.browser.pin_split_tab_button.value,' +
+          'prefs.browser.pin_contextual_task_button.value)',
     ];
   }
 
@@ -298,18 +344,22 @@ export class SettingsAppearancePageElement extends
   declare private isForcedTheme_: boolean;
   declare private showHoverCardImagesOption_: boolean;
   declare private showResetPinnedActionsButton_: boolean;
+  declare private showCtrlTabMru_: boolean;
 
   // <if expr="is_linux">
   declare private showCustomChromeFrame_: boolean;
   // </if>
 
   declare private showVerticalTabsEnabled_: boolean;
+  declare private ntpSimplificationBookmarksBarEnabled_: boolean;
+  declare private bookmarksBarOptions_: DropdownMenuOptionList;
   declare private showVerticalTabsExpandOnHoverEnabled_: boolean;
   declare private showTabSearchEnabled_: boolean;
   declare private showProjectsPanelEnabled_: boolean;
   declare private showEverythingMenuEnabled_: boolean;
   declare private showManagedThemeDialog_: boolean;
-  declare private sidePanelOptions_: DropdownMenuOptionList;
+  declare private sidePanelAlignmentOptions_: DropdownMenuOptionList;
+  declare private configurableSidePanels_: Array<{id: string, label: string}>;
   declare private tabStripOptions_: DropdownMenuOptionList;
   private appearanceBrowserProxy_: AppearanceBrowserProxy =
       AppearanceBrowserProxyImpl.getInstance();
@@ -378,7 +428,7 @@ export class SettingsAppearancePageElement extends
     Router.getInstance().navigateTo(routes.FONTS);
   }
 
-  private onDisableExtension_() {
+  private onDisableExtensionClick_() {
     this.dispatchEvent(new CustomEvent(
         'refresh-pref', {bubbles: true, composed: true, detail: 'homepage'}));
   }
@@ -577,6 +627,11 @@ export class SettingsAppearancePageElement extends
     this.appearanceBrowserProxy_.recordHoverCardImagesEnabledChanged(enabled);
   }
 
+  private onHoverCardMemoryUsageToggleChange_(event: Event) {
+    const enabled = (event.target as SettingsToggleButtonElement).checked;
+    this.appearanceBrowserProxy_.recordHoverCardMemoryUsageEnabledChanged(enabled);
+  }
+
   private showVerticalTabsExpandOnHoverSetting_(): boolean {
     if (this.prefs === undefined) {
       return false;
@@ -589,6 +644,26 @@ export class SettingsAppearancePageElement extends
   private onManagedDialogClosed_() {
     this.showManagedThemeDialog_ = false;
   }
+
+  private getOverrideValue_(
+      id: string, overrides: Record<string, boolean>|undefined,
+      defaultIsRight: boolean|undefined): string {
+    if (defaultIsRight === undefined) {
+      return '';
+    }
+    const isRight = (overrides && overrides[id] !== undefined) ? overrides[id] :
+                                                                 defaultIsRight;
+    return isRight.toString();
+  }
+
+  private onOverrideAlignmentChange_(event: Event) {
+    const dropdown = event.target as SettingsDropdownMenuElement;
+    const entryId = dropdown.dataset['entryId']!;
+    const newValue = dropdown.getSelectedValue() === 'true';
+    this.set(`prefs.side_panel.alignment_overrides.value.${entryId}`, newValue);
+  }
+
+
 
   // SettingsViewMixin
   override getFocusConfig() {
@@ -604,7 +679,9 @@ export class SettingsAppearancePageElement extends
     assert(childViewId === 'fonts');
     const control = this.shadowRoot!.querySelector<HTMLElement>(
         '#customize-fonts-subpage-trigger');
-    assert(control);
+    assert(
+        control,
+        `Failed to find associated control for child '${childViewId}'`);
     return control;
   }
 }

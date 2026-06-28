@@ -119,6 +119,8 @@ xnnpack_cxx_library(
         ":vunary_microkernel_tester",
     ],
 ) for kernel in [
+    "bf16_f32_vcvt",
+    "bf16_qs8_vcvt",
     "f16_f32_vcvt",
     "f16_qs8_vcvt",
     "f16_qu8_vcvt",
@@ -130,6 +132,7 @@ xnnpack_cxx_library(
     "f16_vexp",
     "f16_vgelu",
     "f16_vhswish",
+    "f16_vlog",
     "f16_vlrelu",
     "f16_vneg",
     "f16_vrndd",
@@ -142,6 +145,7 @@ xnnpack_cxx_library(
     "f16_vsqr",
     "f16_vsqrt",
     "f16_vtanh",
+    "f32_bf16_vcvt",
     "f32_f16_vcvt",
     "f32_qs8_vcvt",
     "f32_qu8_vcvt",
@@ -438,17 +442,6 @@ xnnpack_unit_test(
 )
 
 xnnpack_unit_test(
-    name = "f32_igemm_relu_test",
-    srcs = [
-        "f32-igemm-relu.cc",
-        "f32-igemm-relu-2.cc",
-    ],
-    deps = MICROKERNEL_TEST_DEPS + [
-        ":gemm_microkernel_tester",
-    ],
-)
-
-xnnpack_unit_test(
     name = "f32_igemm_minmax_test",
     srcs = [
         "f32-igemm-minmax.cc",
@@ -516,17 +509,6 @@ xnnpack_unit_test(
 )
 
 xnnpack_unit_test(
-    name = "f32_gemm_relu_test",
-    srcs = [
-        "f32-gemm-relu.cc",
-        "f32-gemm-relu-2.cc",
-    ],
-    deps = MICROKERNEL_TEST_DEPS + [
-        ":gemm_microkernel_tester",
-    ],
-)
-
-xnnpack_unit_test(
     name = "f32_gemm_minmax_test",
     srcs = [
         "f32-gemm-minmax.cc",
@@ -551,16 +533,6 @@ xnnpack_unit_test(
     name = "f32_qc8w_gemm_test",
     srcs = [
         "f32-qc8w-gemm.cc",
-    ],
-    deps = MICROKERNEL_TEST_DEPS + [
-        ":gemm_microkernel_tester",
-    ],
-)
-
-xnnpack_unit_test(
-    name = "f32_qc8w_gemm_relu_test",
-    srcs = [
-        "f32-qc8w-gemm-relu.cc",
     ],
     deps = MICROKERNEL_TEST_DEPS + [
         ":gemm_microkernel_tester",
@@ -850,13 +822,14 @@ xnnpack_unit_test(
 
 xnnpack_unit_test(
     name = "qd8_f16_qc8w_igemm_minmax_test",
-    timeout = "moderate",
+    timeout = "long",
     srcs = [
         "qd8-f16-qc8w-igemm-minmax.cc",
         "qd8-f16-qc8w-igemm-minmax-2.cc",
         "qd8-f16-qc8w-igemm-minmax-3.cc",
         "qd8-f16-qc8w-igemm-minmax-4.cc",
     ],
+    shard_count = 5,
     deps = MICROKERNEL_TEST_DEPS + [
         ":gemm_microkernel_tester",
     ],

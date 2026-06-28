@@ -213,8 +213,13 @@ IwaBundleIdToUpdateOptionsMap GetIsolatedWebAppsWithOnlyUserManagement(
       continue;
     }
 
+    UpdateChannel update_channel =
+        iwa.isolation_data()->update_channel().value_or(
+            UpdateChannel::default_channel());
     result[url_info->web_bundle_id()] = IsolatedWebAppUpdateOptions(
-        *iwa.isolation_data()->update_manifest_url());
+        *iwa.isolation_data()->update_manifest_url(), update_channel,
+        /*allow_downgrades=*/false,
+        /*pinned_version=*/std::nullopt);
   }
   return result;
 }
@@ -581,7 +586,7 @@ bool IsolatedWebAppUpdateManager::MaybeQueueUpdateDiscoveryTask(
   }
 
   ASSIGN_OR_RETURN(auto url_info,
-                   IsolatedWebAppUrlInfo::Create(web_app.manifest_id()),
+                   IsolatedWebAppUrlInfo::Create(web_app.manifest_id().value()),
                    [](auto error) { return false; });
 
   const IsolatedWebAppUpdateOptions* update_options =

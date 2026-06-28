@@ -2,8 +2,8 @@
 
 source_set("notes") {
   sources = [
+    "notes_factory.cc",
     "notes_factory.h",
-    "notes_factory.cc"
   ]
 
   deps = [

@@ -131,6 +131,7 @@ public class EdgeToEdgeUtils {
         }
 
         if (!ChromeFeatureList.sEdgeToEdgeBottomChin.isEnabled()) return false; // Vivaldi
+
         return !DeviceInfo.isAutomotive() && !hasTappableNavigationBar(activity.getWindow());
     }
 

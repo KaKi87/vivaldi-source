@@ -28,10 +28,10 @@
 #include <algorithm>
 
 #include "absl/types/span.h"  // TODO(343500108): Use std::span when we have C++20.
-#include "dawn/common/StringViewUtils.h"
-#include "dawn/wire/SupportedFeatures.h"
-#include "dawn/wire/server/ObjectStorage.h"
-#include "dawn/wire/server/Server.h"
+#include "src/dawn/common/StringViewUtils.h"
+#include "src/dawn/wire/SupportedFeatures.h"
+#include "src/dawn/wire/server/ObjectStorage.h"
+#include "src/dawn/wire/server/Server.h"
 
 namespace dawn::wire::server {
 
@@ -46,7 +46,7 @@ WireResult Server::DoInstanceRequestAdapter(Known<WGPUInstance> instance,
     auto userdata = MakeUserdata<RequestAdapterUserdata>();
     userdata->eventManager = eventManager;
     userdata->future = future;
-    userdata->adapterObjectId = adapter.id;
+    userdata->adapter = adapter.AsHandle();
 
     mProcs->instanceRequestAdapter(
         instance->handle, options,
@@ -72,7 +72,7 @@ void Server::OnRequestAdapterCallback(RequestAdapterUserdata* data,
     }
 
     // Assign the handle and allocated status if the adapter is created successfully.
-    if (FillReservation(data->adapterObjectId, adapter) == WireResult::FatalError) {
+    if (FillReservation(data->adapter, adapter) == WireResult::FatalError) {
         cmd.status = WGPURequestAdapterStatus_CallbackCancelled;
         cmd.message = ToOutputStringView("Destroyed before request was fulfilled.");
         SerializeCommand(cmd);
@@ -126,16 +126,6 @@ void Server::OnRequestAdapterCallback(RequestAdapterUserdata* data,
     powerProperties.chain.sType = WGPUSType_DawnAdapterPropertiesPowerPreference;
     *propertiesChain = &powerProperties.chain;
     propertiesChain = &(*propertiesChain)->next;
-
-    // Query AdapterPropertiesExplicitComputeSubgroupSizeConfigs if the feature is supported.
-    WGPUAdapterPropertiesExplicitComputeSubgroupSizeConfigs explicitComputeSubgroupSizeConfigs = {};
-    explicitComputeSubgroupSizeConfigs.chain.sType =
-        WGPUSType_AdapterPropertiesExplicitComputeSubgroupSizeConfigs;
-    if (mProcs->adapterHasFeature(adapter,
-                                  WGPUFeatureName_ChromiumExperimentalSubgroupSizeControl)) {
-        *propertiesChain = &explicitComputeSubgroupSizeConfigs.chain;
-        propertiesChain = &(*propertiesChain)->next;
-    }
 
     mProcs->adapterGetInfo(adapter, &info);
     cmd.info = &info;

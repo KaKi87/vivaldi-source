@@ -104,7 +104,7 @@
 <translation id="1397738625398125236">ଗେଟୱେକୁ ପିଙ୍ଗ୍ କରାଯାଇପାରିବ</translation>
 <translation id="1398634363027580500">HTTPSର ଅଧିକ ଲାଟେନ୍ସି</translation>
 <translation id="1406389211945506521">ଆପଣଙ୍କ ମତାମତ ସେୟାର କରିଥିବା ଯୋଗୁଁ ଧନ୍ୟବାଦ। ଆପଣଙ୍କର ମତାମତ ଆମକୁ ଅଧିକ ସଠିକ ଏବଂ ଲାଭକାରୀ ବିଷୟବସ୍ତୁ ତିଆରି କରିବାରେ ସାହାଯ୍ୟ କରେ।</translation>
-<translation id="1407069428457324124">ଗାଢ଼ ଥିମ୍</translation>
+<translation id="1407069428457324124">ଡାର୍କ ଥିମ</translation>
 <translation id="1413240736185167732">ବିଫଳ ହୋଇଛି - ଫିଲ୍ଟର୍ ବିଫଳ ହୋଇଛି</translation>
 <translation id="1416836038590872660">EAP-MD5</translation>
 <translation id="1418991483994088776">ଅର୍କିଡ</translation>
@@ -403,6 +403,7 @@
 <translation id="2618015542787108131">ସେଣ୍ଡ ଡ୍ୟୁନ</translation>
 <translation id="2619761439309613843">ଦୈନିକ ରିଫ୍ରେଶ୍</translation>
 <translation id="2620436844016719705">ସିଷ୍ଟମ୍‌</translation>
+<translation id="2626848494898563581">Google ସେବାଗୁଡ଼ିକ ସହ ଯୋଗାଯୋଗ କରାଯାଇପାରିବ ନାହିଁ</translation>
 <translation id="2637303424821734920">ବନ୍ଦ ଅଛି - ସ୍ଥାନୀୟ ପାଣିପାଗ ଡିସପ୍ଲେ କରିବା ପାଇଁ <ph name="BEGIN_LINK" />ସିଷ୍ଟମର ଲୋକେସନ ଆକ୍ସେସ ଚାଲୁ କରନ୍ତୁ<ph name="END_LINK" /></translation>
 <translation id="2638662041295312666">ସାଇନ୍-ଇନ୍ ଛବି</translation>
 <translation id="2640549051766135490">ଆଲବମ୍ <ph name="TITLE" /> <ph name="DESC" /> ଚୟନ କରାଯାଇଛି</translation>
@@ -867,7 +868,7 @@
 <translation id="4800589996161293643">Chromebook କମ୍ୟୁନିଟୀ</translation>
 <translation id="4803391892369051319">IPv4</translation>
 <translation id="4808449224298348341">ପ୍ରିଣ୍ଟ କାର୍ଯ୍ୟ <ph name="DOCUMENT_TITLE" /> ବାତିଲ୍ କରାଯାଇଛି</translation>
-<translation id="4809927044794281115">ହାଲୁକା ଥିମ୍</translation>
+<translation id="4809927044794281115">ଲାଇଟ ଥିମ</translation>
 <translation id="4813136279048157860">ମୋ ଛବି</translation>
 <translation id="4813345808229079766">ସଂଯୋଜନ</translation>
 <translation id="4830894019733815633">କାନିୟନ</translation>
@@ -1183,6 +1184,7 @@
 <translation id="6234024205316847054">ଆଉଟଲାଇନ ଦେଖାନ୍ତୁ</translation>
 <translation id="6243280677745499710">ବର୍ତ୍ତମାନ ସେଟ୍ ହୋଇଛି</translation>
 <translation id="6250316632541035980">ବାକନ ଏବଂ ଅଣ୍ଡା</translation>
+<translation id="6262413940100821797">ଏକ ଅଜଣା ପ୍ରାପ୍ତକର୍ତ୍ତା</translation>
 <translation id="6265268291107409527"><ph name="KEYS" /> ହେଉଛି ଚୟନିତ କୀ। <ph name="ASSIGN_INSTRUCTION" /></translation>
 <translation id="6275224645089671689">ଡାହାଣ ତୀର</translation>
 <translation id="6278428485366576908">ଥିମ୍</translation>

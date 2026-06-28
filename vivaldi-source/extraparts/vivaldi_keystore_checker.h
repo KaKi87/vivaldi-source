@@ -3,6 +3,9 @@
 #ifndef EXTRAPARTS_VIVALDI_KEYSTORE_CHECKER_H_
 #define EXTRAPARTS_VIVALDI_KEYSTORE_CHECKER_H_
 
+class Profile;
+class PrefService;
+
 namespace vivaldi {
 
 // Validates profile's secure key storage status.

@@ -14,6 +14,7 @@
 #include "base/test/test_future.h"
 #include "chrome/browser/ai/ai_language_model.h"
 #include "chrome/browser/ai/ai_test_utils.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/optimization_guide/mock_optimization_guide_keyed_service.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/optimization_guide/core/model_execution/on_device_capability.h"
@@ -21,12 +22,16 @@
 #include "components/optimization_guide/core/model_execution/test/mock_on_device_capability.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/optimization_guide/core/optimization_guide_switches.h"
+#include "components/optimization_guide/proto/features/classify_api.pb.h"
+#include "components/optimization_guide/proto/string_value.pb.h"
 #include "components/optimization_guide/public/mojom/model_broker.mojom-shared.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
+#include "mojo/public/mojom/base/work_in_progress.mojom.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/features_generated.h"
+#include "third_party/blink/public/mojom/ai/ai_classifier.mojom.h"
 #include "third_party/blink/public/mojom/ai/ai_common.mojom.h"
 #include "third_party/blink/public/mojom/ai/ai_language_model.mojom.h"
 #include "third_party/blink/public/mojom/ai/ai_manager.mojom.h"
@@ -35,6 +40,7 @@
 #include "third_party/blink/public/mojom/ai/ai_writer.mojom.h"
 
 using optimization_guide::MockSession;
+
 using testing::_;
 using testing::AtMost;
 using testing::NiceMock;
@@ -51,6 +57,12 @@ std::vector<blink::mojom::AILanguageCodePtr> MakeLanguageCodeVector(
 }
 
 class AIManagerTest : public AITestUtils::AITestBase {
+ public:
+  AIManagerTest() {
+    scoped_feature_list_.InitAndEnableFeature(
+        blink::features::kAIClassifierAPI);
+  }
+
  protected:
   optimization_guide::proto::OnDeviceModelExecutionFeatureConfig CreateConfig()
       override {
@@ -61,10 +73,8 @@ class AIManagerTest : public AITestUtils::AITestBase {
     return config;
   }
 
-  void SetBuildInAIAPIsEnterprisePolicy(bool value) {
-    profile()->GetPrefs()->SetBoolean(
-        policy::policy_prefs::kBuiltInAIAPIsEnabled, value);
-  }
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 // Tests that involve invalid on-device model file paths should not crash when
@@ -90,6 +100,15 @@ TEST_F(AIManagerTest, NoUAFWithInvalidOnDeviceModelPath) {
 TEST_F(AIManagerTest, CanCreate) {
   // Model is not downloaded until first session is created, so `CanCreate`
   // returns `kDownloadable`.
+  // Android hasn't implement other APIs beside CanCreateSummarizer, so only
+  // test CanCreateSummarizer.
+  {
+    base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
+    ai_manager_->CanCreateSummarizer(/*options=*/{}, future.GetCallback());
+    EXPECT_EQ(future.Get(),
+              blink::mojom::ModelAvailabilityCheckResult::kDownloadable);
+  }
+#if !BUILDFLAG(IS_ANDROID)
   {
     base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
     ai_manager_->CanCreateLanguageModel(/*options=*/{}, future.GetCallback());
@@ -104,16 +123,17 @@ TEST_F(AIManagerTest, CanCreate) {
   }
   {
     base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
-    ai_manager_->CanCreateSummarizer(/*options=*/{}, future.GetCallback());
+    ai_manager_->CanCreateRewriter(/*options=*/{}, future.GetCallback());
     EXPECT_EQ(future.Get(),
               blink::mojom::ModelAvailabilityCheckResult::kDownloadable);
   }
   {
     base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
-    ai_manager_->CanCreateRewriter(/*options=*/{}, future.GetCallback());
+    ai_manager_->CanCreateClassifier(/*options=*/{}, future.GetCallback());
     EXPECT_EQ(future.Get(),
               blink::mojom::ModelAvailabilityCheckResult::kDownloadable);
   }
+#endif  // !BUILDFLAG(IS_ANDROID)
 }
 
 TEST_F(AIManagerTest, CanCreateNotEnabled) {
@@ -144,22 +164,66 @@ TEST_F(AIManagerTest, CanCreateNotEnabled) {
     EXPECT_EQ(future.Get(), blink::mojom::ModelAvailabilityCheckResult::
                                 kUnavailableFeatureNotEnabled);
   }
+  {
+    base::test::TestFuture<blink::mojom::ModelAvailabilityCheckResult> future;
+    ai_manager_->CanCreateClassifier(/*options=*/{}, future.GetCallback());
+    EXPECT_EQ(future.Get(), blink::mojom::ModelAvailabilityCheckResult::
+                                kUnavailableFeatureNotEnabled);
+  }
 }
 
 TEST_F(AIManagerTest, CanCreateEnterprisePolicyDisabled) {
-  SetBuildInAIAPIsEnterprisePolicy(false);
+  SetBuiltInAIAPIsEnterprisePolicy(false);
   base::MockCallback<
       base::OnceCallback<void(blink::mojom::ModelAvailabilityCheckResult)>>
       callback;
   EXPECT_CALL(callback, Run(blink::mojom::ModelAvailabilityCheckResult::
                                 kUnavailableEnterprisePolicyDisabled))
-      .Times(4);
+      .Times(6);
 
   ai_manager_->CanCreateLanguageModel(/*options=*/{}, callback.Get());
   ai_manager_->CanCreateWriter(/*options=*/{}, callback.Get());
   ai_manager_->CanCreateSummarizer(/*options=*/{}, callback.Get());
   ai_manager_->CanCreateRewriter(/*options=*/{}, callback.Get());
-  SetBuildInAIAPIsEnterprisePolicy(true);
+  ai_manager_->CanCreateProofreader(/*options=*/{}, callback.Get());
+  ai_manager_->CanCreateClassifier(/*options=*/{}, callback.Get());
+  SetBuiltInAIAPIsEnterprisePolicy(true);
+}
+
+TEST_F(AIManagerTest, CanCreateLocalStateEnterprisePolicyDisabled) {
+  SetGenAILocalEnterprisePolicy(false);
+  base::MockCallback<
+      base::OnceCallback<void(blink::mojom::ModelAvailabilityCheckResult)>>
+      callback;
+  EXPECT_CALL(callback, Run(blink::mojom::ModelAvailabilityCheckResult::
+                                kUnavailableEnterprisePolicyDisabled))
+      .Times(6);
+
+  ai_manager_->CanCreateLanguageModel(/*options=*/{}, callback.Get());
+  ai_manager_->CanCreateWriter(/*options=*/{}, callback.Get());
+  ai_manager_->CanCreateSummarizer(/*options=*/{}, callback.Get());
+  ai_manager_->CanCreateRewriter(/*options=*/{}, callback.Get());
+  ai_manager_->CanCreateProofreader(/*options=*/{}, callback.Get());
+  ai_manager_->CanCreateClassifier(/*options=*/{}, callback.Get());
+  SetGenAILocalEnterprisePolicy(true);
+}
+
+TEST_F(AIManagerTest, CanCreateLocalStateUserSettingsDisabled) {
+  SetOnDeviceAiUserSetting(false);
+  base::MockCallback<
+      base::OnceCallback<void(blink::mojom::ModelAvailabilityCheckResult)>>
+      callback;
+  EXPECT_CALL(callback, Run(blink::mojom::ModelAvailabilityCheckResult::
+                                kUnavailableFeatureNotEnabled))
+      .Times(6);
+
+  ai_manager_->CanCreateLanguageModel(/*options=*/{}, callback.Get());
+  ai_manager_->CanCreateWriter(/*options=*/{}, callback.Get());
+  ai_manager_->CanCreateSummarizer(/*options=*/{}, callback.Get());
+  ai_manager_->CanCreateRewriter(/*options=*/{}, callback.Get());
+  ai_manager_->CanCreateProofreader(/*options=*/{}, callback.Get());
+  ai_manager_->CanCreateClassifier(/*options=*/{}, callback.Get());
+  SetOnDeviceAiUserSetting(true);
 }
 
 // Test CheckAndFixLanguages templates for LanguageModel.

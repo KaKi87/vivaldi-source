@@ -19,6 +19,7 @@ import android.widget.ProgressBar;
 import androidx.annotation.CallSuper;
 import androidx.annotation.ColorInt;
 import androidx.annotation.DrawableRes;
+import androidx.annotation.IdRes;
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.widget.TooltipCompat;
 
@@ -65,7 +66,9 @@ import org.chromium.chrome.browser.user_education.UserEducationHelper;
 import org.chromium.chrome.browser.util.BrowserUiUtils;
 import org.chromium.chrome.browser.util.BrowserUiUtils.ModuleTypeOnStartAndNtp;
 import org.chromium.components.feature_engagement.Tracker;
+import org.chromium.ui.AsyncViewStub;
 import org.chromium.ui.base.ViewUtils;
+import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.util.MotionEventUtils;
 import org.chromium.ui.util.TokenHolder;
 import org.chromium.url.GURL;
@@ -150,15 +153,11 @@ public abstract class ToolbarLayout extends FrameLayout
      * @param reloadButtonCoordinator The coordinator for the reload button.
      * @param backButtonCoordinator The coordinator for the back button.
      * @param forwardButtonCoordinator The coordinator for the forward button.
-     * @param homeButtonDisplay The {@link HomeButtonDisplay} to manage the display and behavior of
-     *     home button(s). Should be null on custom tabs.
-     * @param extensionsToolbarCoordinator Provides an {@link ExtensionsToolbarCoordinator} for
-     *     interacting with extension-related toolbar UI.
-     * @param normalThemeColorProvider The {@link ThemeColorProvider} for normal mode.
      * @param incognitoStateProvider The {@link IncognitoStateProvider} for observering incognito
      *     state.
      * @param incognitoWindowCountSupplier A supplier for the number of incognito windows, used by
      *     the Incognito Indicator Menu on LFF.
+     * @param windowAndroid The instance of {@link WindowAndroid}.
      */
     @CallSuper
     @Initializer
@@ -178,7 +177,8 @@ public abstract class ToolbarLayout extends FrameLayout
             @Nullable SigninButtonCoordinator signinButtonCoordinator,
             ThemeColorProvider themeColorProvider,
             IncognitoStateProvider incognitoStateProvider,
-            @Nullable Supplier<Integer> incognitoWindowCountSupplier) {
+            @Nullable Supplier<Integer> incognitoWindowCountSupplier,
+            WindowAndroid windowAndroid) {
         mToolbarDataProvider = toolbarDataProvider;
         mToolbarTabController = tabController;
         mMenuButtonCoordinator = menuButtonCoordinator;
@@ -224,7 +224,7 @@ public abstract class ToolbarLayout extends FrameLayout
         mAppMenuButtonHelper = appMenuButtonHelper;
     }
 
-    // TODO(pnoland, https://crbug.com/865801): Move this from ToolbarLayout to forthcoming
+    // TODO(pnoland, https://crbug.com/40585866): Move this from ToolbarLayout to forthcoming
     // BrowsingModeToolbarCoordinator.
     @Initializer
     public void setLocationBarCoordinator(LocationBarCoordinator locationBarCoordinator) {}
@@ -341,6 +341,9 @@ public abstract class ToolbarLayout extends FrameLayout
     /** TODO comment */
     @CallSuper
     protected void onMenuButtonDisabled() {}
+
+    /** Update the visibility of the menu button. */
+    public void updateMenuButtonVisibility() {}
 
     /**
      * Set hover tooltip text for buttons shared between phones and tablets. @TODO: Remove and use
@@ -665,7 +668,7 @@ public abstract class ToolbarLayout extends FrameLayout
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
         // Consumes mouse/trackpad button events on toolbar so they don't get leaked to content
-        // layer. See https://crbug.com/740855 (mouse) and https://crbug.com/384916573 (trackpad).
+        // layer. See https://crbug.com/40529425 (mouse) and https://crbug.com/384916573 (trackpad).
         if (MotionEventUtils.isPointerEvent(event)) {
             int action = event.getActionMasked();
             if (action == MotionEvent.ACTION_BUTTON_PRESS
@@ -759,6 +762,16 @@ public abstract class ToolbarLayout extends FrameLayout
      */
     @VisibleForTesting
     public abstract LocationBar getLocationBar();
+
+    @Override
+    public @Nullable AsyncViewStub getSuggestionsContainerStub() {
+        return getRootView().findViewById(R.id.omnibox_suggestions_container_stub);
+    }
+
+    @Override
+    public @IdRes int getSuggestionsContainerInflatedViewId() {
+        return R.id.omnibox_suggestions_container;
+    }
 
     /** Returns the {@link ToolbarTabController} for interacting with the current tab. */
     public ToolbarTabController getToolbarTabController() {

@@ -9,6 +9,7 @@
 #import "base/test/metrics/user_action_tester.h"
 #import "base/test/scoped_feature_list.h"
 #import "base/test/task_environment.h"
+#import "components/signin/public/base/consent_level.h"
 #import "components/signin/public/base/signin_pref_names.h"
 #import "components/sync/test/test_sync_service.h"
 #import "components/test/ios/test_utils.h"
@@ -19,9 +20,9 @@
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_flow/authentication_flow.h"
 #import "ios/chrome/browser/authentication/ui_bundled/cells/table_view_account_item.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_constants.h"
+#import "ios/chrome/browser/settings/manage_sync/public/sync_error_settings_command_handler.h"
 #import "ios/chrome/browser/settings/model/sync/utils/account_error_ui_info.h"
 #import "ios/chrome/browser/settings/model/sync/utils/identity_error_util.h"
-#import "ios/chrome/browser/settings/ui_bundled/google_services/sync_error_settings_command_handler.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/shared/public/commands/show_signin_command.h"
@@ -392,9 +393,12 @@ TEST_F(AccountMenuMediatorTest, TestAccountTapedSignoutFailed) {
   OCMExpect([delegate_mock_ signinFinished]);
   // Simulate AuthenticationFlow failure.
   [authentication_flow_request_helper
-      authenticationFlowDidSignInInSameProfileWithCancelationReason:
-          signin_ui::CancelationReason::kUserCanceled
-                                                           identity:nil];
+      authenticationFlowDidSignInInSameProfileWithIdentity:nil
+                                         cancelationReason:
+                                             signin_ui::CancelationReason::
+                                                 kUserCanceled
+                                                completion:^{
+                                                }];
 }
 
 // Tests the result of accountTappedWithGaiaID:targetRect:
@@ -434,13 +438,15 @@ TEST_F(AccountMenuMediatorTest, TestAccountTapedSignInFailed) {
   OCMExpect([consumer_mock_ setUserInteractionsEnabled:YES]);
   OCMExpect([delegate_mock_ signinFinished]);
   [authentication_flow_request_helper
-      authenticationFlowDidSignInInSameProfileWithCancelationReason:
-          signin_ui::CancelationReason::kFailed
-                                                           identity:nil];
+      authenticationFlowDidSignInInSameProfileWithIdentity:nil
+                                         cancelationReason:
+                                             signin_ui::CancelationReason::
+                                                 kFailed
+                                                completion:^{
+                                                }];
 
   // Checks the user is signed-back in.
-  ASSERT_EQ(kPrimaryIdentity, authentication_service_->GetPrimaryIdentity(
-                                  signin::ConsentLevel::kSignin));
+  ASSERT_EQ(kPrimaryIdentity, authentication_service_->GetPrimaryIdentity());
 }
 
 // Tests the result of accountTappedWithGaiaID:targetRect:
@@ -478,10 +484,12 @@ TEST_F(AccountMenuMediatorTest, TestAccountTapedWithSuccessfulSwitch) {
                  userTappedClose:NO]);
   OCMExpect([delegate_mock_ signinFinished]);
   [authentication_flow_request_helper
-      authenticationFlowDidSignInInSameProfileWithCancelationReason:
-          signin_ui::CancelationReason::kNotCanceled
-                                                           identity:
-                                                               kSecondaryIdentity];
+      authenticationFlowDidSignInInSameProfileWithIdentity:kSecondaryIdentity
+                                         cancelationReason:
+                                             signin_ui::CancelationReason::
+                                                 kNotCanceled
+                                                completion:^{
+                                                }];
 }
 
 // Tests the result of didTapErrorButton when a passphrase is required.

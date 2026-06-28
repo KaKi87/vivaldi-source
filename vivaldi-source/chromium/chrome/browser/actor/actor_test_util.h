@@ -17,21 +17,25 @@
 #include "base/test/test_future.h"
 #include "base/time/time.h"
 #include "base/types/expected.h"
+#include "chrome/browser/actor/actor_proto_conversion.h"
 #include "chrome/browser/actor/actor_tab_data.h"
 #include "chrome/browser/actor/actor_task.h"
-#include "chrome/browser/actor/enterprise_policy_url_checker.h"
+#include "chrome/browser/actor/actor_task_delegate.h"
+#include "chrome/browser/actor/enterprise_policy_checker.h"
 #include "chrome/browser/actor/execution_engine.h"
-#include "chrome/browser/actor/shared_types.h"
 #include "chrome/browser/actor/tools/media_control_tool_request.h"
 #include "chrome/browser/actor/tools/tool_request.h"
 #include "chrome/browser/actor/ui/event_dispatcher.h"
 #include "chrome/common/actor.mojom-forward.h"
 #include "chrome/common/actor/action_result.h"
-#include "chrome/common/actor/task_id.h"
+#include "components/actor/core/shared_types.h"
+#include "components/actor/core/task_id.h"
+#include "components/actor/public/mojom/actor_types.mojom.h"
 #include "components/optimization_guide/proto/features/actions_data.pb.h"
 #include "components/sessions/core/session_id.h"
 #include "components/tabs/public/mock_tab_interface.h"
 #include "components/tabs/public/tab_interface.h"
+#include "testing/gmock/include/gmock/gmock.h"
 #include "third_party/protobuf/src/google/protobuf/descriptor.h"
 #include "ui/gfx/geometry/point.h"
 
@@ -49,6 +53,7 @@ class TabInterface;
 
 namespace actor {
 
+class TabObservationStrategy;
 struct TaskSourceInfo;
 
 template <typename T>
@@ -61,8 +66,26 @@ auto UiEventDispatcherCallback(
   };
 }
 
-using ActResultFuture =
-    base::test::TestFuture<std::vector<ActionResultWithLatencyInfo>>;
+class ActResultFuture
+    : public base::test::TestFuture<std::vector<ActionResultWithLatencyInfo>,
+                                    TabObservationStrategy> {
+ public:
+  const std::vector<ActionResultWithLatencyInfo>& Get() {
+    return std::get<0>(
+        base::test::TestFuture<std::vector<ActionResultWithLatencyInfo>,
+                               TabObservationStrategy>::Get());
+  }
+  std::vector<ActionResultWithLatencyInfo> Take() {
+    return std::get<0>(
+        base::test::TestFuture<std::vector<ActionResultWithLatencyInfo>,
+                               TabObservationStrategy>::Take());
+  }
+  const TabObservationStrategy& GetStrategy() {
+    return std::get<1>(
+        base::test::TestFuture<std::vector<ActionResultWithLatencyInfo>,
+                               TabObservationStrategy>::Get());
+  }
+};
 using PerformActionsFuture = ActResultFuture;
 
 /////////////////////////
@@ -332,22 +355,92 @@ class ScopedExecutionEngineFactory {
   ~ScopedExecutionEngineFactory();
 };
 
-class MockPolicyChecker : public EnterprisePolicyUrlChecker {
+class MockActorTaskDelegate : public ActorTaskDelegate {
  public:
-  explicit MockPolicyChecker(EnterprisePolicyBlockReason reason);
-  ~MockPolicyChecker();
+  MockActorTaskDelegate();
+  ~MockActorTaskDelegate() override;
 
-  EnterprisePolicyBlockReason Evaluate(const GURL& url) const override;
+  MOCK_METHOD(void,
+              OnTabAddedToTask,
+              (TaskId task_id, const tabs::TabInterface::Handle& tab_handle),
+              (override));
+
+  MOCK_METHOD(void,
+              RequestToShowCredentialSelectionDialog,
+              (TaskId task_id,
+               (const base::flat_map<std::string, gfx::Image>&)icons,
+               const std::vector<actor_login::Credential>& credentials,
+               CredentialSelectedCallback callback),
+              (override));
+
+  MOCK_METHOD(void,
+              RequestToShowUserConfirmationDialog,
+              (TaskId task_id,
+               const url::Origin& destination,
+               bool for_blocklisted_origin,
+               UserConfirmationDialogCallback callback),
+              (override));
+
+  MOCK_METHOD(void,
+              RequestToConfirmNavigation,
+              (TaskId task_id,
+               const url::Origin& destination,
+               NavigationConfirmationCallback callback),
+              (override));
+
+  MOCK_METHOD(void,
+              RequestToShowAutofillSuggestionsDialog,
+              (actor::TaskId task_id,
+               std::vector<autofill::ActorFormFillingRequest> requests,
+               base::WeakPtr<AutofillSelectionDialogEventHandler> handler,
+               AutofillSuggestionSelectedCallback callback),
+              (override));
+
+  base::WeakPtr<MockActorTaskDelegate> GetWeakPtr() {
+    return weak_factory_.GetWeakPtr();
+  }
+
  private:
-  EnterprisePolicyBlockReason reason_;
+  base::WeakPtrFactory<MockActorTaskDelegate> weak_factory_{this};
 };
 
-// Returns a passthrough EnterprisePolicyUrlChecker tests can use to avoid
+class MockPolicyChecker : public EnterprisePolicyChecker {
+ public:
+  explicit MockPolicyChecker(UrlBlockReason reason,
+                             ContentValidationReason content_reason =
+                                 ContentValidationReason::kAllowed);
+  ~MockPolicyChecker() override;
+
+  UrlBlockReason Evaluate(const GURL& url) const override;
+  void ValidateContentSentToRenderer(
+      content::RenderFrameHost* frame,
+      const std::string& content,
+      ContentValidationCallback callback) const override;
+
+ private:
+  UrlBlockReason reason_;
+  ContentValidationReason content_reason_;
+};
+
+// Returns a passthrough EnterprisePolicyChecker tests can use to avoid
 // policy checks.
-const EnterprisePolicyUrlChecker* NoEnterprisePolicyChecker();
+const EnterprisePolicyChecker* NoEnterprisePolicyChecker();
 
 // Returns a common mock TaskSourceInfo used by actor tests.
 const TaskSourceInfo& TestTaskSourceInfo();
+
+// Adds a tab to a task and waits for the operation to complete.
+void AddTabToTask(tabs::TabInterface& tab, ActorTask& actor_task);
+
+// Helper to mock the result returned on a TabObservation built using
+// actor::BuildActionsResultWithObservations. While live, use the provided
+// function to set TabObservationResults. Unset on destruction.
+class ScopedMockTabObservationResult {
+ public:
+  explicit ScopedMockTabObservationResult(
+      TabObservationResultOverrideCallback callback);
+  ~ScopedMockTabObservationResult();
+};
 
 // Helper struct for unit tests that require a mock TabInterface and its
 // associated ActorTabData.

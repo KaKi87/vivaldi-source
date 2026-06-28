@@ -97,6 +97,11 @@ enum class AcceptTooltipEvents {
 // NSView from the operating system's key view search.
 - (BOOL)shouldRefuseBecomingKeyView;
 
+// By default, right clicking does not make the view first responder.
+// The content embedder may override this method to override the default
+// behavior.
+- (BOOL)shouldBecomeFirstResponderOnRightClick;
+
 // Vivaldi Additions
 - (AcceptMouseEvents)acceptsMouseEventsOptionVivaldi:(NSPoint)point;
 // End Vivaldi Additions

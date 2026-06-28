@@ -23,7 +23,6 @@
 #include "chrome/browser/ui/views/controls/subpage_view.h"
 #include "chrome/browser/ui/views/location_bar/icon_label_bubble_view.h"
 #include "chrome/common/webui_url_constants.h"
-#include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/autofill/core/browser/data_model/payments/autofill_offer_data.h"
@@ -114,7 +113,7 @@ class OfferNotificationBubbleViewsInteractiveUiTest
   }
 
   void ShowBubbleForCardLinkedOfferAndVerify() {
-    NavigateTo(GURL(chrome::kChromeUINewTabPageURL));
+    NavigateTo(chrome::ChromeUINewTabPageURLAsGURL());
     // Set the initial origin that the bubble will be displayed on.
     SetUpCardLinkedOfferDataWithDomains(
         {GetUrl("www.merchantsite1.test", "/"),
@@ -127,7 +126,7 @@ class OfferNotificationBubbleViewsInteractiveUiTest
   }
 
   void ShowBubbleForGPayPromoCodeOfferAndVerify() {
-    NavigateTo(GURL(chrome::kChromeUINewTabPageURL));
+    NavigateTo(chrome::ChromeUINewTabPageURLAsGURL());
     // Set the initial origin that the bubble will be displayed on.
     SetUpGPayPromoCodeOfferDataWithDomains(
         {GetUrl("www.merchantsite1.test", "/"),
@@ -286,7 +285,7 @@ IN_PROC_BROWSER_TEST_P(
         {test_case.url_navigated_to.spec(), ", bubble should be=",
          test_case.bubble_should_be_visible ? "visible" : "invisible"}));
     ClearNotificationActiveDomainsForTesting();
-    NavigateTo(GURL(chrome::kChromeUINewTabPageURL));
+    NavigateTo(chrome::ChromeUINewTabPageURLAsGURL());
 
     ResetEventWaiterForSequence({DialogEvent::BUBBLE_SHOWN});
     NavigateToAndWaitForForm(GetUrl("www.merchantsite1.test", "/first"));
@@ -531,6 +530,7 @@ IN_PROC_BROWSER_TEST_P(
 #endif
 IN_PROC_BROWSER_TEST_P(OfferNotificationBubbleViewsInteractiveUiTest,
                        MAYBE_IconViewAccessibleName) {
+  ShowBubbleForOfferAndVerify();
   EXPECT_EQ(GetOfferNotificationPageActionView()
                 ->GetViewAccessibility()
                 .GetCachedName(),

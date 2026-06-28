@@ -252,6 +252,32 @@ iterations is at least one, not more than 1e9, until CPU time is greater than
 the minimum time, or the wallclock time is 5x minimum time. The minimum time is
 set per benchmark by calling `MinTime` on the registered benchmark object.
 
+The minimum time can also be set for all benchmarks with the
+`--benchmark_min_time=<value>` command-line option. This flag supports two
+forms:
+
+* `--benchmark_min_time=<float>s` sets the minimum running time for each
+  benchmark repetition in seconds.
+* `--benchmark_min_time=<integer>x` runs each benchmark repetition for an
+  explicit number of iterations instead of using the dynamic time-based
+  iteration selection. This applies to benchmarks that do not already specify
+  an explicit iteration count in code.
+
+For compatibility, bare numeric values such as `--benchmark_min_time=0.5` are
+also interpreted as seconds, but the explicit `s` suffix is preferred for
+clarity.
+
+For example:
+
+```bash
+$ ./run_benchmarks.x --benchmark_min_time=0.5s
+$ ./run_benchmarks.x --benchmark_min_time=100x
+```
+
+If a benchmark specifies its own `MinTime()` or `Iterations()` in code, those
+per-benchmark settings take precedence over the corresponding
+`--benchmark_min_time` command-line forms.
+
 Furthermore warming up a benchmark might be necessary in order to get
 stable results because of e.g caching effects of the code under benchmark.
 Warming up means running the benchmark a given amount of time, before
@@ -452,7 +478,7 @@ benchmark. The following example enumerates a dense range on one parameter,
 and a sparse range on the second.
 
 ```c++
-static void CustomArguments(benchmark::internal::Benchmark* b) {
+static void CustomArguments(benchmark::Benchmark* b) {
   for (int i = 0; i <= 10; ++i)
     for (int j = 32; j <= 1024*1024; j *= 8)
       b->Args({i, j});
@@ -490,6 +516,25 @@ BENCHMARK_CAPTURE(BM_takes_args, int_test, 42, 43);
 
 Note that elements of `...args` may refer to global variables. Users should
 avoid modifying global state inside of a benchmark.
+
+### Naming a Benchmark Without Capturing Arguments
+
+If you only need to give a benchmark a custom name (without passing extra
+arguments), use `BENCHMARK_NAMED(func, test_case_name)`. Unlike
+`BENCHMARK_CAPTURE`, this macro does not create a lambda, which avoids
+compiler and linker scalability issues when registering thousands of
+benchmarks.
+
+```c++
+void BM_Foo(benchmark::State& state) {
+  for (auto _ : state) {}
+}
+// Registers a benchmark named "BM_Foo/my_variant"
+BENCHMARK_NAMED(BM_Foo, my_variant);
+```
+
+Use `BENCHMARK_CAPTURE` when you need to pass extra arguments; use
+`BENCHMARK_NAMED` when you only need the name.
 
 <a name="asymptotic-complexity" />
 
@@ -749,10 +794,6 @@ and `Counter` values. The latter is a `double`-like class, via an implicit
 conversion to `double&`. Thus you can use all of the standard arithmetic
 assignment operators (`=,+=,-=,*=,/=`) to change the value of each counter.
 
-In multithreaded benchmarks, each counter is set on the calling thread only.
-When the benchmark finishes, the counters from each thread will be summed;
-the resulting sum is the value which will be shown for the benchmark.
-
 The `Counter` constructor accepts three parameters: the value as a `double`
 ; a bit flag which allows you to show counters as rates, and/or as per-thread
 iteration, and/or as per-thread averages, and/or iteration invariants,
@@ -796,6 +837,10 @@ You can use `insert()` with `std::initializer_list`:
   state.counters["Baz"] = numBazs;
 ```
 <!-- {% endraw %} -->
+
+In multithreaded benchmarks, each counter is set on the calling thread only.
+When the benchmark finishes, the counters from each thread will be summed.
+Counters that are configured with `kIsRate`, will report the average rate across all threads, while `kAvgThreadsRate` counters will report the average rate per thread.
 
 ### Counter Reporting
 
@@ -1018,6 +1063,29 @@ static void BM_SetInsert_With_Timer_Control(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_SetInsert_With_Timer_Control)->Ranges({{1<<10, 8<<10}, {128, 512}});
+```
+<!-- {% endraw %} -->
+
+For convenience, a `ScopedPauseTiming` class is provided to manage pausing and
+resuming timers within a scope. This is less error-prone than manually calling
+`PauseTiming` and `ResumeTiming`.
+
+<!-- {% raw %} -->
+```c++
+static void BM_SetInsert_With_Scoped_Timer_Control(benchmark::State& state) {
+  std::set<int> data;
+  for (auto _ : state) {
+    {
+      benchmark::ScopedPauseTiming pause(state); // Pauses timing
+      data = ConstructRandomSet(state.range(0));
+    } // Timing resumes automatically when 'pause' goes out of scope
+
+    // The rest will be measured.
+    for (int j = 0; j < state.range(1); ++j)
+      data.insert(RandomNumber());
+  }
+}
+BENCHMARK(BM_SetInsert_With_Scoped_Timer_Control)->Ranges({{1<<10, 8<<10}, {128, 512}});
 ```
 <!-- {% endraw %} -->
 

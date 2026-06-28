@@ -90,8 +90,14 @@ class MenuStorage : public base::ImportantFileWriter::DataSerializer {
   // takes ownership of |details|. See NotesLoadDetails for details.
   void Load(std::unique_ptr<MenuLoadDetails> details);
 
-  // Schedules saving the notes model to disk.
+  // Schedules saving the model to disk.
   void ScheduleSave();
+
+  // Serializes the data and schedules save using ImportantFileWriter.
+  // Returns true on successful serialization. Do not use this function unless
+  // needed. We have identifed once such case: Save on reset as reset can happen
+  // from settings with an immediate exit/restart afterwards.
+  bool SaveNow(bool on_reset);
 
   // Notification the notes model is going to be deleted. If there is
   // a pending save, it is saved immediately.
@@ -116,10 +122,6 @@ class MenuStorage : public base::ImportantFileWriter::DataSerializer {
   friend base::RefCountedThreadSafe<MenuStorage>;
 
   void OnBackupFinished();
-
-  // Serializes the data and schedules save using ImportantFileWriter.
-  // Returns true on successful serialization.
-  bool SaveNow();
 
   raw_ptr<Menu_Model> model_;
 

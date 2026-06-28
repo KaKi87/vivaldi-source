@@ -5,6 +5,9 @@
 #include "chrome/browser/ui/android/toolbar/location_bar_model_android.h"
 
 #include "base/android/jni_string.h"
+#include "base/command_line.h"
+#include "chrome/browser/search/search.h"
+#include "chrome/common/chrome_switches.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/common/webui_url_constants.h"
 #include "components/omnibox/browser/location_bar_model_impl.h"
@@ -60,7 +63,7 @@ int32_t LocationBarModelAndroid::GetPageClassification(JNIEnv* env,
 content::WebContents* LocationBarModelAndroid::GetActiveWebContents() const {
   JNIEnv* env = base::android::AttachCurrentThread();
   ScopedJavaLocalRef<jobject> jweb_contents =
-      Java_LocationBarModel_getActiveWebContents(env, java_object_);
+      Java_LocationBarModel_getWebContents(env, java_object_);
   return content::WebContents::FromJavaWebContents(jweb_contents);
 }
 
@@ -73,6 +76,10 @@ bool LocationBarModelAndroid::IsNewTabPage() const {
   // Android Chrome has its own Instant NTP page implementation.
   if (url.SchemeIs(chrome::kChromeNativeScheme) &&
       url.host() == chrome::kChromeUINewTabHost) {
+    return true;
+  }
+  if (search::IsWebUiNtpEnabled() && url.SchemeIs(content::kChromeUIScheme) &&
+      url.host() == chrome::kChromeUINewTabPageHost) {
     return true;
   }
 

@@ -95,6 +95,7 @@
 #include "components/autofill/core/browser/webdata/autofill_webdata_service.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_payments_features.h"
+#include "components/autofill/core/common/autofill_prefs.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/browsing_data/content/browsing_data_helper.h"
 #include "components/browsing_data/core/features.h"
@@ -146,7 +147,6 @@
 #include "components/web_cache/browser/web_cache_manager.h"
 #include "components/webrtc_logging/browser/log_cleanup.h"
 #include "components/webrtc_logging/browser/text_log_list.h"
-#include "content/public/browser/background_tracing_manager.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/browsing_data_filter_builder.h"
@@ -155,6 +155,7 @@
 #include "content/public/browser/prefetch_service_delegate.h"
 #include "content/public/browser/ssl_host_state_delegate.h"
 #include "content/public/browser/storage_partition.h"
+#include "device/fido/platform_credential_store.h"
 #include "google_apis/gaia/gaia_urls.h"
 #include "media/base/media_switches.h"
 #include "media/mojo/services/video_decode_perf_history.h"
@@ -165,6 +166,7 @@
 #include "net/http/http_transaction_factory.h"
 #include "net/net_buildflags.h"
 #include "services/network/public/mojom/clear_data_filter.mojom.h"
+#include "services/tracing/public/cpp/background_tracing/background_tracing_manager.h"
 #include "third_party/perfetto/include/perfetto/tracing/track.h"
 
 #if BUILDFLAG(IS_ANDROID)
@@ -174,9 +176,10 @@
 #include "chrome/browser/feed/feed_service_factory.h"
 #include "chrome/browser/offline_pages/offline_page_model_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/settings/jni_headers/RecentSearchQueue_jni.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
-#include "components/cdm/browser/media_drm_storage_impl.h"  // nogncheck crbug.com/1125897
+#include "components/cdm/browser/media_drm_storage_impl.h"  // nogncheck crbug.com/40147906
 #include "components/feed/core/v2/public/feed_service.h"    // nogncheck
 #include "components/feed/feed_feature_list.h"
 #include "components/installedapp/android/jni_headers/PackageHash_jni.h"
@@ -567,7 +570,7 @@ void ChromeBrowsingDataRemoverDelegate::RemoveEmbedderData(
 
     CreateCrashUploadList()->Clear(delete_begin_, delete_end_);
 
-    content::BackgroundTracingManager::GetInstance().DeleteTracesInDateRange(
+    tracing::BackgroundTracingManager::GetInstance().DeleteTracesInDateRange(
         delete_begin_, delete_end_);
 
     FindBarStateFactory::GetForBrowserContext(profile_)->SetLastSearchText(
@@ -697,7 +700,7 @@ void ChromeBrowsingDataRemoverDelegate::RemoveEmbedderData(
 
       profile_->GetDefaultStoragePartition()->ClearDataForOrigin(
           content::StoragePartition::REMOVE_DATA_MASK_LOCAL_STORAGE,
-          GURL(chrome::kChromeUINewTabPageURL), base::DoNothing());
+          chrome::ChromeUINewTabPageURLAsGURL(), base::DoNothing());
     }
 #endif  // !BUILDFLAG(IS_ANDROID)
 
@@ -709,9 +712,7 @@ void ChromeBrowsingDataRemoverDelegate::RemoveEmbedderData(
     }
 
 #if BUILDFLAG(IS_CHROMEOS)
-    if (base::FeatureList::IsEnabled(
-            browsing_data::features::kDbdRevampDesktop) &&
-        ash::SystemProxyManager::Get()) {
+    if (ash::SystemProxyManager::Get()) {
       // Sends a request to the System-proxy daemon to clear the proxy user
       // credentials. System-proxy retrieves proxy username and password from
       // the NetworkService, but not the creation time of the credentials. The
@@ -924,8 +925,6 @@ void ChromeBrowsingDataRemoverDelegate::RemoveEmbedderData(
         profile_, ServiceAccessType::EXPLICIT_ACCESS);
 
     if (password_store) {
-      // No sync completion callback is needed for profile passwords, since the
-      // login token is persisted and can be used after cookie deletion.
       password_store->RemoveLoginsCreatedBetween(
           FROM_HERE, delete_begin_, delete_end_,
           CreateTaskCompletionCallback(
@@ -979,23 +978,10 @@ void ChromeBrowsingDataRemoverDelegate::RemoveEmbedderData(
         profile_, ServiceAccessType::EXPLICIT_ACCESS);
 
     if (account_store) {
-      // Desktop must wait for DATA_TYPE_ACCOUNT_PASSWORDS deletions to be
-      // uploaded to the sync server before deleting any other types (because
-      // deleting DATA_TYPE_COOKIES first would revoke the account storage
-      // opt-in and prevent the upload).
-      // On Android, the account storage doesn't depend on cookies, so there's
-      // no need to wait.
-      base::OnceCallback<void(bool)> sync_completion;
-#if !BUILDFLAG(IS_ANDROID)
-      sync_completion =
-          CreateTaskCompletionCallback(TracingDataType::kAccountPasswordsSynced,
-                                       constants::DATA_TYPE_ACCOUNT_PASSWORDS);
-#endif
       account_store->RemoveLoginsCreatedBetween(
           FROM_HERE, delete_begin_, delete_end_,
           CreateTaskCompletionCallback(TracingDataType::kAccountPasswords,
-                                       constants::DATA_TYPE_ACCOUNT_PASSWORDS),
-          std::move(sync_completion));
+                                       constants::DATA_TYPE_ACCOUNT_PASSWORDS));
     }
 
     // Record that a password removal action happened for the account store.
@@ -1059,6 +1045,9 @@ void ChromeBrowsingDataRemoverDelegate::RemoveEmbedderData(
         strike_database->ClearAllStrikes();
       }
 
+      autofill::prefs::ClearEmailVerificationState(prefs, delete_begin_,
+                                                   delete_end_);
+
       autofill::PersonalDataManager* data_manager =
           autofill::PersonalDataManagerFactory::GetForBrowserContext(profile_);
       data_manager->address_data_manager().RemoveLocalProfilesModifiedBetween(
@@ -1075,9 +1064,7 @@ void ChromeBrowsingDataRemoverDelegate::RemoveEmbedderData(
 
   if ((remove_mask & constants::DATA_TYPE_PASSWORDS)
 #if !BUILDFLAG(IS_ANDROID)
-      ||
-      ((remove_mask & constants::DATA_TYPE_FORM_DATA) &&
-       base::FeatureList::IsEnabled(browsing_data::features::kDbdRevampDesktop))
+      || (remove_mask & constants::DATA_TYPE_FORM_DATA)
 #endif  // !BUILDFLAG(IS_ANDROID)
   ) {
     scoped_refptr<payments::WebPaymentsWebDataService>
@@ -1147,6 +1134,10 @@ void ChromeBrowsingDataRemoverDelegate::RemoveEmbedderData(
             filter,
             base::IgnoreArgs<offline_pages::OfflinePageModel::DeletePageResult>(
                 CreateTaskCompletionClosure(TracingDataType::kOfflinePages)));
+
+      // Deletes the recent search entries for Android Settings.
+      Java_RecentSearchQueue_deleteDiskData(
+          base::android::AttachCurrentThread());
     }
 #endif
 
@@ -1489,8 +1480,14 @@ void ChromeBrowsingDataRemoverDelegate::RemoveEmbedderData(
                    std::ranges::any_of(
                        filter_builder->GetOrigins(),
                        [&](const url::Origin& origin) -> bool {
-                         return setting.primary_pattern.Matches(
-                                    origin.GetURL()) ||
+                         // TopLevelStorageAccessPermissionContext creates
+                         // grants using (origin, site) patterns. We explicitly
+                         // use the primary pattern's site here to ensure any
+                         // permission granted to subdomains of an RWS site are
+                         // properly cleared.
+                         return net::SchemefulSite(setting.primary_pattern
+                                                       .ToRepresentativeUrl())
+                                    .IsSameSiteWith(origin) ||
                                 setting.secondary_pattern.Matches(
                                     origin.GetURL());
                        });
@@ -1585,6 +1582,7 @@ void ChromeBrowsingDataRemoverDelegate::OnTaskComplete(
   std::move(callback_).Run(failed_data_types_);
 }
 
+// LINT.IfChange(TracingDataTypeHistogramSuffix)
 const char* ChromeBrowsingDataRemoverDelegate::GetHistogramSuffix(
     TracingDataType task) {
   switch (task) {
@@ -1632,8 +1630,6 @@ const char* ChromeBrowsingDataRemoverDelegate::GetHistogramSuffix(
       return "UserDataSnapshot";
     case TracingDataType::kAccountPasswords:
       return "AccountPasswords";
-    case TracingDataType::kAccountPasswordsSynced:
-      return "AccountPasswordsSynced";
     case TracingDataType::kFaviconCacheExpiration:
       return "FaviconCacheExpiration";
     case TracingDataType::kSecurePaymentConfirmationCredentials:
@@ -1648,6 +1644,7 @@ const char* ChromeBrowsingDataRemoverDelegate::GetHistogramSuffix(
       return "MediaDeviceSalts";
   }
 }
+// LINT.ThenChange(//tools/metrics/histograms/metadata/history/histograms.xml:History.ClearBrowsingData.Duration.ChromeTask.Task)
 
 void ChromeBrowsingDataRemoverDelegate::OnStartRemoving() {
   profile_keep_alive_ = std::make_unique<ScopedProfileKeepAlive>(
@@ -1770,4 +1767,5 @@ void ChromeBrowsingDataRemoverDelegate::DisablePasswordsAutoSignin(
 
 #if BUILDFLAG(IS_ANDROID)
 DEFINE_JNI(PackageHash)
+DEFINE_JNI(RecentSearchQueue)
 #endif

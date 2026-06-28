@@ -17,6 +17,7 @@
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_aim_popup_webui_content.h"
+#include "chrome/browser/ui/views/omnibox/omnibox_popup_webui_base_content.h"
 #include "ui/base/cursor/cursor.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -29,6 +30,7 @@
 #include "ui/views/bubble/bubble_border.h"
 #include "ui/views/layout/layout_provider.h"
 #include "ui/views/metadata/view_factory.h"
+#include "ui/views/view_utils.h"
 
 #if defined(USE_AURA)
 #include "ui/aura/window.h"
@@ -40,9 +42,6 @@
 #endif
 
 namespace {
-
-// Value from the spec controlling appearance of the shadow.
-constexpr int kElevation = 16;
 
 #if !defined(USE_AURA)
 
@@ -119,7 +118,7 @@ WidgetEventPair GetParentWidgetAndEvent(views::View* this_view,
 // On macOS if the parent widget is the overlay widget we are in immersive
 // fullscreen. Don't walk any higher up the tree. The overlay or tab widget will
 // handle the event.
-// TODO(http://crbug.com/1462791): Remove custom event handling.
+// TODO(http://crbug.com/40066999): Remove custom event handling.
 #if BUILDFLAG(IS_MAC)
   views::Widget* top_level =
       GetImmersiveFullscreenWidgetForEvent(this_view, this_event)
@@ -200,7 +199,8 @@ class TopBackgroundView : public views::View {
     }
 
     // If the original event isn't marked as "handled" then it will propagate up
-    // the view hierarchy and might be double-handled. https://crbug.com/870341
+    // the view hierarchy and might be double-handled.
+    // https://crbug.com/41405642
     event->SetHandled();
   }
 
@@ -262,12 +262,7 @@ RoundedOmniboxResultsFrame::RoundedOmniboxResultsFrame(
   contents_host->AddChildViewRaw(contents_.get());
 
   // Initialize the shadow.
-  auto border = std::make_unique<views::BubbleBorder>(
-      views::BubbleBorder::Arrow::NONE,
-      views::BubbleBorder::Shadow::STANDARD_SHADOW);
-  border->set_rounded_corners(gfx::RoundedCornersF(corner_radius));
-  border->set_md_shadow_elevation(kElevation);
-  SetBorder(std::move(border));
+  SetElevation(kDefaultElevation);
 
   AddChildView(std::move(contents_host));
 }
@@ -313,7 +308,7 @@ gfx::Insets RoundedOmniboxResultsFrame::GetLocationBarAlignmentInsets() {
 
 // static
 gfx::Insets RoundedOmniboxResultsFrame::GetShadowInsets() {
-  return views::BubbleBorder::GetBorderAndShadowInsets(kElevation);
+  return views::BubbleBorder::GetBorderAndShadowInsets(kDefaultElevation);
 }
 
 std::unique_ptr<views::View> RoundedOmniboxResultsFrame::ExtractContents() {
@@ -325,11 +320,37 @@ views::View* RoundedOmniboxResultsFrame::GetContents() {
   return contents_;
 }
 
+OmniboxPopupWebUIBaseContent*
+RoundedOmniboxResultsFrame::GetOmniboxPopupWebUIBaseContent() {
+  views::View* container = GetContents();
+  // `container` holds the `OmniboxPopupWebUIBaseContent` as a child. It can be
+  // empty before the WebUI content wrapper has finished loading, or after the
+  // widget/popup is closed and contents are extracted.
+  return container && !container->children().empty()
+             ? views::AsViewClass<OmniboxPopupWebUIBaseContent>(
+                   container->children().front())
+             : nullptr;
+}
+
 void RoundedOmniboxResultsFrame::SetCutoutVisibility(bool visible) {
   if (visible == top_background_->GetVisible()) {
     return;
   }
   top_background_->SetVisible(visible);
+}
+
+void RoundedOmniboxResultsFrame::SetElevation(int elevation) {
+  const int corner_radius = views::LayoutProvider::Get()->GetCornerRadiusMetric(
+      views::ShapeContextTokens::kOmniboxExpandedRadius);
+  auto border = std::make_unique<views::BubbleBorder>(
+      views::BubbleBorder::Arrow::NONE,
+      elevation == 0 ? views::BubbleBorder::Shadow::NO_SHADOW
+                     : views::BubbleBorder::Shadow::STANDARD_SHADOW);
+  border->set_rounded_corners(gfx::RoundedCornersF(corner_radius));
+  if (elevation > 0) {
+    border->set_md_shadow_elevation(elevation);
+  }
+  SetBorder(std::move(border));
 }
 
 void RoundedOmniboxResultsFrame::Layout(PassKey) {
@@ -349,6 +370,10 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
 
   gfx::Rect results_bounds(contents_host_->GetContentsBounds());
   results_bounds.Inset(GetContentInsets());
+
+  // Align webview horizontal bounds and positioning with the outer view.
+  results_bounds.set_x(0);
+  results_bounds.set_width(contents_host_->GetContentsBounds().width());
 
   // Workaround for 1px visual artifact. The WebUI requests a 1px minimum height
   // when empty, creating a visual artifact. Clamping to 0 hides the widget and

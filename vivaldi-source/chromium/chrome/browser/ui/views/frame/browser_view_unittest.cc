@@ -17,11 +17,12 @@
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/browser_navigator.h"
+#include "chrome/browser/ui/browser_element_identifiers.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/layout_constants.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/performance_controls/tab_resource_usage_tab_helper.h"
 #include "chrome/browser/ui/tabs/tab_activity_simulator.h"
 #include "chrome/browser/ui/tabs/tab_data.h"
@@ -38,11 +39,11 @@
 #include "chrome/browser/ui/views/frame/test_with_browser_view.h"
 #include "chrome/browser/ui/views/frame/top_container_view.h"
 #include "chrome/browser/ui/views/infobars/infobar_container_view.h"
+#include "chrome/browser/ui/views/toolbar/app_menu_control.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/branded_strings.h"
-#include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "chrome/test/base/testing_profile_manager.h"
 #include "components/vector_icons/vector_icons.h"
@@ -55,11 +56,13 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/dialog_model.h"
 #include "ui/base/text/bytes_formatting.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/gfx/scrollbar_size.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/bubble/bubble_dialog_model_host.h"
 #include "ui/views/controls/webview/webview.h"
+#include "ui/views/interaction/element_tracker_views.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/boca/on_task/on_task_locked_controller.h"
@@ -155,8 +158,11 @@ TEST_F(BrowserViewTest, BrowserView) {
   EXPECT_EQ(customize_chrome_action->GetText(),
             l10n_util::GetStringUTF16(IDS_SIDE_PANEL_CUSTOMIZE_CHROME_TITLE));
   EXPECT_EQ(customize_chrome_action->GetImage(),
-            ui::ImageModel::FromVectorIcon(vector_icons::kEditChromeRefreshIcon,
-                                           ui::kColorIcon));
+            ui::ImageModel::FromVectorIcon(
+                features::IsRoundedIconsEnabled()
+                    ? vector_icons::kEditIcon
+                    : vector_icons::kEditChromeRefreshOldIcon,
+                ui::kColorIcon));
   EXPECT_EQ(customize_chrome_action->GetEnabled(), true);
 }
 
@@ -221,7 +227,7 @@ TEST_F(BrowserViewTest, MAYBE_UpdateActiveBrowser) {
   // `BrowserView::Show()` has to be called first.
   ScopedBrowser scoped_browser(profile());
   Browser* browser2 = scoped_browser.browser();
-  EXPECT_EQ(2u, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(2u, GlobalBrowserCollection::GetInstance()->GetSize());
   EXPECT_EQ(browser(), GetLastActiveBrowserWindowInterfaceWithAnyProfile());
 
   browser2->window()->Show();
@@ -305,8 +311,8 @@ TEST_F(BrowserViewTest, DISABLED_BrowserViewLayout) {
   EXPECT_FALSE(bookmark_bar->GetVisible());
 
   // The NTP should be treated the same as any other page.
-  NavigateAndCommitActiveTabWithTitle(browser, GURL(chrome::kChromeUINewTabURL),
-                                      std::u16string());
+  NavigateAndCommitActiveTabWithTitle(
+      browser, chrome::ChromeUINewTabURLAsGURL(), std::u16string());
   EXPECT_FALSE(bookmark_bar->GetVisible());
   EXPECT_EQ(top_container, bookmark_bar->parent());
 
@@ -521,17 +527,22 @@ TEST_F(BrowserViewTest, TitleAudioIndicators) {
 #endif
 
 TEST_F(BrowserViewTest, RotatePaneFocusFromView) {
+  // Browser widget must be visible for ui::ElementIdentifiers to resolve.
+  browser_view()->GetWidget()->Show();
+
   auto dialog_model = ui::DialogModel::Builder()
                           .SetTitle(u"test")
                           .SetIsAlertDialog()
                           .AddOkButton(base::DoNothing())
                           .Build();
-  auto* anchor = browser_view()->toolbar_button_provider()->GetAppMenuButton();
+  views::BubbleAnchor anchor =
+      browser_view()->toolbar_button_provider()->GetBubbleAnchor(std::nullopt);
 
   auto bubble = std::make_unique<views::BubbleDialogModelHost>(
       std::move(dialog_model), anchor, views::BubbleBorder::TOP_RIGHT);
   auto* bubble_ptr = bubble.get();
-  auto* widget = views::BubbleDialogDelegate::CreateBubble(std::move(bubble));
+  auto* widget = views::BubbleDialogDelegate::CreateBubbleDeprecated(
+      std::move(bubble), views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET);
   widget->Show();
 
   // OK button cannot be retrieved until CreateBubble has been called.

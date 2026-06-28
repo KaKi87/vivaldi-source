@@ -11,6 +11,7 @@
 #include "base/scoped_observation.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry_observer.h"
+#include "chrome/browser/ui/views/frame/immersive_mode_controller.h"
 #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 
 namespace contextual_tasks {
@@ -20,10 +21,15 @@ class EntryPointEligibilityManager;
 class BrowserWindowInterface;
 class SidePanelEntry;
 
+namespace tabs {
+class VerticalTabStripStateController;
+}  // namespace tabs
+
 // Controller to trigger whether `ContextualTasksCloseTabButton` should show.
 class ContextualTasksCloseButtonController
     : public SidePanelEntryObserver,
-      public contextual_tasks::ContextualTasksPanelController::Observer {
+      public contextual_tasks::ContextualTasksPanelController::Observer,
+      public ImmersiveModeController::Observer {
  public:
   DECLARE_USER_DATA(ContextualTasksCloseButtonController);
   ContextualTasksCloseButtonController(
@@ -46,16 +52,27 @@ class ContextualTasksCloseButtonController
 
   // SidePanelEntryObserver:
   void OnEntryShown(SidePanelEntry* entry) override;
+  void OnEntryWillHide(SidePanelEntry* entry,
+                       SidePanelEntryHideReason reason) override;
+  void OnEntryHideCancelled(SidePanelEntry* entry) override;
   void OnEntryHidden(SidePanelEntry* entry) override;
 
   // contextual_tasks::ContextualTasksPanelController::Observer:
   void ExpandToFullTabStateChanged() override;
+  void OnVerticalTabStripModeChanged(
+      tabs::VerticalTabStripStateController* controller);
+
+  // ImmersiveModeController::Observer:
+  void OnImmersiveFullscreenEntered() override;
+  void OnImmersiveFullscreenExited() override;
 
   void OnEligibilityChange(bool is_eligible);
 
   void MaybeCloseTabExpandSidePanel();
 
  private:
+  bool IsVerticalTabOrIsImmersiveMode() const;
+
   raw_ptr<BrowserWindowInterface> browser_window_interface_ = nullptr;
   ui::ScopedUnownedUserData<ContextualTasksCloseButtonController>
       scoped_unowned_user_data_;
@@ -63,10 +80,17 @@ class ContextualTasksCloseButtonController
   base::ScopedObservation<SidePanelEntry, SidePanelEntryObserver>
       side_panel_entry_observation_{this};
   base::CallbackListSubscription eligibility_change_subscription_;
+  base::CallbackListSubscription vertical_tab_subscription_;
+  base::ScopedObservation<ImmersiveModeController,
+                          ImmersiveModeController::Observer>
+      immersive_mode_observation_{this};
   base::ScopedObservation<
       contextual_tasks::ContextualTasksPanelController,
       contextual_tasks::ContextualTasksPanelController::Observer>
       panel_controller_observation_{this};
+
+  bool is_panel_visible_ = false;
+  bool is_panel_hiding_ = false;
 
   ShouldUpdateVisibilityCallbackList should_update_visibility_callbacks_;
 

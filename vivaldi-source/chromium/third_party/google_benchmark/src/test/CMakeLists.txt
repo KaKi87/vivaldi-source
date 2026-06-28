@@ -184,7 +184,10 @@ compile_output_test(templated_fixture_method_test)
 benchmark_add_test(NAME templated_fixture_method_test COMMAND templated_fixture_method_test --benchmark_min_time=0.01s)
 
 compile_output_test(user_counters_test)
-benchmark_add_test(NAME user_counters_test COMMAND user_counters_test --benchmark_min_time=0.01s)
+benchmark_add_test(NAME user_counters_test COMMAND user_counters_test --benchmark_min_time=0.2s)
+
+compile_output_test(user_counters_threads_test)
+benchmark_add_test(NAME user_counters_threads_test COMMAND user_counters_threads_test --benchmark_min_time=0.2s)
 
 compile_output_test(perf_counters_test)
 benchmark_add_test(NAME perf_counters_test COMMAND perf_counters_test --benchmark_min_time=0.01s --benchmark_perf_counters=CYCLES,INSTRUCTIONS)
@@ -202,7 +205,7 @@ compile_output_test(display_aggregates_only_test)
 benchmark_add_test(NAME display_aggregates_only_test COMMAND display_aggregates_only_test --benchmark_min_time=0.01s)
 
 compile_output_test(user_counters_tabular_test)
-benchmark_add_test(NAME user_counters_tabular_test COMMAND user_counters_tabular_test --benchmark_counters_tabular=true --benchmark_min_time=0.01s)
+benchmark_add_test(NAME user_counters_tabular_test COMMAND user_counters_tabular_test --benchmark_counters_tabular=true --benchmark_min_time=0.2s)
 
 compile_output_test(user_counters_thousands_test)
 benchmark_add_test(NAME user_counters_thousands_test COMMAND user_counters_thousands_test --benchmark_min_time=0.01s)
@@ -221,6 +224,9 @@ benchmark_add_test(NAME complexity_benchmark COMMAND complexity_test --benchmark
 
 compile_output_test(locale_impermeability_test)
 benchmark_add_test(NAME locale_impermeability_test COMMAND locale_impermeability_test)
+
+compile_output_test(scoped_pause_test)
+benchmark_add_test(NAME scoped_pause_test COMMAND scoped_pause_test)
 
 ###############################################################################
 # GoogleTest Unit Tests

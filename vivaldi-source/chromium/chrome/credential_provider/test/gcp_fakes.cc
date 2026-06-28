@@ -149,7 +149,7 @@ base::win::ScopedHandle FakeOSDeviceManager::OpenDevice(
   if (open_device_result_.is_valid()) {
     // Return a duplicate so the fake still owns a valid handle.
     HANDLE duplicated_handle;
-    if (!::DuplicateHandle(GetCurrentProcess(), open_device_result_.Get(),
+    if (!::DuplicateHandle(GetCurrentProcess(), open_device_result_.get(),
                            GetCurrentProcess(), &duplicated_handle, 0, FALSE,
                            DUPLICATE_SAME_ACCESS)) {
       return base::win::ScopedHandle();
@@ -220,7 +220,6 @@ HRESULT FakeOSUserManager::AddUser(const wchar_t* username,
                                    const wchar_t* domain,
                                    BSTR* sid,
                                    DWORD* error) {
-  USES_CONVERSION;
 
   DCHECK(sid);
 
@@ -239,10 +238,9 @@ HRESULT FakeOSUserManager::AddUser(const wchar_t* username,
     return E_FAIL;
   }
 
-  bool user_found = username_to_info_.count(username) > 0;
-
-  if (user_found) {
-    *sid = ::SysAllocString(W2COLE(username_to_info_[username].sid.c_str()));
+  if (auto it = username_to_info_.find(username);
+      it != username_to_info_.end()) {
+    *sid = ::SysAllocString(it->second.sid.c_str());
     return HRESULT_FROM_WIN32(NERR_UserExists);
   }
 
@@ -260,7 +258,7 @@ HRESULT FakeOSUserManager::AddUser(const wchar_t* username,
     return HRESULT_FROM_WIN32(NERR_ProgNeedsExtraMem);
   }
 
-  *sid = ::SysAllocString(W2COLE(sidstr));
+  *sid = ::SysAllocString(sidstr);
   username_to_info_.emplace(
       username, UserInfo(domain, password, fullname, comment, sidstr));
   ::LocalFree(sidstr);
@@ -277,17 +275,18 @@ HRESULT FakeOSUserManager::ChangeUserPassword(const wchar_t* domain,
   DCHECK(old_password);
   DCHECK(new_password);
 
-  if (failure_reasons_.find(FAILEDOPERATIONS::CHANGE_PASSWORD) !=
-      failure_reasons_.end()) {
-    return failure_reasons_[FAILEDOPERATIONS::CHANGE_PASSWORD];
+  if (auto it = failure_reasons_.find(FAILEDOPERATIONS::CHANGE_PASSWORD);
+      it != failure_reasons_.end()) {
+    return it->second;
   }
 
-  if (username_to_info_.count(username) > 0) {
-    if (username_to_info_[username].password != old_password) {
+  if (auto it = username_to_info_.find(username);
+      it != username_to_info_.end()) {
+    if (it->second.password != old_password) {
       return HRESULT_FROM_WIN32(ERROR_INVALID_PASSWORD);
     }
 
-    username_to_info_[username].password = new_password;
+    it->second.password = new_password;
     return S_OK;
   }
 
@@ -301,8 +300,9 @@ HRESULT FakeOSUserManager::SetUserPassword(const wchar_t* domain,
   DCHECK(username);
   DCHECK(new_password);
 
-  if (username_to_info_.count(username) > 0) {
-    username_to_info_[username].password = new_password;
+  if (auto it = username_to_info_.find(username);
+      it != username_to_info_.end()) {
+    it->second.password = new_password;
     return S_OK;
   }
 
@@ -316,13 +316,14 @@ HRESULT FakeOSUserManager::SetUserFullname(const wchar_t* domain,
   DCHECK(username);
   DCHECK(full_name);
 
-  if (failure_reasons_.find(FAILEDOPERATIONS::SET_USER_FULLNAME) !=
-      failure_reasons_.end()) {
-    return failure_reasons_[FAILEDOPERATIONS::SET_USER_FULLNAME];
+  if (auto it = failure_reasons_.find(FAILEDOPERATIONS::SET_USER_FULLNAME);
+      it != failure_reasons_.end()) {
+    return it->second;
   }
 
-  if (username_to_info_.count(username) > 0) {
-    username_to_info_[username].fullname = full_name;
+  if (auto it = username_to_info_.find(username);
+      it != username_to_info_.end()) {
+    it->second.fullname = full_name;
     return S_OK;
   }
 
@@ -336,8 +337,9 @@ HRESULT FakeOSUserManager::IsWindowsPasswordValid(const wchar_t* domain,
   DCHECK(username);
   DCHECK(password);
 
-  if (username_to_info_.count(username) > 0) {
-    const UserInfo& info = username_to_info_[username];
+  if (auto it = username_to_info_.find(username);
+      it != username_to_info_.end()) {
+    const UserInfo& info = it->second;
     if (info.domain != domain) {
       return HRESULT_FROM_WIN32(NERR_UserNotFound);
     }
@@ -357,13 +359,16 @@ HRESULT FakeOSUserManager::CreateLogonToken(const wchar_t* domain,
   DCHECK(username);
   DCHECK(password);
 
-  if (username_to_info_.count(username) == 0) {
+  auto it = username_to_info_.find(username);
+  if (it != username_to_info_.end()) {
+    if (it->second.password != password) {
+      return HRESULT_FROM_WIN32(NERR_UserExists);
+    }
+  } else {
     return HRESULT_FROM_WIN32(NERR_BadUsername);
-  } else if (username_to_info_[username].password != password) {
-    return HRESULT_FROM_WIN32(NERR_UserExists);
   }
 
-  const UserInfo& info = username_to_info_[username];
+  const UserInfo& info = it->second;
   if (info.domain != domain) {
     return HRESULT_FROM_WIN32(NERR_BadUsername);
   }
@@ -391,8 +396,9 @@ HRESULT FakeOSUserManager::GetUserSID(const wchar_t* domain,
   DCHECK(domain);
   DCHECK(username);
   DCHECK(sid);
-  if (username_to_info_.count(username) > 0) {
-    const UserInfo& info = username_to_info_[username];
+  if (auto it = username_to_info_.find(username);
+      it != username_to_info_.end()) {
+    const UserInfo& info = it->second;
     if (info.domain == domain) {
       if (!::ConvertStringSidToSid(info.sid.c_str(), sid)) {
         return HRESULT_FROM_WIN32(NERR_ProgNeedsExtraMem);
@@ -412,8 +418,8 @@ HRESULT FakeOSUserManager::FindUserBySID(const wchar_t* sid,
                                          DWORD domain_size) {
   auto it = to_be_failed_find_user_sids_.find(sid);
   if (it != to_be_failed_find_user_sids_.end()) {
-    to_be_failed_find_user_sids_[sid]--;
-    if (to_be_failed_find_user_sids_[sid] == 0) {
+    --it->second;
+    if (it->second == 0) {
       to_be_failed_find_user_sids_.erase(it);
     }
 
@@ -453,13 +459,14 @@ HRESULT FakeOSUserManager::GetUserFullname(const wchar_t* domain,
   DCHECK(username);
   DCHECK(fullname);
 
-  if (failure_reasons_.find(FAILEDOPERATIONS::GET_USER_FULLNAME) !=
-      failure_reasons_.end()) {
-    return failure_reasons_[FAILEDOPERATIONS::GET_USER_FULLNAME];
+  if (auto it = failure_reasons_.find(FAILEDOPERATIONS::GET_USER_FULLNAME);
+      it != failure_reasons_.end()) {
+    return it->second;
   }
 
-  if (username_to_info_.count(username) > 0) {
-    const UserInfo& info = username_to_info_[username];
+  if (auto it = username_to_info_.find(username);
+      it != username_to_info_.end()) {
+    const UserInfo& info = it->second;
     if (info.domain == domain) {
       *fullname = info.fullname;
       return S_OK;
@@ -507,8 +514,11 @@ bool FakeOSUserManager::UserInfo::operator==(const UserInfo& other) const {
 
 const FakeOSUserManager::UserInfo FakeOSUserManager::GetUserInfo(
     const wchar_t* username) {
-  return (username_to_info_.count(username) > 0) ? username_to_info_[username]
-                                                 : UserInfo();
+  if (auto it = username_to_info_.find(username);
+      it != username_to_info_.end()) {
+    return it->second;
+  }
+  return UserInfo();
 }
 
 HRESULT FakeOSUserManager::CreateNewSID(PSID* sid) {
@@ -543,20 +553,19 @@ HRESULT FakeOSUserManager::CreateTestOSUser(const std::wstring& username,
   }
 
   if (!gaia_id.empty()) {
-    hr = SetUserProperty(OLE2CW(*sid), kUserId,
-                         base::UTF8ToWide(gaia_id.ToString()));
+    hr = SetUserProperty(*sid, kUserId, base::UTF8ToWide(gaia_id.ToString()));
     if (FAILED(hr)) {
       return hr;
     }
 
-    hr = SetUserProperty(OLE2CW(*sid), kUserTokenHandle, L"token_handle");
+    hr = SetUserProperty(*sid, kUserTokenHandle, L"token_handle");
     if (FAILED(hr)) {
       return hr;
     }
   }
 
   if (!email.empty()) {
-    hr = SetUserProperty(OLE2CW(*sid), kUserEmail, email);
+    hr = SetUserProperty(*sid, kUserEmail, email);
     if (FAILED(hr)) {
       return hr;
     }
@@ -620,7 +629,8 @@ HRESULT FakeScopedLsaPolicy::RemovePrivateData(const wchar_t* key) {
 HRESULT FakeScopedLsaPolicy::RetrievePrivateData(const wchar_t* key,
                                                  wchar_t* value,
                                                  size_t length) {
-  if (private_data().count(key) == 0) {
+  auto it = private_data().find(key);
+  if (it == private_data().end()) {
     if (wcscmp(key, kLsaKeyGaiaSid) == 0) {
       return HRESULT_FROM_NT(STATUS_OBJECT_NAME_NOT_FOUND);
     } else {
@@ -628,7 +638,7 @@ HRESULT FakeScopedLsaPolicy::RetrievePrivateData(const wchar_t* key,
     }
   }
 
-  errno_t err = wcscpy_s(value, length, private_data()[key].c_str());
+  errno_t err = wcscpy_s(value, length, it->second.c_str());
   if (err != 0) {
     return E_FAIL;
   }
@@ -637,7 +647,7 @@ HRESULT FakeScopedLsaPolicy::RetrievePrivateData(const wchar_t* key,
 }
 
 bool FakeScopedLsaPolicy::PrivateDataExists(const wchar_t* key) {
-  return private_data().count(key) != 0;
+  return private_data().contains(key);
 }
 
 HRESULT FakeScopedLsaPolicy::AddAccountRights(
@@ -804,28 +814,27 @@ FakeWinHttpUrlFetcherFactory::GetRequestData(size_t request_index) const {
 
 std::unique_ptr<WinHttpUrlFetcher> FakeWinHttpUrlFetcherFactory::Create(
     const GURL& url) {
-  if (fake_responses_.count(url) == 0 &&
-      failed_http_fetch_hr_.count(url) == 0) {
+  if (!fake_responses_.contains(url) && !failed_http_fetch_hr_.contains(url)) {
     return nullptr;
   }
 
   FakeWinHttpUrlFetcher* fetcher = new FakeWinHttpUrlFetcher(url);
 
-  if (fake_responses_.count(url) != 0) {
-    const Response& response = fake_responses_[url].front();
+  if (auto it = fake_responses_.find(url); it != fake_responses_.end()) {
+    const Response& response = it->second.front();
 
     fetcher->response_headers_ = response.headers;
     fetcher->response_ = response.response;
     fetcher->send_response_event_handle_ = response.send_response_event_handle;
 
     if (remove_fake_response_when_created_) {
-      fake_responses_[url].pop_front();
-      if (fake_responses_[url].empty()) {
-        fake_responses_.erase(url);
+      it->second.pop_front();
+      if (it->second.empty()) {
+        fake_responses_.erase(it);
       }
     }
   } else {
-    DCHECK(failed_http_fetch_hr_.count(url) > 0);
+    DCHECK(failed_http_fetch_hr_.contains(url));
     fetcher->response_hr_ = failed_http_fetch_hr_[url];
   }
 

@@ -132,7 +132,7 @@ void ExtensionsToolbarUnitTest::UninstallExtension(
   //
   // This is also a known bug for Ephemeral Profiles. NukeProfileFromDisk() can
   // race with a bunch of things, and extension uninstall is just one of them.
-  // See crbug.com/1191455.
+  // See crbug.com/40756611.
   base::RunLoop run_loop;
   extension_registrar()->UninstallExtension(
       extension_id, extensions::UninstallReason::UNINSTALL_REASON_FOR_TESTING,
@@ -176,7 +176,9 @@ void ExtensionsToolbarUnitTest::UpdateUserSiteAccess(
     PermissionsManager::UserSiteAccess site_access) {
   extensions::PermissionsManagerWaiter waiter(
       PermissionsManager::Get(browser()->profile()));
-  permissions_helper_->UpdateSiteAccess(extension, web_contents, site_access);
+  permissions_helper_->UpdateSiteAccess(
+      extension, web_contents, site_access,
+      web_contents->GetPrimaryMainFrame()->GetLastCommittedOrigin());
   waiter.WaitForExtensionPermissionsUpdate();
 }
 

@@ -8,7 +8,6 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 import static org.chromium.chrome.browser.tabmodel.TabPersistenceUtils.shouldSkipTab;
 
 import androidx.annotation.IntDef;
-import androidx.core.util.Supplier;
 
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.PostTask;
@@ -30,6 +29,7 @@ import org.chromium.chrome.browser.tabmodel.TabGroupVisualDataStore;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelUtils;
+import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.url.GURL;
 
@@ -37,9 +37,10 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /** Manages the tab restoration process after loading tabs from storage. */
 @NullMarked
@@ -129,7 +130,8 @@ class TabRestorer {
     private final TabCreator mTabCreator;
     private final Supplier<ScopedStorageBatch> mBatchFactory;
     private final TabModelSelector mTabModelSelector;
-    private final List<Integer> mTabIdsToIgnore = new ArrayList<>();
+    private final Set<@TabId Integer> mTabIdsToIgnore = new HashSet<>();
+    private final boolean mIsFromRecreating;
 
     private @State int mState = State.EMPTY;
     private @Nullable StorageLoadedData mData;
@@ -150,18 +152,21 @@ class TabRestorer {
      * @param tabCreator The tab creator to use to create tabs.
      * @param batchFactory The factory to create scoped storage batches.
      * @param tabModelSelector The tab model selector.
+     * @param isFromRecreating Whether the current activity is launched from recreating.
      */
     TabRestorer(
             boolean incognito,
             TabRestorerDelegate delegate,
             TabCreator tabCreator,
             Supplier<ScopedStorageBatch> batchFactory,
-            TabModelSelector tabModelSelector) {
+            TabModelSelector tabModelSelector,
+            boolean isFromRecreating) {
         mIncognito = incognito;
         mDelegate = delegate;
         mTabCreator = tabCreator;
         mBatchFactory = batchFactory;
         mTabModelSelector = tabModelSelector;
+        mIsFromRecreating = isFromRecreating;
     }
 
     /**
@@ -185,7 +190,13 @@ class TabRestorer {
         mTabIdsToIgnore.add(loadedTabState.tabId);
 
         int tabCount = mTabModelSelector.getModel(mIncognito).getCount();
-        Tab tab = resolveTab(tabState, loadedTabState.tabId, tabCount, /* isActiveTab= */ true);
+        Tab tab =
+                maybeRestoreTab(
+                        tabState,
+                        loadedTabState.tabId,
+                        tabCount,
+                        /* isActiveTab= */ true,
+                        mIsFromRecreating);
 
         if (tab == null) destroyLoadedTabState(loadedTabState);
         mCachedRestoredActiveTabId = loadedTabState.tabId;
@@ -341,10 +352,18 @@ class TabRestorer {
 
     /** Cleans up the {@link StorageLoadedData}. */
     private void cleanupStorageLoadedData() {
+        maybeDestroyActiveTabState();
+
         assumeNonNull(mData);
         if (TabStateStorageFlagHelper.isStorageAuthoritative()) {
             TabGroupVisualDataStore.removeCachedGroups(mData.getGroupsData());
         }
+
+        for (LoadedTabState loadedTabState : mData.getLoadedTabStates()) {
+            if (mTabIdsToIgnore.contains(loadedTabState.tabId)) continue;
+            destroyLoadedTabState(loadedTabState);
+        }
+
         mData.destroy();
         mData = null;
     }
@@ -361,7 +380,6 @@ class TabRestorer {
         for (int i = mIndex; i < loadedTabStates.length; i++) {
             LoadedTabState loadedTabState = loadedTabStates[i];
             if (!mTabIdsToIgnore.contains(loadedTabState.tabId) && predicate.test(loadedTabState)) {
-                mTabIdsToIgnore.add(loadedTabState.tabId);
                 restoreTab(loadedTabState, i, /* isActive= */ false);
                 return true;
             }
@@ -397,7 +415,6 @@ class TabRestorer {
             postTaskToFinish();
             return;
         }
-        mTabIdsToIgnore.add(activeTabState.tabId);
         PostTask.postTask(TaskTraits.UI_DEFAULT, this::restoreNextBatchOfTabs);
     }
 
@@ -415,9 +432,11 @@ class TabRestorer {
         if (mTabIdsToIgnore.contains(loadedTabState.tabId)) return;
 
         assert mData != null;
+        mTabIdsToIgnore.add(tabId);
         assert mCachedRestoredActiveTabId == null || tabId != mCachedRestoredActiveTabId;
 
-        Tab tab = resolveTab(loadedTabState.tabState, tabId, index, isActive);
+        Tab tab =
+                maybeRestoreTab(loadedTabState.tabState, tabId, index, isActive, mIsFromRecreating);
         if (tab == null) {
             destroyLoadedTabState(loadedTabState);
             return;
@@ -467,25 +486,38 @@ class TabRestorer {
         }
     }
 
-    private @Nullable Tab resolveTab(
-            TabState tabState, @TabId int tabId, int index, boolean isActiveTab) {
-        if (!isActiveTab && shouldSkipTab(tabState)) {
-            mRestoreFilteredTabCount++;
+    /**
+     * Restores a tab from the given {@link TabState}. Returns null if the WebContentsState, if
+     * present, was not used to create the tab.
+     */
+    private @Nullable Tab maybeRestoreTab(
+            TabState tabState, int tabId, int index, boolean isActiveTab, boolean isRecreating) {
+        boolean isReparenting = mTabCreator.isReparenting(tabId);
+        if (isReparenting) {
+            createTabFromState(tabState, tabId, index);
+            // Reparenting will not use the TabState to create the tab.
             return null;
+        }
+
+        if (!isActiveTab) {
+            // If activity is recreating, we restore non-active NTPs.
+            boolean isNtp = tabState.url != null && UrlUtilities.isNtpUrl(tabState.url);
+            if (isRecreating && isNtp) {
+                return createTabFromState(tabState, tabId, index);
+            } else if (shouldSkipTab(tabState)) {
+                mRestoreFilteredTabCount++;
+                return null;
+            }
         }
 
         Tab tab = null;
         GURL url = tabState.url;
-        if (isActiveTab && tabState.contentsState == null && url != null) {
-            // Use fallback url if no contents state is available.
-            tab =
-                    mTabCreator.createNewTab(
-                            new LoadUrlParams(url), TabLaunchType.FROM_RESTORE, null, index);
-        } else if (tabState.contentsState != null) {
-            if (url != null) {
-                tabState.contentsState.setFallbackUrlForRestorationFailure(url.getSpec());
-            }
-            tab = mTabCreator.createFrozenTab(tabState, tabId, index);
+        boolean hasEmptyBuffer =
+                tabState.contentsState != null && tabState.contentsState.buffer().limit() == 0;
+        if (tabState.contentsState != null && !hasEmptyBuffer) {
+            tab = createFrozenTab(tabState, tabId, index);
+        } else if (url != null) {
+            tab = createTabWithoutContentsState(url, index);
         }
 
         if (isActiveTab && tab != null) {
@@ -493,7 +525,32 @@ class TabRestorer {
             TabModelUtils.setIndex(model, TabModelUtils.getTabIndexById(model, tab.getId()));
             mDelegate.onActiveTabRestored(mIncognito);
         }
-        return tab;
+        return hasEmptyBuffer ? null : tab;
+    }
+
+    private @Nullable Tab createTabFromState(TabState tabState, int tabId, int index) {
+        if (tabState.contentsState != null) {
+            return createFrozenTab(tabState, tabId, index);
+        } else {
+            return createTabWithoutContentsState(assumeNonNull(tabState.url), index);
+        }
+    }
+
+    /** Creates a Tab from the given URL when tabState.contentsState is null. */
+    private @Nullable Tab createTabWithoutContentsState(GURL url, int index) {
+        return mTabCreator.createNewTab(
+                new LoadUrlParams(url), TabLaunchType.FROM_RESTORE, null, index);
+    }
+
+    /** Creates a frozen Tab from a non-null contentsState. */
+    private @Nullable Tab createFrozenTab(TabState tabState, int tabId, int index) {
+        assert tabState.contentsState != null;
+
+        GURL url = tabState.url;
+        if (url != null) {
+            tabState.contentsState.setFallbackUrlForRestorationFailure(url.getSpec());
+        }
+        return mTabCreator.createFrozenTab(tabState, tabId, index);
     }
 
     private void maybeDestroyActiveTabState() {

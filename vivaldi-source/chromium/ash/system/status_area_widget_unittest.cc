@@ -264,7 +264,7 @@ class LockedFullscreenStatusAreaWidgetTest
 TEST_P(LockedFullscreenStatusAreaWidgetTest,
        TrayBubbleVisibilityWithPinnedWindow) {
   // Create a window for testing purposes.
-  const std::unique_ptr<aura::Window> window = CreateTestWindow();
+  const std::unique_ptr<aura::Window> window = CreateWindowWithAppType();
 
   // Show the unified system tray bubble before pinning the window.
   auto* const status_area_widget = GetPrimaryShelf()->GetStatusAreaWidget();
@@ -370,9 +370,6 @@ class UnifiedStatusAreaWidgetTest : public AshTestBase {
 
     network_handler_test_helper_.InitializePrefs(&profile_prefs_,
                                                  local_state());
-
-    // Networking stubs may have asynchronous initialization.
-    base::RunLoop().RunUntilIdle();
   }
 
   void TearDown() override {
@@ -704,7 +701,7 @@ TEST_F(StatusAreaWidgetCollapseStateTest, AllTraysFitInCollapsedState) {
 TEST_F(StatusAreaWidgetCollapseStateTest,
        HideDragHandleOnOverlapInExpandedState) {
   std::unique_ptr<aura::Window> test_window =
-      CreateTestWindow(gfx::Rect(0, 0, 400, 400));
+      CreateWindowWithAppType(chromeos::AppType::NON_APP, {400, 400});
   ash::TabletModeControllerTestApi().EnterTabletMode();
   status_area_->UpdateCollapseState();
 
@@ -728,7 +725,7 @@ TEST_F(StatusAreaWidgetCollapseStateTest,
 TEST_F(StatusAreaWidgetCollapseStateTest,
        HideDragHandleWithNudgeOnOverlapInExpandedState) {
   std::unique_ptr<aura::Window> test_window =
-      CreateTestWindow(gfx::Rect(0, 0, 400, 400));
+      CreateWindowWithAppType(chromeos::AppType::NON_APP, {400, 400});
   ash::TabletModeControllerTestApi().EnterTabletMode();
   status_area_->UpdateCollapseState();
 

@@ -16,10 +16,6 @@ const base::FeatureParam<bool>* GetPageActionsMigrationParam(
       return &features::kPageActionsMigrationIntentPicker;
     case PageActionIconType::kZoom:
       return &features::kPageActionsMigrationZoom;
-    case PageActionIconType::kFileSystemAccess:
-      return &features::kPageActionsMigrationFileSystemAccess;
-    case PageActionIconType::kManagePasswords:
-      return &features::kPageActionsMigrationManagePasswords;
     case PageActionIconType::kCookieControls:
       return &features::kPageActionsMigrationCookieControls;
     case PageActionIconType::kMandatoryReauth:
@@ -56,6 +52,7 @@ bool IsPageActionMigrated(PageActionIconType page_action) {
   // Page actions on the new framework that don't have an implementation on the legacy path
   // and don't have a feature param.
   switch (page_action) {
+    case PageActionIconType::kAnchoredContextualCue:
     case PageActionIconType::kCollaborationMessaging:
     case PageActionIconType::kGlic:
     case PageActionIconType::kLensOverlay:
@@ -68,10 +65,15 @@ bool IsPageActionMigrated(PageActionIconType page_action) {
     case PageActionIconType::kContextualSidePanel:
     case PageActionIconType::kJsOptimizations:
     case PageActionIconType::kIndigo:
+    case PageActionIconType::kMultistepFilter:
     case PageActionIconType::kRecordReplay:
     case PageActionIconType::kPriceInsights:
     case PageActionIconType::kDiscounts:
     case PageActionIconType::kFederation:
+    case PageActionIconType::kManagePasswords:
+    case PageActionIconType::kWebAuthnAmbientSignin:
+    case PageActionIconType::kFileSystemAccess:
+    case PageActionIconType::kAutofillPayment:
       return true;
     default:
       break;

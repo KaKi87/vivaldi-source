@@ -18,11 +18,12 @@
 namespace syncer {
 
 class SyncService;
+// Vivaldi
 class SyncSetupInProgressHandle;
 
 // Forwards calls from SyncServiceImpl.java to the native SyncService and
 // back. Instead of directly implementing JNI free functions, this class is used
-// so it can manage the lifetime of objects like SyncSetupInProgressHandle.
+// so it can manage the lifetime of objects like SyncServiceObserver.
 // Note that on Android, there's only a single profile, a single native
 // SyncService, and therefore a single instance of this class.
 // Must only be accessed from the UI thread.
@@ -49,12 +50,8 @@ class SyncServiceAndroidBridge : public SyncServiceObserver {
   // SyncServiceImpl.java.
   void AcknowledgeBookmarksLimitExceededError(int32_t source);
   bool IsSyncFeatureEnabled();
-  bool IsSyncFeatureActive();
   bool IsSyncDisabledByEnterprisePolicy();
   bool IsEngineInitialized();
-  void SetSetupInProgress(bool in_progress);
-  bool IsInitialSyncFeatureSetupComplete();
-  void SetInitialSyncFeatureSetupComplete(int32_t source);
   std::vector<int32_t> GetActiveDataTypes();
   std::vector<int32_t> GetSelectedTypes();
   void GetTypesWithUnsyncedData(
@@ -67,9 +64,6 @@ class SyncServiceAndroidBridge : public SyncServiceObserver {
   void TriggerLocalDataMigration(const std::vector<int32_t>& types);
   bool IsTypeManagedByPolicy(int32_t type);
   bool IsTypeManagedByCustodian(int32_t type);
-  void SetSelectedTypes(
-      bool sync_everything,
-      const std::vector<int32_t>& user_selectable_types_vector);
   void SetSelectedType(int32_t type, bool is_type_on);
   bool IsCustomPassphraseAllowed();
   bool IsEncryptEverythingEnabled();
@@ -89,10 +83,8 @@ class SyncServiceAndroidBridge : public SyncServiceObserver {
                    const base::android::JavaRef<jobject>& callback);
   GoogleServiceAuthError GetAuthError();
   base::android::ScopedJavaLocalRef<jobject> GetAccountInfo(JNIEnv* env);
-  bool HasSyncConsent();
   bool IsPassphrasePromptMutedForCurrentProductVersion();
   void MarkPassphrasePromptMutedForCurrentProductVersion();
-  bool HasKeepEverythingSynced();
   bool ShouldOfferTrustedVaultOptIn();
   void TriggerRefresh();
   // Returns a timestamp for when a sync was last executed. The return value is
@@ -101,6 +93,18 @@ class SyncServiceAndroidBridge : public SyncServiceObserver {
   void KeepAccountSettingsPrefsOnlyForUsers(
       const std::vector<std::string>& gaia_id_strings);
 
+  // Vivaldi
+  bool IsSyncFeatureActive();
+  bool HasSyncConsent();
+  bool HasKeepEverythingSynced();
+  void SetSelectedTypes(
+      bool sync_everything,
+      const std::vector<int32_t>& user_selectable_types_vector);
+  void SetInitialSyncFeatureSetupComplete();
+  bool IsInitialSyncFeatureSetupComplete();
+  void SetSetupInProgress(bool in_progress);
+  // End Vivaldi
+
  private:
   // A reference to the sync service for this profile.
   const raw_ptr<SyncService> native_sync_service_;
@@ -108,8 +112,10 @@ class SyncServiceAndroidBridge : public SyncServiceObserver {
   // Java-side SyncServiceImpl object.
   base::android::ScopedJavaGlobalRef<jobject> java_ref_;
 
+  // Vivaldi
   // Prevents Sync from running until configuration is complete.
   std::unique_ptr<SyncSetupInProgressHandle> sync_blocker_;
+  // End Vivaldi
 };
 
 }  // namespace syncer

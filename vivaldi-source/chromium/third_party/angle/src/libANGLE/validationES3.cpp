@@ -232,6 +232,7 @@ bool ValidateColorMaskForSharedExponentColorBuffer(const Context *context,
 
     return true;
 }
+
 }  // anonymous namespace
 
 bool ValidateTexImageFormatCombination(const Context *context,
@@ -402,8 +403,8 @@ bool ValidateES3TexImageParametersBase(const Context *context,
                                        GLint border,
                                        GLenum format,
                                        GLenum type,
-                                       GLsizei imageSize,
-                                       const void *pixels)
+                                       const void *pixels,
+                                       GLuint *outImageSize)
 {
     TextureType texType = TextureTargetToType(target);
 
@@ -574,6 +575,12 @@ bool ValidateES3TexImageParametersBase(const Context *context,
     }
 
     // Validate texture formats
+    if (IsAngleInternalFormat(internalformat))
+    {
+        ANGLE_VALIDATION_ERRORF(GL_INVALID_ENUM, kInvalidInternalFormat, internalformat);
+        return false;
+    }
+
     GLenum actualInternalFormat =
         isSubImage ? texture->getFormat(target, level).info->internalFormat : internalformat;
     if (isSubImage && actualInternalFormat == GL_NONE)
@@ -710,6 +717,15 @@ bool ValidateES3TexImageParametersBase(const Context *context,
             return false;
         }
 
+        if (gl::IsYuvFormat(actualInternalFormat))
+        {
+            if ((xoffset % 2) != 0 || (yoffset % 2) != 0 || (width % 2) != 0 || (height % 2) != 0)
+            {
+                ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kYuvTexSubImage2DOddOffsetOrDimension);
+                return false;
+            }
+        }
+
         if (width > 0 && height > 0 && depth > 0 && pixels == nullptr &&
             context->getState().getTargetBuffer(BufferBinding::PixelUnpack) == nullptr)
         {
@@ -717,10 +733,20 @@ bool ValidateES3TexImageParametersBase(const Context *context,
             return false;
         }
     }
+    else
+    {
+        // Validate total image size on non-sub image calls
+        if (!ValidImageAllocationSize(context, entryPoint, width, height, depth, 0,
+                                      actualFormatInfo.sizedInternalFormat))
+        {
+            // Error already generated
+            return false;
+        }
+    }
 
     GLenum sizeCheckFormat = isSubImage ? format : internalformat;
     if (!ValidImageDataSize(context, entryPoint, texType, width, height, depth, sizeCheckFormat,
-                            type, pixels, imageSize))
+                            type, pixels, outImageSize))
     {
         return false;
     }
@@ -729,6 +755,14 @@ bool ValidateES3TexImageParametersBase(const Context *context,
     Buffer *pixelUnpackBuffer = context->getState().getTargetBuffer(BufferBinding::PixelUnpack);
     if (pixelUnpackBuffer != nullptr)
     {
+        if ((context->isWebGL() || context->isHardenedContext()) &&
+            pixelUnpackBuffer->hasTFBBindingConflict())
+        {
+            ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION,
+                                   kPixelUnpackBufferBoundForTransformFeedback);
+            return false;
+        }
+
         // ...data is not evenly divisible into the number of bytes needed to store in memory a
         // datum
         // indicated by type.
@@ -814,8 +848,8 @@ bool ValidateES3TexImage2DParameters(const Context *context,
                                      GLint border,
                                      GLenum format,
                                      GLenum type,
-                                     GLsizei imageSize,
-                                     const void *pixels)
+                                     const void *pixels,
+                                     GLuint *outImageSize)
 {
     if (!ValidTexture2DDestinationTarget(context, target))
     {
@@ -825,7 +859,7 @@ bool ValidateES3TexImage2DParameters(const Context *context,
 
     return ValidateES3TexImageParametersBase(
         context, entryPoint, target, level, internalformat, isCompressed, isSubImage, xoffset,
-        yoffset, zoffset, width, height, depth, border, format, type, imageSize, pixels);
+        yoffset, zoffset, width, height, depth, border, format, type, pixels, outImageSize);
 }
 
 bool ValidateES3TexImage3DParameters(const Context *context,
@@ -844,8 +878,8 @@ bool ValidateES3TexImage3DParameters(const Context *context,
                                      GLint border,
                                      GLenum format,
                                      GLenum type,
-                                     GLsizei bufSize,
-                                     const void *pixels)
+                                     const void *pixels,
+                                     GLuint *outImageSize)
 {
     if (!ValidTexture3DDestinationTarget(context, target))
     {
@@ -855,7 +889,7 @@ bool ValidateES3TexImage3DParameters(const Context *context,
 
     return ValidateES3TexImageParametersBase(
         context, entryPoint, target, level, internalformat, isCompressed, isSubImage, xoffset,
-        yoffset, zoffset, width, height, depth, border, format, type, bufSize, pixels);
+        yoffset, zoffset, width, height, depth, border, format, type, pixels, outImageSize);
 }
 
 struct EffectiveInternalFormatInfo
@@ -1533,8 +1567,21 @@ bool ValidateES3TexStorageParametersBase(const Context *context,
         return false;
     }
 
+    // Forbid use of ANGLE internal formats
+    if (IsAngleInternalFormat(internalformat))
+    {
+        ANGLE_VALIDATION_ERRORF(GL_INVALID_ENUM, kInvalidInternalFormat, internalformat);
+        return false;
+    }
+
     if (!ValidateES3TexStorageParametersFormat(context, entryPoint, target, levels, internalformat,
                                                width, height, depth))
+    {
+        // Error already generated.
+        return false;
+    }
+
+    if (!ValidImageAllocationSize(context, entryPoint, width, height, depth, 0, internalformat))
     {
         // Error already generated.
         return false;
@@ -1945,7 +1992,7 @@ bool ValidateCompressedTexImage3D(const Context *context,
     // validateES3TexImageFormat sets the error code if there is an error
     if (!ValidateES3TexImage3DParameters(context, entryPoint, target, level, internalformat, true,
                                          false, 0, 0, 0, width, height, depth, border, GL_NONE,
-                                         GL_NONE, -1, data))
+                                         GL_NONE, data, nullptr))
     {
         return false;
     }
@@ -1986,6 +2033,12 @@ static bool ValidateBindBufferCommon(const Context *context,
         !context->isBufferGenerated(buffer))
     {
         ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kObjectNotGenerated);
+        return false;
+    }
+
+    if (context->isWebGL() && !ValidateWebGLBufferBinding(context, entryPoint, target, buffer))
+    {
+        // Error already generated
         return false;
     }
 
@@ -2610,7 +2663,7 @@ bool ValidateTexImage3D(const Context *context,
 {
     return ValidateES3TexImage3DParameters(context, entryPoint, target, level, internalformat,
                                            false, false, 0, 0, 0, width, height, depth, border,
-                                           format, type, -1, pixels);
+                                           format, type, pixels, nullptr);
 }
 
 bool ValidateTexImage3DRobustANGLE(const Context *context,
@@ -2627,14 +2680,15 @@ bool ValidateTexImage3DRobustANGLE(const Context *context,
                                    GLsizei bufSize,
                                    const void *pixels)
 {
-    if (!ValidateRobustEntryPoint(context, entryPoint, bufSize))
+    GLuint imageSize = std::numeric_limits<GLuint>::max();
+    if (!ValidateES3TexImage3DParameters(context, entryPoint, target, level, internalformat, false,
+                                         false, 0, 0, 0, width, height, depth, border, format, type,
+                                         pixels, &imageSize))
     {
         return false;
     }
 
-    return ValidateES3TexImage3DParameters(context, entryPoint, target, level, internalformat,
-                                           false, false, 0, 0, 0, width, height, depth, border,
-                                           format, type, bufSize, pixels);
+    return ValidateRobustTexImage(context, entryPoint, pixels, imageSize, bufSize);
 }
 
 bool ValidateTexSubImage3D(const Context *context,
@@ -2653,7 +2707,7 @@ bool ValidateTexSubImage3D(const Context *context,
 {
     return ValidateES3TexImage3DParameters(context, entryPoint, target, level, GL_NONE, false, true,
                                            xoffset, yoffset, zoffset, width, height, depth, 0,
-                                           format, type, -1, pixels);
+                                           format, type, pixels, nullptr);
 }
 
 bool ValidateTexSubImage3DRobustANGLE(const Context *context,
@@ -2671,14 +2725,15 @@ bool ValidateTexSubImage3DRobustANGLE(const Context *context,
                                       GLsizei bufSize,
                                       const void *pixels)
 {
-    if (!ValidateRobustEntryPoint(context, entryPoint, bufSize))
+    GLuint imageSize = std::numeric_limits<GLuint>::max();
+    if (!ValidateES3TexImage3DParameters(context, entryPoint, target, level, GL_NONE, false, true,
+                                         xoffset, yoffset, zoffset, width, height, depth, 0, format,
+                                         type, pixels, &imageSize))
     {
         return false;
     }
 
-    return ValidateES3TexImage3DParameters(context, entryPoint, target, level, GL_NONE, false, true,
-                                           xoffset, yoffset, zoffset, width, height, depth, 0,
-                                           format, type, bufSize, pixels);
+    return ValidateRobustTexImage(context, entryPoint, pixels, imageSize, bufSize);
 }
 
 bool ValidateCompressedTexSubImage3D(const Context *context,
@@ -2697,7 +2752,7 @@ bool ValidateCompressedTexSubImage3D(const Context *context,
 {
     if (!ValidateES3TexImage3DParameters(context, entryPoint, target, level, GL_NONE, true, true,
                                          xoffset, yoffset, zoffset, width, height, depth, 0, format,
-                                         GL_NONE, -1, data))
+                                         GL_NONE, data, nullptr))
     {
         return false;
     }
@@ -3191,8 +3246,8 @@ bool ValidateCopyBufferSubData(const Context *context,
         return false;
     }
 
-    if (readBuffer->hasWebGLXFBBindingConflict(context->isWebGL()) ||
-        writeBuffer->hasWebGLXFBBindingConflict(context->isWebGL()))
+    if ((context->isWebGL() || context->isHardenedContext()) &&
+        (readBuffer->hasTFBBindingConflict() || writeBuffer->hasTFBBindingConflict()))
     {
         ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kBufferBoundForTransformFeedback);
         return false;
@@ -3226,7 +3281,7 @@ bool ValidateCopyBufferSubData(const Context *context,
     }
 
     const Limitations &limitations = context->getLimitations();
-    if (size > limitations.bufferSizeLimit)
+    if (static_cast<size_t>(size) > limitations.maxBufferBytes)
     {
         ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kBufferSizeLimitation);
         return false;
@@ -3255,6 +3310,17 @@ bool ValidateCopyBufferSubData(const Context *context,
             ANGLE_VALIDATION_ERROR(GL_INVALID_VALUE, kCopyAlias);
             return false;
         }
+    }
+
+    // WebGL2 spec:
+    // 6.2 Copying Buffers
+    // Attempting to use copyBufferSubData to copy between buffers that have element array and other
+    // data WebGL buffer types as specified in section Buffer Object Binding generates an
+    // INVALID_OPERATION error and no copying is performed.
+    if (context->isWebGL() && readBuffer->getWebGLType() != writeBuffer->getWebGLType())
+    {
+        ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, err::kWebGLBufferTypeMismatch);
+        return false;
     }
 
     return true;
@@ -3495,6 +3561,13 @@ bool ValidateMultiDrawArraysInstancedANGLE(const Context *context,
             return false;
         }
     }
+
+    if (!ValidateDrawArraysTransformFeedbackBufferSize(context, entryPoint, counts, instanceCounts,
+                                                       drawcount))
+    {
+        return false;
+    }
+
     return true;
 }
 
@@ -3543,8 +3616,19 @@ bool ValidateDrawArraysInstancedBaseInstanceANGLE(const Context *context,
                                                   GLsizei instanceCount,
                                                   GLuint baseInstance)
 {
-    return ValidateDrawArraysInstancedBase(context, entryPoint, mode, first, count, instanceCount,
-                                           baseInstance);
+    if (!ValidateDrawArraysInstancedBase(context, entryPoint, mode, first, count, instanceCount,
+                                         baseInstance))
+    {
+        return false;
+    }
+
+    if (!ValidateDrawArraysTransformFeedbackBufferSize(context, entryPoint, &count, &instanceCount,
+                                                       1))
+    {
+        return false;
+    }
+
+    return true;
 }
 
 bool ValidateDrawElementsInstancedBaseVertexBaseInstanceANGLE(const Context *context,
@@ -3589,6 +3673,13 @@ bool ValidateMultiDrawArraysInstancedBaseInstanceANGLE(const Context *context,
             return false;
         }
     }
+
+    if (!ValidateDrawArraysTransformFeedbackBufferSize(context, entryPoint, counts, instanceCounts,
+                                                       drawcount))
+    {
+        return false;
+    }
+
     return true;
 }
 
@@ -4076,6 +4167,44 @@ bool ValidateResumeTransformFeedback(const Context *context, angle::EntryPoint e
         return false;
     }
 
+    Program *currentProgram                 = context->getState().getLinkedProgram(context);
+    ProgramPipeline *currentProgramPipeline = context->getState().getProgramPipeline();
+
+    if (transformFeedback->hasProgram() &&
+        (currentProgram == nullptr || !transformFeedback->hasBoundProgram(currentProgram->id())))
+    {
+        ASSERT(!transformFeedback->hasProgramPipeline());
+        ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kTransformFeedbackProgramNotSameAtResume);
+        return false;
+    }
+
+    if (transformFeedback->hasProgramPipeline() && currentProgram != nullptr)
+    {
+        ASSERT(!transformFeedback->hasProgram());
+        ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION,
+                               kTransformFeedbackProgramOverridingPipelineAtResume);
+        return false;
+    }
+
+    if (transformFeedback->hasProgramPipeline() &&
+        (currentProgramPipeline == nullptr ||
+         !transformFeedback->hasBoundProgramPipeline(currentProgramPipeline->id())))
+    {
+        ASSERT(!transformFeedback->hasProgram());
+        ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kTransformFeedbackPipelineNotSameAtResume);
+        return false;
+    }
+
+    if (transformFeedback->hasProgramPipeline() && currentProgramPipeline != nullptr &&
+        transformFeedback->hasBoundProgramPipeline(currentProgramPipeline->id()) &&
+        !transformFeedback->hasSamePPOPrograms(currentProgramPipeline))
+    {
+        ASSERT(!transformFeedback->hasProgram());
+        ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION,
+                               kTransformFeedbackPipelineChangedStagesAtResume);
+        return false;
+    }
+
     return true;
 }
 
@@ -4341,7 +4470,17 @@ bool ValidateDrawArraysInstanced(const Context *context,
                                  GLsizei count,
                                  GLsizei primcount)
 {
-    return ValidateDrawArraysInstancedBase(context, entryPoint, mode, first, count, primcount, 0);
+    if (!ValidateDrawArraysInstancedBase(context, entryPoint, mode, first, count, primcount, 0))
+    {
+        return false;
+    }
+
+    if (!ValidateDrawArraysTransformFeedbackBufferSize(context, entryPoint, &count, &primcount, 1))
+    {
+        return false;
+    }
+
+    return true;
 }
 
 bool ValidateFenceSync(const Context *context,

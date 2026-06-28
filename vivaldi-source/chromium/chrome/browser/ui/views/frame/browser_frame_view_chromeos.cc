@@ -85,10 +85,6 @@
 #include "ui/views/widget/widget_delegate.h"
 #include "ui/views/window/caption_button_layout_constants.h"
 
-#if BUILDFLAG(ENABLE_WEBUI_TAB_STRIP)
-#include "chrome/browser/ui/views/frame/webui_tab_strip_container_view.h"
-#endif  // BUILDFLAG(ENABLE_WEBUI_TAB_STRIP)
-
 DEFINE_UI_CLASS_PROPERTY_TYPE(BrowserFrameViewChromeOS*)
 
 namespace {
@@ -253,8 +249,8 @@ void BrowserFrameViewChromeOS::Init() {
   display_observer_.emplace(this);
   frame_header_ = CreateFrameHeader();
 
-  if (AppIsPwaWithBorderlessDisplayMode()) {
-    UpdateBorderlessModeEnabled();
+  if (AppIsPwaWithUnframedDisplayMode()) {
+    UpdateUnframedModeEnabled();
   }
 
   ImmersiveModeController::From(GetBrowserView()->browser())->AddObserver(this);
@@ -316,8 +312,7 @@ int BrowserFrameViewChromeOS::GetTopInset(bool restored) const {
     // but the inset is still calculated below, so the overview code can align
     // the window content with a fake header.
     if (!GetOverviewMode() || browser_widget()->IsFullscreen() ||
-        GetBrowserView()->GetTabStripVisible() ||
-        GetBrowserView()->webui_tab_strip()) {
+        GetBrowserView()->GetTabStripVisible()) {
       return 0;
     }
   }
@@ -328,7 +323,7 @@ int BrowserFrameViewChromeOS::GetTopInset(bool restored) const {
 
   Browser* browser = GetBrowserView()->browser();
 
-  int header_height = frame_header_ ? frame_header_->GetHeaderHeight() : 0;
+  int header_height = frame_header_->GetHeaderHeight();
   const gfx::Size toolbar_size =
       GetBrowserView()->GetWebAppFrameToolbarPreferredSize();
   if (!toolbar_size.IsEmpty()) {
@@ -463,7 +458,7 @@ void BrowserFrameViewChromeOS::UpdateWindowIcon() {
 }
 
 void BrowserFrameViewChromeOS::UpdateWindowTitle() {
-  if (!browser_widget()->IsFullscreen() && frame_header_) {
+  if (!browser_widget()->IsFullscreen()) {
     frame_header_->SchedulePaintForTitle();
   }
 
@@ -480,17 +475,15 @@ void BrowserFrameViewChromeOS::OnPaint(gfx::Canvas* canvas) {
     return;
   }
 
-  if (frame_header_) {
-    frame_header_->PaintHeader(canvas);
-  }
+  frame_header_->PaintHeader(canvas);
 }
 
-void BrowserFrameViewChromeOS::UpdateBorderlessModeEnabled() {
-  caption_button_container_->UpdateBorderlessModeEnabled(
+void BrowserFrameViewChromeOS::UpdateUnframedModeEnabled() {
+  caption_button_container_->UpdateUnframedModeEnabled(
       GetBrowserView()->IsUnframedModeEnabled());
 }
 
-bool BrowserFrameViewChromeOS::AppIsPwaWithBorderlessDisplayMode() const {
+bool BrowserFrameViewChromeOS::AppIsPwaWithUnframedDisplayMode() const {
   return GetBrowserView()->GetIsWebAppType() &&
          GetBrowserView()->AppUsesUnframedMode();
 }
@@ -499,35 +492,29 @@ void BrowserFrameViewChromeOS::Layout(PassKey) {
   // The header must be laid out before computing |painted_height| because the
   // computation of |painted_height| for app and popup windows depends on the
   // position of the window controls.
-  if (frame_header_) {
-    frame_header_->LayoutHeader();
-  }
+  frame_header_->LayoutHeader();
 
   const int painted_height =
       GetTopInset(false) +
       GetClientFrameElementInfo().tabstrip_preferred_height;
 
-  if (frame_header_) {
-    frame_header_->SetHeaderHeightForPainting(painted_height);
-  }
+  frame_header_->SetHeaderHeightForPainting(painted_height);
 
   if (profile_indicator_icon_) {
     LayoutProfileIndicator();
   }
 
-  if (AppIsPwaWithBorderlessDisplayMode()) {
-    UpdateBorderlessModeEnabled();
+  if (AppIsPwaWithUnframedDisplayMode()) {
+    UpdateUnframedModeEnabled();
   }
 
   LayoutSuperclass<BrowserFrameView>(this);
   UpdateTopViewInset();
 
-  if (frame_header_) {
-    // The top right corner must be occupied by a caption button for easy mouse
-    // access. This check is agnostic to RTL layout.
-    DCHECK_EQ(caption_button_container_->y(), 0);
-    DCHECK_EQ(caption_button_container_->bounds().right(), width());
-  }
+  // The top right corner must be occupied by a caption button for easy mouse
+  // access. This check is agnostic to RTL layout.
+  DCHECK_EQ(caption_button_container_->y(), 0);
+  DCHECK_EQ(caption_button_container_->bounds().right(), width());
 }
 
 gfx::Size BrowserFrameViewChromeOS::GetMinimumSize() const {
@@ -548,8 +535,7 @@ gfx::Size BrowserFrameViewChromeOS::GetMinimumSize() const {
 
   gfx::Size min_client_view_size(
       browser_widget()->client_view()->GetMinimumSize());
-  const int min_frame_width =
-      frame_header_ ? frame_header_->GetMinimumHeaderWidth() : 0;
+  const int min_frame_width = frame_header_->GetMinimumHeaderWidth();
   int min_width = std::max(min_frame_width, min_client_view_size.width());
   if (GetBrowserView()->GetTabStripVisible()) {
     // Ensure that the minimum width is enough to hold a minimum width tab strip
@@ -595,11 +581,7 @@ void BrowserFrameViewChromeOS::ChildPreferredSizeChanged(views::View* child) {
 }
 
 views::View::Views BrowserFrameViewChromeOS::GetChildrenInZOrder() {
-  if (frame_header_) {
-    return frame_header_->GetAdjustedChildrenInZOrder(this);
-  }
-
-  return BrowserFrameView::GetChildrenInZOrder();
+  return frame_header_->GetAdjustedChildrenInZOrder(this);
 }
 
 SkColor BrowserFrameViewChromeOS::GetTitleColor() {
@@ -648,7 +630,7 @@ void BrowserFrameViewChromeOS::OnDisplayMetricsChanged(
   // For example, rotating from landscape display to portrait display layout
   // should update snap icons from left/right arrows to upward/downward arrows
   // for top and bottom snaps.
-  if ((changed_metrics & DISPLAY_METRIC_ROTATION) && frame_header_) {
+  if (changed_metrics & DISPLAY_METRIC_ROTATION) {
     frame_header_->InvalidateLayout();
   }
 }
@@ -743,7 +725,7 @@ void BrowserFrameViewChromeOS::OnWindowPropertyChanged(aura::Window* window,
 
     // The client view (in particular the tab strip) has different layout in
     // restored vs. maximized/fullscreen. Invalidate the layout because the
-    // window bounds may not have changed. https://crbug.com/1342414
+    // window bounds may not have changed. https://crbug.com/40230996
     if (browser_widget()->client_view()) {
       browser_widget()->client_view()->InvalidateLayout();
     }
@@ -752,7 +734,7 @@ void BrowserFrameViewChromeOS::OnWindowPropertyChanged(aura::Window* window,
   if (key == chromeos::kWindowStateTypeKey) {
     // Update window controls when window state changes as whether or not these
     // are shown can depend on the window state (e.g. hiding the caption buttons
-    // in non-immersive full screen mode, see crbug.com/1336470).
+    // in non-immersive full screen mode, see crbug.com/40228932).
     ResetWindowControls();
 
     // Update the window controls if we are entering or exiting float state.
@@ -760,7 +742,7 @@ void BrowserFrameViewChromeOS::OnWindowPropertyChanged(aura::Window* window,
     const bool was_floated = static_cast<chromeos::WindowStateType>(old) ==
                              chromeos::WindowStateType::kFloated;
 
-    if (frame_header_ && (is_floated != was_floated)) {
+    if (is_floated != was_floated) {
       frame_header_->OnFloatStateChanged();
     }
 
@@ -785,10 +767,6 @@ void BrowserFrameViewChromeOS::OnWindowPropertyChanged(aura::Window* window,
     return;
   }
 
-  if (!frame_header_) {
-    return;
-  }
-
   if (key == aura::client::kShowStateKey) {
     frame_header_->OnShowStateChanged(
         window->GetProperty(aura::client::kShowStateKey));
@@ -797,34 +775,16 @@ void BrowserFrameViewChromeOS::OnWindowPropertyChanged(aura::Window* window,
   }
 }
 
-void BrowserFrameViewChromeOS::OnImmersiveRevealStarted() {
+void BrowserFrameViewChromeOS::OnImmersiveFullscreenEntered() {
   ResetWindowControls();
-  // The frame caption buttons use ink drop highlights and flood fill effects.
-  // They make those buttons paint_to_layer. On immersive mode, the browser's
-  // TopContainerView is also converted to paint_to_layer (see
-  // ImmersiveModeControllerAsh::OnImmersiveRevealStarted()). In this mode, the
-  // TopContainerView is responsible for painting this
-  // BrowserFrameViewChromeOS (see TopContainerView::PaintChildren()).
-  // However, BrowserFrameViewChromeOS is a sibling of TopContainerView
-  // not a child. As a result, when the frame caption buttons are set to
-  // paint_to_layer as a result of an ink drop effect, they will disappear.
-  // https://crbug.com/840242. To fix this, we'll make the caption buttons
-  // temporarily children of the TopContainerView while they're all painting to
-  // their layers.
   auto* container = GetBrowserView()->top_container();
   container->AddChildViewAt(caption_button_container_.get(), 0);
-
-  container->DeprecatedLayoutImmediately();
-}
-
-void BrowserFrameViewChromeOS::OnImmersiveRevealEnded() {
-  ResetWindowControls();
-  AddChildViewAt(caption_button_container_.get(), 0);
-
-  DeprecatedLayoutImmediately();
 }
 
 void BrowserFrameViewChromeOS::OnImmersiveFullscreenExited() {
+  ResetWindowControls();
+  AddChildViewAt(caption_button_container_.get(), 0);
+
   OnImmersiveRevealEnded();
 }
 
@@ -852,8 +812,13 @@ bool BrowserFrameViewChromeOS::ShouldEnableImmersiveModeController() const {
     return false;
   }
 
+  const aura::Window* frame_window = GetFrameWindow();
+  if (!frame_window) {
+    return false;
+  }
+
   if (IsLockedFullscreen() &&
-      !GetFrameWindow()->GetProperty(chromeos::kUseImmersiveInTrustedPinned)) {
+      (!frame_window->GetProperty(chromeos::kUseImmersiveInTrustedPinned))) {
     return false;
   }
   if (display::Screen::Get()->InTabletMode() &&
@@ -891,9 +856,7 @@ void BrowserFrameViewChromeOS::PaintAsActiveChanged() {
 
   UpdateProfileIcons();
 
-  if (frame_header_) {
-    frame_header_->SetPaintAsActive(ShouldPaintAsActive());
-  }
+  frame_header_->SetPaintAsActive(ShouldPaintAsActive());
 }
 
 void BrowserFrameViewChromeOS::AddedToWidget() {
@@ -924,12 +887,17 @@ bool BrowserFrameViewChromeOS::GetShowCaptionButtons() const {
 }
 
 bool BrowserFrameViewChromeOS::GetShowCaptionButtonsWhenNotInOverview() const {
+  const aura::Window* frame_window = GetFrameWindow();
+  if (!frame_window) {
+    return true;
+  }
+
   // Show the caption buttons if an immersive mode is enabled for trusted pined
   // state. This is to show the three dot menu which is a part of caption button
   // container, rather than showing buttons. Only relevant for non-web browser
   // scenarios.
   if (IsLockedFullscreen() &&
-      GetFrameWindow()->GetProperty(chromeos::kUseImmersiveInTrustedPinned)) {
+      frame_window->GetProperty(chromeos::kUseImmersiveInTrustedPinned)) {
     return true;
   }
 
@@ -942,13 +910,8 @@ bool BrowserFrameViewChromeOS::GetShowCaptionButtonsWhenNotInOverview() const {
     return true;
   }
 
-  // Browsers in tablet mode still show their caption buttons in float state,
-  // even with the webUI tab strip.
-  if (display::Screen::Get()->InTabletMode()) {
-    return IsFloated();
-  }
-
-  return !UseWebUITabStrip();
+  // Browsers in tablet mode still show their caption buttons in float state.
+  return !display::Screen::Get()->InTabletMode() || IsFloated();
 }
 
 int BrowserFrameViewChromeOS::GetToolbarLeftInset() const {
@@ -975,19 +938,6 @@ int BrowserFrameViewChromeOS::GetTabStripRightInset() const {
 }
 
 bool BrowserFrameViewChromeOS::GetShouldPaint() const {
-  // Floated windows show their frame as they need to be dragged or hidden.
-  if (IsFloated()) {
-    return true;
-  }
-
-#if BUILDFLAG(ENABLE_WEBUI_TAB_STRIP)
-  // Normal windows that have a WebUI-based tab strip do not need a browser
-  // frame as no tab strip is drawn on top of the browser frame.
-  if (UseWebUITabStrip()) {
-    return false;
-  }
-#endif  // BUILDFLAG(ENABLE_WEBUI_TAB_STRIP)
-
   // We need to paint when the top-of-window views are revealed in immersive
   // fullscreen.
   auto* const immersive_mode_controller =
@@ -1031,7 +981,7 @@ void BrowserFrameViewChromeOS::UpdateTopViewInset() {
       ImmersiveModeController::From(GetBrowserView()->browser())->IsEnabled();
   const bool tab_strip_visible = GetBrowserView()->GetTabStripVisible();
   const int inset = (tab_strip_visible || immersive ||
-                     (AppIsPwaWithBorderlessDisplayMode() &&
+                     (AppIsPwaWithUnframedDisplayMode() &&
                       GetBrowserView()->IsUnframedModeEnabled()))
                         ? 0
                         : GetTopInset(/*restored=*/false);
@@ -1051,15 +1001,6 @@ bool BrowserFrameViewChromeOS::GetShowProfileIndicatorIcon() const {
   if (browser->is_type_popup()) {
     return false;
   }
-
-#if BUILDFLAG(ENABLE_WEBUI_TAB_STRIP)
-  // TODO(http://crbug.com/1059514): This check shouldn't be necessary.  Provide
-  // an appropriate affordance for the profile icon with the webUI tabstrip and
-  // remove this block.
-  if (!GetBrowserView()->GetTabStripVisible()) {
-    return false;
-  }
-#endif  // BUILDFLAG(ENABLE_WEBUI_TAB_STRIP)
 
   return ShouldShowAvatar(GetBrowserView()->GetNativeWindow());
 }
@@ -1105,10 +1046,8 @@ void BrowserFrameViewChromeOS::UpdateWindowRoundedCorners() {
 
   const gfx::RoundedCornersF window_radii = GetWindowRoundedCorners();
 
-  if (frame_header_) {
-    CHECK_EQ(window_radii.upper_left(), window_radii.upper_right());
-    frame_header_->SetHeaderCornerRadius(window_radii.upper_left());
-  }
+  CHECK_EQ(window_radii.upper_left(), window_radii.upper_right());
+  frame_header_->SetHeaderCornerRadius(window_radii.upper_left());
 
   if (GetBrowserView()->IsWindowControlsOverlayEnabled()) {
     // With window controls overlay enabled, the caption_button_container is
@@ -1136,7 +1075,9 @@ void BrowserFrameViewChromeOS::LayoutProfileIndicator() {
 }
 
 bool BrowserFrameViewChromeOS::GetOverviewMode() const {
-  return GetFrameWindow()->GetProperty(chromeos::kIsShowingInOverviewKey);
+  const aura::Window* frame_window = GetFrameWindow();
+  return frame_window &&
+         frame_window->GetProperty(chromeos::kIsShowingInOverviewKey);
 }
 
 bool BrowserFrameViewChromeOS::GetHideCaptionButtonsForFullscreen() const {
@@ -1158,9 +1099,7 @@ void BrowserFrameViewChromeOS::OnUpdateFrameColor() {
   window->SetProperty(chromeos::kFrameInactiveColorKey,
                       GetFrameColor(BrowserFrameActiveState::kInactive));
 
-  if (frame_header_) {
-    frame_header_->UpdateFrameColors();
-  }
+  frame_header_->UpdateFrameColors();
 }
 
 void BrowserFrameViewChromeOS::MaybeAnimateThemeChanged() {
@@ -1190,7 +1129,7 @@ void BrowserFrameViewChromeOS::MaybeAnimateThemeChanged() {
   // view so that repainting of the web contents (which is janky) is hidden from
   // user. Note that opacity is set just above `0.f` to pass a DCHECK that
   // exists in `aura::Window` that might otherwise be tripped when changing
-  // window visibility (see https://crbug.com/351553).
+  // window visibility (see https://crbug.com/41094269).
   layer->SetOpacity(std::nextafter(0.f, 1.f));
 
   // Cache a callback to invoke to animate the layer back in. Note that because
@@ -1241,12 +1180,6 @@ bool BrowserFrameViewChromeOS::IsFloated() const {
 bool BrowserFrameViewChromeOS::IsSnapped() const {
   return ash::WindowState::Get(browser_widget()->GetNativeWindow())
       ->IsSnapped();
-}
-
-bool BrowserFrameViewChromeOS::UseWebUITabStrip() const {
-  return WebUITabStripContainerView::UseTouchableTabStrip(
-             GetBrowserView()->browser()) &&
-         GetBrowserView()->GetSupportsTabStrip();
 }
 
 const aura::Window* BrowserFrameViewChromeOS::GetFrameWindow() const {

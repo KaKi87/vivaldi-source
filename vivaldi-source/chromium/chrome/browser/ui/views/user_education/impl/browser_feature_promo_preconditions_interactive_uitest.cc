@@ -30,10 +30,10 @@
 #include "chrome/browser/ui/views/toolbar/toolbar_controller.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/browser/ui/views/user_education/impl/browser_feature_promo_preconditions.h"
-#include "chrome/common/actor/task_id.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
+#include "components/actor/core/task_id.h"
 #include "components/omnibox/browser/autocomplete_controller.h"
 #include "components/omnibox/browser/autocomplete_input.h"
 #include "components/prefs/pref_service.h"
@@ -522,7 +522,7 @@ IN_PROC_BROWSER_TEST_F(ActorNotActuatingActiveTabPreconditionUiTest,
             actor::TestTaskSourceInfo(), actor::NoEnterprisePolicyChecker());
         auto* task = service->GetTask(task_id);
         task->AddTab(browser()->GetActiveTabInterface()->GetHandle(),
-                     base::DoNothing());
+                     /*stop_task_on_detach=*/true, base::DoNothing());
       }),
       // Precondition should block
       CheckResult(
@@ -551,7 +551,7 @@ IN_PROC_BROWSER_TEST_F(ActorNotActuatingActiveTabPreconditionUiTest,
         auto* task = service->GetTask(task_id);
         task->AddTab(
             browser()->GetTabStripModel()->GetTabAtIndex(0)->GetHandle(),
-            base::DoNothing());
+            /*stop_task_on_detach=*/true, base::DoNothing());
       }),
       CheckResult(
           [this]() {

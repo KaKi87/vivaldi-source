@@ -90,13 +90,13 @@
   <div slot="title" class="title-container">
     <div class="title-text">[[dialogTitle]]</div>
 
-    <template is="dom-if" if="[[shouldShowWalletBranding_(saveToWalletFromSettingsEnabled_, entityInstance)]]">
+    <template is="dom-if" if="[[shouldShowWalletBranding_(entityInstance)]]">
       <if expr="_google_chrome">
         <div class="title-icon-container">
           <picture id="branding-image">
-            <source srcset="chrome://theme/IDR_AUTOFILL_GOOGLE_WALLET_DARK"
+            <source srcset="[[getScaledSrcSet_('chrome://theme/IDR_AUTOFILL_GOOGLE_WALLET_DARK')]]"
                 media="(prefers-color-scheme: dark)">
-            <img srcset="chrome://theme/IDR_AUTOFILL_GOOGLE_WALLET"
+            <img srcset="[[getScaledSrcSet_('chrome://theme/IDR_AUTOFILL_GOOGLE_WALLET')]]"
                 alt=""
                 role="presentation">
           </picture>
@@ -105,12 +105,10 @@
     </template>
   </div>
   <div slot="body">
-    <template is="dom-if" if="[[saveToWalletFromSettingsEnabled_]]">
-      <div id="validation-error-top" class="cr-form-field-label"
-          hidden="[[!validationError_]]">
-        [[validationError_]]
-      </div>
-    </template>
+    <div id="validation-error-top" class="cr-form-field-label"
+        hidden="[[!validationError_]]">
+      [[validationError_]]
+    </div>
 
     <template is="dom-repeat" items="[[completeAttributeInstanceList_]]"
         as="attributeInstanceItem">
@@ -237,14 +235,6 @@
       </template>
 
     </template>
-
-    <template is="dom-if" if="[[!saveToWalletFromSettingsEnabled_]]">
-      <div id="validation-error" class="cr-form-field-label"
-       hidden="[[!validationError_]]">
-        [[validationError_]]
-      </div>
-    </template>
-
     <div id="footer"
          hidden="[[shouldHideFooterText_(footerText_)]]"
          inner-h-t-m-l="[[footerText_]]">

@@ -37,8 +37,6 @@ extern GuideName* const kOmniboxTextFieldGuide;
 extern GuideName* const kBackButtonGuide;
 // A guide that is constrained to match the frame of the forward button's image.
 extern GuideName* const kForwardButtonGuide;
-// A guide that is constrained to match the frame of the NewTab button.
-extern GuideName* const kNewTabButtonGuide;
 // A guide that is constrained to match the frame of the Share button.
 extern GuideName* const kShareButtonGuide;
 // A guide that is constrained to match the frame of the TabSwitcher button's
@@ -99,6 +97,9 @@ extern GuideName* const kLocationBarBadgeLargeEntrypointGuide;
 extern GuideName* const kInputAccessoryViewLayoutGuide;
 // A guide that is constrained to match the frame of the app bar.
 extern GuideName* const kAppBarGuide;
+// A guide that is constrained to match the frame of the app bar's assistant
+// button.
+extern GuideName* const kAppBarAssistantButtonGuide;
 
 // Vivaldi
 // A guide that is constrained to match the frame of the ToolsMenu button.

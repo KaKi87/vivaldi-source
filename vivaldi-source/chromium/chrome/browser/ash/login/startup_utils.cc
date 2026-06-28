@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "ash/constants/ash_features.h"
+#include "ash/constants/ash_login_pref_names.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/constants/ash_switches.h"
 #include "base/command_line.h"
@@ -20,7 +21,6 @@
 #include "base/time/time.h"
 #include "chrome/browser/ash/drive/file_system_util.h"
 #include "chrome/browser/ash/login/login_constants.h"
-#include "chrome/browser/ash/login/login_pref_names.h"
 #include "chrome/browser/ash/login/onboarding_user_activity_counter.h"
 #include "chrome/browser/ash/login/oobe_configuration.h"
 #include "chrome/browser/ash/login/oobe_metrics_helper.h"
@@ -107,7 +107,7 @@ void StartupUtils::RegisterPrefs(PrefRegistrySimple* registry) {
   registry->RegisterTimePref(prefs::kOobeStartTime, base::Time());
   registry->RegisterIntegerPref(ash::prefs::kDeviceRegistered, -1);
   registry->RegisterBooleanPref(ash::prefs::kEnrollmentRecoveryRequired, false);
-  registry->RegisterStringPref(::prefs::kInitialLocale, "en-US");
+  registry->RegisterStringPref(ash::prefs::kInitialLocale, "en-US");
   registry->RegisterBooleanPref(prefs::kOobeGuestMetricsEnabled, false);
   registry->RegisterBooleanPref(prefs::kOobeCriticalUpdateCompleted, false);
   registry->RegisterBooleanPref(prefs::kOobeIsConsumerSegment, false);
@@ -309,7 +309,7 @@ void StartupUtils::MarkEnrollmentRecoveryRequired(PrefService& local_state) {
 
 // static
 std::string StartupUtils::GetInitialLocale(const PrefService& local_state) {
-  std::string locale = local_state.GetString(::prefs::kInitialLocale);
+  std::string locale = local_state.GetString(ash::prefs::kInitialLocale);
   if (!l10n_util::IsValidLocaleSyntax(locale))
     locale = "en-US";
   return locale;
@@ -319,7 +319,7 @@ std::string StartupUtils::GetInitialLocale(const PrefService& local_state) {
 void StartupUtils::SetInitialLocale(PrefService& local_state,
                                     const std::string& locale) {
   if (l10n_util::IsValidLocaleSyntax(locale)) {
-    SaveStringPreferenceForced(local_state, ::prefs::kInitialLocale, locale);
+    SaveStringPreferenceForced(local_state, ash::prefs::kInitialLocale, locale);
   } else {
     NOTREACHED();
   }

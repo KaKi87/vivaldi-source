@@ -11,7 +11,7 @@
 #import "base/test/task_environment.h"
 #import "base/uuid.h"
 #import "components/prefs/json_pref_store.h"
-#import "components/unexportable_keys/scoped_mock_unexportable_key_provider.h"
+#import "crypto/scoped_mock_unexportable_key_provider.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "testing/gtest/include/gtest/gtest.h"
 #import "testing/platform_test.h"
@@ -43,7 +43,7 @@ class ProfileDeleterIOSTest : public PlatformTest {
     EXPECT_CALL(scoped_mock_key_provider_.mock(),
                 AsStatefulUnexportableKeyProvider())
         .WillRepeatedly(testing::Return(&scoped_mock_key_provider_.mock()));
-    EXPECT_CALL(scoped_mock_key_provider_.mock(), DeleteAllSigningKeysSlowly())
+    EXPECT_CALL(scoped_mock_key_provider_.mock(), DeleteAllKeysSlowly())
         .WillRepeatedly(testing::Return(std::nullopt));
   }
 
@@ -83,8 +83,7 @@ class ProfileDeleterIOSTest : public PlatformTest {
   }
 
  protected:
-  unexportable_keys::ScopedMockUnexportableKeyProvider
-      scoped_mock_key_provider_;
+  crypto::ScopedMockUnexportableKeyProvider scoped_mock_key_provider_;
 
  private:
   base::test::TaskEnvironment task_environment_;
@@ -167,7 +166,7 @@ TEST_F(ProfileDeleterIOSTest, DeleteProfile_DeletesClientCertificateKeys) {
   CreateProfileStorage(profile_name, profile_uuid);
   ASSERT_TRUE(base::DirectoryExists(profile_dir));
 
-  EXPECT_CALL(scoped_mock_key_provider_.mock(), DeleteAllSigningKeysSlowly())
+  EXPECT_CALL(scoped_mock_key_provider_.mock(), DeleteAllKeysSlowly())
       .Times(1)
       .WillOnce(testing::Return(1));
 

@@ -8,6 +8,7 @@
 #import "ios/chrome/app/profile/profile_state.h"
 #import "ios/chrome/app/profile/profile_state_observer.h"
 #import "ios/chrome/browser/default_browser/model/utils.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/scene_ui_blocker_state.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/browser/browser_provider.h"
@@ -103,7 +104,7 @@ constexpr base::TimeDelta kDefaultBrowserStartupPromoInactivityThreshold =
       !self.sceneState.UIEnabled ||
       self.sceneState.activationLevel < SceneActivationLevelForegroundActive ||
       self.sceneState.signinInProgress ||
-      self.sceneState.presentingModalOverlay) {
+      self.sceneState.uiBlockerState.presentingModalOverlay) {
     return;
   }
 

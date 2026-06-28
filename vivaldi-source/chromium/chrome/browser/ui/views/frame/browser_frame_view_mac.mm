@@ -22,6 +22,7 @@
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/cocoa/fullscreen/fullscreen_menubar_tracker.h"
 #include "chrome/browser/ui/cocoa/fullscreen/fullscreen_toolbar_controller.h"
+#include "chrome/browser/ui/color/chrome_color_provider_utils.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/fullscreen_util_mac.h"
@@ -38,6 +39,7 @@
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/browser/ui/views/web_apps/frame_toolbar/web_app_frame_toolbar_utils.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+#include "chrome/browser/ui/window_feature_controller/window_feature_controller.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
@@ -46,13 +48,16 @@
 #include "ui/base/hit_test.h"
 #include "ui/base/theme_provider.h"
 #include "ui/base/ui_base_features.h"
+#include "ui/compositor/layer.h"
 #include "ui/gfx/canvas.h"
+#include "ui/gfx/color_utils.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/outsets_f.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/size.h"
+#include "ui/native_theme/native_theme.h"
 #include "ui/views/cocoa/native_widget_mac_ns_window_host.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/layout_types.h"
@@ -89,7 +94,8 @@ BrowserFrameViewMac::BrowserFrameViewMac(BrowserWidget* frame,
         base::BindRepeating(&BrowserFrameViewMac::UpdateFullscreenTopUI,
                             base::Unretained(this)));
   }
-  if (!browser_view->UsesImmersiveFullscreenMode()) {
+  if (!WindowFeatureController::From(browser_view->browser())
+           ->UsesImmersiveFullscreenMode()) {
     fullscreen_toolbar_controller_ =
         [[FullscreenToolbarController alloc] initWithBrowserView:browser_view];
     [fullscreen_toolbar_controller_
@@ -103,6 +109,11 @@ BrowserFrameViewMac::BrowserFrameViewMac(BrowserWidget* frame,
       caption_button_placeholder_container_ =
           AddChildView(std::make_unique<CaptionButtonPlaceholderContainer>());
     }
+  }
+
+  if (features::IsGlassFrameEnabled()) {
+    SetPaintToLayer();
+    layer()->SetFillsBoundsOpaquely(false);
   }
 }
 
@@ -140,7 +151,8 @@ void BrowserFrameViewMac::OnFullscreenStateChanged() {
     EmitFullscreenSessionHistograms();
   }
 
-  if (GetBrowserView()->UsesImmersiveFullscreenMode()) {
+  if (WindowFeatureController::From(GetBrowserView()->browser())
+          ->UsesImmersiveFullscreenMode()) {
     ImmersiveModeController::From(GetBrowserView()->browser())
         ->SetEnabled(GetBrowserView()->IsFullscreen());
     UpdateFullscreenTopUI();
@@ -231,7 +243,8 @@ void BrowserFrameViewMac::UpdateFullscreenTopUI() {
     new_style = GetUserPreferredToolbarStyle(always_show);
   }
 
-  if (GetBrowserView()->UsesImmersiveFullscreenMode()) {
+  if (WindowFeatureController::From(GetBrowserView()->browser())
+          ->UsesImmersiveFullscreenMode()) {
     remote_cocoa::mojom::NativeWidgetNSWindow* ns_window_mojo =
         views::NativeWidgetMacNSWindowHost::GetFromNativeWindow(
             GetBrowserView()->GetWidget()->GetNativeWindow())
@@ -413,7 +426,8 @@ void BrowserFrameViewMac::PaintChildren(const views::PaintInfo& info) {
   // Tabbed immersive fullscreen paints its own background. In this case we
   // allow painting of the frame's children, which fixes a flickering bug:
   // 1400287.
-  if (GetBrowserView()->UsesImmersiveFullscreenTabbedMode() ||
+  if (WindowFeatureController::From(GetBrowserView()->browser())
+          ->UsesImmersiveFullscreenTabbedMode() ||
       !ImmersiveModeController::From(GetBrowserView()->browser())
            ->IsRevealed()) {
     BrowserFrameView::PaintChildren(info);
@@ -463,12 +477,19 @@ void BrowserFrameViewMac::OnPaint(gfx::Canvas* canvas) {
   }
 
   SkColor frame_color = GetFrameColor(BrowserFrameActiveState::kUseCurrent);
-  canvas->DrawColor(frame_color);
+  if (features::IsGlassFrameEnabled()) {
+    const SkAlpha frame_alpha = color_utils::IsDark(frame_color)
+                                    ? kBrowserFrameAlphaDark
+                                    : kBrowserFrameAlphaLight;
+    canvas->DrawColor(SkColorSetA(frame_color, frame_alpha));
+  } else {
+    canvas->DrawColor(frame_color);
 
-  auto* theme_service = ThemeServiceFactory::GetForProfile(
-      GetBrowserView()->browser()->profile());
-  if (!theme_service->UsingSystemTheme()) {
-    PaintThemedFrame(canvas);
+    auto* theme_service = ThemeServiceFactory::GetForProfile(
+        GetBrowserView()->browser()->profile());
+    if (!theme_service->UsingSystemTheme()) {
+      PaintThemedFrame(canvas);
+    }
   }
 }
 
@@ -501,7 +522,8 @@ void BrowserFrameViewMac::PaintThemedFrame(gfx::Canvas* canvas) {
 int BrowserFrameViewMac::TopUIFullscreenYOffset() const {
   if (!GetBrowserView()->GetTabStripVisible() ||
       !GetBrowserView()->IsFullscreen() ||
-      GetBrowserView()->UsesImmersiveFullscreenMode()) {
+      WindowFeatureController::From(GetBrowserView()->browser())
+          ->UsesImmersiveFullscreenMode()) {
     return 0;
   }
 
@@ -539,7 +561,9 @@ void BrowserFrameViewMac::UpdateCaptionButtonPlaceholderContainerBackground() {
   if (caption_button_placeholder_container_) {
     caption_button_placeholder_container_->SetBackground(
         views::CreateSolidBackground(
-            GetFrameColor(BrowserFrameActiveState::kUseCurrent)));
+            features::IsGlassFrameEnabled()
+                ? SK_ColorTRANSPARENT
+                : GetFrameColor(BrowserFrameActiveState::kUseCurrent)));
   }
 }
 

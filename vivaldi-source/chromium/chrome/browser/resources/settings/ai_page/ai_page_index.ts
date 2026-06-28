@@ -10,6 +10,7 @@
 import 'chrome://resources/cr_elements/cr_view_manager/cr_view_manager.js';
 import '/shared/settings/prefs/prefs.js';
 import './ai_info_card.js';
+import './ai_mode_search_page.js';
 import './ai_page.js';
 // <if expr="_google_chrome"> // Vivaldi keep disabled
 import '../glic_page/glic_page.js';
@@ -91,10 +92,20 @@ export class SettingsAiPageIndexElement extends SettingsAiPageIndexElementBase
         value: () =>
             loadTimeData.getBoolean('actorLoginFederatedLoginSupportEnabled'),
       },
+
+      showAiSuggestionsControl_: {
+        type: Boolean,
+        value: () => loadTimeData.getBoolean('showAiSuggestionsControl'),
+      },
+
+      showSkillsSettingPage_: {
+        type: Boolean,
+        value: () => loadTimeData.getBoolean('showSkillsSettingPage'),
+      },
     };
   }
 
-  declare prefs: {[key: string]: any};
+  declare prefs: Record<string, unknown>;
   declare private routes_: SettingsRoutes;
   // <if expr="_google_chrome"> // Vivaldi keep disabled
   declare private showGlicSettings_: boolean;
@@ -104,12 +115,18 @@ export class SettingsAiPageIndexElement extends SettingsAiPageIndexElementBase
   declare private showHistorySearchControl_: boolean;
   declare private enableAiModeSearchSetting_: boolean;
   declare private actorLoginFederatedLoginSupportEnabled_: boolean;
+  declare private showAiSuggestionsControl_: boolean;
+  declare private showSkillsSettingPage_: boolean;
 
   private showDefaultViews_() {
     const defaultViews: string[] = ['aiInfoCard'];
 
     if (this.showAiPageAiFeatureSection_) {
       defaultViews.push('parent');
+    }
+
+    if (this.enableAiModeSearchSetting_) {
+      defaultViews.push('aiModeSearch');
     }
 
     // <if expr="_google_chrome"> // Vivaldi keep disabled
@@ -142,11 +159,6 @@ export class SettingsAiPageIndexElement extends SettingsAiPageIndexElementBase
           // results.
           this.showDefaultViews_();
           break;
-        case routes.AI_MODE_SEARCH:
-          assert(this.enableAiModeSearchSetting_);
-          this.$.viewManager.switchView(
-              'aiModeSearch', 'no-animation', 'no-animation');
-          break;
         case routes.HISTORY_SEARCH:
           assert(this.showHistorySearchControl_);
           this.$.viewManager.switchView(
@@ -168,6 +180,16 @@ export class SettingsAiPageIndexElement extends SettingsAiPageIndexElementBase
           assert(this.actorLoginFederatedLoginSupportEnabled_);
           this.$.viewManager.switchView(
               'geminiLoginPermissions', 'no-animation', 'no-animation');
+          break;
+        case routes.AI_SUGGESTIONS:
+          assert(this.showAiSuggestionsControl_);
+          this.$.viewManager.switchView(
+              'aiSuggestions', 'no-animation', 'no-animation');
+          break;
+        case routes.SKILLS:
+          assert(this.showSkillsSettingPage_);
+          this.$.viewManager.switchView(
+              'skills', 'no-animation', 'no-animation');
           break;
         // </if>
         default:

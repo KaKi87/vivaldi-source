@@ -18,14 +18,12 @@
 
 namespace vivaldi_user_agent {
 
-#if !BUILDFLAG(IS_IOS)
-const char kVivaldiSuffix[] = " Vivaldi/" VIVALDI_UA_VERSION;
-const char kVivaldiSuffixReduced[] = " Vivaldi/" VIVALDI_UA_VERSION_REDUCED;
-#else
-// Note:(prio@vivaldi.com) Use VivaiOS for iOS.
-// Ref:(https://bugs.vivaldi.com/browse/VIB-659)
+#if BUILDFLAG(IS_IOS)
 const char kVivaldiSuffix[] = " VivaiOS/" VIVALDI_UA_VERSION;
 const char kVivaldiSuffixReduced[] = " VivaiOS/" VIVALDI_UA_VERSION_REDUCED;
+#else
+const char kVivaldiSuffix[] = " Vivaldi/" VIVALDI_UA_VERSION;
+const char kVivaldiSuffixReduced[] = " Vivaldi/" VIVALDI_UA_VERSION_REDUCED;
 #endif
 
 namespace {
@@ -113,10 +111,12 @@ bool IsGooglePartnerUrl(const GURL& url) {
          !is_google_disallowed_path(url.path());
 }
 
-bool InternaSpoofStableChromiumVersion(std::optional<GURL> direct_url = std::nullopt) {
+bool InternaSpoofStableChromiumVersion(
+    std::optional<GURL> direct_url = std::nullopt) {
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
-  return false; // TODO (VB-124387): At present don't spoof stable for Android/IOS
-#else // Desktop
+  return false;  // TODO (VB-124387): At present don't spoof stable for
+                 // Android/IOS
+#else            // Desktop
   using namespace google_util;
 
   if (!vivaldi::IsVivaldiRunning()) {
@@ -133,27 +133,26 @@ bool InternaSpoofStableChromiumVersion(std::optional<GURL> direct_url = std::nul
     test_url = direct_url.value();
   } else {
     std::optional<GURL> scoped_url = ScopedVivaldiThreadURL::GetURLForThread();
-    if (!scoped_url.has_value())
-      return false;
+    if (!scoped_url.has_value()) {
+      // Default spoofing as we might have frames that are created with renderer
+      // prefs that has no navigation to decide the spoof value. Better to only
+      // not spoof on the sites we specify in isAllowed and isGoogle.
+      return true;
+    }
     test_url = scoped_url.value();
-  }
-
-  if (!test_url.is_valid() || !test_url.SchemeIsHTTPOrHTTPS()) {
-    return false;
   }
 
   if (IsUrlAllowed(test_url)) {
     return false;
   }
 
-  if (IsGoogleDomainUrl(test_url,
-                        SubdomainPermission::DISALLOW_SUBDOMAIN,
+  if (IsGoogleDomainUrl(test_url, SubdomainPermission::DISALLOW_SUBDOMAIN,
                         PortPermission::DISALLOW_NON_STANDARD_PORTS)) {
     return false;
   }
 
   return true;
-# endif // Desktop
+#endif           // Desktop
 }
 
 }  // namespace
@@ -189,7 +188,6 @@ ScopedVivaldiThreadURL::~ScopedVivaldiThreadURL() {
   GetInstanceForThread() = old_status;
 }
 
-
 bool IsUrlAllowed(const GURL& url) {
   if (!url.is_valid() || !url.SchemeIsHTTPOrHTTPS())
     return false;
@@ -222,13 +220,13 @@ void UpdateAgentString(bool reduced, std::string& user_agent) {
   if (!vivaldi::IsVivaldiRunning())
     return;
 
-   std::optional<GURL> scoped_url = ScopedVivaldiThreadURL::GetURLForThread();
-   if (!scoped_url.has_value())
-     return;
+  std::optional<GURL> scoped_url = ScopedVivaldiThreadURL::GetURLForThread();
+  if (!scoped_url.has_value())
+    return;
 
-   GURL test_url = scoped_url.value();
-   if (!test_url.is_valid() || !test_url.SchemeIsHTTPOrHTTPS())
-     return;
+  GURL test_url = scoped_url.value();
+  if (!test_url.is_valid() || !test_url.SchemeIsHTTPOrHTTPS())
+    return;
 
   if (IsBingHost(test_url.host())) {
     user_agent += (reduced ? kEdgeSuffixReduced : kEdgeSuffix);
@@ -274,8 +272,7 @@ std::string UpdateReducedChromeProductString(std::string actual_product) {
   return "Chrome/" SPOOF_CHROME_VERSION_STRING_REDUCED;
 }
 
-std::string UpdateChromeMajorVersionString(
-    std::string_view actual_product) {
+std::string UpdateChromeMajorVersionString(std::string_view actual_product) {
   if (!InternaSpoofStableChromiumVersion())
     return std::string(actual_product);
 

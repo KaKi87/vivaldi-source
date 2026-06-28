@@ -1,8 +1,8 @@
-// [hlsl-dxc] flags: --hlsl-shader-model 66 --overrides kSubgroupSize=16
+// [hlsl-dxc] flags: --hlsl-shader-model 6.6 --overrides kSubgroupSize=16
 // [spvasm] flags: --overrides kSubgroupSize=16
 
 enable subgroups;
-enable chromium_experimental_subgroup_size_control;
+enable subgroup_size_control;
 
 override kSubgroupSize : i32;
 

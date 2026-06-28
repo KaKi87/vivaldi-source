@@ -397,6 +397,19 @@ class TestGitClBasic(unittest.TestCase):
             'Cq-Do-Not-Cancel-Tryjobs: true',
         ])
 
+    @mock.patch('sys.stdout', io.StringIO())
+    def test_ensure_change_id(self):
+        d = git_cl.ChangeDescription('Simple.\n\nChange-Id: Iold_change_id')
+        d.ensure_change_id('Inew_change_id')
+        self.assertEqual(d.description.splitlines(), [
+            'Simple.',
+            '',
+            'Change-Id: Inew_change_id',
+        ])
+        self.assertIn(
+            'WARNING: Change-Id has been set to Inew_change_id. Use `git cl issue 0` if you want to set a new one.',
+            sys.stdout.getvalue())
+
     def test_get_bug_line_values(self):
         f = lambda p, bugs: list(git_cl._get_bug_line_values(p, bugs))
         self.assertEqual(f('', ''), [])
@@ -450,6 +463,31 @@ class TestGitClBasic(unittest.TestCase):
                     'status': 'OOO',
                 },
             })
+
+    def test_get_is_gerrit(self):
+        """Test Settings.GetIsGerrit with various gerrit.host values."""
+        # Test empty value returns False
+        settings = git_cl.Settings()
+        with mock.patch.object(settings, '_GetConfig', return_value=''):
+            self.assertFalse(settings.GetIsGerrit())
+
+        # Test 'false' (case-insensitive) returns False
+        for val in ['false', 'False', 'FALSE']:
+            settings = git_cl.Settings()
+            with mock.patch.object(settings, '_GetConfig', return_value=val):
+                self.assertFalse(settings.GetIsGerrit())
+
+        # Test valid hostname returns True
+        settings = git_cl.Settings()
+        with mock.patch.object(settings,
+                               '_GetConfig',
+                               return_value='chromium-review.googlesource.com'):
+            self.assertTrue(settings.GetIsGerrit())
+
+        # Test 'true' string returns True
+        settings = git_cl.Settings()
+        with mock.patch.object(settings, '_GetConfig', return_value='true'):
+            self.assertTrue(settings.GetIsGerrit())
 
 
 class TestParseIssueURL(unittest.TestCase):
@@ -650,6 +688,9 @@ class TestGitCl(unittest.TestCase):
                    (self._mocked_call('SetReview', h, i, msg, labels, notify,
                                       ready, automatic_attention_set_update,
                                       project))).start()
+        mock.patch('git_cl.gerrit_util.CreateDraft',
+                   lambda h, i, revision='current', body=None: self.
+                   _mocked_call('CreateDraft', h, i, revision, body)).start()
         mock.patch('git_cl.gerrit_util.LuciContextAuthenticator.is_applicable',
                    return_value=False).start()
         mock.patch('git_cl.gerrit_util.GceAuthenticator.is_applicable',
@@ -1466,6 +1507,168 @@ class TestGitCl(unittest.TestCase):
             mock.call(options, new_upload_upstream, '1233'),
             mock.call(options, new_upload_current, '1234')
         ])
+
+    @mock.patch('git_cl.Changelist.GetGerritHost',
+                return_value='chromium-review.googlesource.com')
+    @mock.patch('git_cl.Changelist.GetRemoteBranch',
+                return_value=('origin', 'refs/remotes/origin/main'))
+    @mock.patch(
+        'git_cl.Changelist.GetCommonAncestorWithUpstream',
+        side_effect=['current-upstream-ancestor', 'next-upstream-ancestor'])
+    @mock.patch('git_cl.Changelist.PostUploadUpdates')
+    @mock.patch('git_cl.Changelist._RunGitPushWithTraces')
+    @mock.patch('git_cl._UploadAllPrecheck')
+    @mock.patch('git_cl.Changelist.PrepareSquashedCommit')
+    def test_upload_all_squashed_no_space(self, mockSquashedCommit,
+                                          mockUploadAllPrecheck, mockRunGitPush,
+                                          mockPostUploadUpdates, *_mocks):
+        # Set up
+        cls = [
+            git_cl.Changelist(branchref='refs/heads/current-branch',
+                              issue='12345'),
+            git_cl.Changelist(branchref='refs/heads/upstream-branch')
+        ]
+        mockUploadAllPrecheck.return_value = (cls, False)
+
+        reviewers = []
+        ccs = []
+
+        current_commit_to_push = 'commit-to-push'
+        current_new_last_upload = 'new-last-upload'
+        change_desc = git_cl.ChangeDescription(
+            'Initial description\nChange-Id:ec15e81197380')
+        prev_patchset = 2
+        new_upload_current = git_cl._NewUpload(reviewers, ccs,
+                                               current_commit_to_push,
+                                               current_new_last_upload,
+                                               'next-upstream-ancestor',
+                                               change_desc, prev_patchset)
+
+        upstream_desc = git_cl.ChangeDescription('kwak')
+        upstream_parent = 'origin-commit'
+        upstream_new_last_upload = 'upstrea-last-upload'
+        upstream_commit_to_push = 'upstream_push_commit'
+        new_upload_upstream = git_cl._NewUpload(reviewers, ccs,
+                                                upstream_commit_to_push,
+                                                upstream_new_last_upload,
+                                                upstream_parent, upstream_desc,
+                                                prev_patchset)
+        mockSquashedCommit.side_effect = [
+            new_upload_upstream, new_upload_current
+        ]
+
+        options = optparse.Values()
+        options.send_mail = options.private = False
+        options.squash = True
+        options.title = None
+        options.message = 'Initial upload'
+        options.topic = 'main-topic'
+        options.enable_auto_submit = False
+        options.enable_owners_override = False
+        options.set_bot_commit = False
+        options.cq_dry_run = False
+        options.use_commit_queue = False
+        options.hashtags = ['cow']
+        options.target_branch = None
+        options.push_options = ['uploadvalidator~skip']
+        orig_args = []
+
+        # NOTICE: No space after the issue numbers and ANSI escape sequences
+        mockRunGitPush.return_value = (
+            '\x1b[Kremote:   https://chromium-review.'
+            'googlesource.com/c/chromium/depot_tools/+/1233'
+            '\n'
+            '\x1b[Kremote:   https://chromium-review.'
+            'googlesource.com/c/chromium/depot_tools/+/1234')
+
+        # Call
+        git_cl.UploadAllSquashed(options, orig_args)
+
+        # Asserts
+        self.assertEqual(mockPostUploadUpdates.mock_calls, [
+            mock.call(options, new_upload_upstream, '1233'),
+            mock.call(options, new_upload_current, '1234')
+        ])
+
+    @mock.patch('sys.stderr', io.StringIO())
+    @mock.patch('git_cl.Changelist.GetGerritHost',
+                return_value='chromium-review.googlesource.com')
+    @mock.patch('git_cl.Changelist.GetRemoteBranch',
+                return_value=('origin', 'refs/remotes/origin/main'))
+    @mock.patch(
+        'git_cl.Changelist.GetCommonAncestorWithUpstream',
+        side_effect=['current-upstream-ancestor', 'next-upstream-ancestor'])
+    @mock.patch('git_cl.Changelist.PostUploadUpdates')
+    @mock.patch('git_cl.Changelist._RunGitPushWithTraces')
+    @mock.patch('git_cl._UploadAllPrecheck')
+    @mock.patch('git_cl.Changelist.PrepareSquashedCommit')
+    def test_upload_all_squashed_count_mismatch(self, mockSquashedCommit,
+                                                mockUploadAllPrecheck,
+                                                mockRunGitPush,
+                                                mockPostUploadUpdates, *_mocks):
+        # Set up
+        cls = [
+            git_cl.Changelist(branchref='refs/heads/current-branch',
+                              issue='12345'),
+            git_cl.Changelist(branchref='refs/heads/upstream-branch')
+        ]
+        mockUploadAllPrecheck.return_value = (cls, False)
+
+        reviewers = []
+        ccs = []
+
+        current_commit_to_push = 'commit-to-push'
+        current_new_last_upload = 'new-last-upload'
+        change_desc = git_cl.ChangeDescription(
+            'Initial description\nChange-Id:ec15e81197380')
+        prev_patchset = 2
+        new_upload_current = git_cl._NewUpload(reviewers, ccs,
+                                               current_commit_to_push,
+                                               current_new_last_upload,
+                                               'next-upstream-ancestor',
+                                               change_desc, prev_patchset)
+
+        upstream_desc = git_cl.ChangeDescription('kwak')
+        upstream_parent = 'origin-commit'
+        upstream_new_last_upload = 'upstrea-last-upload'
+        upstream_commit_to_push = 'upstream_push_commit'
+        new_upload_upstream = git_cl._NewUpload(reviewers, ccs,
+                                                upstream_commit_to_push,
+                                                upstream_new_last_upload,
+                                                upstream_parent, upstream_desc,
+                                                prev_patchset)
+        mockSquashedCommit.side_effect = [
+            new_upload_upstream, new_upload_current
+        ]
+
+        options = optparse.Values()
+        options.send_mail = options.private = False
+        options.squash = True
+        options.title = None
+        options.message = 'Initial upload'
+        options.topic = 'main-topic'
+        options.enable_auto_submit = False
+        options.enable_owners_override = False
+        options.set_bot_commit = False
+        options.cq_dry_run = False
+        options.use_commit_queue = False
+        options.hashtags = ['cow']
+        options.target_branch = None
+        options.push_options = ['uploadvalidator~skip']
+        orig_args = []
+
+        # Only one issue returned, but two expected, and it has ANSI sequences
+        mockRunGitPush.return_value = (
+            '\x1b[Kremote:   https://chromium-review.'
+            'googlesource.com/c/chromium/depot_tools/+/1233')
+
+        # Call
+        with self.assertRaises(SystemExitMock):
+            git_cl.UploadAllSquashed(options, orig_args)
+        self.assertIn('Created|Updated 1 issues on Gerrit, but 2 expected.',
+                      sys.stderr.getvalue())
+        self.assertIn("Detected change numbers: ['1233']",
+                      sys.stderr.getvalue())
 
     @mock.patch('git_cl.Changelist.GetGerritHost',
                 return_value='chromium-review.googlesource.com')
@@ -2333,7 +2536,28 @@ class TestGitCl(unittest.TestCase):
         self.assertIssueAndPatchset()
 
     @unittest.skipIf(gclient_utils.IsEnvCog(),
-                    'not supported in non-git environment')
+                     'not supported in non-git environment')
+    def test_patch_gerrit_reauthor(self):
+        self._patch_common()
+        self.calls += [
+            (([
+                'git', 'fetch', 'https://chromium.googlesource.com/my/repo',
+                'refs/changes/56/123456/7'
+            ], ), ''),
+            ((['git', 'cherry-pick', 'FETCH_HEAD'], ), ''),
+            ((['git', 'log', '-1',
+               '--format=%B'], ), 'Auto-generated spans\n\nChange-Id: I2345\n'),
+            (([
+                'git', 'commit', '--amend', '--reset-author', '-m',
+                'Auto-generated spans\n'
+            ], ), ''),
+        ]
+        self.assertEqual(git_cl.main(['patch', '--reauthor', '123456']), 0)
+        self.assertIsNone(scm.GIT.GetBranchConfig('', 'main', 'gerritissue'))
+        self.assertIsNone(scm.GIT.GetBranchConfig('', 'main', 'gerritpatchset'))
+
+    @unittest.skipIf(gclient_utils.IsEnvCog(),
+                     'not supported in non-git environment')
     def test_patch_gerrit_new_branch(self):
         self._patch_common()
         self.calls += [
@@ -2808,6 +3032,41 @@ class TestGitCl(unittest.TestCase):
 
         self.assertEqual(0, git_cl.main(['description', '-n', '-']))
         self.assertEqual('hi\n\t there\n\nman', ChangelistMock.desc)
+
+    @unittest.skipIf(gclient_utils.IsEnvCog(),
+                     'not supported in non-git environment')
+    def test_diff_with_files(self):
+        mock.patch('git_common.current_branch', return_value='main').start()
+
+        scm.GIT.SetConfig('', 'branch.main.gerritissue', '123')
+        scm.GIT.SetConfig('', 'branch.main.last-upload-hash', 'deadbeaf')
+
+        self.calls = [
+            ((['git', 'diff', 'deadbeaf', 'file1'], ), ''),
+        ]
+        self.assertEqual(0, git_cl.main(['diff', 'file1']))
+
+        self.calls = [
+            ((['git', 'diff', 'deadbeaf', '--', 'file1'], ), ''),
+        ]
+        self.assertEqual(0, git_cl.main(['diff', '--', 'file1']))
+
+        with mock.patch('git_cl.OptionParser.error',
+                        side_effect=ParserErrorMock):
+            with self.assertRaises(ParserErrorMock):
+                git_cl.main(['diff', 'a.txt', '--', 'b.txt'])
+
+        self.calls = [
+            ((['git', 'diff', 'deadbeaf', '--', 'a.txt', 'b.txt'], ), ''),
+        ]
+        self.assertEqual(0, git_cl.main(['diff', '--', 'a.txt', 'b.txt']))
+
+        self.calls = [
+            ((['git', 'diff', '--stat', 'deadbeaf', '--', 'a.txt',
+               'b.txt'], ), ''),
+        ]
+        self.assertEqual(
+            0, git_cl.main(['diff', '--stat', '--', 'a.txt', 'b.txt']))
 
     @unittest.skipIf(gclient_utils.IsEnvCog(),
                     'not supported in non-git environment')
@@ -3313,6 +3572,39 @@ class TestGitCl(unittest.TestCase):
         self.assertEqual(0, git_cl.main(['comment', '-i', '10', '-a', 'msg']))
 
     @unittest.skipIf(gclient_utils.IsEnvCog(),
+                     'not supported in non-git environment')
+    def test_git_cl_comments_reply_gerrit(self):
+        git_new_branch.create_new_branch(None)  # hits mock from scm_mock.GIT.
+        scm.GIT.SetConfig('', 'remote.origin.url',
+                          'https://chromium.googlesource.com/infra/infra')
+        self.calls = [
+            (('GetChangeComments', 'chromium-review.googlesource.com',
+              'infra%2Finfra~10'), {
+                  'some/file.py': [
+                      {
+                          'id': 'uuid-123',
+                          'line': 42,
+                          'message': 'some comment',
+                          'patch_set': 2,
+                      },
+                  ],
+              }),
+            (('CreateDraft', 'chromium-review.googlesource.com',
+              'infra%2Finfra~10', 2, {
+                  'in_reply_to': 'uuid-123',
+                  'message': 'reply msg',
+                  'path': 'some/file.py',
+                  'line': 42
+              }), None),
+        ]
+        self.assertEqual(
+            0,
+            git_cl.main([
+                'comments', '-i', '10', '--reply-to', 'uuid-123', '-a',
+                'reply msg'
+            ]))
+
+    @unittest.skipIf(gclient_utils.IsEnvCog(),
                     'not supported in non-git environment')
     @mock.patch('git_cl.Changelist.GetBranch', return_value='foo')
     def test_git_cl_comments_fetch_gerrit(self, *_mocks):
@@ -3407,6 +3699,17 @@ class TestGitCl(unittest.TestCase):
                           'line': 42,
                           'message': 'I removed this because it is bad',
                       },
+                      {
+                          'id': 'comment_id_3',
+                          'author': {
+                              'email': u'owner@example.com'
+                          },
+                          'updated': u'2017-03-16 20:00:41.000000000',
+                          'patch_set': 2,
+                          'side': 'PARENT',
+                          'line': 42,
+                          'message': 'And another thing',
+                      },
                   ]
               }),
         ] * 2 + [(('write_json', 'output.json', [{
@@ -3419,7 +3722,15 @@ class TestGitCl(unittest.TestCase):
                     'line': 42,
                     'patchset': 'Base',
                     'unresolved': False,
-                    'content': 'I removed this because it is bad'
+                    'content': 'I removed this because it is bad',
+                    'id': 'comment_id_2'
+                }, {
+                    'path': 'codereview.settings',
+                    'line': 42,
+                    'patchset': 'Base',
+                    'unresolved': False,
+                    'content': 'And another thing',
+                    'id': 'comment_id_3'
                 }]
             },
             'sender': 'owner@example.com',
@@ -3436,7 +3747,8 @@ class TestGitCl(unittest.TestCase):
                     'line': 0,
                     'patchset': 'PS2',
                     'unresolved': False,
-                    'content': 'Please include a bug link'
+                    'content': 'Please include a bug link',
+                    'id': 'comment_id_1'
                 }]
             },
             'sender': 'reviewer@example.com',
@@ -3449,7 +3761,10 @@ class TestGitCl(unittest.TestCase):
                 message=(u'PTAL\n' + u'\n' + u'codereview.settings\n' +
                          u'  Base, Line 42: https://crrev.com/c/1/2/' +
                          u'codereview.settings#b42 (resolved)\n' +
-                         u'  I removed this because it is bad\n'),
+                         u'  I removed this because it is bad\n\n' +
+                         u'  Base, Line 42: https://crrev.com/c/1/2/' +
+                         u'codereview.settings#b42 (resolved)\n' +
+                         u'  And another thing\n'),
                 message_json={
                     'message':
                     'PTAL',
@@ -3458,7 +3773,15 @@ class TestGitCl(unittest.TestCase):
                         'line': 42,
                         'patchset': 'Base',
                         'unresolved': False,
-                        'content': 'I removed this because it is bad'
+                        'content': 'I removed this because it is bad',
+                        'id': 'comment_id_2'
+                    }, {
+                        'path': 'codereview.settings',
+                        'line': 42,
+                        'patchset': 'Base',
+                        'unresolved': False,
+                        'content': 'And another thing',
+                        'id': 'comment_id_3'
                     }]
                 },
                 date=datetime.datetime(2017, 3, 16, 20, 0, 41, 0),
@@ -3480,7 +3803,8 @@ class TestGitCl(unittest.TestCase):
                         'line': 0,
                         'patchset': 'PS2',
                         'unresolved': False,
-                        'content': 'Please include a bug link'
+                        'content': 'Please include a bug link',
+                        'id': 'comment_id_1'
                     }]
                 },
                 date=datetime.datetime(2017, 3, 17, 5, 19, 37, 500000),
@@ -3673,6 +3997,8 @@ class ChangelistTest(unittest.TestCase):
             '123456',
             '--patchset',
             '7',
+            '--name',
+            'main',
             '--commit',
             '--may_prompt',
             '--parallel',
@@ -3732,6 +4058,8 @@ class ChangelistTest(unittest.TestCase):
             'project',
             '--gerrit_branch',
             'refs/heads/main',
+            '--name',
+            'main',
             '--upload',
             '--json_output',
             '/tmp/fake-temp2',
@@ -3794,6 +4122,8 @@ class ChangelistTest(unittest.TestCase):
             'project',
             '--gerrit_branch',
             'refs/heads/main',
+            '--name',
+            'main',
             '--upload',
             '--json_output',
             '/tmp/fake-temp2',
@@ -3838,6 +4168,8 @@ class ChangelistTest(unittest.TestCase):
             'root',
             '--upstream',
             'upstream',
+            '--name',
+            'main',
             '--upload',
             '--json_output',
             '/tmp/fake-temp2',
@@ -3897,6 +4229,8 @@ class ChangelistTest(unittest.TestCase):
             '123456',
             '--patchset',
             '7',
+            '--name',
+            'main',
             '--post_upload',
             '--description_file',
             '/tmp/fake-temp1',
@@ -3930,6 +4264,8 @@ class ChangelistTest(unittest.TestCase):
             '123456',
             '--patchset',
             '7',
+            '--name',
+            'main',
             '--post_upload',
             '--description_file',
             '/tmp/fake-temp1',
@@ -5834,9 +6170,9 @@ Change-Id: I25699146b24c7ad8776f17775f489b9d41499595
 
 Original change's description:
 > Foo the bar
-> 
+>
 > This change foo's the bar.
-> 
+>
 > Bug: 123456
 > Change-Id: I25699146b24c7ad8776f17775f489b9d41499595
 
@@ -5858,9 +6194,9 @@ Change-Id: I25699146b24c7ad8776f17775f489b9d41499595
 
 Original change's description:
 > Foo the bar
-> 
+>
 > This change foo's the bar.
-> 
+>
 > Bug: 123456
 > Change-Id: I25699146b24c7ad8776f17775f489b9d41499595
 

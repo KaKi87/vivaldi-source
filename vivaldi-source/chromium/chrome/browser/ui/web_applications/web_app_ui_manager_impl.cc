@@ -29,9 +29,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -39,11 +36,18 @@
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/intent_picker_tab_helper.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
+#include "chrome/browser/ui/profiles/profile_error_dialog.h"
 #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
-#include "chrome/browser/ui/web_applications/app_browser_controller.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/web_apps/web_app_blocked_migration_infobar_delegate.h"
+#include "chrome/browser/ui/views/web_apps/web_app_update_review_dialog.h"
+#include "chrome/browser/ui/web_applications/app_browser_controller.h"
+#include "chrome/browser/ui/web_applications/web_app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
 #include "chrome/browser/ui/web_applications/web_app_dialogs.h"
+#include "chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.h"
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
 #include "chrome/browser/ui/web_applications/web_app_metrics.h"
 #include "chrome/browser/ui/web_applications/web_app_run_on_os_login_notification.h"
@@ -58,6 +62,7 @@
 #include "chrome/browser/web_applications/web_app_ui_manager.h"
 #include "chrome/browser/web_applications/web_app_uninstall_dialog_user_options.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
+#include "chrome/grit/generated_resources.h"
 #include "components/feature_engagement/public/feature_constants.h"
 #include "components/services/app_service/public/cpp/app_launch_params.h"
 #include "components/user_education/common/feature_promo/feature_promo_controller.h"
@@ -138,7 +143,7 @@ void UninstallWebAppWithDialogFromStartupSwitch(
                webapps::UninstallResultCode code) {
               // This ensures that the scoped_keep_alive will be deleted in the
               // next message loop, giving objects like DialogDelegate enough
-              // time to shut itself down. See crbug.com/1506302 for more
+              // time to shut itself down. See crbug.com/40946953 for more
               // information.
               base::SequencedTaskRunner::GetCurrentDefault()->DeleteSoon(
                   FROM_HERE, std::move(scoped_keep_alive));
@@ -304,6 +309,32 @@ bool WebAppUiManagerImpl::IsAppInQuickLaunchBar(
   return false;
 }
 
+bool WebAppUiManagerImpl::IsAppMigrationSuggested(
+    BrowserWindowInterface* window) const {
+  WebAppBrowserController* controller = WebAppBrowserController::From(window);
+  if (!controller) {
+    return false;
+  }
+  return controller->HasPendingMigration();
+}
+
+bool WebAppUiManagerImpl::IsAppMigrationDialogShowing(
+    BrowserWindowInterface* window) const {
+  WebAppBrowserController* controller = WebAppBrowserController::From(window);
+  if (!controller) {
+    return false;
+  }
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN) || \
+    BUILDFLAG(IS_MAC)
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(window);
+  return browser_view &&
+         browser_view->GetProperty(kIsPwaUpdateDialogShowingKey) &&
+         controller->HasPendingMigration();
+#else
+  return false;
+#endif
+}
+
 bool WebAppUiManagerImpl::CanReparentAppTabToWindow(
     const webapps::AppId& app_id,
     bool shortcut_created,
@@ -322,7 +353,7 @@ bool WebAppUiManagerImpl::CanReparentAppTabToWindow(
   }
 #if BUILDFLAG(IS_MAC)
   // On macOS it is only possible to reparent the window when the shortcut (app
-  // shim) was created. See https://crbug.com/915571.
+  // shim) was created. See https://crbug.com/40606764.
   return shortcut_created;
 #else
   return true;
@@ -451,9 +482,10 @@ content::WebContents* WebAppUiManagerImpl::CreateNewTab() {
 
 bool WebAppUiManagerImpl::IsWebContentsActiveTabInBrowser(
     content::WebContents* web_contents) {
-  Browser* browser = chrome::FindBrowserWithTab(web_contents);
-  return browser && browser->tab_strip_model() &&
-         browser->tab_strip_model()->GetActiveWebContents() == web_contents;
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents);
+  return browser && browser->GetTabStripModel() &&
+         browser->GetTabStripModel()->GetActiveWebContents() == web_contents;
 }
 
 void WebAppUiManagerImpl::TriggerInstallDialog(
@@ -536,6 +568,12 @@ void WebAppUiManagerImpl::PresentUserUninstallDialog(
                      parent_window, std::move(parent_window_tracker),
                      std::move(uninstall_complete_callback),
                      std::move(uninstall_scheduled_callback)));
+}
+
+void WebAppUiManagerImpl::ShowProfileErrorDialogForCorruptDB() {
+  ::ShowProfileErrorDialog(ProfileErrorType::DB_WEB_APP_DATA,
+                           IDS_COULDNT_OPEN_PROFILE_ERROR,
+                           "Web App database corruption detected.");
 }
 
 void WebAppUiManagerImpl::ShowIntentPicker(
@@ -949,5 +987,21 @@ void WebAppUiManagerImpl::OnBrowserCloseCancelled(
       GetAppIdForBrowser(browser));
 }
 #endif  // BUILDFLAG(IS_CHROMEOS)
+
+void WebAppUiManagerImpl::NotifyDidFinishNavigation(
+    content::NavigationHandle* navigation_handle) {
+  auto* user_data =
+      WebAppLaunchNavigationHandleUserData::GetForNavigationHandle(
+          *navigation_handle);
+  if (!user_data) {
+    return;
+  }
+
+  // Enqueue launch params once the navigation has committed and the navigation
+  // was successful.
+  if (navigation_handle->HasCommitted() && !navigation_handle->IsErrorPage()) {
+    user_data->MaybePerformAppHandlingTasksInWebContents();
+  }
+}
 
 }  // namespace web_app

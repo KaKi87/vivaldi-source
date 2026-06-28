@@ -55,6 +55,13 @@ class DeviceInfoSyncClientImpl : public syncer::DeviceInfoSyncClient {
   MobilePromoOnDesktopPromoTypeSet GetDesktopToIOSPromoReceivingTypes()
       const override;
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  // syncer::DeviceInfoSyncClient:
+  syncer::DeviceInfo::GlicExperimentalTriggeringState
+  GetGlicExperimentalTriggeringState() const override;
+  std::optional<int> GetGlicExperimentalTriggeringVersion() const override;
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+
   size_t VivaldiGetSyncedFileStorageSize() const override;
 
  private:

@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <variant>
 
 #include "base/barrier_closure.h"
 #include "base/base64.h"
@@ -20,14 +21,12 @@
 #include "base/strings/to_string.h"
 #include "base/trace_event/trace_event.h"
 #include "base/types/expected.h"
-#include "chrome/browser/actor/actor_features.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/actor/actor_metrics.h"
 #include "chrome/browser/actor/actor_task.h"
-#include "chrome/browser/actor/aggregated_journal.h"
-#include "chrome/browser/actor/shared_types.h"
 #include "chrome/browser/actor/tools/attempt_form_filling_tool_request.h"
 #include "chrome/browser/actor/tools/attempt_login_tool_request.h"
+#include "chrome/browser/actor/tools/attempt_otp_filling_tool_request.h"
 #include "chrome/browser/actor/tools/click_tool_request.h"
 #include "chrome/browser/actor/tools/drag_and_release_tool_request.h"
 #include "chrome/browser/actor/tools/history_tool_request.h"
@@ -49,9 +48,14 @@
 #include "chrome/common/actor.mojom-shared.h"
 #include "chrome/common/actor/action_result.h"
 #include "chrome/common/actor/actor_constants.h"
-#include "chrome/common/actor/actor_logging.h"
-#include "chrome/common/actor/journal_details_builder.h"
+#include "chrome/common/buildflags.h"
 #include "chrome/common/chrome_features.h"
+#include "components/actor/core/actor_features.h"
+#include "components/actor/core/actor_logging.h"
+#include "components/actor/core/aggregated_journal.h"
+#include "components/actor/core/journal_details_builder.h"
+#include "components/actor/core/shared_types.h"
+#include "components/actor/public/mojom/actor_types.mojom.h"
 #include "components/optimization_guide/content/browser/page_content_proto_provider.h"
 #include "components/optimization_guide/proto/features/actions_data.pb.h"
 #include "components/password_manager/core/browser/features/password_features.h"
@@ -84,6 +88,7 @@ using apc::ActivateTabAction;
 using apc::ActivateWindowAction;
 using apc::AttemptFormFillingAction;
 using apc::AttemptLoginAction;
+using apc::AttemptOtpFillingAction;
 using apc::ClickAction;
 using apc::CloseTabAction;
 using apc::CloseWindowAction;
@@ -111,17 +116,6 @@ using ::tabs::TabHandle;
 using ::tabs::TabInterface;
 
 namespace {
-
-// Test only callback for mutating and returning the TabObservationResult
-// provided from BuildActionsResultWithObservations.
-base::RepeatingCallback<void(apc::TabObservation*,
-                             const FetchPageContextResult&)>&
-GetTabObservationResultOverrideForTesting() {
-  static base::NoDestructor<base::RepeatingCallback<void(
-      apc::TabObservation*, const FetchPageContextResult&)>>
-      callback;
-  return *callback;
-}
 
 struct PageScopedParams {
   std::string document_identifier;
@@ -154,12 +148,21 @@ std::optional<PageTarget> ToPageTarget(
                     target.document_identifier().serialized_token()});
   }
 }
-std::unique_ptr<ToolRequest> CreateClickRequest(const ClickAction& action) {
+std::variant<std::unique_ptr<ToolRequest>, mojom::ActionResultCode>
+CreateClickRequest(const ClickAction& action) {
   TabHandle tab_handle = GetTabHandle(action);
 
-  if (!action.has_target() || !action.has_click_count() ||
-      !action.has_click_type() || tab_handle == TabHandle::Null()) {
-    return nullptr;
+  if (tab_handle == TabHandle::Null()) {
+    return mojom::ActionResultCode::kTabWentAway;
+  }
+  if (!action.has_target()) {
+    return mojom::ActionResultCode::kClickMissingTarget;
+  }
+  if (!action.has_click_type()) {
+    return mojom::ActionResultCode::kClickMissingType;
+  }
+  if (!action.has_click_count()) {
+    return mojom::ActionResultCode::kClickInvalidCount;
   }
 
   mojom::ClickCount count;
@@ -200,7 +203,7 @@ std::unique_ptr<ToolRequest> CreateClickRequest(const ClickAction& action) {
 
   auto target = ToPageTarget(action.target());
   if (!target.has_value()) {
-    return nullptr;
+    return mojom::ActionResultCode::kArgumentsInvalid;
   }
 
   return std::make_unique<ClickToolRequest>(tab_handle, target.value(), type,
@@ -595,6 +598,10 @@ std::unique_ptr<ToolRequest> CreateAttemptFormFillingRequest(
     AttemptFormFillingToolRequest::FormFillingRequest request;
     request.requested_data =
         requested_data_enum_converter(request_proto.requested_data());
+    if (base::FeatureList::IsEnabled(
+            features::kGlicActorAutofillSectionLabel)) {
+      request.section_label = request_proto.section_label();
+    }
     for (const auto& trigger_field : request_proto.trigger_fields()) {
       std::optional<PageTarget> page_target = ToPageTarget(trigger_field);
       if (!page_target) {
@@ -609,6 +616,36 @@ std::unique_ptr<ToolRequest> CreateAttemptFormFillingRequest(
   return std::make_unique<AttemptFormFillingToolRequest>(tab_handle,
                                                          std::move(requests));
 #endif // VIVALDI_BUILD
+}
+
+std::unique_ptr<ToolRequest> CreateAttemptOtpFillingRequest(
+    const AttemptOtpFillingAction& action) {
+  if (!base::FeatureList::IsEnabled(
+          features::kGlicActorAutofillOneTimePassword)) {
+    return nullptr;
+  }
+
+  const tabs::TabHandle tab_handle = GetTabHandle(action);
+  if (tab_handle == TabHandle::Null()) {
+    return nullptr;
+  }
+
+  if (action.target_fields_size() == 0) {
+    return nullptr;
+  }
+
+  std::vector<PageTarget> trigger_fields;
+  for (const auto& target_field : action.target_fields()) {
+    std::optional<PageTarget> page_target = ToPageTarget(target_field);
+    if (!page_target) {
+      // One of the targets is invalid.
+      return nullptr;
+    }
+    trigger_fields.push_back(*page_target);
+  }
+
+  return std::make_unique<AttemptOtpFillingToolRequest>(
+      tab_handle, std::move(trigger_fields), action.for_signin());
 }
 
 std::unique_ptr<ToolRequest> CreateScriptToolRequest(
@@ -720,8 +757,8 @@ class ActorJournalFetchPageProgressListener
   std::unique_ptr<AggregatedJournal::PendingAsyncEntry> apc_entry_;
 };
 
-std::unique_ptr<ToolRequest> CreateToolRequest(
-    const optimization_guide::proto::Action& action) {
+std::variant<std::unique_ptr<ToolRequest>, mojom::ActionResultCode>
+CreateToolRequest(const optimization_guide::proto::Action& action) {
   TRACE_EVENT1("actor", "CreateToolRequest", "action_type",
                static_cast<int>(action.action_case()));
   switch (action.action_case()) {
@@ -788,6 +825,11 @@ std::unique_ptr<ToolRequest> CreateToolRequest(
           action.attempt_form_filling();
       return CreateAttemptFormFillingRequest(attempt_form_fill_action);
     }
+    case optimization_guide::proto::Action::kAttemptOtpFilling: {
+      const AttemptOtpFillingAction& attempt_otp_fill_action =
+          action.attempt_otp_filling();
+      return CreateAttemptOtpFillingRequest(attempt_otp_fill_action);
+    }
     case optimization_guide::proto::Action::kScriptTool: {
       const ScriptToolAction& script_tool_action = action.script_tool();
       return CreateScriptToolRequest(script_tool_action);
@@ -832,24 +874,31 @@ std::unique_ptr<ToolRequest> CreateToolRequest(
       break;
   }
 
-  return nullptr;
+  return mojom::ActionResultCode::kArgumentsInvalid;
 }
 
 }  // namespace
 
-base::expected<std::vector<std::unique_ptr<ToolRequest>>, size_t>
+base::expected<std::vector<std::unique_ptr<ToolRequest>>,
+               std::pair<size_t, mojom::ActionResultCode>>
 BuildToolRequest(const optimization_guide::proto::Actions& actions) {
   TRACE_EVENT0("actor", "BuildToolRequest");
   std::vector<std::unique_ptr<ToolRequest>> requests;
   requests.reserve(actions.actions_size());
   for (int i = 0; i < actions.actions_size(); ++i) {
-    std::unique_ptr<ToolRequest> request =
-        CreateToolRequest(actions.actions().at(i));
-    if (request) {
-      requests.push_back(std::move(request));
-    } else {
-      return base::unexpected(base::checked_cast<size_t>(i));
+    auto result = CreateToolRequest(actions.actions().at(i));
+    if (std::holds_alternative<mojom::ActionResultCode>(result)) {
+      return base::unexpected(
+          std::make_pair(base::checked_cast<size_t>(i),
+                         std::get<mojom::ActionResultCode>(result)));
     }
+    auto& tool_request = std::get<std::unique_ptr<ToolRequest>>(result);
+    if (!tool_request) {
+      return base::unexpected(
+          std::make_pair(base::checked_cast<size_t>(i),
+                         mojom::ActionResultCode::kArgumentsInvalid));
+    }
+    requests.push_back(std::move(tool_request));
   }
 
   return requests;
@@ -975,20 +1024,22 @@ void FetchCallback(
   }
 
   FetchPageContextResult& fetch_result = **result;
-
   bool has_apc = fetch_result.annotated_page_content_result.has_value();
   tab_observation->set_annotated_page_content_result(
       has_apc ? apc::TabObservation::ANNOTATED_PAGE_CONTENT_OK
               : apc::TabObservation::ANNOTATED_PAGE_CONTENT_ERROR);
 
   bool has_screenshot = fetch_result.screenshot_result.has_value();
+  bool screenshot_required =
+      !base::FeatureList::IsEnabled(actor::kGlicActorSkipScreenshot);
   tab_observation->set_screenshot_result(
-      has_screenshot ? apc::TabObservation::SCREENSHOT_OK
-                     : apc::TabObservation::SCREENSHOT_ERROR);
+      has_screenshot || !screenshot_required
+          ? apc::TabObservation::SCREENSHOT_OK
+          : apc::TabObservation::SCREENSHOT_ERROR);
 
-  // Context for actor observations should always have an APC and a screenshot,
-  // return failure if either is missing.
-  if (!has_apc || !has_screenshot) {
+  // Context for actor observations should always have an APC. It should also
+  // have a screenshot unless it was skipped.
+  if (!has_apc || (screenshot_required && !has_screenshot)) {
     tab_observation->set_result(
         apc::TabObservation::TAB_OBSERVATION_FETCH_ERROR);
     return;
@@ -1011,7 +1062,7 @@ void FetchCallback(
         fetch_context_time);
   }
 
-  {
+  if (has_screenshot) {
     apc::ActionsResult_LatencyInformation_LatencyStep* latency_step =
         latency_info->add_latency_steps();
     latency_step->mutable_screenshot()->set_id(tab_observation->id());
@@ -1034,6 +1085,19 @@ void FetchCallback(
 }
 
 }  // namespace
+
+void SetTabObservationResultOverrideForTesting(  // IN-TEST
+    base::RepeatingCallback<void(
+        optimization_guide::proto::TabObservation*,
+        const page_content_annotations::FetchPageContextResult&)> callback) {
+  GetTabObservationResultOverrideForTesting() = callback;  // IN-TEST
+}
+
+TabObservationResultOverrideCallback&
+GetTabObservationResultOverrideForTesting() {
+  static base::NoDestructor<TabObservationResultOverrideCallback> callback;
+  return *callback;
+}
 
 std::optional<
     page_content_annotations::ScreenshotOptions::ScreenshotCollectionOptions>
@@ -1196,8 +1260,8 @@ void BuildActionsResultWithObservations(
   }
 
 #if !BUILDFLAG(SKIP_ANDROID_UNMIGRATED_ACTOR_FILES)
-  ProfileBrowserCollection::GetForProfile(profile)
-      ->ForEach([&response](BrowserWindowInterface* browser) {
+  ProfileBrowserCollection::GetForProfile(profile)->ForEach(
+      [&response](BrowserWindowInterface* browser) {
         apc::WindowObservation* window_observation = response->add_windows();
         window_observation->set_id(browser->GetSessionID().id());
         window_observation->set_active(browser->IsActive());
@@ -1341,13 +1405,6 @@ void BuildActionsResultWithObservations(
   }
 }
 
-void SetTabObservationResultOverrideForTesting(  // IN-TEST
-    base::RepeatingCallback<void(
-        optimization_guide::proto::TabObservation*,
-        const page_content_annotations::FetchPageContextResult&)> callback) {
-  GetTabObservationResultOverrideForTesting() = callback;  // IN-TEST
-}
-
 apc::ActionsResult BuildErrorActionsResult(
     mojom::ActionResultCode result_code,
     std::optional<size_t> index_of_failed_action) {
@@ -1363,11 +1420,10 @@ apc::ActionsResult BuildErrorActionsResult(
   return response;
 }
 
-std::string ToBase64(const optimization_guide::proto::Actions& actions) {
-  TRACE_EVENT0("actor", "ActionsToBase64");
-  size_t size = actions.ByteSizeLong();
-  std::vector<uint8_t> buffer(size);
-  actions.SerializeToArray(buffer.data(), size);
+std::string ToBase64(const google::protobuf::MessageLite& proto) {
+  TRACE_EVENT0("actor", "ProtoToBase64");
+  std::string buffer;
+  proto.SerializeToString(&buffer);
   return base::Base64Encode(buffer);
 }
 

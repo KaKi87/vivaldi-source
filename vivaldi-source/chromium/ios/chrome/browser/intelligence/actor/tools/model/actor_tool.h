@@ -8,26 +8,22 @@
 #import "base/functional/callback_forward.h"
 #import "base/memory/raw_ptr.h"
 #import "base/memory/weak_ptr.h"
-#import "base/types/expected.h"
+#import "ios/chrome/browser/intelligence/actor/tools/public/actor_tool_types.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 
-class Browser;
 class ProfileIOS;
+class UrlLoadingBrowserAgent;
 
 namespace web {
 class WebState;
-}
+class WebFrame;
+}  // namespace web
 
 namespace actor {
-
-struct ActorToolError;
 
 // Abstract base class for all actor tools.
 class ActorTool {
  public:
-  using ToolExecutionResult = base::expected<void, ActorToolError>;
-  using ToolExecutionCallback = base::OnceCallback<void(ToolExecutionResult)>;
-
   // Result of resolving a tab ID to its associated objects.
   struct TabResolutionResult {
     TabResolutionResult();
@@ -35,8 +31,8 @@ class ActorTool {
     TabResolutionResult& operator=(const TabResolutionResult&);
     ~TabResolutionResult();
 
-    // The browser containing the tab.
-    raw_ptr<Browser> browser = nullptr;
+    // A weak pointer to the tab's URL loading agent.
+    base::WeakPtr<UrlLoadingBrowserAgent> url_loader;
     // The index of the tab in the browser's web state list.
     int tab_index = WebStateList::kInvalidIndex;
     // A weak pointer to the tab's WebState.
@@ -48,11 +44,20 @@ class ActorTool {
   // Executes the tool.
   virtual void Execute(ToolExecutionCallback callback) = 0;
 
+  // Returns the target WebState for this tool, if any.
+  virtual base::WeakPtr<web::WebState> GetTargetWebState() const = 0;
+
+  // Returns the target WebFrame for this tool, if any.
+  virtual base::WeakPtr<web::WebFrame> GetTargetWebFrame() const;
+
+  // Returns the type of this tool.
+  virtual ToolType GetToolType() const = 0;
+
  protected:
   // Resolves the given `tab_id` to its associated objects in regular Browsers.
-  // Returns an ActorToolError if the tab or its associated objects are not
+  // Returns an ToolExecutionResult if the tab or its associated objects are not
   // found.
-  static base::expected<TabResolutionResult, ActorToolError> ResolveTab(
+  static base::expected<TabResolutionResult, ToolExecutionResult> ResolveTab(
       int32_t tab_id,
       ProfileIOS* profile);
 };

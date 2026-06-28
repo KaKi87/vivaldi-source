@@ -18,12 +18,15 @@
 #include "base/location.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "base/types/to_address.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
+#include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
+#include "chrome/browser/ui/fullscreen/browser_window_fullscreen_controller.h"
 #include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
 #include "chrome/browser/ui/toasts/api/toast_id.h"
 #include "chrome/browser/ui/toasts/api/toast_registry.h"
@@ -71,7 +74,13 @@ ToastController* ToastController::MaybeGetForWebContents(
     return nullptr;
   }
 
-  auto* tab_interface = tabs::TabInterface::MaybeGetFromContents(web_contents);
+  return MaybeGetForTabInterface(
+      tabs::TabInterface::MaybeGetFromContents(web_contents));
+}
+
+// static.
+ToastController* ToastController::MaybeGetForTabInterface(
+    tabs::TabInterface* tab_interface) {
   if (!tab_interface) {
     return nullptr;
   }
@@ -161,7 +170,7 @@ void ToastController::OnWidgetDestroyed(views::Widget* widget) {
   toast_view_ = nullptr;
   toast_widget_ = nullptr;
   toast_observer_.Reset();
-  fullscreen_observation_.Reset();
+  fullscreen_subscription_ = {};
   toast_close_timer_.Stop();
 
   if (browser_window_interface_ &&
@@ -237,8 +246,9 @@ void ToastController::UpdateToastWidgetVisibility(bool show_toast_widget) {
 }
 
 bool ToastController::ShouldRenderToastOverWebContents() {
-  bool render_in_contents =
-      browser_window_interface_->ShouldHideUIForFullscreen();
+  bool render_in_contents = BrowserWindowFullscreenController::From(
+                                base::to_address(browser_window_interface_))
+                                ->ShouldHideUIForFullscreen();
 
 #if BUILDFLAG(IS_MAC)
   render_in_contents |=
@@ -356,9 +366,12 @@ void ToastController::CreateToast(ToastParams params,
   toast_view_->GetBubbleFrameView()->bubble_border()->set_draw_border_stroke(
       false);
   toast_observer_.Observe(toast_widget_);
-  fullscreen_observation_.Observe(
-      browser_window_interface_->GetExclusiveAccessManager()
-          ->fullscreen_controller());
+  fullscreen_subscription_ =
+      ExclusiveAccessManager::From(browser_window_interface_)
+          ->fullscreen_controller()
+          ->RegisterOnFullscreenStateChanged(
+              base::BindRepeating(&ToastController::OnFullscreenStateChanged,
+                                  base::Unretained(this)));
   toast_widget_->SetVisibilityChangedAnimationsEnabled(false);
   // Set the the focus traversable parent of the toast widget to be the parent
   // of the anchor view, so that when focus leaves the toast, the search for the

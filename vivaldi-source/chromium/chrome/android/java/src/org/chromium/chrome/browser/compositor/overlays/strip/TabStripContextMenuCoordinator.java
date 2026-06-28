@@ -18,20 +18,20 @@ import android.view.View;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.MathUtils;
-import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.bookmarks.BookmarkAllTabsHandler;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+/*import org.chromium.chrome.browser.glic.GlicEnabling;
+import org.chromium.chrome.browser.glic.GlicUtils; Vivaldi */
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.multiwindow.UiUtils.NameWindowDialogSource;
-import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
-import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
+import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModel.RecentlyClosedEntryType;
 import org.chromium.chrome.browser.tasks.tab_management.TabOverflowMenuCoordinator;
+import org.chromium.chrome.browser.tasks.tab_management.vertical_tabs.VerticalTabUtils;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.tab_ui.R;
 import org.chromium.components.browser_ui.widget.ListItemBuilder;
@@ -55,7 +55,7 @@ import java.util.Set;
 @NullMarked
 public class TabStripContextMenuCoordinator {
     private final Context mContext;
-    private final @Nullable TabModel mTabModel;
+    private final TabModel mTabModel;
     private final MultiInstanceManager mMultiInstanceManager;
     private final WindowAndroid mWindowAndroid;
     private final SnackbarManager mSnackbarManager;
@@ -63,7 +63,7 @@ public class TabStripContextMenuCoordinator {
     private @Nullable AnchoredPopupWindow mMenuWindow;
 
     public static TabStripContextMenuCoordinator createContextMenuCoordinator(
-            @Nullable TabModel tabModel,
+            TabModel tabModel,
             MultiInstanceManager multiInstanceManager,
             WindowAndroid windowAndroid,
             SnackbarManager snackbarManager,
@@ -73,7 +73,7 @@ public class TabStripContextMenuCoordinator {
     }
 
     private TabStripContextMenuCoordinator(
-            @Nullable TabModel tabModel,
+            TabModel tabModel,
             MultiInstanceManager multiInstanceManager,
             WindowAndroid windowAndroid,
             SnackbarManager snackbarManager,
@@ -148,44 +148,38 @@ public class TabStripContextMenuCoordinator {
     }
 
     private void configureMenuItems(ModelList itemList, boolean isIncognito) {
-        if (ChromeFeatureList.isEnabled(
-                ChromeFeatureList.TAB_STRIP_EMPTY_SPACE_CONTEXT_MENU_ANDROID)) {
-            // Add "New tab" option.
+        // Add "New tab" option.
+        itemList.add(
+                new ListItemBuilder()
+                        .withTitleRes(R.string.menu_new_tab)
+                        .withMenuId(R.id.new_tab_menu_id)
+                        .withIsIncognito(isIncognito)
+                        .build());
+        // Add "Reopen closed tab/tabs/group" option.
+        @RecentlyClosedEntryType
+        int recentlyClosedEntryType = mTabModel.getMostRecentlyClosedEntryType();
+        if (recentlyClosedEntryType != RecentlyClosedEntryType.NONE) {
+            int titleRes = R.string.menu_reopen_closed_tab;
+            if (recentlyClosedEntryType == RecentlyClosedEntryType.TABS) {
+                titleRes = R.string.menu_reopen_closed_tabs;
+            } else if (recentlyClosedEntryType == RecentlyClosedEntryType.GROUP) {
+                titleRes = R.string.menu_reopen_closed_group;
+            }
             itemList.add(
                     new ListItemBuilder()
-                            .withTitleRes(R.string.menu_new_tab)
-                            .withMenuId(R.id.new_tab_menu_id)
-                            .withIsIncognito(isIncognito)
+                            .withTitleRes(titleRes)
+                            .withMenuId(R.id.reopen_closed_entry)
+                            .withIsIncognito(false)
                             .build());
-            // Add "Reopen closed tab/tabs/group" option.
-            @RecentlyClosedEntryType
-            int recentlyClosedEntryType =
-                    (mTabModel != null)
-                            ? mTabModel.getMostRecentlyClosedEntryType()
-                            : RecentlyClosedEntryType.NONE;
-            if (recentlyClosedEntryType != RecentlyClosedEntryType.NONE) {
-                int titleRes = R.string.menu_reopen_closed_tab;
-                if (recentlyClosedEntryType == RecentlyClosedEntryType.TABS) {
-                    titleRes = R.string.menu_reopen_closed_tabs;
-                } else if (recentlyClosedEntryType == RecentlyClosedEntryType.GROUP) {
-                    titleRes = R.string.menu_reopen_closed_group;
-                }
-                itemList.add(
-                        new ListItemBuilder()
-                                .withTitleRes(titleRes)
-                                .withMenuId(R.id.reopen_closed_entry)
-                                .withIsIncognito(false)
-                                .build());
-            }
-            // Add "Bookmark all tabs" option.
-            if (!isIncognito && mTabModel != null && mTabModel.getCount() > 1) {
-                itemList.add(
-                        new ListItemBuilder()
-                                .withTitleRes(R.string.menu_bookmark_all_tabs)
-                                .withMenuId(R.id.bookmark_all_tabs)
-                                .withIsIncognito(false)
-                                .build());
-            }
+        }
+        // Add "Bookmark all tabs" option.
+        if (!isIncognito && mTabModel.getCount() > 1) {
+            itemList.add(
+                    new ListItemBuilder()
+                            .withTitleRes(R.string.menu_bookmark_all_tabs)
+                            .withMenuId(R.id.bookmark_all_tabs)
+                            .withIsIncognito(false)
+                            .build());
         }
         // Add "Name window" option.
         if (MultiWindowUtils.isMultiInstanceApi31Enabled()) {
@@ -196,18 +190,24 @@ public class TabStripContextMenuCoordinator {
                             .withIsIncognito(isIncognito)
                             .build());
         }
+        if (VerticalTabUtils.shouldShowVerticalTabsEntryPoint(mContext)) {
+            itemList.add(BasicListMenu.buildMenuDivider(isIncognito));
+            itemList.add(
+                    new ListItemBuilder()
+                            .withTitleRes(R.string.show_tabs_vertically)
+                            .withMenuId(R.id.show_tabs_vertically_menu_id)
+                            .withIsIncognito(isIncognito)
+                            .build());
+        }
         // Add "Pin Gemini" option with divider
-        if (ChromeFeatureList.isEnabled(
-                        ChromeFeatureList.TAB_STRIP_EMPTY_SPACE_CONTEXT_MENU_ANDROID)
-                && ChromeFeatureList.sGlic.isEnabled()) {
-            if (!isIncognito) {
-                itemList.add(BasicListMenu.buildMenuDivider(/* isIncognito= */ false));
+        /* Not needed in Vivaldi
+        if (!isIncognito) {
+            Profile profile = mTabModel.getProfile();
+            if (profile != null && GlicEnabling.isEnabledForProfile(profile)) {
+                itemList.add(BasicListMenu.buildMenuDivider(false));
 
-                boolean isPinned =
-                        ChromeSharedPreferences.getInstance()
-                                .readBoolean(
-                                        ChromePreferenceKeys.GLIC_BUTTON_PINNED,
-                                        /* defaultValue= */ true);
+
+                boolean isPinned = GlicUtils.isButtonPinnedToTabStrip(profile);
                 if (isPinned) {
                     itemList.add(
                             new ListItemBuilder()
@@ -224,7 +224,7 @@ public class TabStripContextMenuCoordinator {
                                     .build());
                 }
             }
-        }
+        }*/
     }
 
     @VisibleForTesting
@@ -241,31 +241,25 @@ public class TabStripContextMenuCoordinator {
                 model.get(CLICK_LISTENER).onClick(contentView);
                 return;
             }
+            //Profile profile = mTabModel.getProfile(); Vivaldi
             if (model.get(MENU_ITEM_ID) == R.id.new_tab_menu_id) {
                 mOnNewTabClick.run();
             } else if (model.get(MENU_ITEM_ID) == R.id.reopen_closed_entry) {
                 RecordUserAction.record("Android.TabStripMenu.ReopenClosedEntry");
-                if (mTabModel != null) {
-                    RecordHistogram.recordBooleanHistogram(
-                            "Android.TabStripMenu.ReopenClosedEntry.Result", true);
-                    mTabModel.openMostRecentlyClosedEntry();
-                } else {
-                    RecordHistogram.recordBooleanHistogram(
-                            "Android.TabStripMenu.ReopenClosedEntry.Result", false);
-                }
+                mTabModel.openMostRecentlyClosedEntry();
             } else if (model.get(MENU_ITEM_ID) == R.id.bookmark_all_tabs) {
                 BookmarkAllTabsHandler.bookmarkAllTabs(mTabModel, mWindowAndroid, mSnackbarManager);
             } else if (model.get(MENU_ITEM_ID) == R.id.name_window) {
                 mMultiInstanceManager.showNameWindowDialog(NameWindowDialogSource.TAB_STRIP);
-            } else if (model.get(MENU_ITEM_ID) == R.id.pin_glic) {
+            } else if (model.get(MENU_ITEM_ID) == R.id.show_tabs_vertically_menu_id) {
+                // No-op placeholder. Click behavior will be added in a follow-up CL.
+            } /*else if (model.get(MENU_ITEM_ID) == R.id.pin_glic) {
                 RecordUserAction.record("Android.TabStripMenu.PinGlic");
-                ChromeSharedPreferences.getInstance()
-                        .writeBoolean(ChromePreferenceKeys.GLIC_BUTTON_PINNED, true);
+                if (profile != null) GlicUtils.setButtonPinnedToTabStrip(profile, true);
             } else if (model.get(MENU_ITEM_ID) == R.id.unpin_glic) {
                 RecordUserAction.record("Android.TabStripMenu.UnpinGlic");
-                ChromeSharedPreferences.getInstance()
-                        .writeBoolean(ChromePreferenceKeys.GLIC_BUTTON_PINNED, false);
-            }
+                if (profile != null) GlicUtils.setButtonPinnedToTabStrip(profile, false);
+            } Vivaldi */
             assumeNonNull(mMenuWindow).dismiss();
         };
     }

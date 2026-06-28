@@ -19,6 +19,7 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.omnibox.fusebox.ComposeboxQueryControllerBridge.ContextUploadObserver;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxAttachmentRecyclerViewAdapter.FuseboxAttachmentType;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
+import org.chromium.components.contextual_search.ContextUploadErrorType;
 import org.chromium.components.contextual_search.ContextUploadStatus;
 import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.ui.modelutil.ListObservable.ListObserver;
@@ -40,6 +41,7 @@ import java.util.function.Predicate;
 @NullMarked
 public class FuseboxAttachmentModelList
         implements ContextUploadObserver, Iterable<FuseboxAttachment> {
+
     private final ModelList mModelList = new ModelList();
     private final SimpleRecyclerViewAdapter mAdapter =
             new FuseboxAttachmentRecyclerViewAdapter(mModelList);
@@ -232,7 +234,7 @@ public class FuseboxAttachmentModelList
         }
 
         if (attachment.type == FuseboxAttachmentType.ATTACHMENT_TAB) {
-            mAttachedTabIds.add(attachment.tabId);
+            mAttachedTabIds.add(attachment.getTabId());
         }
 
         attachment.model.set(FuseboxAttachmentProperties.COLOR_SCHEME, mBrandedColorScheme);
@@ -254,7 +256,7 @@ public class FuseboxAttachmentModelList
         mModelList.remove(attachment);
 
         if (attachment.type == FuseboxAttachmentType.ATTACHMENT_TAB) {
-            mAttachedTabIds.remove(attachment.tabId);
+            mAttachedTabIds.remove(attachment.getTabId());
         }
 
         if (isFailure) {
@@ -283,8 +285,7 @@ public class FuseboxAttachmentModelList
                     if (item.type != FuseboxAttachmentType.ATTACHMENT_TAB) return false;
                     FuseboxAttachment attachment =
                             item.model.get(FuseboxAttachmentProperties.ATTACHMENT);
-                    Integer tabId = assumeNonNull(attachment).tabId;
-                    return !tabIdsToKeep.contains(tabId);
+                    return !tabIdsToKeep.contains(assumeNonNull(attachment).getTabId());
                 });
     }
 
@@ -355,6 +356,11 @@ public class FuseboxAttachmentModelList
         return mAttachedTabIds;
     }
 
+    /** Removes all suggested tab chips from the model list and backend. */
+    public void removeSuggestedTabs() {
+        removeIf(item -> ((FuseboxAttachment) item).isSuggestedTab);
+    }
+
     /** Apply a variant of the branded color scheme to Fusebox Attachment elements. */
     /*package */ void updateVisualsForState(@BrandedColorScheme int brandedColorScheme) {
         if (mBrandedColorScheme == brandedColorScheme) return;
@@ -365,15 +371,19 @@ public class FuseboxAttachmentModelList
     }
 
     @Override
-    public void onContextUploadStatusChanged(String token, @ContextUploadStatus int status) {
+    public void onContextUploadStatusChanged(
+            String token, @ContextUploadStatus int status, @ContextUploadErrorType int errorType) {
         if (TextUtils.isEmpty(token)) return;
         FuseboxAttachment pendingAttachment = findAttachmentWithToken(token);
         if (pendingAttachment == null) return;
+
+        FuseboxMetrics.recordContextUploadStatus(status);
 
         switch (status) {
             case ContextUploadStatus.VALIDATION_FAILED:
             case ContextUploadStatus.UPLOAD_FAILED:
             case ContextUploadStatus.UPLOAD_EXPIRED:
+                FuseboxMetrics.recordContextUploadError(errorType);
                 if (pendingAttachment.retryUpload(
                         assumeNonNull(mComposeboxQueryControllerBridge))) {
                     break;

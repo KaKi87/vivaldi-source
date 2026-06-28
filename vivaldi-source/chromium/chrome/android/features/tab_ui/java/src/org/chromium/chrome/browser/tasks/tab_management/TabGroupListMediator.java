@@ -22,7 +22,7 @@ import org.chromium.chrome.browser.hub.HubUtils;
 import org.chromium.chrome.browser.hub.PaneManager;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab_ui.ActionConfirmationManager;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
+import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelObserver;
 import org.chromium.chrome.browser.tasks.tab_management.TabGroupListCoordinator.RowType;
 import org.chromium.components.collaboration.CollaborationService;
@@ -32,7 +32,6 @@ import org.chromium.components.collaboration.messaging.MessagingBackendService.P
 import org.chromium.components.collaboration.messaging.PersistentMessage;
 import org.chromium.components.data_sharing.DataSharingService;
 import org.chromium.components.data_sharing.GroupData;
-import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.components.sync.DataType;
 import org.chromium.components.sync.SyncService;
 import org.chromium.components.tab_group_sync.LocalTabGroupId;
@@ -66,7 +65,7 @@ public class TabGroupListMediator {
     private final Context mContext;
     private final ModelList mModelList;
     private final PropertyModel mPropertyModel;
-    private final TabGroupModelFilter mFilter;
+    private final TabModel mTabModel;
     private final FaviconResolver mFaviconResolver;
     private final @Nullable TabGroupSyncService mTabGroupSyncService;
     private final DataSharingService mDataSharingService;
@@ -95,7 +94,7 @@ public class TabGroupListMediator {
                     // anything happened until the closure is committed. Make sure the UI is up to
                     // date (with the right TabGroupState) if an undo related to a tab group
                     // happens.
-                    if (mFilter.isTabInTabGroup(tab)) {
+                    if (mTabModel.isTabInTabGroup(tab)) {
                         mPendingRefresh.post();
                     }
                 }
@@ -215,7 +214,7 @@ public class TabGroupListMediator {
             Context context,
             ModelList modelList,
             PropertyModel propertyModel,
-            TabGroupModelFilter filter,
+            TabModel tabModel,
             FaviconResolver faviconResolver,
             @Nullable TabGroupSyncService tabGroupSyncService,
             DataSharingService dataSharingService,
@@ -232,7 +231,7 @@ public class TabGroupListMediator {
         mContext = context;
         mModelList = modelList;
         mPropertyModel = propertyModel;
-        mFilter = filter;
+        mTabModel = tabModel;
         mFaviconResolver = faviconResolver;
         mTabGroupSyncService = tabGroupSyncService;
         mDataSharingService = dataSharingService;
@@ -247,7 +246,7 @@ public class TabGroupListMediator {
         mTabGroupRemovedMessageMediator = tabGroupRemovedMessageMediator;
         mPersistentVersioningMessageMediator = persistentVersioningMessageMediator;
 
-        mFilter.addObserver(mTabModelObserver);
+        mTabModel.addObserver(mTabModelObserver);
         if (mTabGroupSyncService != null) {
             mTabGroupSyncService.addObserver(mTabGroupSyncObserver);
         }
@@ -263,7 +262,7 @@ public class TabGroupListMediator {
     /** Clean up observers used by this class. */
     public void destroy() {
         destroyAndClearAllRows(mModelList, DESTROYABLE);
-        mFilter.removeObserver(mTabModelObserver);
+        mTabModel.removeObserver(mTabModelObserver);
         if (mTabGroupSyncService != null) {
             mTabGroupSyncService.removeObserver(mTabGroupSyncObserver);
         }
@@ -281,7 +280,7 @@ public class TabGroupListMediator {
             mPersistentVersioningMessageMediator.queueMessageIfNeeded();
         }
 
-        GroupWindowChecker sortUtil = new GroupWindowChecker(mTabGroupSyncService, mFilter);
+        GroupWindowChecker sortUtil = new GroupWindowChecker(mTabGroupSyncService, mTabModel);
         List<SavedTabGroup> sortedTabGroups =
                 sortUtil.getSortedGroupList(
                         this::shouldShowGroupByState,
@@ -295,7 +294,7 @@ public class TabGroupListMediator {
                     new TabGroupRowMediator(
                             mContext,
                             savedTabGroup,
-                            mFilter,
+                            mTabModel,
                             assumeNonNull(mTabGroupSyncService),
                             mDataSharingService,
                             mCollaborationService,
@@ -318,15 +317,9 @@ public class TabGroupListMediator {
     }
 
     private void setIsTabletOrLandscape() {
-        if (OmniboxFeatures.sAndroidHubSearchTabGroups.isEnabled()
-                && OmniboxFeatures.sAndroidHubSearchEnableOnTabGroupsPane.getValue()) {
-            Configuration config = mContext.getResources().getConfiguration();
-            boolean isTabletOrLandscape = HubUtils.isScreenWidthTablet(config.screenWidthDp);
-            mPropertyModel.set(TabGroupListProperties.IS_TABLET_OR_LANDSCAPE, isTabletOrLandscape);
-        } else {
-            // No search box to make space for.
-            mPropertyModel.set(TabGroupListProperties.IS_TABLET_OR_LANDSCAPE, true);
-        }
+        Configuration config = mContext.getResources().getConfiguration();
+        boolean isTabletOrLandscape = HubUtils.isScreenWidthTablet(config.screenWidthDp);
+        mPropertyModel.set(TabGroupListProperties.IS_TABLET_OR_LANDSCAPE, isTabletOrLandscape);
     }
 
     private boolean shouldShowGroupByState(@GroupWindowState int groupWindowState) {

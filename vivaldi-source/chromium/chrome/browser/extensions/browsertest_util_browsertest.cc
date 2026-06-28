@@ -1,53 +1,122 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/test/bind.h"
-#include "base/test/values_test_util.h"
+#include "extensions/browser/browsertest_util.h"
+
+#include <string>
+
+#include "base/memory/ref_counted.h"
+#include "base/strings/string_number_conversions.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "content/public/test/browser_test.h"
-#include "extensions/browser/browsertest_util.h"
-#include "extensions/test/extension_test_message_listener.h"
-#include "extensions/test/test_extension_dir.h"
+#include "extensions/buildflags/buildflags.h"
+#include "extensions/common/constants.h"
+#include "extensions/common/extension.h"
+#include "extensions/test/result_catcher.h"
+#include "testing/gtest/include/gtest/gtest-spi.h"
+#include "testing/gtest/include/gtest/gtest.h"
+
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 namespace extensions {
+namespace browsertest_util {
 
-using BrowserTestUtilBrowserTest = ExtensionBrowserTest;
+namespace {
 
-// Tests the ability to run JS in an extension-registered service worker.
-IN_PROC_BROWSER_TEST_F(BrowserTestUtilBrowserTest,
-                       ExecuteScriptInServiceWorker) {
-  constexpr char kManifest[] =
-      R"({
-          "name": "Test",
-          "manifest_version": 3,
-          "background": {"service_worker": "background.js"},
-          "version": "0.1"
-        })";
-  constexpr char kBackgroundScript[] =
-      R"(self.myTestFlag = 'HELLO!';
-         chrome.test.sendMessage('ready');)";
+// NOTE: The methods under test are called indirectly through methods of the
+// same name on ExtensionBrowserTest, which supplies the Profile.
+class ExtensionBrowsertestUtilTest : public ExtensionBrowserTest {
+ public:
+  ExtensionBrowsertestUtilTest() = default;
 
-  TestExtensionDir test_dir;
-  test_dir.WriteManifest(kManifest);
-  test_dir.WriteFile(FILE_PATH_LITERAL("background.js"), kBackgroundScript);
-  ExtensionTestMessageListener listener("ready", /*will_reply=*/false);
-  const Extension* extension = LoadExtension(test_dir.UnpackedPath());
-  ASSERT_TRUE(extension);
-  ASSERT_TRUE(listener.WaitUntilSatisfied());
+  ExtensionBrowsertestUtilTest(const ExtensionBrowsertestUtilTest&) = delete;
+  ExtensionBrowsertestUtilTest& operator=(const ExtensionBrowsertestUtilTest&) =
+      delete;
 
-  base::RunLoop run_loop;
-  base::Value value_out;
-  auto callback = [&run_loop, &value_out](base::Value value) {
-    value_out = std::move(value);
-    run_loop.Quit();
-  };
+  ~ExtensionBrowsertestUtilTest() override = default;
 
-  browsertest_util::ExecuteScriptInServiceWorker(
-      profile(), extension->id(), "console.warn('script ran'); myTestFlag;",
-      base::BindLambdaForTesting(callback));
-  run_loop.Run();
-  EXPECT_THAT(value_out, base::test::IsJson(R"("HELLO!")"));
+  void SetUpOnMainThread() override {
+    ExtensionBrowserTest::SetUpOnMainThread();
+
+    extension_ = LoadExtension(test_data_dir_.AppendASCII("extension"));
+    ASSERT_TRUE(extension_.get());
+  }
+
+ protected:
+  const Extension* extension() const { return extension_.get(); }
+
+ private:
+  scoped_refptr<const Extension> extension_;
+};
+
+IN_PROC_BROWSER_TEST_F(ExtensionBrowsertestUtilTest,
+                       ExecuteScriptInBackgroundPage) {
+  EXPECT_EQ(extension()->id(),
+            ExecuteScriptInBackgroundPage(
+                extension()->id(),
+                "chrome.test.sendScriptResult(chrome.runtime.id);"));
+
+  // Tests a successful test injection, including running nested tasks in the
+  // browser process (via an asynchronous extension API).
+  EXPECT_EQ("success",
+            ExecuteScriptInBackgroundPage(
+                extension()->id(),
+                R"(chrome.runtime.setUninstallURL('http://example.com',
+                                                  function() {
+                     chrome.test.sendScriptResult('success');
+                   });)"));
+
+  // Return a non-string argument.
+  EXPECT_EQ(3, ExecuteScriptInBackgroundPage(extension()->id(),
+                                             "chrome.test.sendScriptResult(3);")
+                   .GetInt());
 }
 
+IN_PROC_BROWSER_TEST_F(ExtensionBrowsertestUtilTest,
+                       ExecuteScriptInBackgroundPageDeprecated) {
+  EXPECT_EQ(extension()->id(),
+            ExecuteScriptInBackgroundPageDeprecated(
+                extension()->id(),
+                "window.domAutomationController.send(chrome.runtime.id);"));
+
+  // Tests a successful test injection, including running nested tasks in the
+  // browser process (via an asynchronous extension API).
+  EXPECT_EQ(std::string("/") + extensions::kGeneratedBackgroundPageFilename,
+            ExecuteScriptInBackgroundPageDeprecated(
+                extension()->id(),
+                R"(chrome.runtime.getBackgroundPage(function(result) {
+                     let url = new URL(result.location.href);
+                     window.domAutomationController.send(url.pathname);
+                   });)"));
+
+  // An argument that isn't a string should cause a failure, not a hang.
+  EXPECT_NONFATAL_FAILURE(
+      ExecuteScriptInBackgroundPageDeprecated(
+          extension()->id(), "window.domAutomationController.send(3);"),
+      "send(3)");
+}
+
+IN_PROC_BROWSER_TEST_F(ExtensionBrowsertestUtilTest,
+                       ExecuteScriptInBackgroundPageNoWait) {
+  // Run an arbitrary script to check that we don't wait for a response.
+  ASSERT_TRUE(
+      ExecuteScriptInBackgroundPageNoWait(extension()->id(), "let foo = 0;"));
+
+  // Run a script asynchronously that passes the test.
+  ResultCatcher catcher;
+  ASSERT_TRUE(ExecuteScriptInBackgroundPageNoWait(extension()->id(),
+                                                  "chrome.test.notifyPass();"));
+  ASSERT_TRUE(catcher.GetNextResult());
+
+  // Specifying a non-existent extension should add a non-fatal failure.
+  EXPECT_NONFATAL_FAILURE(
+      EXPECT_FALSE(ExecuteScriptInBackgroundPageNoWait(
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "")),
+      "No enabled extension with id: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+}
+
+}  // namespace
+
+}  // namespace browsertest_util
 }  // namespace extensions

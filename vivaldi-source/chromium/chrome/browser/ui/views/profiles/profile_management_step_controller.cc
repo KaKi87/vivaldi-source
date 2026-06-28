@@ -6,7 +6,9 @@
 
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
+#include "base/metrics/histogram_functions.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/first_run/first_run.h"
 #include "chrome/browser/profiles/delete_profile_helper.h"
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
 #include "chrome/browser/profiles/profile.h"
@@ -17,6 +19,7 @@
 #include "chrome/browser/search_engine_choice/search_engine_choice_dialog_service.h"
 #include "chrome/browser/search_engine_choice/search_engine_choice_dialog_service_factory.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/profiles/profile_customization_util.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/profiles/profile_management_types.h"
@@ -25,6 +28,8 @@
 #include "chrome/browser/ui/views/profiles/profile_picker_web_contents_host.h"
 #include "chrome/browser/ui/webui/search_engine_choice/search_engine_choice_ui.h"
 #include "chrome/browser/ui/webui/signin/signin_ui_error.h"
+#include "components/regional_capabilities/regional_capabilities_metrics.h"
+#include "components/regional_capabilities/regional_capabilities_switches.h"
 #include "components/search_engines/search_engine_choice/search_engine_choice_utils.h"
 #include "google_apis/gaia/core_account_id.h"
 
@@ -89,7 +94,7 @@ class SignInStepController : public ProfileManagementStepController {
   }
 
   void OnHidden() override {
-    host()->SetNativeToolbarVisible(false);
+    host()->SetNativeToolbarSigninButtonsVisible(false);
     // We don't reset the provider when we navigate back as we want to keep this
     // page and the ephemeral profile around for performance reasons.
     // The caller should delete the step if clearing the provider is needed.
@@ -161,12 +166,12 @@ class FinishSamlSignInStepController : public ProfileManagementStepController {
   // Note: This will be executed after the profile management view closes, so
   // the step instance will already be deleted.
   static void ContinueSAMLSignin(std::unique_ptr<content::WebContents> contents,
-                                 Browser* browser) {
+                                 BrowserWindowInterface* browser) {
     DCHECK(browser);
     // Make a new tab with the desired contents and close the old tab.
-    browser->tab_strip_model()->AppendWebContents(std::move(contents),
-                                                  /*foreground=*/true);
-    browser->tab_strip_model()->DetachAndDeleteWebContentsAt(/*index=*/0);
+    browser->GetTabStripModel()->AppendWebContents(std::move(contents),
+                                                   /*foreground=*/true);
+    browser->GetTabStripModel()->DetachAndDeleteWebContentsAt(/*index=*/0);
 
     ProfileMetrics::LogProfileAddSignInFlowOutcome(
         ProfileMetrics::ProfileSignedInFlowOutcome::kSAML);
@@ -288,6 +293,27 @@ class SearchEngineChoiceStepController
       std::move(step_shown_callback.value()).Run(false);
       std::move(step_completed_callback_).Run();
       return;
+    }
+
+    auto eligibility = search_engine_choice_dialog_service_
+                           ->ComputeProfileManagementFlowConditions();
+
+    // `IsChromeFirstRun()` is used here instead of checking the entry point
+    // because the record is relative to whether this is the first run session,
+    // not to the type of UI flow.
+    regional_capabilities::RecordDebugTriggeringEligibility(
+        eligibility, first_run::IsChromeFirstRun());
+
+    if (base::FeatureList::IsEnabled(
+            switches::kWaffleRestrictToAssociatedCountries)) {
+      search_engine_choice_dialog_service_->RecordTriggeringEligibility(
+          eligibility);
+      if (!regional_capabilities::IsEligible(eligibility)) {
+        // Mark that this step was skipped and proceed with the next one.
+        std::move(step_shown_callback.value()).Run(false);
+        std::move(step_completed_callback_).Run();
+        return;
+      }
     }
 
     base::OnceClosure navigation_finished_closure =

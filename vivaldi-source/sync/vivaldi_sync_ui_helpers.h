@@ -3,10 +3,6 @@
 #ifndef SYNC_VIVALDI_SYNC_UI_HELPER_H_
 #define SYNC_VIVALDI_SYNC_UI_HELPER_H_
 
-#include <optional>
-
-#include "base/files/file_path.h"
-#include "base/functional/callback.h"
 #include "base/time/time.h"
 #include "components/sync/base/user_selectable_type.h"
 #include "components/sync/engine/sync_protocol_error.h"
@@ -69,10 +65,6 @@ struct CycleData {
 
 bool SetEncryptionPassword(syncer::SyncService* sync_service,
                            const std::string& password);
-
-std::string GetBackupEncryptionToken(syncer::SyncService* sync_service);
-bool RestoreEncryptionToken(syncer::SyncService* sync_service,
-                            const std::string_view& token);
 
 CycleData GetCycleData(syncer::SyncService* sync_service);
 EngineData GetEngineData(syncer::SyncService* sync_service);

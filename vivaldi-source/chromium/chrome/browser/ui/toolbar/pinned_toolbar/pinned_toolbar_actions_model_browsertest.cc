@@ -6,11 +6,13 @@
 
 #include <memory>
 
+#include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tab_search_feature.h"
 #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model_factory.h"
 #include "chrome/browser/ui/toolbar/toolbar_pref_names.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/testing_profile.h"
@@ -449,6 +451,48 @@ IN_PROC_BROWSER_TEST_F(PinnedToolbarActionsModelBrowserTest,
   if (features::HasTabSearchToolbarButton()) {
     EXPECT_TRUE(model()->Contains(kActionTabSearch));
   }
+}
+
+class PinnedToolbarActionsModelWithTabsFromOtherDevicesPinnedBrowserTest
+    : public PinnedToolbarActionsModelBrowserTest {
+  base::test::ScopedFeatureList scoped_feature_list_{
+      features::kTabsFromOtherDevicesSidePanelPinnedByDefault};
+};
+
+IN_PROC_BROWSER_TEST_F(
+    PinnedToolbarActionsModelWithTabsFromOtherDevicesPinnedBrowserTest,
+    PinActionByDefault) {
+  EXPECT_TRUE(model()->IsDefault());
+  EXPECT_TRUE(model()->Contains(kActionSidePanelShowTabsFromOtherDevices));
+}
+
+IN_PROC_BROWSER_TEST_F(
+    PinnedToolbarActionsModelWithTabsFromOtherDevicesPinnedBrowserTest,
+    MigrateActionForExistingProfile) {
+  // Simulate an existing profile by unpinning the action and resetting the
+  // migration pref.
+  model()->UpdatePinnedState(kActionSidePanelShowTabsFromOtherDevices, false);
+  browser()->profile()->GetPrefs()->SetBoolean(
+      prefs::kTabsFromOtherDevicesAutoPinnedMigration, false);
+
+  EXPECT_FALSE(model()->Contains(kActionSidePanelShowTabsFromOtherDevices));
+
+  // Run the migration.
+  model()->MaybeMigrateExistingPinnedStates();
+
+  // Verify it is pinned now.
+  EXPECT_TRUE(model()->Contains(kActionSidePanelShowTabsFromOtherDevices));
+  EXPECT_TRUE(browser()->profile()->GetPrefs()->GetBoolean(
+      prefs::kTabsFromOtherDevicesAutoPinnedMigration));
+
+  // Simulate the user un-pinning the action.
+  model()->UpdatePinnedState(kActionSidePanelShowTabsFromOtherDevices, false);
+
+  // Run the migration a second time.
+  model()->MaybeMigrateExistingPinnedStates();
+
+  // Verify that it did *not* get auto-pinned again.
+  EXPECT_FALSE(model()->Contains(kActionSidePanelShowTabsFromOtherDevices));
 }
 
 // TODO(dljames): Write tests for guest and incognito mode profile that check

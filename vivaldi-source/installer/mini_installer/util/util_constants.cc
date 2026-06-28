@@ -103,6 +103,9 @@ const char kNonce[] = "nonce";
 // Notify the installer that the OS has been upgraded.
 const char kOnOsUpgrade[] = "on-os-upgrade";
 
+// Tells the updater the previous and new Windows versions.
+const char kOsUpgradeVersions[] = "os-upgrade-versions";
+
 // Provide the previous version that patch is for.
 const char kPreviousVersion[] = "previous-version";
 
@@ -173,7 +176,7 @@ const char kVerboseLogging[] = "verbose-logging";
 // for non-admin users when setup.exe is launched. This is mitigated by adding
 // requestedExecutionLevel="asInvoker" to setup.exe's manifest on Vista+, but
 // there is no such manifest entry on Windows XP (which results in
-// crbug.com/166473).
+// crbug.com/40296982).
 // TODO(gab): Rename setup.exe itself altogether and use the same binary for
 // Active Setup.
 const wchar_t kActiveSetupExe[] = L"chrmstp.exe";

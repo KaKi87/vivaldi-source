@@ -299,7 +299,9 @@ ServiceWorkerClientOwner::ServiceWorkerClientOwner(
       base::Unretained(this)));
 }
 
-ServiceWorkerClientOwner::~ServiceWorkerClientOwner() = default;
+ServiceWorkerClientOwner::~ServiceWorkerClientOwner() {
+  in_dtor_ = true;
+}
 
 void ServiceWorkerClientOwner::ResetContext(
     ServiceWorkerContextCore& new_context) {
@@ -534,7 +536,10 @@ void ServiceWorkerContextCore::OnClientDestroyed(
 
 void ServiceWorkerClientOwner::DestroyServiceWorkerClient(
     base::WeakPtr<ServiceWorkerClient> service_worker_client) {
-  if (!service_worker_client) {
+  if (!service_worker_client || in_dtor_) {
+    // During `ServiceWorkerClientOwner` destruction, remaining clients are
+    // already owned by `service_worker_clients_by_uuid_` and will be destroyed
+    // as that map is torn down.
     return;
   }
 
@@ -868,6 +873,12 @@ void ServiceWorkerContextCore::UnregistrationComplete(
     ServiceWorkerContextCore::UnregistrationCallback callback,
     int64_t registration_id,
     blink::ServiceWorkerStatusCode status) {
+  if (status == blink::ServiceWorkerStatusCode::kOk) {
+    for (auto& observer : sync_observer_list_->observers) {
+      observer.OnRegistrationDeletedSync(registration_id, scope);
+    }
+  }
+
   std::move(callback).Run(status);
   if (status == blink::ServiceWorkerStatusCode::kOk) {
     observer_list_->Notify(
@@ -949,10 +960,13 @@ void ServiceWorkerContextCore::RemoveLiveVersion(int64_t id) {
   auto it = live_versions_.find(id);
   CHECK(it != live_versions_.end());
   ServiceWorkerVersion* version = it->second;
+  // Erase from the map before notifying observers to prevent re-entrancy:
+  // synchronous observers could otherwise look up this version via
+  // `GetLiveVersion()` and resurrect it with a new `scoped_refptr`.
+  live_versions_.erase(it);
 
   if (version->running_status() != blink::EmbeddedWorkerStatus::kStopped) {
-    // Notify all observers that this live version is stopped, as it will
-    // be removed from |live_versions_|.
+    // Notify all observers that this live version is stopped.
     observer_list_->Notify(FROM_HERE,
                            &ServiceWorkerContextCoreObserver::OnStopped, id);
     for (auto& observer : sync_observer_list_->observers) {
@@ -971,8 +985,6 @@ void ServiceWorkerContextCore::RemoveLiveVersion(int64_t id) {
 
   observer_list_->Notify(
       FROM_HERE, &ServiceWorkerContextCoreObserver::OnLiveVersionDestroyed, id);
-
-  live_versions_.erase(it);
 }
 
 std::vector<ServiceWorkerRegistrationInfo>
@@ -1271,7 +1283,7 @@ void ServiceWorkerContextCore::OnRunningStateChanged(
       // token, and the second call crashes when it tries to access it.
       // See https://crbug.com/496389117.
       if (start_worker_token.has_value()) {
-        for (auto& observer : sync_observer_list_->observers) {
+        for (auto& observer : safe_sync_observer_list->observers) {
           observer.OnStoppedSync(version->version_id(), version->scope(),
                                  *start_worker_token);
         }
@@ -1294,7 +1306,7 @@ void ServiceWorkerContextCore::OnRunningStateChanged(
                              &ServiceWorkerContextCoreObserver::OnStopping,
                              version->version_id());
       if (start_worker_token.has_value()) {
-        for (auto& observer : sync_observer_list_->observers) {
+        for (auto& observer : safe_sync_observer_list->observers) {
           observer.OnStoppingSync(version->version_id(), version->scope(),
                                   *start_worker_token);
         }
@@ -1489,7 +1501,9 @@ void ServiceWorkerContextCore::SetServiceWorkerHidDelegateObserverForTesting(
     std::unique_ptr<ServiceWorkerHidDelegateObserver> hid_delegate_observer) {
   hid_delegate_observer_ = std::move(hid_delegate_observer);
 }
+#endif  // !BUILDFLAG(IS_ANDROID)
 
+#if !BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_DESKTOP_ANDROID)
 ServiceWorkerUsbDelegateObserver*
 ServiceWorkerContextCore::usb_delegate_observer() {
   if (!usb_delegate_observer_) {
@@ -1503,5 +1517,6 @@ void ServiceWorkerContextCore::SetServiceWorkerUsbDelegateObserverForTesting(
     std::unique_ptr<ServiceWorkerUsbDelegateObserver> usb_delegate_observer) {
   usb_delegate_observer_ = std::move(usb_delegate_observer);
 }
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_DESKTOP_ANDROID)
+
 }  // namespace content

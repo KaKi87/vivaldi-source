@@ -35,7 +35,8 @@ bool HandlePermissionRequest(
 /** VB-114658: Bridge device choosers (USB, Serial, HID, Bluetooth) through
  * sitePermissions API for unified permission UI. Extracts device list from the
  * chooser controller and fires onPermissionRequest event for UI handling.
- * @returns true if device chooser was bridged, false to use default Chromium UI */
+ * @returns true if device chooser was bridged, false to use default Chromium UI
+ */
 bool BridgeDeviceChooser(
     content::RenderFrameHost* owner,
     std::unique_ptr<::permissions::ChooserController>* controller);

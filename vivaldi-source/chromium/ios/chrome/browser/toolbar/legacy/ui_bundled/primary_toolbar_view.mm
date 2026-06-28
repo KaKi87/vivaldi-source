@@ -473,7 +473,12 @@ const CGFloat kBannerPromoVerticalSpacing = 8;
     return CGSizeMake(UIViewNoIntrinsicMetric, height > 0 ? height : 0);
   } // End Vivaldi
 
-  return CGSizeMake(UIViewNoIntrinsicMetric, height > 0 ? height : 1);
+  if (!IsFullscreenRefactoringEnabled()) {
+    // TODO(crbug.com/40279063): Find out why primary toolbar height cannot be
+    // zero. This is a temporary fix for the pdf bug.
+    height = height > 0 ? height : 1;
+  }
+  return CGSizeMake(UIViewNoIntrinsicMetric, height);
 }
 
 - (void)didMoveToSuperview {

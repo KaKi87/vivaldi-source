@@ -28,7 +28,9 @@ class FakeLayerContext : public LayerContext {
       gpu::SharedImageInterface* shared_image_interface,
       const gfx::Rect& viewport_damage_rect,
       bool frame_has_damage,
-      std::vector<ui::LatencyInfo> latency_info) override;
+      bool is_flush,
+      std::vector<ui::LatencyInfo> latency_info,
+      viz::TrackedElementRects tracked_element_rects) override;
 
   void UpdateDisplayTile(PictureLayerImpl& layer,
                          const Tile& tile,

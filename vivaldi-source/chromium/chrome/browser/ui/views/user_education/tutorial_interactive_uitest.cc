@@ -35,7 +35,6 @@
 #include "components/user_education/views/help_bubble_factory_views.h"
 #include "components/user_education/views/help_bubble_view.h"
 #include "components/user_education/views/help_bubble_views.h"
-#include "components/user_education/webui/tracked_element_help_bubble_webui_anchor.h"
 #include "content/public/test/browser_test.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/interaction/element_tracker.h"
@@ -47,6 +46,8 @@
 #include "ui/events/event.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/interaction/interaction_test_util_views.h"
+#include "ui/webui/tracked_element/tracked_element_handler.h"
+#include "ui/webui/tracked_element/tracked_element_web_ui.h"
 
 namespace {
 constexpr char kTestTutorialId[] = "TutorialInteractiveUitest Tutorial";
@@ -175,8 +176,9 @@ class WebUITutorialInteractiveUitest : public InteractiveBrowserTest {
     return InAnyContext(CheckElement(
         CustomizeButtonsHandler::kCustomizeChromeButtonElementId,
         [](ui::TrackedElement* el) {
-          return el->AsA<user_education::TrackedElementHelpBubbleWebUIAnchor>()
+          return el->AsA<ui::TrackedElementWebUI>()
               ->handler()
+              ->GetHelpBubbleHandler()
               ->IsHelpBubbleShowingForTesting(el->identifier());
         },
         showing));
@@ -243,13 +245,13 @@ class WebUITutorialInteractiveUitest : public InteractiveBrowserTest {
   }
 };
 
-// Regression test for crbug.com/1425161.
+// Regression test for crbug.com/40898569.
 IN_PROC_BROWSER_TEST_F(WebUITutorialInteractiveUitest,
                        CloseTabWithTutorialBubble) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kNewTabPageId);
   constexpr char kTabCloseButtonId[] = "Tab Close Button";
   RunTestSequence(
-      AddInstrumentedTab(kNewTabPageId, GURL(chrome::kChromeUINewTabPageURL)),
+      AddInstrumentedTab(kNewTabPageId, chrome::ChromeUINewTabPageURLAsGURL()),
       StartTutorial(kNewTabPageId),
       NameViewRelative(kTabStripElementId, kTabCloseButtonId,
                        [](TabStrip* tab_strip) {
@@ -258,7 +260,7 @@ IN_PROC_BROWSER_TEST_F(WebUITutorialInteractiveUitest,
       PressButton(kTabCloseButtonId), WaitForHide(kNewTabPageId));
 }
 
-// Regression test for a possible cause of crbug.com/1474307.
+// Regression test for a possible cause of crbug.com/40070061.
 IN_PROC_BROWSER_TEST_F(WebUITutorialInteractiveUitest,
                        CancelTutorialClosesBubble) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kNewTabPageId);
@@ -270,7 +272,7 @@ IN_PROC_BROWSER_TEST_F(WebUITutorialInteractiveUitest,
       StartTutorial(kNewTabPageId), CheckWebUIHelpBubbleIsShowing(true));
 }
 
-// Regression test for a possible cause of crbug.com/1474307.
+// Regression test for a possible cause of crbug.com/40070061.
 IN_PROC_BROWSER_TEST_F(WebUITutorialInteractiveUitest,
                        StartTutorialTwiceInARow) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kNewTabPageId);

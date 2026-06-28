@@ -82,7 +82,7 @@ bool ShouldBlockNavigationToPlatformAppResource(
       return false;
     }
 
-#if BUILDFLAG(ENABLE_PLATFORM_APPS)
+#if BUILDFLAG(IS_CHROMEOS)
     // Platform apps can be embedded by other platform apps using an <appview>
     // tag.
     auto* app_view = AppViewGuest::FromGuestViewBase(guest);
@@ -265,7 +265,10 @@ ExtensionNavigationThrottle::WillStartOrRedirectRequest() {
   // https://crbug.com/40091207.
   bool current_frame_is_extension_process =
       !!registry->enabled_extensions().GetExtensionOrAppByURL(
-          navigation_handle()->GetStartingSiteInstance()->GetSiteURL());
+          navigation_handle()
+              ->GetStartingSiteInstance()
+              ->GetSecurityPrincipal()
+              .GetDeprecatedSiteURL());
 
   if (!url_has_extension_scheme && !current_frame_is_extension_process) {
     // Relax this restriction for apps that use <webview>.  See

@@ -8,6 +8,9 @@
 #include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/notimplemented.h"
+#if BUILDFLAG(IS_MAC)
+#include "base/mac/mac_util.h"
+#endif
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
@@ -35,6 +38,7 @@
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/interaction/element_tracker.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/gfx/vector_icon_types.h"
 #include "ui/views/controls/menu/menu_model_adapter.h"
 #include "ui/views/controls/menu/menu_runner.h"
@@ -117,25 +121,44 @@ class WebUIBrowserGuestHandler
                       .location_bar_model()
                       ->GetVectorIcon();
     webui_browser::mojom::SecurityIcon icon_type;
-    if (icon == &omnibox::kHttpChromeRefreshIcon) {
+    if (icon == &(features::IsRoundedIconsEnabled()
+                      ? omnibox::kInfoIcon
+                      : omnibox::kHttpChromeRefreshOldIcon)) {
       icon_type = webui_browser::mojom::SecurityIcon::HttpChromeRefresh;
-    } else if (icon == &omnibox::kSecurePageInfoChromeRefreshIcon) {
+    } else if (icon == &(features::IsRoundedIconsEnabled()
+                             ? omnibox::kPageInfoCustomIcon
+                             : omnibox::kSecurePageInfoChromeRefreshOldIcon)) {
       icon_type =
           webui_browser::mojom::SecurityIcon::SecurePageInfoChromeRefresh;
-    } else if (icon == &vector_icons::kNoEncryptionIcon) {
+    } else if (icon == &(features::IsRoundedIconsEnabled()
+                             ? vector_icons::kNoEncryptionIcon
+                             : vector_icons::kNoEncryptionOldIcon)) {
       icon_type = webui_browser::mojom::SecurityIcon::NoEncryption;
-    } else if (icon == &vector_icons::kNotSecureWarningChromeRefreshIcon) {
+    } else if (icon ==
+               &(features::IsRoundedIconsEnabled()
+                     ? vector_icons::kWarningIcon
+                     : vector_icons::kNotSecureWarningChromeRefreshOldIcon)) {
       icon_type =
           webui_browser::mojom::SecurityIcon::NotSecureWarningChromeRefresh;
-    } else if (icon == &vector_icons::kBusinessChromeRefreshIcon) {
+    } else if (icon == &(features::IsRoundedIconsEnabled()
+                             ? vector_icons::kDomainIcon
+                             : vector_icons::kBusinessChromeRefreshOldIcon)) {
       icon_type = webui_browser::mojom::SecurityIcon::BusinessChromeRefresh;
-    } else if (icon == &vector_icons::kDangerousChromeRefreshIcon) {
+    } else if (icon == &(features::IsRoundedIconsEnabled()
+                             ? vector_icons::kDangerousFilledIcon
+                             : vector_icons::kDangerousChromeRefreshOldIcon)) {
       icon_type = webui_browser::mojom::SecurityIcon::DangerousChromeRefresh;
-    } else if (icon == &omnibox::kProductChromeRefreshIcon) {
+    } else if (icon == &(features::IsRoundedIconsEnabled()
+                             ? omnibox::kChromeProductIcon
+                             : omnibox::kProductChromeRefreshOldIcon)) {
       icon_type = webui_browser::mojom::SecurityIcon::ProductChromeRefresh;
-    } else if (icon == &vector_icons::kExtensionChromeRefreshIcon) {
+    } else if (icon == &(features::IsRoundedIconsEnabled()
+                             ? vector_icons::kChromeExtensionIcon
+                             : vector_icons::kExtensionChromeRefreshOldIcon)) {
       icon_type = webui_browser::mojom::SecurityIcon::ExtensionChromeRefresh;
-    } else if (icon == &omnibox::kOfflinePinIcon) {
+    } else if (icon == &(features::IsRoundedIconsEnabled()
+                             ? omnibox::kOfflinePinFilledIcon
+                             : omnibox::kOfflinePinOldIcon)) {
       icon_type = webui_browser::mojom::SecurityIcon::OfflinePin;
     } else {
       CHECK(false) << "Add new icon to webui_browsers's browser.mojom and "
@@ -224,8 +247,11 @@ void WebUIBrowserPageHandler::OpenAppMenu() {
   menu_model_ =
       std::make_unique<AppMenuModel>(GetBrowserWindow(), GetBrowser());
   menu_model_->Init();
-  menu_ = std::make_unique<AppMenu>(GetBrowser(), menu_model_.get(),
-                                    views::MenuRunner::NO_FLAGS);
+  menu_ = std::make_unique<AppMenu>(
+      GetBrowser(), menu_model_.get(), views::MenuRunner::NO_FLAGS,
+      // The WebUI browser architecture doesn't currently use BrowserView or
+      // an AppMenuControl that needs to be notified when the menu closes.
+      base::DoNothing());
   menu_->RunMenu(GetBrowserWindow()->widget(),
                  app_menu_button->GetScreenBounds());
 }
@@ -243,8 +269,7 @@ void WebUIBrowserPageHandler::LaunchDevToolsForBrowser() {
 }
 
 void WebUIBrowserPageHandler::OnSidePanelClosed() {
-  GetBrowserWindow()->GetWebUIBrowserSidePanelUI()->OnSidePanelClosed(
-      SidePanelEntry::PanelType::kContent);
+  GetBrowserWindow()->GetWebUIBrowserSidePanelUI()->OnSidePanelClosed();
 }
 
 void WebUIBrowserPageHandler::Minimize() {
@@ -293,6 +318,18 @@ void WebUIBrowserPageHandler::ShowBackForwardMenu(bool is_back) {
   back_forward_menu_runner_->RunMenuAt(
       GetBrowserWindow()->widget(), nullptr, button_element->GetScreenBounds(),
       views::MenuAnchorPosition::kTopLeft, ui::mojom::MenuSourceType::kMouse);
+}
+
+void WebUIBrowserPageHandler::GetTabStripInset(
+    GetTabStripInsetCallback callback) {
+  std::move(callback).Run(
+#if BUILDFLAG(IS_MAC)
+      // Values from BrowserFrameViewMac::GetCaptionButtonBounds()
+      (base::mac::MacOSVersion() >= 26'00'00) ? 76 : 82
+#else
+      0
+#endif
+  );
 }
 
 WebUIBrowserPageHandler::WebUIBrowserPageHandler(

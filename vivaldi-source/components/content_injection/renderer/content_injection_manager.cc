@@ -132,12 +132,12 @@ void Manager::RegisterJavascriptWorldInfos(
     info.security_origin =
         blink::WebSecurityOrigin::Create(registration->world_info->host_url);
     info.human_readable_name =
-        blink::WebString::FromUTF8(registration->world_info->name);
+        blink::WebString::FromUtf8(registration->world_info->name);
     info.stable_id =
-        blink::WebString::FromUTF8(registration->world_info->stable_id);
+        blink::WebString::FromUtf8(registration->world_info->stable_id);
 
     info.content_security_policy =
-        blink::WebString::FromUTF8(registration->world_info->csp);
+        blink::WebString::FromUtf8(registration->world_info->csp);
 
     blink::SetIsolatedWorldInfo(registration->world_id, info);
   }

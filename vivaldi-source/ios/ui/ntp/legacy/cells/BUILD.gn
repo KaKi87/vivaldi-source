@@ -19,8 +19,8 @@ source_set("cells") {
   ]
 
   deps = [
-    "//base:i18n",
     "//base",
+    "//base:i18n",
     "//ios/chrome/app/strings",
     "//ios/chrome/common/ui/util",
     "//ui/base",

@@ -45,7 +45,7 @@ export class PolicyTableElement extends CustomElement {
   // The last sort order and column for the policy table.
   // These are used when policies are updated to prevent un-desired sort reset.
   mostRecentSortOrder: number = SortOrder.ASCENDING;
-  mostRecentSortedColumn: string = SortButtonsField.POLICY_NAME;
+  mostRecentSortedColumn: keyof Policy = SortButtonsField.POLICY_NAME;
 
   // Updates the data model and table.
   updateDataModel(dataModel: PolicyTableModel) {
@@ -65,7 +65,7 @@ export class PolicyTableElement extends CustomElement {
 
   update(
       order: number = this.mostRecentSortOrder,
-      field: string = this.mostRecentSortedColumn) {
+      field: keyof Policy = this.mostRecentSortedColumn) {
     // Mark most recent sorted column with aria-sort and reset all others.
     for (const column of Object.values(SortButtonsField)) {
       const sortHeader = this.getRequiredElement(`.${column}`);
@@ -80,9 +80,19 @@ export class PolicyTableElement extends CustomElement {
     // Clear policies
     const mainContent = this.getRequiredElement('.main');
     const policies = this.shadowRoot!.querySelectorAll('.policy-data');
-    this.getRequiredElement('.header').textContent = this.dataModel.name;
+    const headerEl = this.getRequiredElement('.header');
+    headerEl.textContent = this.dataModel.name;
+    if (this.dataModel.id === 'updater') {
+      const link = document.createElement('a');
+      link.href = 'chrome://updater';
+      link.textContent = '(chrome://updater)';
+      link.classList.add('updater-link');
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      headerEl.appendChild(link);
+    }
     this.getRequiredElement('.id').textContent = this.dataModel.id || null;
-    this.getRequiredElement('.id').hidden = !this.dataModel.id;
+    this.getRequiredElement('.id').hidden = !this.dataModel.isExtension;
     policies.forEach(row => mainContent.removeChild(row));
 
     this.dataModel.policies
@@ -96,7 +106,7 @@ export class PolicyTableElement extends CustomElement {
               // Sorting the policies in chosen alpha order based on the field
               // selected, with secondary sort based on Policy name.
               if (field !== SortButtonsField.POLICY_NAME &&
-                  a[field as keyof Policy] === b[field as keyof Policy]) {
+                  a[field] === b[field]) {
                 return order *
                     (a[SortButtonsField.POLICY_NAME] >
                              b[SortButtonsField.POLICY_NAME] ?
@@ -104,8 +114,7 @@ export class PolicyTableElement extends CustomElement {
                          -1);
               }
               return order *
-                  (a[field as keyof Policy] > b[field as keyof Policy] ? 1 :
-                                                                         -1);
+                  ((a[field] as string) > (b[field] as string) ? 1 : -1);
             }
 
             // Sorting so unknown policies are last.

@@ -16,6 +16,17 @@
 #include "content/public/common/content_features.h"
 #include "ui/base/ui_base_features.h"
 
+#if !BUILDFLAG(IS_ANDROID)
+namespace {
+
+bool IsProcessOverheadExperimentActive() {
+  return base::FeatureList::IsEnabled(
+      features::kWebUIToolbarProcessOverheadExperiment);
+}
+
+}  // namespace
+#endif  // !BUILDFLAG(IS_ANDROID)
+
 namespace features {
 
 // Enables the use of WGC for the Eye Dropper screen capture.
@@ -27,18 +38,49 @@ BASE_FEATURE(kAllowEyeDropperWGCScreenCapture,
 #endif  // BUILDFLAG(IS_WIN)
 );
 
-BASE_FEATURE(kBrowserWidgetCacheThemeService,
-             base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kCompositorLoadingThrobber, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kCreateNewTabGroupAppMenuTopLevel,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kTabStripDeclutter, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kEnableExtensionsMenuTeardownFix,
+             base::FEATURE_ENABLED_BY_DEFAULT);
+BASE_FEATURE(kCtrlTabMru, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kImportExportFlags, base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kGlassToolbar, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kInfoBarInlineLinks, base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kTabStripDeclutter, base::FEATURE_DISABLED_BY_DEFAULT);
 BASE_FEATURE(kToolbarGlowUp, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kMenuSimplification, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kTabGroupColorRefresh, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kWebuiRefresh2026, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsTabStripDeclutterEnabled() {
+  return base::FeatureList::IsEnabled(kDesktopGlowUp) ||
+         base::FeatureList::IsEnabled(kTabStripDeclutter);
+}
+
+bool IsToolbarGlowUpEnabled() {
+  return base::FeatureList::IsEnabled(kDesktopGlowUp) ||
+         base::FeatureList::IsEnabled(kToolbarGlowUp);
+}
+
+bool IsMenuSimplificationEnabled() {
+  return base::FeatureList::IsEnabled(kDesktopGlowUp) ||
+         base::FeatureList::IsEnabled(kMenuSimplification);
+}
+
+bool IsTabGroupColorRefreshEnabled() {
+  return base::FeatureList::IsEnabled(kDesktopGlowUp) ||
+         base::FeatureList::IsEnabled(kTabGroupColorRefresh);
+}
+
+bool IsWebuiRefresh2026Enabled() {
+  return base::FeatureList::IsEnabled(kDesktopGlowUp) ||
+         base::FeatureList::IsEnabled(kWebuiRefresh2026);
+}
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 BASE_FEATURE(kDseIntegrity, base::FEATURE_ENABLED_BY_DEFAULT);
@@ -53,18 +95,7 @@ BASE_FEATURE(kExtensionsCollapseMainMenu, base::FEATURE_DISABLED_BY_DEFAULT);
 
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
-BASE_FEATURE(kInfobarRefresh, base::FEATURE_DISABLED_BY_DEFAULT);
-
-#if BUILDFLAG(IS_WIN)
-BASE_FEATURE(kOfferPinToTaskbarInFirstRunExperience,
-             base::FEATURE_ENABLED_BY_DEFAULT);
-BASE_FEATURE(kOfferPinToTaskbarInSettings, base::FEATURE_ENABLED_BY_DEFAULT);
-#endif  // BUILDFLAG(IS_WIN)
-
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-// Shows an infobar at startup offering to pin Chrome to the taskbar (on
-// Windows) or the Dock (on MacOS).
-BASE_FEATURE(kOfferPinToTaskbarInfoBar, base::FEATURE_ENABLED_BY_DEFAULT);
 // Shows an infobar on PDFs offering to become the default PDF viewer if Chrome
 // isn't the default already.
 BASE_FEATURE(kPdfInfoBar, base::FEATURE_ENABLED_BY_DEFAULT);
@@ -123,6 +154,10 @@ BASE_FEATURE(kProcessIsolationSettings, base::FEATURE_DISABLED_BY_DEFAULT);
 #if BUILDFLAG(IS_MAC)
 // Add tab group colours when viewing tab groups using the top mac OS menu bar.
 BASE_FEATURE(kShowTabGroupsMacSystemMenu, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsShowTabGroupsMacSystemMenuEnabled() {
+  return base::FeatureList::IsEnabled(kShowTabGroupsMacSystemMenu);
+}
 #endif  // BUILDFLAG(IS_MAC)
 
 BASE_FEATURE(kSplitViewTabDraggingUpdates, base::FEATURE_ENABLED_BY_DEFAULT);
@@ -157,7 +192,7 @@ BASE_FEATURE_PARAM(int,
 BASE_FEATURE(kTabDuplicateMetrics, base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Enables tabs to be frozen when collapsed.
-// https://crbug.com/1110108
+// https://crbug.com/40141996
 BASE_FEATURE(kTabGroupsCollapseFreezing, base::FEATURE_ENABLED_BY_DEFAULT);
 
 #if !BUILDFLAG(IS_ANDROID)
@@ -176,7 +211,7 @@ bool IsTabGroupHoverCardsEnabled() {
 #endif  // !BUILDFLAG(IS_ANDROID)
 
 // Enables preview images in tab-hover cards.
-// https://crbug.com/928954
+// https://crbug.com/41439486
 BASE_FEATURE(kTabHoverCardImages,
 #if BUILDFLAG(IS_MAC)
              base::FEATURE_DISABLED_BY_DEFAULT
@@ -184,6 +219,11 @@ BASE_FEATURE(kTabHoverCardImages,
              base::FEATURE_ENABLED_BY_DEFAULT
 #endif
 );
+
+// Skips the synthetic tab selection event fired when a browser window is
+// activated.
+BASE_FEATURE(kTabStripSkipSelectionEventOnActivation,
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kTabModalUsesDesktopWidget, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -194,19 +234,30 @@ BASE_FEATURE(kTearOffWebAppTabOpensWebAppWindow,
 
 #if !BUILDFLAG(IS_ANDROID)
 BASE_FEATURE(kThreeButtonPasswordSaveDialog, base::FEATURE_ENABLED_BY_DEFAULT);
+BASE_FEATURE(kPasswordSaveUpdateDropdownMenuExperiment,
+             base::FEATURE_DISABLED_BY_DEFAULT);
 #endif
 
-BASE_FEATURE(kToolbarHeightSidePanel, base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kSidePanelFlyoverAnimation, base::FEATURE_ENABLED_BY_DEFAULT);
-bool UseSidePanelFlyoverAnimation() {
+BASE_FEATURE(kSidePanelFlyoverAnimation,
 #if BUILDFLAG(IS_MAC)
-  // Mac can smoothly resize contents and does not need flyover.
-  return false;
+             base::FEATURE_DISABLED_BY_DEFAULT
 #else
-  return base::FeatureList::IsEnabled(kSidePanelFlyoverAnimation);
+             base::FEATURE_ENABLED_BY_DEFAULT
 #endif
+);
+
+bool UseSidePanelFlyoverAnimation() {
+  return base::FeatureList::IsEnabled(kSidePanelFlyoverAnimation);
 }
+
+BASE_FEATURE_PARAM(int,
+                   kSidePanelFlyoverDurationMs,
+                   &kSidePanelFlyoverAnimation,
+                   "flyover_animation_duration_ms",
+                   350);
+
+BASE_FEATURE(kUseDefaultDeadlineWhenAnimatingBounds,
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 // Enables enterprise profile badging for managed profiles on the toolbar avatar
 // and in the profile menu. On managed profiles, a building icon will be used as
@@ -228,21 +279,6 @@ BASE_FEATURE(kEnterpriseManagementDisclaimerUsesCustomLabel,
 BASE_FEATURE(kManagedProfileRequiredInterstitial,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-// Enables a web-based tab strip. See https://crbug.com/989131. Note this
-// feature only works when the ENABLE_WEBUI_TAB_STRIP buildflag is enabled.
-BASE_FEATURE(kWebUITabStrip, base::FEATURE_DISABLED_BY_DEFAULT);
-
-// The default value of this flag is aligned with platform behavior to handle
-// context menu with touch.
-// TODO(crbug.com/40796475): Enable this flag for all platforms after launch.
-BASE_FEATURE(kWebUITabStripContextMenuAfterTap,
-#if BUILDFLAG(IS_CHROMEOS)
-             base::FEATURE_DISABLED_BY_DEFAULT
-#else
-             base::FEATURE_ENABLED_BY_DEFAULT
-#endif
-);
-
 #if BUILDFLAG(IS_MAC)
 BASE_FEATURE(kViewsJSAppModalDialog, base::FEATURE_DISABLED_BY_DEFAULT);
 #endif
@@ -256,8 +292,6 @@ BASE_FEATURE(kPageSpecificDataDialogRelatedInstalledAppsSection,
 
 BASE_FEATURE(kEnableManagementPromotionBanner,
              base::FEATURE_ENABLED_BY_DEFAULT);
-
-BASE_FEATURE(kInlineFullscreenPerfExperiment, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kPageActionsMigration, base::FEATURE_ENABLED_BY_DEFAULT);
 
@@ -284,18 +318,6 @@ BASE_FEATURE_PARAM(bool,
                    &kPageActionsMigration,
                    "zoom",
                    false);
-
-BASE_FEATURE_PARAM(bool,
-                   kPageActionsMigrationFileSystemAccess,
-                   &kPageActionsMigration,
-                   "file_system_access",
-                   true);
-
-BASE_FEATURE_PARAM(bool,
-                   kPageActionsMigrationManagePasswords,
-                   &kPageActionsMigration,
-                   "manage_passwords",
-                   true);
 
 BASE_FEATURE_PARAM(bool,
                    kPageActionsMigrationCookieControls,
@@ -355,13 +377,19 @@ BASE_FEATURE_PARAM(bool,
                    "bookmark_star",
                    false);
 
+BASE_FEATURE(kPageActionsPrioritySelector, base::FEATURE_DISABLED_BY_DEFAULT);
+
 BASE_FEATURE(kSavePasswordsContextualUi, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kByDateHistoryInSidePanel, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kTabsFromOtherDevicesSidePanel, base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kTabStripBrowserApi, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kTabsFromOtherDevicesSidePanelExcludeStableChannel,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kTabsFromOtherDevicesSidePanelPinnedByDefault,
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kNonMilestoneUpdateToast, base::FEATURE_ENABLED_BY_DEFAULT);
 
@@ -391,45 +419,81 @@ bool IsNewTabAddsToActiveGroupEnabled() {
 BASE_FEATURE(kWebUIAvatarButton, base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool IsWebUIReloadButtonEnabled() {
-  return base::FeatureList::IsEnabled(features::kInitialWebUI) &&
+  return !IsProcessOverheadExperimentActive() &&
+         base::FeatureList::IsEnabled(features::kInitialWebUI) &&
          base::FeatureList::IsEnabled(features::kWebUIReloadButton);
 }
 
 bool IsWebUIHomeButtonEnabled() {
-  return base::FeatureList::IsEnabled(features::kInitialWebUI) &&
+  return !IsProcessOverheadExperimentActive() &&
+         base::FeatureList::IsEnabled(features::kInitialWebUI) &&
          base::FeatureList::IsEnabled(features::kWebUIHomeButton);
 }
 
+bool IsWebUIBatterySaverButtonEnabled() {
+  return !IsProcessOverheadExperimentActive() &&
+         base::FeatureList::IsEnabled(features::kInitialWebUI) &&
+         base::FeatureList::IsEnabled(features::kWebUIBatterySaverButton);
+}
+
+bool IsWebUIAppMenuButtonEnabled() {
+  return !IsProcessOverheadExperimentActive() &&
+         base::FeatureList::IsEnabled(features::kInitialWebUI) &&
+         base::FeatureList::IsEnabled(features::kWebUIAppMenuButton);
+}
+
 bool IsWebUIBackForwardButtonEnabled() {
-  return base::FeatureList::IsEnabled(features::kInitialWebUI) &&
+  return !IsProcessOverheadExperimentActive() &&
+         base::FeatureList::IsEnabled(features::kInitialWebUI) &&
          base::FeatureList::IsEnabled(features::kWebUIBackForwardButton);
 }
 
 bool IsWebUIPinnedToolbarActionsEnabled() {
-  return base::FeatureList::IsEnabled(features::kInitialWebUI) &&
+  return !IsProcessOverheadExperimentActive() &&
+         base::FeatureList::IsEnabled(features::kInitialWebUI) &&
          base::FeatureList::IsEnabled(features::kWebUIPinnedToolbarActions);
 }
 
+bool IsWebUIExtensionsContainerEnabled() {
+  return !IsProcessOverheadExperimentActive() &&
+         base::FeatureList::IsEnabled(features::kInitialWebUI) &&
+         base::FeatureList::IsEnabled(features::kWebUIExtensionsContainer);
+}
+
 bool IsWebUISplitTabsButtonEnabled() {
-  return base::FeatureList::IsEnabled(features::kInitialWebUI) &&
+  return !IsProcessOverheadExperimentActive() &&
+         base::FeatureList::IsEnabled(features::kInitialWebUI) &&
          base::FeatureList::IsEnabled(features::kWebUISplitTabsButton);
 }
 
 bool IsWebUIAvatarButtonEnabled() {
-  return base::FeatureList::IsEnabled(features::kInitialWebUI) &&
+  return !IsProcessOverheadExperimentActive() &&
+         base::FeatureList::IsEnabled(features::kInitialWebUI) &&
          base::FeatureList::IsEnabled(features::kWebUIAvatarButton);
 }
 
+bool IsWebUIPerformanceInterventionButtonEnabled() {
+  return !IsProcessOverheadExperimentActive() &&
+         base::FeatureList::IsEnabled(features::kInitialWebUI) &&
+         base::FeatureList::IsEnabled(
+             features::kWebUIPerformanceInterventionButton);
+}
+
 bool IsWebUILocationBarEnabled() {
-  return base::FeatureList::IsEnabled(features::kInitialWebUI) &&
+  return !IsProcessOverheadExperimentActive() &&
+         base::FeatureList::IsEnabled(features::kInitialWebUI) &&
          base::FeatureList::IsEnabled(features::kWebUILocationBar);
 }
 
 bool IsWebUIToolbarEnabled() {
-  return IsWebUIReloadButtonEnabled() || IsWebUISplitTabsButtonEnabled() ||
-         IsWebUIHomeButtonEnabled() || IsWebUILocationBarEnabled() ||
-         IsWebUIBackForwardButtonEnabled() ||
-         IsWebUIPinnedToolbarActionsEnabled() || IsWebUIAvatarButtonEnabled();
+  return !IsProcessOverheadExperimentActive() &&
+         (IsWebUIReloadButtonEnabled() || IsWebUISplitTabsButtonEnabled() ||
+          IsWebUIHomeButtonEnabled() || IsWebUILocationBarEnabled() ||
+          IsWebUIBackForwardButtonEnabled() ||
+          IsWebUIPinnedToolbarActionsEnabled() ||
+          IsWebUIExtensionsContainerEnabled() || IsWebUIAvatarButtonEnabled() ||
+          IsWebUIAppMenuButtonEnabled() || IsWebUIBatterySaverButtonEnabled() ||
+          IsWebUIPerformanceInterventionButtonEnabled());
 }
 #endif  // !BUILDFLAG(IS_ANDROID)
 
@@ -443,6 +507,9 @@ bool IsAndroidAnimatedProgressBarInBrowserEnabled() {
 }
 #endif  // BUILDFLAG(IS_ANDROID)
 
+// Note: This feature is meant for prototyping and takes shortcuts that mean it
+// cannot be put into production in its current state. Do not enable.
+// crbug.com/502801064
 BASE_FEATURE(kAiOverlayDialog, base::FEATURE_DISABLED_BY_DEFAULT);
 BASE_FEATURE_PARAM(std::string,
                    kAiOverlayDialogApiKey,
@@ -474,5 +541,26 @@ BASE_FEATURE_PARAM(bool,
                    &kTabGroupsFocusing,
                    "tab_groups_focusing_default_to_focused",
                    false);
+
+BASE_FEATURE(kVerticalTabsGrabHandleRemoval, base::FEATURE_DISABLED_BY_DEFAULT);
+
+// If false, then the grab handle will only be removed when the vertical tab
+// strip is expanded.
+BASE_FEATURE_PARAM(bool,
+                   kVerticalTabsGrabHandleRemovalAlways,
+                   &kVerticalTabsGrabHandleRemoval,
+                   "vertical_tab_grab_handle_remove_always",
+                   true);
+
+BASE_FEATURE(kOmniboxResizingPrioritization, base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kToolbarAppMenuLabelResizing, base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kToolbarProfileChipResizing, base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kToolbarGlicButtonResizing, base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kOSCryptAsyncAvailabilityInfoBar,
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 }  // namespace features

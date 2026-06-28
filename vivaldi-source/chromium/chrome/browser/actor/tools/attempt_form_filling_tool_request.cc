@@ -12,6 +12,7 @@
 #include "chrome/browser/actor/tools/tool.h"
 #include "chrome/browser/actor/tools/tool_request_visitor_functor.h"
 #include "chrome/common/actor/action_result.h"
+#include "components/actor/public/mojom/actor_types.mojom.h"
 #include "components/tabs/public/tab_interface.h"
 #include "ui/gfx/geometry/point.h"
 
@@ -70,7 +71,8 @@ void AttemptFormFillingToolRequest::Apply(ToolRequestVisitorFunctor& f) const {
 std::ostream& operator<<(
     std::ostream& out,
     const AttemptFormFillingToolRequest::FormFillingRequest& request) {
-  out << "Request(" << static_cast<int>(request.requested_data);
+  out << "Request(" << static_cast<int>(request.requested_data)
+      << ", section_label=" << request.section_label;
   for (const auto& field : request.trigger_fields) {
     if (std::holds_alternative<gfx::Point>(field)) {
       out << ", Point(" << field << ")";

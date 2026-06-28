@@ -7,17 +7,15 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #if defined(EIGEN_TEST_PART_7)
 
 // ignore double-promotion diagnostic for clang and gcc, if we check for static assertion anyway:
 // TODO do the same for MSVC?
 #if defined(__clang__)
-#if (__clang_major__ * 100 + __clang_minor__) >= 308
 #pragma clang diagnostic ignored "-Wdouble-promotion"
-#endif
 #elif defined(__GNUC__)
-// TODO is there a minimal GCC version for this? At least g++-4.7 seems to be fine with this.
 #pragma GCC diagnostic ignored "-Wdouble-promotion"
 #endif
 
@@ -33,7 +31,7 @@
 
 static bool g_called;
 #define EIGEN_SCALAR_BINARY_OP_PLUGIN \
-  { g_called |= (!internal::is_same<LhsScalar, RhsScalar>::value); }
+  { g_called |= (!std::is_same<LhsScalar, RhsScalar>::value); }
 
 #include "main.h"
 

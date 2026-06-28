@@ -18,7 +18,7 @@ source_set("ios_translate") {
     "//components/infobars/core",
     "//ios/chrome/browser/shared/model/profile",
     "//ios/chrome/browser/shared/model/profile:profile_keyed_service_factory",
-    "//vivaldi/translate_history",
     "//vivaldi/prefs",
+    "//vivaldi/translate_history",
   ]
 }

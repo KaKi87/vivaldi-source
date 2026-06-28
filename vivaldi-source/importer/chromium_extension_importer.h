@@ -5,7 +5,7 @@
 
 #include "base/files/file_path.h"
 #include "base/memory/weak_ptr.h"
-#include "chrome/common/extensions/webstore_install_result.h"
+#include "extensions/browser/webstore_install_result.h"
 
 #include <string>
 #include <vector>

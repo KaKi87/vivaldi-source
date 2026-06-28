@@ -11,7 +11,6 @@
 #include "ash/public/cpp/shelf_item.h"
 #include "ash/public/cpp/window_properties.h"
 #include "ash/webui/settings/public/constants/routes_util.h"
-#include "ash/webui/system_apps/public/system_web_app_type.h"
 #include "ash/wm/window_properties.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/strcat.h"
@@ -21,16 +20,17 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
+#include "chromeos/ash/components/system_web_apps/system_web_app_type.h"
 #include "chromeos/ui/base/app_types.h"
 #include "chromeos/ui/base/window_properties.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
@@ -190,7 +190,7 @@ void SettingsWindowManager::ShowChromePageForProfile(
   params.user_gesture = true;
   params.path_behavior = NavigateParams::IGNORE_AND_NAVIGATE;
   Navigate(&params);
-  CHECK(params.browser);  // See https://crbug.com/1174525
+  CHECK(params.browser);  // See https://crbug.com/40746844
   browser = params.browser;
 
   // operator[] not used because SessionID has no default constructor.
@@ -249,7 +249,8 @@ BrowserWindowInterface* SettingsWindowManager::FindBrowserForProfile(
 
   auto iter = settings_session_map_.find(profile);
   if (iter != settings_session_map_.end()) {
-    return chrome::FindBrowserWithID(iter->second);
+    return GlobalBrowserCollection::GetInstance()->FindBrowserWithID(
+        iter->second);
   }
 
   return nullptr;

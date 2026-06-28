@@ -254,7 +254,7 @@ public class DisplayAgent {
     private static @ChannelId String getNotificationChannel(@SchedulerClientType int type) {
         switch (type) {
             case SchedulerClientType.TIPS:
-                return ChannelId.TIPS;
+                return ChannelId.TIPS_V2;
             case SchedulerClientType.CHROME_FINDS:
                 return ChannelId.CHROME_FINDS;
             default:
@@ -356,7 +356,7 @@ public class DisplayAgent {
             actionIntent.putExtra(EXTRA_ACTION_BUTTON_TYPE, button.type);
             actionIntent.putExtra(EXTRA_ACTION_BUTTON_ID, button.id);
 
-            // TODO(xingliu): Support button icon. See https://crbug.com/983354
+            // TODO(xingliu): Support button icon. See https://crbug.com/40635786
             builder.addAction(
                     /* icon= */ 0,
                     button.text,

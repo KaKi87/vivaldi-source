@@ -165,7 +165,7 @@ class MockSafeBrowsingUIManager : public SafeBrowsingUIManager {
       : SafeBrowsingUIManager(
             std::make_unique<ChromeSafeBrowsingUIManagerDelegate>(),
             std::make_unique<ChromeSafeBrowsingBlockingPageFactory>(),
-            GURL(chrome::kChromeUINewTabURL)) {}
+            chrome::ChromeUINewTabURLAsGURL()) {}
 
   MockSafeBrowsingUIManager(const MockSafeBrowsingUIManager&) = delete;
   MockSafeBrowsingUIManager& operator=(const MockSafeBrowsingUIManager&) =
@@ -368,6 +368,11 @@ IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostPrerenderBrowserTest,
     GTEST_SKIP();
   }
 
+  if (base::FeatureList::IsEnabled(kClientSideDetectionOnlyESBClassification)) {
+    SetSafeBrowsingState(browser()->profile()->GetPrefs(),
+                         SafeBrowsingState::ENHANCED_PROTECTION);
+  }
+
   FakeClientSideDetectionService fake_csd_service;
   fake_csd_service.SetModel(client_side_model());
 
@@ -399,6 +404,8 @@ IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostPrerenderBrowserTest,
   fake_csd_service.SetRequestCallback(run_loop.QuitClosure());
 
   // Bypass the pre-classification checks.
+  csd_host->current_outermost_main_frame_id_ =
+      GetWebContents()->GetPrimaryMainFrame()->GetGlobalId();
   csd_host->OnPhishingPreClassificationDone(
       ClientSideDetectionType::TRIGGER_MODELS, /*should_classify=*/true,
       /*is_sample_ping=*/false, /*did_match_high_confidence_allowlist=*/false);
@@ -418,6 +425,8 @@ IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostPrerenderBrowserTest,
 
   ASSERT_FALSE(fake_csd_service.saved_callback_is_null());
 
+  EXPECT_EQ(fake_csd_service.saved_request().http_response_code(), 200);
+
   // Expect an interstitial to be shown.
   EXPECT_CALL(*mock_ui_manager, DisplayBlockingPage(_));
   std::move(fake_csd_service.saved_callback())
@@ -428,6 +437,11 @@ IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostPrerenderBrowserTest,
                        SamePageNavigationShouldNotAffectClientSideDetection) {
   if (base::FeatureList::IsEnabled(kClientSideDetectionKillswitch)) {
     GTEST_SKIP();
+  }
+
+  if (base::FeatureList::IsEnabled(kClientSideDetectionOnlyESBClassification)) {
+    SetSafeBrowsingState(browser()->profile()->GetPrefs(),
+                         SafeBrowsingState::ENHANCED_PROTECTION);
   }
 
   FakeClientSideDetectionService fake_csd_service;
@@ -493,6 +507,11 @@ IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostPrerenderBrowserTest,
                        ClassifyPrerenderedPageAfterActivation) {
   if (base::FeatureList::IsEnabled(kClientSideDetectionKillswitch)) {
     GTEST_SKIP();
+  }
+
+  if (base::FeatureList::IsEnabled(kClientSideDetectionOnlyESBClassification)) {
+    SetSafeBrowsingState(browser()->profile()->GetPrefs(),
+                         SafeBrowsingState::ENHANCED_PROTECTION);
   }
 
   FakeClientSideDetectionService fake_csd_service;
@@ -576,7 +595,9 @@ class ClientSideDetectionHostPrerenderBrowserTest_Screenshot
 
     const SkBitmap screenshot =
         gfx::test::CreateBitmap(screenshot_width, screenshot_height);
-    csd_host->ReportUnsafeSite(screenshot);
+
+    base::test::TestFuture<void> future;
+    csd_host->ReportUnsafeSite(screenshot, future.GetCallback());
 
     // Bypass the pre-classification check to directly test the screenshot
     // plumbing.
@@ -586,6 +607,8 @@ class ClientSideDetectionHostPrerenderBrowserTest_Screenshot
         /*did_match_high_confidence_allowlist=*/false);
 
     run_loop.Run();
+
+    EXPECT_TRUE(future.IsReady());
 
     return fake_csd_service.saved_request();
   }
@@ -617,6 +640,7 @@ IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostPrerenderBrowserTest_Screenshot,
                   kScreenshotWidth, kScreenshotHeight);
   EXPECT_EQ(saved_request.client_side_detection_type(),
             ClientSideDetectionType::USER_REPORT);
+  EXPECT_EQ(saved_request.http_response_code(), 200);
 }
 
 IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostPrerenderBrowserTest_Screenshot,
@@ -635,6 +659,7 @@ IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostPrerenderBrowserTest_Screenshot,
                   kScreenshotWidth, kScreenshotHeight);
   EXPECT_EQ(saved_request.client_side_detection_type(),
             ClientSideDetectionType::USER_REPORT);
+  EXPECT_EQ(saved_request.http_response_code(), 200);
 }
 
 IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostPrerenderBrowserTest_Screenshot,
@@ -685,6 +710,7 @@ IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostPrerenderBrowserTest_Screenshot,
   EXPECT_FALSE(saved_request.visual_features().has_high_res_screenshot());
   EXPECT_EQ(saved_request.client_side_detection_type(),
             ClientSideDetectionType::USER_REPORT);
+  EXPECT_EQ(saved_request.http_response_code(), 200);
 }
 
 IN_PROC_BROWSER_TEST_F(
@@ -1397,6 +1423,8 @@ IN_PROC_BROWSER_TEST_P(ClientSideDetectionHostClipboardTest,
   histogram_tester.ExpectTotalCount(
       "SBClientPhishing.ServerModelDetectsPhishing.ClipboardCopyApi", 0);
 
+  EXPECT_EQ(fake_csd_service.saved_request().http_response_code(), 200);
+
   if (ShouldProcessClipboardPayload()) {
     EXPECT_TRUE(
         fake_csd_service.saved_request().has_clipboard_extracted_data());
@@ -1537,6 +1565,7 @@ class ClientSideDetectionHostCreditCardFormTest : public InProcessBrowserTest {
         {
             {kCsdCreditCardFormHCAcceptanceRate.name, "0.0"},
             {kCsdCreditCardFormSampleRate.name, "1.0"},
+            {kCsdCreditCardFormEnableInteractionTrigger.name, "true"},
         });
   }
 
@@ -1593,6 +1622,67 @@ class ClientSideDetectionHostCreditCardFormTest : public InProcessBrowserTest {
   std::string flatbuffer_model_str_;
 };
 
+class ClientSideDetectionHostCreditCardFormTriggerDisabledTest
+    : public ClientSideDetectionHostCreditCardFormTest {
+ public:
+  ClientSideDetectionHostCreditCardFormTriggerDisabledTest() {
+    scoped_feature_list_.Reset();
+    scoped_feature_list_.InitAndEnableFeatureWithParameters(
+        kClientSideDetectionCreditCardForm,
+        {
+            {kCsdCreditCardFormSampleRate.name, "1.0"},
+            {kCsdCreditCardFormEnableInteractionTrigger.name, "false"},
+            {kCsdCreditCardFormEnableDetectionTrigger.name, "false"},
+        });
+  }
+};
+
+class ClientSideDetectionHostCreditCardFormDetectionOnlyTest
+    : public ClientSideDetectionHostCreditCardFormTest {
+ public:
+  ClientSideDetectionHostCreditCardFormDetectionOnlyTest() {
+    scoped_feature_list_.Reset();
+    scoped_feature_list_.InitAndEnableFeatureWithParameters(
+        kClientSideDetectionCreditCardForm,
+        {
+            {kCsdCreditCardFormHCAcceptanceRate.name, "0.0"},
+            {kCsdCreditCardFormSampleRate.name, "1.0"},
+            {kCsdCreditCardFormEnableDetectionTrigger.name, "true"},
+            {kCsdCreditCardFormEnableInteractionTrigger.name, "false"},
+        });
+  }
+};
+
+class ClientSideDetectionHostCreditCardFormDetectionTriggerDisabledTest
+    : public ClientSideDetectionHostCreditCardFormTest {
+ public:
+  ClientSideDetectionHostCreditCardFormDetectionTriggerDisabledTest() {
+    scoped_feature_list_.Reset();
+    scoped_feature_list_.InitAndEnableFeatureWithParameters(
+        kClientSideDetectionCreditCardForm,
+        {
+            {kCsdCreditCardFormSampleRate.name, "1.0"},
+            {kCsdCreditCardFormEnableInteractionTrigger.name, "true"},
+            {kCsdCreditCardFormEnableDetectionTrigger.name, "false"},
+        });
+  }
+};
+
+class ClientSideDetectionHostCreditCardFormDetectionAndInteractionTest
+    : public ClientSideDetectionHostCreditCardFormTest {
+ public:
+  ClientSideDetectionHostCreditCardFormDetectionAndInteractionTest() {
+    scoped_feature_list_.Reset();
+    scoped_feature_list_.InitAndEnableFeatureWithParameters(
+        kClientSideDetectionCreditCardForm,
+        {
+            {kCsdCreditCardFormSampleRate.name, "1.0"},
+            {kCsdCreditCardFormEnableInteractionTrigger.name, "true"},
+            {kCsdCreditCardFormEnableDetectionTrigger.name, "true"},
+        });
+  }
+};
+
 IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostCreditCardFormTest,
                        CreditCardFormTriggersPreclassificationCheck) {
   if (base::FeatureList::IsEnabled(kClientSideDetectionKillswitch)) {
@@ -1633,6 +1723,158 @@ IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostCreditCardFormTest,
 
   histogram_tester.ExpectTotalCount(
       "SBClientPhishing.PreClassificationCheckResult.CreditCardForm", 1);
+}
+
+IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostCreditCardFormTriggerDisabledTest,
+                       InteractionTriggerDisabledDoesNotTrigger) {
+  if (base::FeatureList::IsEnabled(kClientSideDetectionKillswitch)) {
+    GTEST_SKIP();
+  }
+  SetSafeBrowsingState(browser()->profile()->GetPrefs(),
+                       SafeBrowsingState::ENHANCED_PROTECTION);
+
+  base::HistogramTester histogram_tester;
+
+  FakeClientSideDetectionService fake_csd_service;
+  fake_csd_service.SetModel(client_side_model());
+
+  scoped_refptr<StrictMock<MockSafeBrowsingUIManager>> mock_ui_manager =
+      new StrictMock<MockSafeBrowsingUIManager>();
+
+  std::unique_ptr<ClientSideDetectionHost> csd_host =
+      ChromeClientSideDetectionHostDelegate::CreateHost(
+          browser()->tab_strip_model()->GetActiveWebContents());
+  csd_host->set_client_side_detection_service(fake_csd_service.GetWeakPtr());
+  csd_host->set_ui_manager(mock_ui_manager.get());
+  fake_csd_service.SendModelToRenderers();
+
+  // Navigate to a form, ensure that that completes, then focus on the form.
+  // Only the latter should trigger a ping.
+  // The reason for ensuring that they don't overlap is that there's some
+  // flakiness at least in Windows if these events can overlap, where the
+  // form detection event gets double counted in the
+  // SBClientPhishing.CreditCardFormEvent3 histogram.
+
+  NavigateToCreditCardForm();
+  base::RunLoop nav_run_loop;
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE, nav_run_loop.QuitClosure(), base::Milliseconds(500));
+  nav_run_loop.Run();
+
+  FocusOnCreditCardNumberField();
+  base::RunLoop focus_run_loop;
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE, focus_run_loop.QuitClosure(), base::Milliseconds(500));
+  focus_run_loop.Run();
+
+  histogram_tester.ExpectTotalCount(
+      "SBClientPhishing.PreClassificationCheckResult.CreditCardForm", 0);
+  histogram_tester.ExpectBucketCount(
+      "SBClientPhishing.CreditCardFormEvent3",
+      credit_card_form::kNewSiteVisitNoReferringAppAutofillLocalHeuristic, 2);
+  histogram_tester.ExpectBucketCount(
+      "SBClientPhishing.CreditCardFormEvent3.OnAfterFocusOnFormField",
+      credit_card_form::kNewSiteVisitNoReferringAppAutofillLocalHeuristic, 1);
+}
+
+IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostCreditCardFormDetectionOnlyTest,
+                       CreditCardFormTriggersDetectionCheckWithoutInteraction) {
+  if (base::FeatureList::IsEnabled(kClientSideDetectionKillswitch)) {
+    GTEST_SKIP();
+  }
+  SetSafeBrowsingState(browser()->profile()->GetPrefs(),
+                       SafeBrowsingState::ENHANCED_PROTECTION);
+
+  base::HistogramTester histogram_tester;
+
+  FakeClientSideDetectionService fake_csd_service;
+  fake_csd_service.SetModel(client_side_model());
+
+  scoped_refptr<StrictMock<MockSafeBrowsingUIManager>> mock_ui_manager =
+      new StrictMock<MockSafeBrowsingUIManager>();
+
+  std::unique_ptr<ClientSideDetectionHost> csd_host =
+      ChromeClientSideDetectionHostDelegate::CreateHost(
+          browser()->tab_strip_model()->GetActiveWebContents());
+  csd_host->set_client_side_detection_service(fake_csd_service.GetWeakPtr());
+  csd_host->set_ui_manager(mock_ui_manager.get());
+  fake_csd_service.SendModelToRenderers();
+
+  base::RunLoop run_loop;
+  csd_host->set_preclassification_done_callback_for_testing(
+      base::BindLambdaForTesting([&](ClientSideDetectionType detection_type) {
+        if (detection_type == ClientSideDetectionType::CREDIT_CARD_FORM) {
+          run_loop.Quit();
+        }
+      }));
+
+  NavigateToCreditCardForm();
+  run_loop.Run();
+
+  histogram_tester.ExpectTotalCount(
+      "SBClientPhishing.PreClassificationCheckResult.CreditCardForm", 1);
+}
+
+IN_PROC_BROWSER_TEST_F(
+    ClientSideDetectionHostCreditCardFormDetectionTriggerDisabledTest,
+    DetectionTriggerDisabledDoesNotTrigger) {
+  if (base::FeatureList::IsEnabled(kClientSideDetectionKillswitch)) {
+    GTEST_SKIP();
+  }
+  SetSafeBrowsingState(browser()->profile()->GetPrefs(),
+                       SafeBrowsingState::ENHANCED_PROTECTION);
+
+  base::HistogramTester histogram_tester;
+
+  FakeClientSideDetectionService fake_csd_service;
+  fake_csd_service.SetModel(client_side_model());
+
+  scoped_refptr<StrictMock<MockSafeBrowsingUIManager>> mock_ui_manager =
+      new StrictMock<MockSafeBrowsingUIManager>();
+
+  std::unique_ptr<ClientSideDetectionHost> csd_host =
+      ChromeClientSideDetectionHostDelegate::CreateHost(
+          browser()->tab_strip_model()->GetActiveWebContents());
+  csd_host->set_client_side_detection_service(fake_csd_service.GetWeakPtr());
+  csd_host->set_ui_manager(mock_ui_manager.get());
+  fake_csd_service.SendModelToRenderers();
+
+  NavigateToCreditCardForm();
+
+  // Wait for a short duration to ensure no ping is triggered by detection.
+  base::RunLoop run_loop;
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE, run_loop.QuitClosure(), base::Milliseconds(500));
+  run_loop.Run();
+
+  histogram_tester.ExpectTotalCount(
+      "SBClientPhishing.PreClassificationCheckResult.CreditCardForm", 0);
+  histogram_tester.ExpectBucketCount(
+      "SBClientPhishing.CreditCardFormEvent3",
+      credit_card_form::kNewSiteVisitNoReferringAppAutofillLocalHeuristic, 1);
+  histogram_tester.ExpectBucketCount(
+      "SBClientPhishing.CreditCardFormEvent3.OnFieldTypesDetermined",
+      credit_card_form::kNewSiteVisitNoReferringAppAutofillLocalHeuristic, 1);
+
+  // Focus should still trigger it.
+  base::RunLoop focus_run_loop;
+  csd_host->set_preclassification_done_callback_for_testing(
+      base::BindLambdaForTesting([&](ClientSideDetectionType detection_type) {
+        if (detection_type == ClientSideDetectionType::CREDIT_CARD_FORM) {
+          focus_run_loop.Quit();
+        }
+      }));
+  FocusOnCreditCardNumberField();
+  focus_run_loop.Run();
+
+  histogram_tester.ExpectTotalCount(
+      "SBClientPhishing.PreClassificationCheckResult.CreditCardForm", 1);
+  histogram_tester.ExpectBucketCount(
+      "SBClientPhishing.CreditCardFormEvent3",
+      credit_card_form::kNewSiteVisitNoReferringAppAutofillLocalHeuristic, 2);
+  histogram_tester.ExpectBucketCount(
+      "SBClientPhishing.CreditCardFormEvent3.OnAfterFocusOnFormField",
+      credit_card_form::kNewSiteVisitNoReferringAppAutofillLocalHeuristic, 1);
 }
 
 IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostCreditCardFormTest,
@@ -1709,6 +1951,57 @@ IN_PROC_BROWSER_TEST_F(ClientSideDetectionHostCreditCardFormTest,
       "SBClientPhishing.ClientSideDetectionTypeRequest", 1);
   histogram_tester.ExpectTotalCount(
       "SBClientPhishing.ServerModelDetectsPhishing.CreditCardForm", 1);
+}
+
+IN_PROC_BROWSER_TEST_F(
+    ClientSideDetectionHostCreditCardFormDetectionAndInteractionTest,
+    DetectionAndInteractionTriggersOnlyTriggerOnce) {
+  if (base::FeatureList::IsEnabled(kClientSideDetectionKillswitch)) {
+    GTEST_SKIP();
+  }
+  SetSafeBrowsingState(browser()->profile()->GetPrefs(),
+                       SafeBrowsingState::ENHANCED_PROTECTION);
+
+  base::HistogramTester histogram_tester;
+
+  FakeClientSideDetectionService fake_csd_service;
+  fake_csd_service.SetModel(client_side_model());
+
+  scoped_refptr<StrictMock<MockSafeBrowsingUIManager>> mock_ui_manager =
+      new StrictMock<MockSafeBrowsingUIManager>();
+
+  std::unique_ptr<ClientSideDetectionHost> csd_host =
+      ChromeClientSideDetectionHostDelegate::CreateHost(
+          browser()->tab_strip_model()->GetActiveWebContents());
+  csd_host->set_client_side_detection_service(fake_csd_service.GetWeakPtr());
+  csd_host->set_ui_manager(mock_ui_manager.get());
+  fake_csd_service.SendModelToRenderers();
+
+  // 1. Navigate triggers detection.
+  base::RunLoop nav_run_loop;
+  csd_host->set_preclassification_done_callback_for_testing(
+      base::BindLambdaForTesting([&](ClientSideDetectionType detection_type) {
+        if (detection_type == ClientSideDetectionType::CREDIT_CARD_FORM) {
+          nav_run_loop.Quit();
+        }
+      }));
+  NavigateToCreditCardForm();
+  nav_run_loop.Run();
+
+  histogram_tester.ExpectTotalCount(
+      "SBClientPhishing.PreClassificationCheckResult.CreditCardForm", 1);
+
+  // 2. Focus should be deduped.
+  FocusOnCreditCardNumberField();
+
+  // Wait for a short duration to ensure no SECOND ping is triggered.
+  base::RunLoop dedup_run_loop;
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE, dedup_run_loop.QuitClosure(), base::Milliseconds(500));
+  dedup_run_loop.Run();
+
+  histogram_tester.ExpectTotalCount(
+      "SBClientPhishing.PreClassificationCheckResult.CreditCardForm", 1);
 }
 
 class ClientSideDetectionHostGeminiAntiscamProtectionTest

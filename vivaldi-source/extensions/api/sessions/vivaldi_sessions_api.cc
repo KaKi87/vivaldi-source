@@ -14,7 +14,11 @@
 
 #include "base/functional/bind.h"
 #include "base/lazy_instance.h"
+#include "base/logging.h"
+#include "base/rand_util.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "browser/related_tab_strip_helper.h"
 #include "browser/sessions/vivaldi_session_service.h"
 #include "browser/sessions/vivaldi_session_utils.h"
 #include "browser/vivaldi_browser_finder.h"
@@ -28,9 +32,11 @@
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/startup/startup_tab.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/datasource/vivaldi_image_store.h"
+#include "components/ext_data/tab_ext_data_impl.h"
 #include "components/prefs/pref_service.h"
 #include "components/sessions/content/content_serialized_navigation_builder.h"
 #include "components/sessions/vivaldi_session_service_commands.h"
@@ -485,16 +491,6 @@ void SessionsPrivateAPI::SendContentChanged(
       browser_context);
 }
 
-// static
-void SessionsPrivateAPI::SendOnPersistentLoad(
-    content::BrowserContext* browser_context,
-    bool state) {
-  ::vivaldi::BroadcastEvent(
-      vivaldi::sessions_private::OnPersistentLoad::kEventName,
-      vivaldi::sessions_private::OnPersistentLoad::Create(state),
-      browser_context);
-}
-
 SessionsPrivateAddFunction::SessionsPrivateAddFunction() = default;
 SessionsPrivateAddFunction::~SessionsPrivateAddFunction() = default;
 
@@ -941,6 +937,8 @@ ExtensionFunction::ResponseAction SessionsPrivateUpdateFunction::Run() {
 ExtensionFunction::ResponseAction SessionsPrivateOpenFunction::Run() {
   using vivaldi::sessions_private::Open::Params;
   namespace Results = vivaldi::sessions_private::Open::Results;
+  using vivaldi::sessions_private::SessionOpenResult;
+  SessionOpenResult result;
 
   std::optional<Params> params = Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
@@ -953,21 +951,60 @@ ExtensionFunction::ResponseAction SessionsPrivateOpenFunction::Run() {
   }
 
   ::vivaldi::SessionOptions opts;
+  std::string salt = base::Uuid::GenerateRandomV4().AsLowercaseString();
   opts.newWindow_ = params->options.new_window;
   opts.oneWindow_ = params->options.one_window;
+  opts.workspaceAsTabs_ = params->options.workspace_as_tabs;
   opts.withWorkspace_ = params->options.with_workspace;
+  opts.ext_id_salt_ = salt;
   // Casting is ok. Tab ids were casted from int32_t when setting up model
   // from where the incoming id comes from.
   for (auto id : params->options.tab_ids) {
     opts.tabs_to_include_.push_back(static_cast<int32_t>(id));
   }
 
-  int error_code = sessions::kNoError;
   NodeModel pair = GetNodeAndModel(browser_context(), params->id);
-  if (pair.first) {
-    error_code = sessions::Open(window->browser(), pair.first, opts);
+
+  if (!pair.first) {
+    return RespondNow(Error("Session not found."));
   }
-  return RespondNow(ArgumentList(Results::Create(error_code)));
+
+  int error_code = sessions::Open(window->browser(), pair.first, opts);
+  if (error_code != sessions::kNoError) {
+    return RespondNow(
+        Error("Session errorcode=" + base::NumberToString(error_code)));
+  }
+
+  std::vector<extensions::vivaldi::sessions_private::WorkspaceItem> workspaces;
+  if (!params->options.workspace_as_tabs) {
+    for (const auto& elm : pair.first->workspaces()) {
+      const base::DictValue* dict = elm.GetIfDict();
+      if (!dict)
+        continue;
+
+      std::optional<double> workspace_id = dict->FindDouble("id");
+      if (!workspace_id.has_value())
+        continue;
+
+      extensions::vivaldi::sessions_private::WorkspaceItem workspace;
+      workspace.id = ::vivaldi::TabExtDataImpl::RemapWorkspaceId(
+          workspace_id.value(), salt);
+
+      if (const std::string* name = dict->FindString("name")) {
+        workspace.name = *name;
+      }
+      if (const std::string* icon = dict->FindString("icon")) {
+        workspace.icon = *icon;
+      }
+      if (const std::string* emoji = dict->FindString("emoji")) {
+        workspace.emoji = *emoji;
+      }
+      workspaces.push_back(std::move(workspace));
+    }
+  }
+
+  result.workspaces = std::move(workspaces);
+  return RespondNow(ArgumentList(Results::Create(result)));
 }
 
 ExtensionFunction::ResponseAction SessionsPrivateRenameFunction::Run() {
@@ -1163,7 +1200,9 @@ SessionsPrivateRestoreSyncTabsFunction::Run() {
         ArgumentList(Results::Create(sessions::kErrorRestoreInIncognito)));
   }
 
-  Browser* browser = chrome::FindBrowserWithProfile(profile);
+  BrowserWindowInterface* const browser =
+      ProfileBrowserCollection::GetForProfile(profile)->GetLastActiveBrowser();
+
   if (!browser) {
     return RespondNow(ArgumentList(Results::Create(sessions::kErrorNoBrowser)));
   }
@@ -1208,7 +1247,9 @@ SessionsPrivateRestoreSyncTabsFunction::Run() {
     }
   }
 
-  TabStripModel* tab_strip = browser->tab_strip_model();
+  TabStripModel* tab_strip = browser->GetTabStripModel();
+  ::vivaldi::related_tabs::VivaldiSanitizerGuard guard(tab_strip);
+
   content::WebContents* contents = tab_strip->GetActiveWebContents();
   for (size_t i = 0; i < tabs.size(); i++) {
     bool load_content = i + 1 == ids.size();

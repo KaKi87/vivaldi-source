@@ -35,7 +35,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 
-// flags: --hlsl-shader-model 62
+// [hlsl-dxc] flags: --hlsl-shader-model 6.10
 
 
 enable chromium_experimental_subgroup_matrix;

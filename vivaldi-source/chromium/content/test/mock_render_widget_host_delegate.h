@@ -66,6 +66,7 @@ class MockRenderWidgetHostDelegate
   input::RenderWidgetHostInputEventRouter* GetInputEventRouter() override;
   RenderWidgetHostImpl* GetFocusedRenderWidgetHost(
       RenderWidgetHostImpl* widget_host) override;
+  RenderWidgetHostImpl* GetRenderWidgetHostWithPageFocus() override;
   void SendScreenRects() override;
   TextInputManager* GetTextInputManager() override;
   bool IsFullscreen() override;
@@ -77,6 +78,7 @@ class MockRenderWidgetHostDelegate
 
   //  RenderWidgetHostInputEventRouter::Delegate
   input::TouchEmulator* GetTouchEmulator(bool create_if_necessary) override;
+  void CancelAutoscroll(input::RenderWidgetHostViewInput* view) override;
 
  private:
   std::unique_ptr<input::NativeWebKeyboardEvent> last_event_;

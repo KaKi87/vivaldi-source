@@ -20,6 +20,7 @@
 #include "base/win/win_util.h"
 #include "chrome/browser/signin/signin_promo.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
+#include "chrome/browser/ui/startup/credential_provider_signin_dialog_view_with_modal.h"
 #include "chrome/browser/ui/startup/credential_provider_signin_info_fetcher_win.h"
 #include "chrome/browser/ui/webui/chrome_web_contents_handler.h"
 #include "chrome/common/chrome_switches.h"
@@ -41,10 +42,6 @@ namespace {
 
 // The OAuth token consumer name.
 const char kOAuthConsumerName[] = "credential_provider_signin_dialog";
-
-#if BUILDFLAG(CAN_TEST_GCPW_SIGNIN_STARTUP)
-bool g_enable_gcpw_signin_during_tests = false;
-#endif  // BUILDFLAG(CAN_TEST_GCPW_SIGNIN_STARTUP)
 
 // This message must match the one sent in inline_login_app.js:
 // sendLSTFetchResults.
@@ -424,21 +421,14 @@ bool ValidateSigninCompleteResult(const std::string& access_token,
          signin_result.is_dict();
 }
 
-#if BUILDFLAG(CAN_TEST_GCPW_SIGNIN_STARTUP)
-void EnableGcpwSigninDialogForTesting(bool enable) {
-  g_enable_gcpw_signin_during_tests = enable;
-}
-#endif  // BUILDFLAG(CAN_TEST_GCPW_SIGNIN_STARTUP)
-
 bool CanStartGCPWSignin() {
 #if BUILDFLAG(CAN_TEST_GCPW_SIGNIN_STARTUP)
-  if (g_enable_gcpw_signin_during_tests) {
-    return true;
-  }
-#endif  // BUILDFLAG(CAN_TEST_GCPW_SIGNIN_STARTUP)
+  return true;
+#else
   // Ensure that we are running under a "winlogon" desktop before starting the
   // gcpw sign in dialog.
   return base::win::IsRunningUnderDesktopName(L"winlogon");
+#endif  // BUILDFLAG(CAN_TEST_GCPW_SIGNIN_STARTUP)
 }
 
 bool StartGCPWSignin(const base::CommandLine& command_line,
@@ -547,16 +537,23 @@ views::WebDialogView* ShowCredentialProviderSigninDialog(
   // The web dialog view that will contain the web ui for the login screen.
   // This view will be automatically deleted by the widget that owns it when it
   // is closed.
-  auto view = std::make_unique<CredentialProviderWebDialogView>(
-      context, delegate.release(),
-      std::make_unique<ChromeWebContentsHandler>());
+  std::unique_ptr<views::WebDialogView> view;
+  if (command_line.HasSwitch(credential_provider::kEnableGcpwModalDialog)) {
+    view = std::make_unique<CredentialProviderWebDialogViewWithModal>(
+        context, delegate.release(),
+        std::make_unique<ChromeWebContentsHandler>());
+  } else {
+    view = std::make_unique<CredentialProviderWebDialogView>(
+        context, delegate.release(),
+        std::make_unique<ChromeWebContentsHandler>());
+  }
   views::Widget::InitParams init_params(
       views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
       views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
   init_params.z_order = ui::ZOrderLevel::kFloatingWindow;
-  views::WebDialogView* web_view = view.release();
   init_params.name = "GCPW";  // Used for debugging only.
-  init_params.delegate = web_view;
+  views::WebDialogView* web_view = view.get();
+  init_params.delegate = view.release();
 
   // This widget will automatically delete itself and its WebDialogView when the
   // dialog window is closed.

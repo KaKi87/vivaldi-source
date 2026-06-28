@@ -513,6 +513,13 @@ void MultipleFieldsTemporalInputTypeView::HandleKeydownEvent(
   }
 }
 
+void MultipleFieldsTemporalInputTypeView::AccessKeyAction(
+    SimulatedClickCreationScope creation_scope) {
+  GetElement().Focus(FocusParams(
+      SelectionBehaviorOnFocus::kReset, mojom::blink::FocusType::kNone, nullptr,
+      FocusOptions::Create(), FocusTrigger::kUserGesture));
+}
+
 bool MultipleFieldsTemporalInputTypeView::HasBadInput() const {
   DateTimeEditElement* edit = GetDateTimeEditElementIfCreated();
   return edit && GetElement().Value().empty() &&
@@ -687,15 +694,21 @@ void MultipleFieldsTemporalInputTypeView::ShowPickerIndicator() {
 }
 
 void MultipleFieldsTemporalInputTypeView::FocusAndSelectClearButtonOwner() {
+  CHECK(
+      !RuntimeEnabledFeatures::HTMLInputElementDropWebkitClearButtonEnabled());
   GetElement().Focus(FocusParams(FocusTrigger::kUserGesture));
 }
 
 bool MultipleFieldsTemporalInputTypeView::
     ShouldClearButtonRespondToMouseEvents() {
+  CHECK(
+      !RuntimeEnabledFeatures::HTMLInputElementDropWebkitClearButtonEnabled());
   return !GetElement().IsDisabledOrReadOnly() && !GetElement().IsRequired();
 }
 
 void MultipleFieldsTemporalInputTypeView::ClearValue() {
+  CHECK(
+      !RuntimeEnabledFeatures::HTMLInputElementDropWebkitClearButtonEnabled());
   GetElement().SetValue("",
                         TextFieldEventBehavior::kDispatchInputAndChangeEvent);
   GetElement().UpdateClearButtonVisibility();
@@ -705,6 +718,8 @@ void MultipleFieldsTemporalInputTypeView::UpdateClearButtonVisibility() {
   ClearButtonElement* clear_button = GetClearButtonElement();
   if (!clear_button)
     return;
+  CHECK(
+      !RuntimeEnabledFeatures::HTMLInputElementDropWebkitClearButtonEnabled());
 
   if (GetElement().IsRequired() ||
       !GetDateTimeEditElement()->AnyEditableFieldsHaveValues()) {
@@ -719,7 +734,7 @@ void MultipleFieldsTemporalInputTypeView::UpdateClearButtonVisibility() {
 }
 
 TextDirection MultipleFieldsTemporalInputTypeView::ComputedTextDirection() {
-  return GetElement().GetLocale().IsRTL() ? TextDirection::kRtl
+  return GetElement().GetLocale().IsRtl() ? TextDirection::kRtl
                                           : TextDirection::kLtr;
 }
 

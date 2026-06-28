@@ -15,9 +15,9 @@
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_constants.h"
 #import "ios/chrome/browser/authentication/ui_bundled/views/views_constants.h"
 #import "ios/chrome/browser/recent_tabs/public/recent_tabs_constants.h"
-#import "ios/chrome/browser/settings/google_services/manage_accounts/public/manage_accounts_table_view_controller_constants.h"
-#import "ios/chrome/browser/settings/ui_bundled/google_services/google_services_settings_constants.h"
-#import "ios/chrome/browser/settings/ui_bundled/google_services/manage_sync_settings_constants.h"
+#import "ios/chrome/browser/settings/google_services/public/google_services_settings_constants.h"
+#import "ios/chrome/browser/settings/manage_accounts/public/manage_accounts_table_view_controller_constants.h"
+#import "ios/chrome/browser/settings/manage_sync/public/manage_sync_settings_constants.h"
 #import "ios/chrome/browser/shared/public/snackbar/snackbar_constants.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_navigation_controller_constants.h"
 #import "ios/chrome/browser/signin/model/fake_system_identity.h"
@@ -413,9 +413,15 @@ id<GREYMatcher> SignOutSnackbarLabelMatcher() {
   NSString* signedInSnackbarTitle =
       l10n_util::GetNSStringF(IDS_IOS_ACCOUNT_MENU_SWITCH_CONFIRMATION_TITLE,
                               base::SysNSStringToUTF16(identity.userGivenName));
-  id<GREYMatcher> snackbarMatcher = grey_allOf(
-      chrome_test_util::SnackbarViewMatcher(),
-      grey_descendant(grey_accessibilityLabel(signedInSnackbarTitle)), nil);
+  [self dismissSigninConfirmationSnackbarWithTitle:signedInSnackbarTitle
+                                     assertVisible:assertVisible];
+}
+
++ (void)dismissSigninConfirmationSnackbarWithTitle:(NSString*)title
+                                     assertVisible:(BOOL)assertVisible {
+  id<GREYMatcher> snackbarMatcher =
+      grey_allOf(chrome_test_util::SnackbarViewMatcher(),
+                 grey_descendant(grey_accessibilityLabel(title)), nil);
 
   if (assertVisible) {
     [[EarlGrey selectElementWithMatcher:snackbarMatcher]

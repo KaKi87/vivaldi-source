@@ -15,7 +15,7 @@ namespace blink {
 
 namespace {
 base::NoDestructor<base::flat_map<std::string, UserAgentMetadata>>
-                               main_domain_ua_metadata_override;
+    main_domain_ua_metadata_override;
 }
 
 UserAgentOverride::UserAgentOverride() {
@@ -40,6 +40,13 @@ std::optional<UserAgentMetadata> UserAgentOverride::GetUaMetaDataOverride(
     }
   }
 
+  // If an explicit per-WebContents override is set (e.g. Android desktop mode,
+  // DevTools UA spoof), honor it instead of falling back to the global
+  // @@OTHER.DOMAINS@@ / @@GOOGLE.DOMAIN@@ entries below. Ref. VAB-12975.
+  if (return_main_metadata) {
+    return ua_metadata_override;
+  }
+
   if (IsGoogleDomainUrl((GURL("https://" + hostname)),
                         SubdomainPermission::DISALLOW_SUBDOMAIN,
                         PortPermission::DISALLOW_NON_STANDARD_PORTS)) {
@@ -54,11 +61,7 @@ std::optional<UserAgentMetadata> UserAgentOverride::GetUaMetaDataOverride(
     }
   }
 
-
-  if (!return_main_metadata) {
-    return std::nullopt;
-  }
-  return ua_metadata_override;
+  return std::nullopt;
 }
 
 /* static */

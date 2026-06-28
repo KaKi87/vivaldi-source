@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
@@ -16,24 +17,22 @@
 #include "chrome/browser/tab_contents/tab_util.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tab_dialogs.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_utils.h"
 #include "chrome/browser/ui/views/eye_dropper/eye_dropper.h"
 #include "chrome/browser/ui/webui/settings/site_settings_helper.h"
 #include "chrome/grit/generated_resources.h"
-#include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
 #include "components/custom_handlers/protocol_handler_registry.h"
 #include "components/custom_handlers/register_protocol_handler_permission_request.h"
-#include "components/permissions/permission_request_manager.h"
 #include "components/guest_view/browser/guest_view_event.h"
 #include "components/guest_view/browser/guest_view_manager.h"
 #include "components/guest_view/vivaldi_guest_view_constants.h"
 #include "components/paint_preview/buildflags/buildflags.h"
+#include "components/permissions/permission_request_manager.h"
 #include "components/security_state/content/content_utils.h"
 #include "components/security_state/core/security_state.h"
 #include "components/sessions/content/session_tab_helper.h"
@@ -802,11 +801,11 @@ bool WebViewGuest::IsTextfieldEditCommand(
     return true;
   }
 
-  //If there is  no modifier key, or just shift, then it is text input.
+  // If there is  no modifier key, or just shift, then it is text input.
   bool isTextInput = !(ui_event.IsControlDown() || ui_event.IsAltDown());
 #if BUILDFLAG(IS_MAC)
   isTextInput &= !ui_event.IsCommandDown();
-#endif // IS_MAC
+#endif  // IS_MAC
   return isTextInput;
 }
 
@@ -1383,7 +1382,7 @@ void WebViewGuest::RegisterProtocolHandler(
   DCHECK(handler.IsValid());
 
   VivaldiBrowserComponentWrapper::GetInstance()
-          ->AddRegistryHandlerPermissionRequest(requesting_frame, handler);
+      ->AddRegistryHandlerPermissionRequest(requesting_frame, handler);
 }
 
 bool WebViewGuest::IsVivaldiGuestView() {
@@ -1417,15 +1416,15 @@ void WebViewGuest::RequestNewWindowPermissionDirect(
     int guest_instance_id,
     base::DictValue request_info) {
   int request_id = next_permission_request_id_++;
-  pending_new_window_requests_[request_id] = base::BindOnce(
-      &WebViewGuest::OnWebViewNewWindowResponse,
-      weak_ptr_factory_.GetWeakPtr(), guest_instance_id);
+  pending_new_window_requests_[request_id] =
+      base::BindOnce(&WebViewGuest::OnWebViewNewWindowResponse,
+                     weak_ptr_factory_.GetWeakPtr(), guest_instance_id);
 
   base::DictValue args;
   args.Set(webview::kRequestInfo, std::move(request_info));
   args.Set(webview::kRequestId, request_id);
-  DispatchEventToView(std::make_unique<GuestViewEvent>(
-      webview::kEventNewWindow, std::move(args)));
+  DispatchEventToView(std::make_unique<GuestViewEvent>(webview::kEventNewWindow,
+                                                       std::move(args)));
 }
 
 std::optional<bool> WebViewGuest::VivaldiHandleNewWindowSetPermission(

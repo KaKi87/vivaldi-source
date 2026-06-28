@@ -3,11 +3,13 @@
 // found in the LICENSE file.
 
 #include "chrome/browser/chrome_browser_interface_binders_webui_parts.h"
+#include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
 //#include "chrome/browser/glic/host/glic_ui.h"
 //#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/common/buildflags.h"
 #include "chrome/common/chrome_features.h"
 #include "components/compose/buildflags.h"
+#include "components/contextual_tasks/public/features.h"
 #include "components/enterprise/buildflags/buildflags.h"
 #include "components/on_device_translation/buildflags/buildflags.h"
 #include "components/safe_browsing/buildflags.h"
@@ -28,30 +30,24 @@
 #include "chrome/common/compose/compose.mojom.h"
 #endif
 
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
+#if BUILDFLAG(ENABLE_DICE_SUPPORT) || BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ui/webui/signin/batch_upload/batch_upload.mojom.h"
 #include "chrome/browser/ui/webui/signin/batch_upload_ui.h"
+#endif
+
+#if BUILDFLAG(ENABLE_DICE_SUPPORT)
 #include "chrome/browser/ui/webui/signin/signout_confirmation/signout_confirmation.mojom.h"
 #include "chrome/browser/ui/webui/signin/signout_confirmation/signout_confirmation_ui.h"
-#include "components/sync/base/features.h"
-#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
+#endif
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/browser/ui/webui/extensions_zero_state_promo/zero_state_promo_ui.h"
 #endif
 
-#if !BUILDFLAG(IS_ANDROID)
-//#include "chrome/browser/glic/fre/glic_fre_ui.h"
-#endif
 #if !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "components/guest_view/browser/slim_web_view/slim_web_view.mojom.h"  // nogncheck
 #endif
 
-#if BUILDFLAG(ENABLE_WEBUI_TAB_STRIP)
-#include "chrome/browser/ui/webui/tab_strip/tab_strip.mojom.h"
-#include "chrome/browser/ui/webui/tab_strip/tab_strip_ui.h"
-#include "components/browser_apis/tab_strip/tab_strip_api.mojom.h"
-#endif
 
 #if BUILDFLAG(ENABLE_SESSION_SERVICE)
 #include "chrome/browser/ui/webui/tab_strip_internals/tab_strip_internals_ui.h"
@@ -79,10 +75,12 @@ void PopulateChromeWebUIFrameBindersPartsFeatures(
       CertificateManagerUI>(map);
 #endif  // BUILDFLAG(CHROME_ROOT_STORE_CERT_MANAGEMENT_UI)
 
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
+#if BUILDFLAG(ENABLE_DICE_SUPPORT) || BUILDFLAG(IS_CHROMEOS)
   RegisterWebUIControllerInterfaceBinder<
       batch_upload::mojom::PageHandlerFactory, BatchUploadUI>(map);
+#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT) || BUILDFLAG(IS_CHROMEOS)
 
+#if BUILDFLAG(ENABLE_DICE_SUPPORT)
   RegisterWebUIControllerInterfaceBinder<
       signout_confirmation::mojom::PageHandlerFactory, SignoutConfirmationUI>(
       map);
@@ -105,7 +103,7 @@ void PopulateChromeWebUIFrameBindersPartsFeatures(
     RegisterWebUIControllerInterfaceBinder<glic::mojom::FrePageHandlerFactory,
                                            glic::GlicUI>(map);
     // For GlicUI, the WebUI page will check whether Glic is policy-enabled and
-    // restrict access if needed. This isn't required for the GlicFreUI.
+    // restrict access if needed.
     RegisterWebUIControllerInterfaceBinder<glic::mojom::PageHandlerFactory,
                                            glic::GlicUI>(map);
     RegisterWebUIControllerInterfaceBinder<
@@ -118,17 +116,17 @@ void PopulateChromeWebUIFrameBindersPartsFeatures(
         glic::mojom::InternalsPageHandlerFactory, glic::GlicUI>(map);
   }
 #if !BUILDFLAG(ENABLE_EXTENSIONS_CORE)
-  RegisterWebUIControllerInterfaceBinder<guest_view::mojom::PageHandlerFactory,
-                                         glic::GlicUI>(map);
+  if (base::FeatureList::IsEnabled(contextual_tasks::kContextualTasks)) {
+    RegisterWebUIControllerInterfaceBinder<
+        guest_view::mojom::PageHandlerFactory, glic::GlicUI, ContextualTasksUI>(
+        map);
+  } else {
+    RegisterWebUIControllerInterfaceBinder<
+        guest_view::mojom::PageHandlerFactory, glic::GlicUI>(map);
+  }
 #endif
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
-#if BUILDFLAG(ENABLE_WEBUI_TAB_STRIP)
-  RegisterWebUIControllerInterfaceBinder<tab_strip::mojom::PageHandlerFactory,
-                                         TabStripUI>(map);
-  RegisterWebUIControllerInterfaceBinder<tabs_api::mojom::TabStripService,
-                                         TabStripUI>(map);
-#endif
 
 #if BUILDFLAG(ENABLE_SESSION_SERVICE)
   RegisterWebUIControllerInterfaceBinder<

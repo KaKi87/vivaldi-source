@@ -10,6 +10,7 @@
 
 #include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
+#include "base/strings/string_number_conversions.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry_id.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry_key.h"
@@ -18,6 +19,7 @@
 #include "chrome/browser/ui/side_panel/side_panel_registry.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui.h"
 #include "components/tabs/public/tab_interface.h"
+#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 
 class BrowserWindowInterface;
 class SidePanelEntry;
@@ -28,7 +30,7 @@ class SidePanelEntryWaiter;
 class SidePanelUIBase : public SidePanelUI {
  public:
   explicit SidePanelUIBase(BrowserWindowInterface* browser);
-  virtual ~SidePanelUIBase();
+  ~SidePanelUIBase() override;
 
   SidePanelUIBase(const SidePanelUIBase&) = delete;
   SidePanelUIBase& operator=(const SidePanelUIBase&) = delete;
@@ -42,6 +44,16 @@ class SidePanelUIBase : public SidePanelUI {
     std::optional<tabs::TabHandle> tab_handle;
     SidePanelEntry::Key key;
     friend bool operator==(const UniqueKey&, const UniqueKey&) = default;
+    friend std::ostream& operator<<(std::ostream& os,
+                                    const UniqueKey& unique_key) {
+      os << "UniqueKey{tab_handle: "
+         << (unique_key.tab_handle
+                 ? ("TabHandle@" +
+                    base::NumberToString(unique_key.tab_handle->raw_value()))
+                 : "null")
+         << ", key: " << unique_key.key.ToString() << "}";
+      return os;
+    }
   };
 
   // SidePanelUI:
@@ -53,17 +65,14 @@ class SidePanelUIBase : public SidePanelUI {
   void Show(SidePanelEntry::Key entry_key,
             std::optional<SidePanelOpenTrigger> open_trigger,
             bool suppress_animations) override;
-  std::optional<SidePanelEntry::Id> GetCurrentEntryId(
-      SidePanelEntry::PanelType panel_type) const override;
-  int GetCurrentEntryDefaultContentWidth(
-      SidePanelEntry::PanelType type) const override;
-  bool IsSidePanelShowing(SidePanelEntry::PanelType type) const override;
+  std::optional<SidePanelEntry::Id> GetCurrentEntryId() const override;
+  int GetCurrentEntryDefaultContentWidth() const override;
+  bool IsSidePanelShowing() const override;
   bool IsSidePanelEntryShowing(
       const SidePanelEntry::Key& entry_key) const override;
   bool IsSidePanelEntryShowing(const SidePanelEntry::Key& entry_key,
                                bool for_tab) const override;
   base::CallbackListSubscription RegisterSidePanelShown(
-      SidePanelEntry::PanelType type,
       SidePanelUI::ShownCallback callback) override;
   void OnActiveTabChanged(content::WebContents* old_contents,
                           content::WebContents* new_contents,
@@ -87,7 +96,7 @@ class SidePanelUIBase : public SidePanelUI {
     // The side-panel is showing if and only if current_key_ is set. That means
     // it must only be set in one place: PopulateSidePanel() and unset in one
     // place: OnViewVisibilityChanged()
-    std::optional<SidePanelUIBase::UniqueKey> current_key = std::nullopt;
+    std::optional<SidePanelUIBase::UniqueKey> current_key;
 
     // Inner class that waits for side panel entries to load.
     std::unique_ptr<SidePanelEntryWaiter> waiter;
@@ -125,19 +134,15 @@ class SidePanelUIBase : public SidePanelUI {
       SidePanelRegistry* old_contextual_registry,
       SidePanelRegistry* new_contextual_registry) = 0;
 
-  void SetOpenedTimestamp(SidePanelEntry::PanelType type,
-                          base::TimeTicks timestamp);
-  base::TimeTicks opened_timestamp(SidePanelEntry::PanelType type) {
-    return panel_data_.at(type)->opened_timestamp;
-  }
+  void SetOpenedTimestamp(base::TimeTicks timestamp);
+  base::TimeTicks opened_timestamp() { return panel_data_->opened_timestamp; }
 
-  void NotifyShownCallbacksFor(SidePanelEntry::PanelType type);
+  void NotifyShownCallbacks();
 
-  std::optional<UniqueKey> current_key(SidePanelEntry::PanelType type) const {
-    return panel_data_.at(type)->current_key;
+  std::optional<UniqueKey> current_key() const {
+    return panel_data_->current_key;
   }
-  void SetCurrentKey(SidePanelEntry::PanelType type,
-                     std::optional<UniqueKey> new_key);
+  void SetCurrentKey(std::optional<UniqueKey> new_key);
 
   std::optional<UniqueKey> GetUniqueKeyForKey(
       const SidePanelEntry::Key& entry_key) const;
@@ -154,14 +159,14 @@ class SidePanelUIBase : public SidePanelUI {
   // nullopt if no suitable entry is found. Called from
   // `OnTabStripModelChanged()` when there's an active entry being shown in the
   // side panel.
-  std::optional<UniqueKey> GetNewActiveKeyOnTabChanged(
-      SidePanelEntry::PanelType type);
+  std::optional<UniqueKey> GetNewActiveKeyOnTabChanged();
 
-  SidePanelEntryWaiter* waiter(SidePanelEntry::PanelType type) const;
+  SidePanelEntryWaiter* waiter() const;
 
  private:
   const raw_ptr<BrowserWindowInterface> browser_;
-  std::map<SidePanelEntry::PanelType, std::unique_ptr<PanelData>> panel_data_;
+  std::unique_ptr<PanelData> panel_data_;
+  ui::ScopedUnownedUserData<SidePanelUI> scoped_unowned_user_data_;
 };
 
 #endif  // CHROME_BROWSER_UI_SIDE_PANEL_SIDE_PANEL_UI_BASE_H_

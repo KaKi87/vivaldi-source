@@ -12,10 +12,10 @@ namespace features {
 bool HasTabSearchToolbarButton() {
   #ifdef VIVALDI_BUILD
   return false;
-  #else
+  #else // Vivaldi
   // It is important that this value not change at runtime in production. Any
   // future updates to this function must maintain that property.
-  return glic::GlicEnabling::IsEnabledByFlags();
-  #endif
+  return glic::GlicEnabling::IsEnabledByGlobalCriteria();
+  #endif // Vivaldi
 }
 }  // namespace features

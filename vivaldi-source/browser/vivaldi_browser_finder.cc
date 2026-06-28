@@ -3,9 +3,9 @@
 #include "browser/vivaldi_browser_finder.h"
 
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "components/guest_view/browser/guest_view_base.h"
 #include "extensions/buildflags/buildflags.h"
 #include "ui/content/vivaldi_tab_check.h"
@@ -79,7 +79,10 @@ Browser* FindBrowserWithNonTabContent(
 }
 
 Browser* FindBrowserByWindowId(int32_t window_id) {
-  return chrome::FindBrowserWithID(SessionID::FromSerializedValue(window_id));
+  BrowserWindowInterface* bwi =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithID(
+          SessionID::FromSerializedValue(window_id));
+  return bwi ? bwi->GetBrowserForMigrationOnly() : nullptr;
 }
 
 int GetBrowserCountOfType(Browser::Type type) {

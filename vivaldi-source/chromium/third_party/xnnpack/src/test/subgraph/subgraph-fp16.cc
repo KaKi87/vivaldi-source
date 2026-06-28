@@ -50,7 +50,6 @@ TEST(SUBGRAPH_FP16, fully_connected_f16_weights_and_biases) {
       .AddStaticTensorF16({4}, 2, biases.data())
       .AddOutputTensorF32({1, 2, 2, 4}, 3)
       .AddFullyConnected(0, 1, 2, 3, 0)
-      .Optimize()
       .RewriteForFp16();
 
   // After rewriting for FP16, the graph should look like this, with *
@@ -114,7 +113,6 @@ TEST(SUBGRAPH_FP16, fully_connected_f16_weights_f32_biases) {
       .AddStaticTensorF32({4}, 2, biases.data())
       .AddOutputTensorF32({1, 2, 2, 4}, 3)
       .AddFullyConnected(0, 1, 2, 3, 0)
-      .Optimize()
       .RewriteForFp16();
 
   // After rewriting for FP16, the graph should look like this, with *
@@ -177,7 +175,6 @@ TEST(SUBGRAPH_FP16, fully_connected_f16_weights_no_biases) {
       .AddStaticTensorF16({3, 4}, 1, weights.data())
       .AddOutputTensorF32({1, 2, 2, 4}, 2)
       .AddFullyConnected(0, 1, XNN_INVALID_VALUE_ID, 2, 0)
-      .Optimize()
       .RewriteForFp16();
 
   // After rewriting for FP16, the graph should look like this, with *
@@ -681,7 +678,7 @@ TEST(SUBGRAPH_FP16, fully_connected_qd8_f16_qc8w) {
 
   for (int i = 0; i < output.size(); ++i) {
     const float tolerance =
-        std::max(std::abs(reference_output[i]) * 5e-2, 5e-2);
+        std::max(std::abs(reference_output[i]) * 1.5e-1, 1.5e-1);
     ASSERT_NEAR(output[i], reference_output[i], tolerance);
   }
 }

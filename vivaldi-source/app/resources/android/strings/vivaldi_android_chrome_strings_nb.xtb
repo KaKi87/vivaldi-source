@@ -1,22 +1,35 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="no">
+<translation id="1062777154504442433">Ny fanestabel</translation>
 <translation id="1204037785786432551">Last ned lenken</translation>
 <translation id="1206892813135768548">Kopier lenketeksten</translation>
+<translation id="1223158186497001208">Delt fanestabel <ph name="GROUP_TITLE" /> med ny aktivitet</translation>
+<translation id="1328749518742029305"><ph name="TAB_GROUP_TITLE" /> fanestabel lukket og lagret</translation>
 <translation id="1397811292916898096">Søk med <ph name="PRODUCT_NAME" /></translation>
 <translation id="1435593198351412143">Åpne PDF-filer automatisk</translation>
 <translation id="1456207338570705181">Trykk for søk er en funksjon som bare er tilgjengelig når Google er satt som standard søkemotor i Vivaldi. Den sender et ord og omkringliggende kontekst til Google Søk. Du kan skru det av i <ph name="BEGIN_LINK" />innstillingene<ph name="END_LINK" />.</translation>
 <translation id="1598449788754183301">Veksle mellom normale/private faner</translation>
+<translation id="1626105448931436644">Lær om delte fanestabler</translation>
 <translation id="1644574205037202324">Historikk</translation>
 <translation id="1829244130665387512">Søk i siden</translation>
-<translation id="1910514478706885609">Åpne i ny fanestabel</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+          =1 {Se <ph name="TABS_COUNT_ONE" /> fane med ny aktivitet i delte fanestabler}
+          other {Se <ph name="TABS_COUNT_MANY" /> faner med ny aktivitet i delte fanestabler}
+        }</translation>
 <translation id="1925021887439448749">Skriv inn en egendefinert nettadresse</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+          =1 {Bli med i fanestabel med <ph name="OWNER_FIRST_NAME" /> og <ph name="NUMBER_OF_OTHER_MEMBERS" /> annen}
+          other {Bli med i fanestabel med <ph name="OWNER_FIRST_NAME" /> og <ph name="NUMBER_OF_OTHER_MEMBERS" /> andre}
+        }</translation>
 <translation id="2038563949887743358">Slå på Bruk skrivebordsversjon</translation>
+<translation id="2067565353468675023">Bli med i fanestabel med <ph name="OWNER_FIRST_NAME" /></translation>
 <translation id="208033313373016095">Lesemodus for nettsider</translation>
 <translation id="2149973817440762519">Rediger bokmerke</translation>
 <translation id="2306442503286132111">Bokmerke lagret i mappen <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Utseende</translation>
-<translation id="2501278716633472235">Gå tilbake</translation>
+<translation id="2495373685671077949">Søk i faner og stabler</translation>
+<translation id="2500281581698062897">Du vil umiddelbart miste tilgangen til fanestabelen “<ph name="GROUP_NAME" />”, og <ph name="BLOCKED_MEMBER_FULL_NAME" /> (<ph name="BLOCKED_MEMBER_EMAIL" />) vil ikke lenger være i stand til å samhandle med deg på tvers av Googles tjenester.</translation>
 <translation id="2546283357679194313">Infokapsler og nettstedsdata</translation>
 <translation id="2633278372998075009">Privatfaner</translation>
 <translation id="2650751991977523696">Vil du laste ned filen på nytt?</translation>
@@ -26,6 +39,7 @@
 <translation id="2871733351037274014">Forhåndslasting av sider</translation>
 <translation id="2904300462646366554">Nedlastede PDF-filer åpnes automatisk med en av PDF-leserne på enheten din</translation>
 <translation id="2951071800649516099">Legg til sider på leselisten til senere</translation>
+<translation id="3020023775880428664">Flytt fane til stabel</translation>
 <translation id="3029276696788198026">Ingen forhåndslasting</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> bokmerke}
@@ -35,7 +49,13 @@
 <translation id="3232293466644486101">Slett nettlesingsdata …</translation>
 <translation id="3234355010754616171">Ny privat fane</translation>
 <translation id="3237087289225714896">Standard forhåndslasting:</translation>
+<translation id="3298614730029636660">Forlat stabel</translation>
+<translation id="3359462099791810823">Behold denne stabelen for å legge til faner senere, eller slett den hvis du ikke lenger trenger den.</translation>
 <translation id="3478414204555961127">Lesemodus</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+          =1 {Gjenopprett fanestabel med <ph name="TAB_COUNT_ONE" /> fane, farge <ph name="COLOR_NAME" />, som en ny bakgrunnsfanestabel.}
+          other {Gjenopprett fanestabel med <ph name="TAB_COUNT_MANY" /> faner, farge <ph name="COLOR_NAME" />, som en ny bakgrunnsfanestabel.}
+        }</translation>
 <translation id="3504699618187058974">Stable faner</translation>
 <translation id="3518985090088779359">Godta og fortsett</translation>
 <translation id="3571177741182643350">Uleste artikler - tilgjengelig offline:</translation>
@@ -43,9 +63,11 @@
 <translation id="3700829948786686853">Velkommen til Vivaldi</translation>
 <translation id="3719826155360621982">Hjemmeside</translation>
 <translation id="3738139272394829648">Trykk for å søke</translation>
-<translation id="385051799172605136">Tilbake</translation>
+<translation id="3900825170941000696">Gjenopprett fanestabelen <ph name="TITLE_OF_GROUP" />, farge <ph name="COLOR_NAME" />, som en ny bakgrunnsfanestabel.</translation>
+<translation id="395421286877117532">Tilpass fanestabler og trykk på ferdig</translation>
 <translation id="3987993985790029246">Kopiér link</translation>
 <translation id="399014816462153200">Leste artikler:</translation>
+<translation id="4048089913902125176">Åpne fanestabelen <ph name="TITLE_OF_GROUP" />, farge <ph name="COLOR_NAME" />, med sidene <ph name="URL_LIST" />.</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> fane}
           other {<ph name="TAB_COUNT_MANY" /> faner, <ph name="TAB_COUNT_INCOGNITO" /> private}}</translation>
@@ -54,25 +76,41 @@
 <translation id="4137746084635924146">Nåværende enhetsspråk</translation>
 <translation id="4167670741834902166">Ny privatfane</translation>
 <translation id="4195643157523330669">Åpne i ny fane</translation>
+<translation id="4219031106525503429">Del fanestabelen “<ph name="GROUP_NAME" />”</translation>
 <translation id="4225895483398857530">Verktøylinje-snarvei</translation>
 <translation id="4243710787042215766">Åpne i privat fane</translation>
 <translation id="4269820728363426813">Kopier lenkeadressen</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Slå på skjermlås i Android-innstillingene<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Passordhåndtering</translation>
-<translation id="441100617989818073">Ubrukte eller dupliserte faner og grupper</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {<ph name="TABS_COUNT_ONE" /> standardfane med ny aktivitet i delte fanestabler}
+          other {<ph name="TABS_COUNT_MANY" /> standardfaner med ny aktivitet i delte fanestabler}
+        }</translation>
+<translation id="4445802392779002787">Legg til fane i stabel</translation>
 <translation id="451872707440238414">Søk i bokmerkene dine</translation>
 <translation id="4526803704855831732">Privatfaner</translation>
 <translation id="4532845899244822526">Velg en mappe</translation>
+<translation id="454284936014822050"><ph name="GROUP_TITLE" /> fanestabel</translation>
+<translation id="4614713783237504866">Ubrukte eller dupliserte faner og stabler</translation>
+<translation id="463284870544181537">Behold denne stabelen for å legge til faner senere, eller forlat stabelen hvis du ikke lenger vil ha tilgang til den</translation>
+<translation id="4638726726741656531">Nå kan du enkelt legge til faner i stabler her</translation>
 <translation id="4699172675775169585">Bufrede bilder og filer</translation>
 <translation id="4719086422742491124">Lær om temaer på nettsteder uten å forlate siden. Velg et eller flere søkeord på siden for å søke.
 
 Trykk for søk er en funksjon som bare er tilgjengelig når Google er satt som standard søkemotor i Vivaldi.</translation>
 <translation id="4759238208242260848">Nedlastinger</translation>
-<translation id="4777866634702576038">Slette fanegruppe?</translation>
+<translation id="4771820744342013314">Slette fanestabel?</translation>
 <translation id="4850886885716139402">Vis</translation>
 <translation id="4883379392681899581">Gå ut av privat modus</translation>
+<translation id="4883812026489706387">Fanestabelen “<ph name="TAB_GROUP_TITLE" />” har ny aktivitet</translation>
+<translation id="4887248255051238988">Forlate fanestabel?</translation>
 <translation id="4943872375798546930">Ingen resultater</translation>
 <translation id="49576331685473090">Innholdsblokkering</translation>
+<translation id="4964059453543967592">Åpne lukket stabel på nytt</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" /> fanestabel}
+          other {<ph name="TAB_GROUPS_MANY" /> fanestabler}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> privatfane}
           other {<ph name="TAB_COUNT_NORMAL" /> privatfaner}}</translation>
@@ -83,19 +121,26 @@ Trykk for søk er en funksjon som bare er tilgjengelig når Google er satt som s
 <translation id="5206168361184759344">{FILE_COUNT,plural,
             =1 {Laster ned filen …}
             other {Laster ned # filer …}}</translation>
+<translation id="5210689723585747462"><ph name="TAB_GROUP_TITLE" /> fanestabel lukket</translation>
 <translation id="5233638681132016545">Ny fane</translation>
 <translation id="5375131951310889874">Lær om temaer på nettsteder uten å forlate siden. Trykk for søk er en funksjon som bare er tilgjengelig når Google er satt som standard søkemotor i Vivaldi. Den sender et ord og omkringliggende kontekst til Google Søk, og returnerer definisjoner, bilder, søkeresultater og andre detaljer.
 
 For å justere søkeordet, trykk lenge for å velge. For å finjustere søket, dra panelet helt opp og trykk på søkeboksen.</translation>
+<translation id="5570837353202786816">Alle vil umiddelbart miste tilgangen til fanestabelen “<ph name="GROUP_NAME" />”, og alle invitasjonslenker vil bli slått av</translation>
+<translation id="5614794348925178470">Delt fanestabel <ph name="GROUP_TITLE" /></translation>
 <translation id="572328651809341494">Nylige faner</translation>
 <translation id="5833984609253377421">Del en lenke</translation>
+<translation id="6129507335719227488">Faner i stabel</translation>
 <translation id="6150320133806434356">Bokmerke lagret</translation>
 <translation id="6193448654517602979">Velg faner</translation>
+<translation id="6221225660285238685">Flytt stabel til et annet vindu</translation>
+<translation id="6277377952699614191">Fanestabel</translation>
 <translation id="6336451774241870485">Ny privat fane</translation>
 <translation id="6337323516034698937">For å sende denne fanen til en annen enhet, logg inn på Vivaldi Sync på begge enhetene. Sørg for å angi krypteringspassordet om nødvendig.</translation>
 <translation id="6341580099087024258">Spør hvor filer skal lagres</translation>
 <translation id="6364438453358674297">Fjerne forslaget fra historikken?</translation>
 <translation id="6404511346730675251">Rediger bokmerke</translation>
+<translation id="6453011654157908292">Fanestabeldetaljer</translation>
 <translation id="650224091954855786">{FILE_COUNT,plural,
           =1 {Filen er lastet ned}
           other {# nedlastinger er fullført}}</translation>
@@ -104,11 +149,13 @@ For å justere søkeordet, trykk lenge for å velge. For å finjustere søket, d
 <translation id="6593061639179217415">Skrivebordsversjon</translation>
 <translation id="6610147964972079463">Lukk privatfaner</translation>
 <translation id="6627583120233659107">Rediger mappen</translation>
+<translation id="6785740335511995065">Beholde fanestabel?</translation>
 <translation id="6865313869410766144">Skjemadata lagret med autofyll</translation>
 <translation id="6909589135458168665">Forhåndslasting av sider</translation>
 <translation id="7029995644714925509">Når et nettsted ber om å privat forhåndslaste lenker på siden, krypterer og forhåndsinnlaster Vivaldi sider via Googles servere uten infokapsler. Dette skjuler din identitet fra det forhåndsinnlastede nettstedet.</translation>
 <translation id="706339621163631076">Personvern for nettleser</translation>
 <translation id="7100573672995171864">Tilpass og kontroller Vivaldi</translation>
+<translation id="7133879160432070247">Blokkere og forlate stabel?</translation>
 <translation id="732145680195464316">Bokmerke lagret i <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Send en «Do Not Track»-forespørsel</translation>
 <translation id="7359002509206457351">Gå til betalingsmåter</translation>
@@ -117,24 +164,33 @@ For å justere søkeordet, trykk lenge for å velge. For å finjustere søket, d
 <translation id="7456774706094330779">Utvidet forhåndslasting</translation>
 <translation id="7465104139234185284">Lukk alle private faner</translation>
 <translation id="7481312909269577407">Frem</translation>
+<translation id="759273611317559136"><ph name="TAB_GROUP_TITLE" /> fanestabel slettet</translation>
+<translation id="7630413501995820846">Behold stabel</translation>
+<translation id="7640137753339219124">Slett stabel</translation>
 <translation id="7764225426217299476">Legg til adresse</translation>
+<translation id="7910753230807645596">Dupliserte faner og stabler eller de som ikke har vært i bruk på <ph name="DAYS_INACTIVE" /> dager blir flyttet hit <ph name="AUTODELETE_SECTION" />. Du kan endre dette når som helst i <ph name="DECLUTTER_SETTINGS_TITLE" />.</translation>
 <translation id="7968014550143838305">Lagt til på leselisten</translation>
 <translation id="804786196054284061">Lisensavtale for sluttbruker (EULA)</translation>
 <translation id="8062594758852531064">Utvidet forhåndslasting:</translation>
 <translation id="8073388330009372546">Åpne bildet i en ny fane</translation>
 <translation id="8127542551745560481">Rediger startsiden</translation>
+<translation id="8149776854955817519">Se gjennom dine inaktive faner og stabler her</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
           =1 {(1) inaktivt element}
           other {(#) inaktive elementer}}</translation>
 <translation id="8266862848225348053">Nedlastingssted</translation>
 <translation id="8348430946834215779">Bruk HTTPS når det er mulig, og bli advart før innlasting av nettsteder som ikke støtter dette</translation>
+<translation id="8480628728881718381">Åpne i ny fane i stabel</translation>
+<translation id="8543049482641423692">Legg til fane i ny stabel</translation>
 <translation id="8560602726703398413">Finn leselisten din i Bokmerker</translation>
 <translation id="85991616550051997">Gå til hjemmesiden</translation>
+<translation id="8680308397617585416">Du vil umiddelbart miste tilgangen til fanestabelen “<ph name="GROUP_NAME" />”, og den vil bli slettet fra alle enhetene dine</translation>
 <translation id="8738163682604285902">Vis i lesemodus?</translation>
 <translation id="8820817407110198400">Bokmerker</translation>
 <translation id="9042893549633094279">Personvern og sikkerhet</translation>
 <translation id="9063523880881406963">Slå av Bruk skrivebordsversjon</translation>
 <translation id="9080642952018487277">Gå inn i privat modus</translation>
+<translation id="9099398755190923267">Alle vil umiddelbart miste tilgang til fanestabelen “<ph name="GROUP_NAME" />”, og den vil bli slettet fra alle enheter</translation>
 <translation id="930124987204876019">Slett logg, informasjonskapsler, nettstedsdata, buffer …</translation>
 <translation id="961856697154696964">Slett nettlesingsdata</translation>
 </translationbundle>

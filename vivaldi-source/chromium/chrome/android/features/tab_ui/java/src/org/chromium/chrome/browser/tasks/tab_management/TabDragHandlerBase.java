@@ -17,8 +17,8 @@ import org.chromium.base.Log;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.Token;
 import org.chromium.base.lifetime.Destroyable;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.supplier.NonNullObservableSupplier;
-import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
@@ -38,7 +38,7 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabDragStateData;
 import org.chromium.chrome.browser.tabmodel.TabGroupMetadata;
 import org.chromium.chrome.browser.tabmodel.TabGroupMetadataExtractor;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
+import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
 import org.chromium.ui.base.MimeTypeUtils;
@@ -64,8 +64,7 @@ public abstract class TabDragHandlerBase
     protected final MultiInstanceOrchestrator mMultiInstanceOrchestrator;
     protected final DragAndDropDelegate mDragAndDropDelegate;
     private @Nullable TabModelSelector mTabModelSelector;
-    private @Nullable NullableObservableSupplier<TabGroupModelFilter>
-            mCurrentTabGroupModelFilterSupplier;
+    private @Nullable MonotonicObservableSupplier<TabModel> mCurrentTabModelSupplier;
     private @Nullable View mDragSourceView;
     private final SettableNonNullObservableSupplier<Boolean> mDragInProgressSupplier =
             ObservableSuppliers.createNonNull(false);
@@ -92,8 +91,7 @@ public abstract class TabDragHandlerBase
     /** Sets @{@link TabModelSelector} to retrieve model info. */
     public void setTabModelSelector(TabModelSelector tabModelSelector) {
         mTabModelSelector = tabModelSelector;
-        mCurrentTabGroupModelFilterSupplier =
-                mTabModelSelector.getCurrentTabGroupModelFilterSupplier();
+        mCurrentTabModelSupplier = mTabModelSelector.getCurrentTabModelSupplier();
     }
 
     /** Whether a view drag and drop has started. */
@@ -117,16 +115,13 @@ public abstract class TabDragHandlerBase
         return mTabModelSelector;
     }
 
-    protected NullableObservableSupplier<TabGroupModelFilter>
-            getCurrentTabGroupModelFilterSupplier() {
-        assert mCurrentTabGroupModelFilterSupplier != null;
-        return mCurrentTabGroupModelFilterSupplier;
+    protected MonotonicObservableSupplier<TabModel> getCurrentTabModelSupplier() {
+        assert mCurrentTabModelSupplier != null;
+        return mCurrentTabModelSupplier;
     }
 
-    protected TabGroupModelFilter getCurrentTabGroupModelFilter() {
-        @Nullable TabGroupModelFilter filter = getCurrentTabGroupModelFilterSupplier().get();
-        assert filter != null;
-        return filter;
+    protected TabModel getCurrentModel() {
+        return getTabModelSelector().getCurrentModel();
     }
 
     protected boolean canStartTabDrag() {
@@ -185,7 +180,7 @@ public abstract class TabDragHandlerBase
         // Block drag for last tab group when homepage enabled and is set to a custom url.
         if (MultiWindowUtils.getInstance()
                 .hasAtMostOneTabGroupWithHomepageEnabled(
-                        getTabModelSelector(), getCurrentTabGroupModelFilter())) {
+                        getTabModelSelector(), getCurrentModel())) {
             return false;
         }
 
@@ -193,7 +188,7 @@ public abstract class TabDragHandlerBase
     }
 
     private boolean shouldAllowGroupDragToCreateInstance(Token groupId) {
-        int groupSize = getCurrentTabGroupModelFilter().getTabCountForGroup(groupId);
+        int groupSize = getCurrentModel().getTabCountForGroup(groupId);
         return getTabModelSelector().getTotalTabCount() > groupSize;
     }
 
@@ -254,7 +249,7 @@ public abstract class TabDragHandlerBase
     }
 
     protected ChromeDropDataAndroid prepareTabDropData(Tab tab) {
-        boolean isTabInGroup = getCurrentTabGroupModelFilter().isTabInTabGroup(tab);
+        boolean isTabInGroup = getCurrentModel().isTabInTabGroup(tab);
         int windowId = TabWindowManagerSingleton.getInstance().getIdForWindow(getActivity());
         boolean allowDragToCreateInstance =
                 shouldAllowTabDragToCreateInstance()
@@ -288,12 +283,12 @@ public abstract class TabDragHandlerBase
     }
 
     protected ChromeDropDataAndroid prepareGroupDropData(Token tabGroupId, boolean isGroupShared) {
-        TabGroupModelFilter filter = getCurrentTabGroupModelFilter();
-        List<Tab> groupedTabs = filter.getTabsInGroup(tabGroupId);
+        TabModel tabModel = getCurrentModel();
+        List<Tab> groupedTabs = tabModel.getTabsInGroup(tabGroupId);
         int windowId = TabWindowManagerSingleton.getInstance().getIdForWindow(getActivity());
         TabGroupMetadata metadata =
                 TabGroupMetadataExtractor.extractTabGroupMetadata(
-                        filter,
+                        tabModel,
                         groupedTabs,
                         windowId,
                         getTabModelSelector().getCurrentTabId(),

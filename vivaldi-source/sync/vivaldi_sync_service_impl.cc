@@ -5,8 +5,11 @@
 #include <utility>
 
 #include "app/vivaldi_apptools.h"
+#include "base/base64.h"
 #include "base/version.h"
+#include "components/os_crypt/async/browser/os_crypt_async.h"
 #include "components/prefs/pref_service.h"
+#include "components/sync/base/custom_passphrase_bootstrap_token.h"
 #include "components/sync/base/sync_util.h"
 #include "components/sync/engine/net/url_translator.h"
 #include "components/sync/protocol/sync.pb.h"
@@ -81,6 +84,10 @@ VivaldiSyncServiceImpl::VivaldiSyncServiceImpl(
     auth_manager_ = std::make_unique<VivaldiSyncAuthManager>(
         identity_manager_, this, account_manager);
   }
+
+  os_crypt_async_->GetInstance(
+      base::BindOnce(&VivaldiSyncServiceImpl::ReceiveEncryptorInstance,
+                     weak_factory_.GetWeakPtr()));
 
   // Self-destructs when sync shuts down.
   new TryAccountPasswordForDecryption(this, account_manager);
@@ -195,14 +202,36 @@ void VivaldiSyncServiceImpl::OnClearDataComplete(
   NotifyObservers();
 }
 
-std::string VivaldiSyncServiceImpl::GetEncryptionBootstrapTokenForBackup() {
-  return GetEncryptionBootstrapToken();
+std::optional<std::string>
+VivaldiSyncServiceImpl::GetEncryptionBootstrapTokenForBackup() const {
+  std::string decoded;
+  if (!base::Base64Decode(
+          GetEncryptionBootstrapToken(*encryptor_).ToEncryptedPref(*encryptor_),
+          &decoded)) {
+    return std::nullopt;
+  }
+  std::string result;
+  if (!encryptor_->DecryptString(decoded, &result)) {
+    return std::nullopt;
+  }
+  return base::Base64Encode(result);
 }
 
-void VivaldiSyncServiceImpl::ResetEncryptionBootstrapTokenFromBackup(
+bool VivaldiSyncServiceImpl::ResetEncryptionBootstrapTokenFromBackup(
     const std::string& token) {
   StopAndClear(ResetEngineReason::kCredentialsChanged);
-  SetEncryptionBootstrapToken(token);
-  // SetSyncFeatureRequested();
+  std::string decoded;
+  if (!base::Base64Decode(token, &decoded)) {
+    return false;
+  }
+  std::string encrypted;
+  if (encryptor_->EncryptString(decoded, &encrypted)) {
+    return false;
+  }
+  SetEncryptionBootstrapToken(
+      syncer::CustomPassphraseBootstrapToken::FromEncryptedPref(encrypted,
+                                                                *encryptor_),
+      *encryptor_);
+  return true;
 }
 }  // namespace vivaldi

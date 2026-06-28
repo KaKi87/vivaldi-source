@@ -23,6 +23,7 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Batch;
+import org.chromium.base.test.util.DisableLeakChecks;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -42,9 +43,6 @@ import java.util.List;
 @Batch(Batch.PER_CLASS)
 @EnableFeatures({
     ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA,
-    ChromeFeatureList.AUTOFILL_ENABLE_CARD_BENEFITS_FOR_AMERICAN_EXPRESS,
-    ChromeFeatureList.AUTOFILL_ENABLE_CARD_BENEFITS_FOR_BMO,
-    ChromeFeatureList.AUTOFILL_ENABLE_FLAT_RATE_CARD_BENEFITS_FROM_CURINOS,
     ChromeFeatureList.AUTOFILL_ENABLE_NEW_CARD_BENEFITS_TOGGLE_TEXT,
     ChromeFeatureList.AUTOFILL_ENABLE_SEPARATE_PIX_PREFERENCE_ITEM,
     ChromeFeatureList.FACILITATED_PAYMENTS_ENABLE_A2A_PAYMENT,
@@ -52,6 +50,7 @@ import java.util.List;
     ChromeFeatureList.DETAILED_LANGUAGE_SETTINGS,
     ChromeFeatureList.PLUS_ADDRESSES_ENABLED
 })
+@DisableLeakChecks("crbug.com/512492984 (SearchIndexProviderRegistryTest)")
 public class SearchIndexProviderRegistryTest {
 
     @ClassRule

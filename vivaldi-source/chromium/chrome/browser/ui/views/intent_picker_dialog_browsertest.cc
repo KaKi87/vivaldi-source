@@ -71,7 +71,7 @@ class IntentPickerDialogTest : public DialogBrowserTest {
 };
 
 #if BUILDFLAG(IS_MAC)
-// Flaky on Mac. See https://crbug.com/1330302.
+// Flaky on Mac. See https://crbug.com/40227125.
 #define MAYBE_InvokeUi_default DISABLED_InvokeUi_default
 #else
 #define MAYBE_InvokeUi_default InvokeUi_default
@@ -134,8 +134,7 @@ INSTANTIATE_TEST_SUITE_P(
     IntentPickerDialogGridViewTest,
     testing::Combine(
 #if BUILDFLAG(IS_CHROMEOS)
-        testing::Values(apps::test::LinkCapturingFeatureVersion::kV1DefaultOff,
-                        apps::test::LinkCapturingFeatureVersion::kV2DefaultOff),
+        testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff),
 #else
         testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
                         apps::test::LinkCapturingFeatureVersion::kV2DefaultOn),

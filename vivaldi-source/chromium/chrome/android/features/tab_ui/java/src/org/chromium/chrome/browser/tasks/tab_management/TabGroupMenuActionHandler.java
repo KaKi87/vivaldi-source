@@ -15,21 +15,17 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
+import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 
 import java.util.List;
 
-// Vivaldi
-import org.chromium.chrome.browser.ChromeApplicationImpl;
-import org.chromium.chrome.browser.tabmodel.TabGroupUtils;
-
 /** Handles the actions for the tab group related menu items in the app menu. */
 @NullMarked
 public class TabGroupMenuActionHandler {
     private final Context mContext;
-    private final TabGroupModelFilter mFilter;
+    private final TabModel mTabModel;
     private final BottomSheetController mBottomSheetController;
     private final ModalDialogManager mModalDialogManager;
     private final Profile mProfile;
@@ -40,20 +36,20 @@ public class TabGroupMenuActionHandler {
 
     /**
      * @param context The context for the app menu.
-     * @param filter Used to interact with tab groups.
+     * @param tabModel Used to interact with tab groups.
      * @param bottomSheetController For interacting with the bottom sheet.
      * @param modalDialogManager For showing the tab group creation dialog.
      * @param profile The current profile.
      */
     public TabGroupMenuActionHandler(
             Context context,
-            TabGroupModelFilter filter,
+            TabModel tabModel,
             BottomSheetController bottomSheetController,
             ModalDialogManager modalDialogManager,
             Profile profile) {
         this(
                 context,
-                filter,
+                tabModel,
                 bottomSheetController,
                 modalDialogManager,
                 profile,
@@ -63,13 +59,13 @@ public class TabGroupMenuActionHandler {
     @VisibleForTesting
     TabGroupMenuActionHandler(
             Context context,
-            TabGroupModelFilter filter,
+            TabModel tabModel,
             BottomSheetController bottomSheetController,
             ModalDialogManager modalDialogManager,
             Profile profile,
             TabGroupListBottomSheetCoordinatorFactory factory) {
         mContext = context;
-        mFilter = filter;
+        mTabModel = tabModel;
         mBottomSheetController = bottomSheetController;
         mModalDialogManager = modalDialogManager;
         mProfile = profile;
@@ -87,8 +83,8 @@ public class TabGroupMenuActionHandler {
      * @param tab The tab to be added to a group.
      */
     public void handleAddToGroupAction(Tab tab) {
-        if (mFilter.getTabGroupCount() == 0) {
-            mFilter.createSingleTabGroup(tab);
+        if (mTabModel.getTabGroupCount() == 0) {
+            mTabModel.createSingleTabGroup(tab);
             @Nullable Token groupId = tab.getTabGroupId();
             if (groupId != null) {
                 onTabGroupCreation(groupId);
@@ -100,7 +96,7 @@ public class TabGroupMenuActionHandler {
                             mProfile,
                             this::onTabGroupCreation,
                             /* tabMovedCallback= */ null,
-                            mFilter,
+                            mTabModel,
                             mBottomSheetController,
                             true,
                             true);
@@ -116,6 +112,6 @@ public class TabGroupMenuActionHandler {
     private void onTabGroupCreation(Token tabGroupId) {
         TabGroupCreationDialogManager manager =
                 new TabGroupCreationDialogManager(mContext, mModalDialogManager, null);
-        manager.showDialog(tabGroupId, mFilter);
+        manager.showDialog(tabGroupId, mTabModel);
     }
 }

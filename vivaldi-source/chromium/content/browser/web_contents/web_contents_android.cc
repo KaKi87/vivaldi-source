@@ -779,8 +779,10 @@ void WebContentsAndroid::SetOverscrollRefreshHandler(
   WebContentsViewAndroid* view =
       static_cast<WebContentsViewAndroid*>(web_contents_->GetView());
   view->SetOverscrollRefreshHandler(
-      std::make_unique<ui::OverscrollRefreshHandler>(
-          overscroll_refresh_handler));
+      overscroll_refresh_handler.is_null()
+          ? nullptr
+          : std::make_unique<ui::OverscrollRefreshHandler>(
+                overscroll_refresh_handler));
 }
 
 void WebContentsAndroid::SetSpatialNavigationDisabled(JNIEnv* env,
@@ -837,6 +839,10 @@ void WebContentsAndroid::SetSize(JNIEnv* env, int32_t width, int32_t height) {
 
 int WebContentsAndroid::GetWidth(JNIEnv* env) {
   return web_contents_->GetNativeView()->GetSizeDIPs().width();
+}
+
+bool WebContentsAndroid::IsBeingCaptured(JNIEnv* env) {
+  return web_contents_->IsBeingCaptured();
 }
 
 int WebContentsAndroid::GetHeight(JNIEnv* env) {

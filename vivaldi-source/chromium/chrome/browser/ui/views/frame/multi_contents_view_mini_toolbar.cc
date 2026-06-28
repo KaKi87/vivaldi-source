@@ -35,6 +35,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/color/color_provider.h"
 #include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/insets.h"
@@ -49,6 +50,7 @@
 #include "ui/views/layout/flex_layout.h"
 #include "ui/views/view.h"
 #include "ui/views/view_utils.h"
+#include "url/url_constants.h"
 
 namespace {
 constexpr int kMiniToolbarContentPadding = 4;
@@ -114,7 +116,9 @@ MultiContentsViewMiniToolbar::MultiContentsViewMiniToolbar(
   close_button_ = AddChildView(views::CreateVectorImageButtonWithNativeTheme(
       base::BindRepeating(&MultiContentsViewMiniToolbar::CloseCurrentView,
                           base::Unretained(this)),
-      kCloseTabChromeRefreshIcon, 16,
+      features::IsRoundedIconsEnabled() ? kCloseWeight500Icon
+                                        : kCloseTabChromeRefreshOldIcon,
+      features::IsRoundedIconsEnabled() ? 14 : 16,
       kColorMultiContentsViewMiniToolbarForeground));
   SetAccessibleNameAndTooltip(close_button_, IDS_SPLIT_TAB_CLOSE);
   close_button_->SetProperty(
@@ -190,6 +194,8 @@ void MultiContentsViewMiniToolbar::UpdateContents() {
     domain = l10n_util::GetStringUTF16(IDS_HOVER_CARD_BLOB_URL_SOURCE);
   } else if (domain_url.SchemeIs(url::kViewSourceScheme)) {
     domain = l10n_util::GetStringUTF16(IDS_HOVER_CARD_VIEW_SOURCE_URL_SOURCE);
+  } else if (domain_url.IsAboutBlank()) {
+    domain = url::kAboutBlankURL16;
   } else if (tab_ui_helper->ShouldDisplayURL()) {
     domain = url_formatter::FormatUrl(
         domain_url,

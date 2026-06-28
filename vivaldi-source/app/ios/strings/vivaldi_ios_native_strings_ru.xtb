@@ -354,6 +354,7 @@
 <translation id="495421405224926623">Я прочитал и согласен с Условиями использования и Политикой приватности</translation>
 <translation id="497942794017668482">Блокировано слежки и рекламы</translation>
 <translation id="4983968022327077496">Ваша организация требует соблюдать приватность. Вкладки не сохраняются в приватном режиме. <ph name="BEGIN_LINK" />Подробнее<ph name="END_LINK" /></translation>
+<translation id="4991261712398289852">Двухуровневая</translation>
 <translation id="4993477362660748586">Синхронизация</translation>
 <translation id="500392125908657603">Опции поля адреса</translation>
 <translation id="5037761343305489956">Скопировано в заметки</translation>
@@ -700,7 +701,6 @@
 <translation id="9157459516617966251">Изменить ссылку</translation>
 <translation id="9157539936604258187">Открыть ссылку</translation>
 <translation id="9165758833825521812">Режим чтения</translation>
-<translation id="9171713938468458286">Двухуровневый</translation>
 <translation id="9195659219948942754">Используйте синхронизацию в учётной записи Vivaldi</translation>
 <translation id="9195802773917252923">Включить имена закладок</translation>
 <translation id="9212737146310746733">Персидский (<ph name="ORIGIN" />)</translation>

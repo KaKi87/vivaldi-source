@@ -113,12 +113,33 @@ SharedImageRepresentation::~SharedImageRepresentation() {
   }
 }
 
+void SharedImageRepresentation::OnContextLost() {
+  has_context_ = false;
+  backing_->OnContextLost();
+}
+
 size_t SharedImageRepresentation::NumPlanesExpected() const {
   if (format().PrefersExternalSampler()) {
     return 1;
   }
 
   return static_cast<size_t>(format().NumberOfPlanes());
+}
+
+bool SharedImageRepresentation::IsCleared() const {
+  return ClearedRect() == gfx::Rect(size());
+}
+
+void SharedImageRepresentation::SetCleared() {
+  SetClearedRect(gfx::Rect(size()));
+}
+
+gfx::Rect SharedImageRepresentation::ClearedRect() const {
+  return backing_->ClearedRect();
+}
+
+void SharedImageRepresentation::SetClearedRect(const gfx::Rect& cleared_rect) {
+  backing_->SetClearedRect(cleared_rect);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -165,7 +186,7 @@ bool GLTextureImageRepresentationBase::SupportsMultipleConcurrentReadAccess() {
 // GLTextureImageRepresentation
 
 gpu::TextureBase* GLTextureImageRepresentation::GetTextureBase(
-    int plane_index) {
+    size_t plane_index) {
   return GetTexture(plane_index);
 }
 
@@ -198,7 +219,7 @@ void GLTextureImageRepresentation::UpdateClearedStateOnBeginAccess() {
 // GLTexturePassthroughImageRepresentation
 
 gpu::TextureBase* GLTexturePassthroughImageRepresentation::GetTextureBase(
-    int plane_index) {
+    size_t plane_index) {
   return GetTexturePassthrough(plane_index).get();
 }
 
@@ -515,7 +536,7 @@ SkiaGaneshImageRepresentation::ScopedGaneshReadAccess::CreateSkImage(
 
 sk_sp<SkImage>
 SkiaGaneshImageRepresentation::ScopedGaneshReadAccess::CreateSkImageForPlane(
-    int plane_index,
+    size_t plane_index,
     SharedContextState* context_state,
     SkImages::TextureReleaseProc texture_release_proc,
     SkImages::ReleaseContext release_context) {
@@ -754,7 +775,7 @@ SkiaGraphiteImageRepresentation::ScopedGraphiteReadAccess::CreateSkImage(
 }
 
 sk_sp<SkImage> SkiaGraphiteImageRepresentation::ScopedGraphiteReadAccess::
-    CreateSkImageForPlane(int plane_index,
+    CreateSkImageForPlane(size_t plane_index,
                           SharedContextState* context_state,
                           SkImages::TextureReleaseProc texture_release_proc,
                           SkImages::ReleaseContext release_context) {

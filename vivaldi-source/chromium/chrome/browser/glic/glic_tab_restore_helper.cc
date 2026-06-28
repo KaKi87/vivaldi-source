@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/feature_list.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/values.h"
@@ -30,17 +29,8 @@ constexpr char kInstanceIdKey[] = "instance_id";
 constexpr char kConversationIdKey[] = "conversation_id";
 }  // namespace
 
-void PopulateGlicExtraData(content::WebContents* web_contents,
+void PopulateGlicExtraData(tabs::TabInterface* tab,
                            std::map<std::string, std::string>* extra_data) {
-  if (!base::FeatureList::IsEnabled(features::kGlicTabRestoration)) {
-    return;
-  }
-
-  if (!web_contents) {
-    return;
-  }
-
-  tabs::TabInterface* tab = tabs::TabInterface::GetFromContents(web_contents);
   if (!tab) {
     return;
   }
@@ -83,10 +73,6 @@ void PopulateGlicExtraData(content::WebContents* web_contents,
 void RestoreGlicStateFromExtraData(
     content::WebContents* web_contents,
     const std::map<std::string, std::string>& extra_data) {
-  if (!base::FeatureList::IsEnabled(features::kGlicTabRestoration)) {
-    return;
-  }
-
   GlicRestoredState state;
   bool has_state = false;
 

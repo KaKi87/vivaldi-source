@@ -1,22 +1,35 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="it">
+<translation id="1062777154504442433">Nuovo gruppo di schede</translation>
 <translation id="1204037785786432551">Scarica contenuto</translation>
 <translation id="1206892813135768548">Copia testo link</translation>
+<translation id="1223158186497001208">Gruppo di schede <ph name="GROUP_TITLE" /> condiviso con nuova attività</translation>
+<translation id="1328749518742029305">Gruppo di schede <ph name="TAB_GROUP_TITLE" /> chiuso e salvato</translation>
 <translation id="1397811292916898096">Cerca con <ph name="PRODUCT_NAME" /></translation>
 <translation id="1435593198351412143">Apri automaticamente i PDF</translation>
 <translation id="1456207338570705181">Tocca per cercare è una funzione disponibile solo quando Google è impostato come motore di ricerca predefinito in Vivaldi. Invia la parola selezionata e la pagina corrente come contesto a Ricerca di Google. Puoi disattivarlo in <ph name="BEGIN_LINK" />Impostazioni<ph name="END_LINK" />.</translation>
 <translation id="1598449788754183301">Mostra/nascondi le schede normali/private</translation>
+<translation id="1626105448931436644">Scopri di più sui gruppi di schede condivisi</translation>
 <translation id="1644574205037202324">Cronologia</translation>
 <translation id="1829244130665387512">Trova nella pagina</translation>
-<translation id="1910514478706885609">Apri in nuovo gruppo schede</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+          =1 {Visualizza <ph name="TABS_COUNT_ONE" /> scheda con nuove attività nel gruppo di schede condivise}
+          other {Visualizza <ph name="TABS_COUNT_MANY" /> schede con nuove attività nel gruppo di schede condivise}
+        }</translation>
 <translation id="1925021887439448749">Inserisci indirizzo web personalizzato</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+          =1 {Unisciti al gruppo di schede con <ph name="OWNER_FIRST_NAME" /> e <ph name="NUMBER_OF_OTHER_MEMBERS" /> altro}
+          other {Unisciti al gruppo di schede conh <ph name="OWNER_FIRST_NAME" /> e <ph name="NUMBER_OF_OTHER_MEMBERS" /> altri}
+        }</translation>
 <translation id="2038563949887743358">Attiva Richiedi sito desktop</translation>
+<translation id="2067565353468675023">Unisci il gruppo di schede con <ph name="OWNER_FIRST_NAME" /></translation>
 <translation id="208033313373016095">Modalità lettura per le pagine web</translation>
 <translation id="2149973817440762519">Modifica segnalibro</translation>
 <translation id="2306442503286132111">Segnalibro salvato nella cartella <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Aspetto</translation>
-<translation id="2501278716633472235">Vai indietro</translation>
+<translation id="2495373685671077949">Cerca tra le tue schede e i gruppi</translation>
+<translation id="2500281581698062897">Perderai immediatamente l'accesso al gruppo di schede “<ph name="GROUP_NAME" />”, e <ph name="BLOCKED_MEMBER_FULL_NAME" /> (<ph name="BLOCKED_MEMBER_EMAIL" />) non potrà più interagire con te tramite i Google.</translation>
 <translation id="2546283357679194313">Cookie e dati del sito</translation>
 <translation id="2633278372998075009">Schede private</translation>
 <translation id="2650751991977523696">Scaricare di nuovo il file?</translation>
@@ -26,6 +39,7 @@
 <translation id="2871733351037274014">Precarica le pagine</translation>
 <translation id="2904300462646366554">I PDF scaricati si aprono automaticamente con uno dei visualizzatori di PDF sul tuo dispositivo</translation>
 <translation id="2951071800649516099">Aggiungi pagine alla tua lista di lettura per dopo</translation>
+<translation id="3020023775880428664">Sposta la scheda nel gruppo</translation>
 <translation id="3029276696788198026">Nessun precaricamento</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> segnalibro}
@@ -35,7 +49,13 @@
 <translation id="3232293466644486101">Cancella dati di navigazione…</translation>
 <translation id="3234355010754616171">Nuova scheda privata</translation>
 <translation id="3237087289225714896">Precaricamento standard:</translation>
+<translation id="3298614730029636660">Lascia gruppo</translation>
+<translation id="3359462099791810823">Tieni questo gruppo per aggiungere schede in seguito, oppure eliminalo se non ti serve più.</translation>
 <translation id="3478414204555961127">Modalità lettura</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+          =1 {Ripristina il gruppo di <ph name="TAB_COUNT_ONE" /> scheda, colore <ph name="COLOR_NAME" />, come nuovo gruppo di schede in secondo piano.}
+          other {Ripristina il gruppo di <ph name="TAB_COUNT_MANY" /> schede, colore <ph name="COLOR_NAME" />, come nuovo gruppo di schede in secondo piano.}
+        }</translation>
 <translation id="3504699618187058974">Raggruppa le schede</translation>
 <translation id="3518985090088779359">Accetta e continua</translation>
 <translation id="3571177741182643350">Articoli non letti - Disponibili offline:</translation>
@@ -43,9 +63,11 @@
 <translation id="3700829948786686853">Benvenuto in Vivaldi</translation>
 <translation id="3719826155360621982">Pagina iniziale</translation>
 <translation id="3738139272394829648">Tocca per cercare</translation>
-<translation id="385051799172605136">Indietro</translation>
+<translation id="3900825170941000696">Ripristina il gruppo di schede <ph name="TITLE_OF_GROUP" />, colore <ph name="COLOR_NAME" />, come un nuovo gruppo di schede in secondo piano.</translation>
+<translation id="395421286877117532">Personalizza il gruppo di schede e tocca fatto</translation>
 <translation id="3987993985790029246">Copia il link</translation>
 <translation id="399014816462153200">Articoli letti:</translation>
+<translation id="4048089913902125176">Apri il gruppo di schede <ph name="TITLE_OF_GROUP" />, colore <ph name="COLOR_NAME" />, con i siti <ph name="URL_LIST" />.</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> scheda}
           other {<ph name="TAB_COUNT_MANY" /> schede, <ph name="TAB_COUNT_INCOGNITO" /> private}}</translation>
@@ -54,25 +76,41 @@
 <translation id="4137746084635924146">Lingua del dispositivo</translation>
 <translation id="4167670741834902166">Nuova scheda privata</translation>
 <translation id="4195643157523330669">Apri in nuova scheda</translation>
+<translation id="4219031106525503429">Condivisi il gruppo di schede “<ph name="GROUP_NAME" />”</translation>
 <translation id="4225895483398857530">Scorciatoia della barra degli strumenti</translation>
 <translation id="4243710787042215766">Apri in scheda privata</translation>
 <translation id="4269820728363426813">Copia indirizzo link</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Attiva il blocco schermo nelle impostazioni Android<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Gestore password</translation>
-<translation id="441100617989818073">Schede e gruppi inutilizzati o duplicati</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {<ph name="TABS_COUNT_ONE" /> scheda standard con nuove attività nel gruppo di schede condiviso}
+          other {<ph name="TABS_COUNT_MANY" /> schede standard con nuove attività nel gruppo di schede condiviso}
+        }</translation>
+<translation id="4445802392779002787">Aggiungi scheda al gruppo</translation>
 <translation id="451872707440238414">Cerca nei segnalibri</translation>
 <translation id="4526803704855831732">Schede private</translation>
 <translation id="4532845899244822526">Scegli cartella</translation>
+<translation id="454284936014822050">Gruppo di schede <ph name="GROUP_TITLE" /></translation>
+<translation id="4614713783237504866">Schede e gruppi inutilizzati o duplicati</translation>
+<translation id="463284870544181537">Tieni questo gruppo per aggiungere schede in seguito, oppure lascialo così se non vuoi più accedervi</translation>
+<translation id="4638726726741656531">Ora puoi facilmente aggiungere schede ai gruppi da qui</translation>
 <translation id="4699172675775169585">Immagini e file nella cache</translation>
 <translation id="4719086422742491124">Scopri gli argomenti sui siti Web senza uscire dalla pagina. Seleziona una o più parole nella pagina per cercarle.
 
 Tocca per cercare è una funzione disponibile solo quando Google è impostato come motore di ricerca predefinito in Vivaldi.</translation>
 <translation id="4759238208242260848">Trasferimenti</translation>
-<translation id="4777866634702576038">Elimina gruppo schede?</translation>
+<translation id="4771820744342013314">Eliminare il gruppo di schede?</translation>
 <translation id="4850886885716139402">Guarda</translation>
 <translation id="4883379392681899581">Esci dalla modalità privata</translation>
+<translation id="4883812026489706387">Il gruppo schede “<ph name="TAB_GROUP_TITLE" />” ha una nuova attività</translation>
+<translation id="4887248255051238988">Lasciare il gruppo?</translation>
 <translation id="4943872375798546930">Nessun risultato</translation>
 <translation id="49576331685473090">Blocco contenuti</translation>
+<translation id="4964059453543967592">Riapri il gruppo chiuso</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" /> gruppo di schede}
+          other {<ph name="TAB_GROUPS_MANY" /> gruppi di schede}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> scheda privata}
           other {<ph name="TAB_COUNT_NORMAL" /> schede private}}</translation>
@@ -83,19 +121,26 @@ Tocca per cercare è una funzione disponibile solo quando Google è impostato co
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {Scaricando il file…}
             other {Scaricando # file…}}</translation>
+<translation id="5210689723585747462">Gruppo di schede <ph name="TAB_GROUP_TITLE" /> chiuso</translation>
 <translation id="5233638681132016545">Nuova scheda</translation>
 <translation id="5375131951310889874">Scopri gli argomenti sui siti Web senza uscire dalla pagina. Tocca per cercare è una funzione disponibile solo quando Google è impostato come motore di ricerca predefinito in Vivaldi. Invia una parola e il contesto circostante a Ricerca di Google, restituendo definizioni, immagini, risultati di ricerca e altri dettagli.
 
 Per modificare il termine di ricerca, premere a lungo per selezionare. Per perfezionare la ricerca, fai scorrere il pannello completamente in alto e tocca la casella di ricerca.</translation>
+<translation id="5570837353202786816">Tutti perderanno immediatamente l'accesso al gruppo di schede “<ph name="GROUP_NAME" />” e tutti i link di invito saranno disattivati</translation>
+<translation id="5614794348925178470">Gruppo di schede <ph name="GROUP_TITLE" /> condiviso</translation>
 <translation id="572328651809341494">Schede recenti</translation>
 <translation id="5833984609253377421">Condividi link</translation>
+<translation id="6129507335719227488">Schede nel gruppo</translation>
 <translation id="6150320133806434356">Segnalibro salvato</translation>
 <translation id="6193448654517602979">Seleziona schede</translation>
+<translation id="6221225660285238685">Sposta il gruppo in un'altra finestra</translation>
+<translation id="6277377952699614191">Gruppo di schede</translation>
 <translation id="6336451774241870485">Nuova scheda privata</translation>
 <translation id="6337323516034698937">Per inviare questa scheda a un altro dispositivo, accedi a Sincronizzazione Vivaldi su entrambi i dispositivi. Assicurati di inserire la password di crittografia, se necessario.</translation>
 <translation id="6341580099087024258">Chiedi dove salvare i file</translation>
 <translation id="6364438453358674297">Rimuovere il suggerimento dalla cronologia?</translation>
 <translation id="6404511346730675251">Modifica segnalibro</translation>
+<translation id="6453011654157908292">Dettagli del gruppo di schede</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
           =1 {File scaricato}
           other {# trasferimenti completati}}</translation>
@@ -104,11 +149,13 @@ Per modificare il termine di ricerca, premere a lungo per selezionare. Per perfe
 <translation id="6593061639179217415">Sito desktop</translation>
 <translation id="6610147964972079463">Chiudi schede private</translation>
 <translation id="6627583120233659107">Modifica cartella</translation>
+<translation id="6785740335511995065">Mantenere gruppo di schede?</translation>
 <translation id="6865313869410766144">Dati compilazione automatica modulo</translation>
 <translation id="6909589135458168665">Precarica le pagine</translation>
 <translation id="7029995644714925509">Quando un sito chiede di precaricare privatamente i link sulla propria pagina, Vivaldi crittografa e precarica le pagine attraverso i server di Google senza cookie. Questo nasconde la tua identità dal sito precaricato.</translation>
 <translation id="706339621163631076">Informativa sulla privacy di Vivaldi</translation>
 <translation id="7100573672995171864">Personalizza e controlla Vivaldi</translation>
+<translation id="7133879160432070247">Bloccare e uscire dallo gruppo?</translation>
 <translation id="732145680195464316">Segnalibro salvato in <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Invia una richiesta "Non tracciare"</translation>
 <translation id="7359002509206457351">Accedi ai metodi di pagamento</translation>
@@ -117,24 +164,33 @@ Per modificare il termine di ricerca, premere a lungo per selezionare. Per perfe
 <translation id="7456774706094330779">Precaricamento esteso</translation>
 <translation id="7465104139234185284">Chiudi tutte le schede private</translation>
 <translation id="7481312909269577407">Avanti</translation>
+<translation id="759273611317559136">Gruppo di schede <ph name="TAB_GROUP_TITLE" /> eliminato</translation>
+<translation id="7630413501995820846">Mantieni gruppo</translation>
+<translation id="7640137753339219124">Elimina gruppo</translation>
 <translation id="7764225426217299476">Aggiungi indirizzo</translation>
+<translation id="7910753230807645596">Schede e gruppi duplicati o non utilizzate per <ph name="DAYS_INACTIVE" /> giorni sono stati spostati qui <ph name="AUTODELETE_SECTION" />. Puoi modificarlo in qualsiasi momento in <ph name="DECLUTTER_SETTINGS_TITLE" />.</translation>
 <translation id="7968014550143838305">Aggiunto alla lista di lettura</translation>
 <translation id="804786196054284061">Contratto di licenza per l'utente finale</translation>
 <translation id="8062594758852531064">Precaricamento estesa:</translation>
 <translation id="8073388330009372546">Apri immagine in nuova scheda</translation>
 <translation id="8127542551745560481">Modifica pagina iniziale</translation>
+<translation id="8149776854955817519">Controlla qui le schede e i gruppi inattivi</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
           =1 {(1) elemento inattivo}
           other {(#) elementi inattivi}}</translation>
 <translation id="8266862848225348053">Cartella trasferimenti</translation>
 <translation id="8348430946834215779">Usa HTTPS quando possibile e ricevi un avviso prima di caricare i siti che non lo supportano</translation>
+<translation id="8480628728881718381">Apri in una nuova scheda nel gruppo</translation>
+<translation id="8543049482641423692">Aggiungi scheda al nuovo gruppo</translation>
 <translation id="8560602726703398413">Trova la tua lista di lettura nei segnalibri</translation>
 <translation id="85991616550051997">Vai alla pagina iniziale</translation>
+<translation id="8680308397617585416">Perderai immediatamente l'accesso al gruppo di schede “<ph name="GROUP_NAME" />”, e sarà eliminato da tutti i tuoi dispositivi</translation>
 <translation id="8738163682604285902">Visualizza modalità lettura?</translation>
 <translation id="8820817407110198400">Segnalibri</translation>
 <translation id="9042893549633094279">Privacy e Sicurezza</translation>
 <translation id="9063523880881406963">Disattiva Richiedi sito desktop</translation>
 <translation id="9080642952018487277">Entra in modalità privata</translation>
+<translation id="9099398755190923267">Tutti perderanno immediatamente l'accesso al gruppo di schede “<ph name="GROUP_NAME" />” e sarà eliminato da tutti i dispositivi</translation>
 <translation id="930124987204876019">Cancella cronologia, cookie, dati dei siti, cache…</translation>
 <translation id="961856697154696964">Cancella dati di navigazione</translation>
 </translationbundle>

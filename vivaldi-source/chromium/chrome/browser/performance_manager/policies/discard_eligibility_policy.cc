@@ -8,6 +8,7 @@
 #include "base/strings/strcat.h"
 //#include "chrome/browser/glic/public/glic_keyed_service.h"
 //#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
+//#include "chrome/browser/glic/public/service/glic_instance_coordinator.h"
 #include "chrome/common/buildflags.h"
 #include "components/performance_manager/graph/page_node_impl.h"
 #include "components/performance_manager/public/decorators/page_live_state_decorator.h"
@@ -70,7 +71,7 @@ DiscardEligibilityPolicy::DiscardEligibilityPolicy() = default;
 DiscardEligibilityPolicy::~DiscardEligibilityPolicy() = default;
 
 void DiscardEligibilityPolicy::SetNoDiscardPatternsForProfile(
-    const std::string& browser_context_id,
+    const base::UnguessableToken& browser_context_id,
     const std::vector<std::string>& patterns) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   std::unique_ptr<url_matcher::URLMatcher>& entry =
@@ -83,7 +84,7 @@ void DiscardEligibilityPolicy::SetNoDiscardPatternsForProfile(
 }
 
 void DiscardEligibilityPolicy::ClearNoDiscardPatternsForProfile(
-    const std::string& browser_context_id) {
+    const base::UnguessableToken& browser_context_id) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   profiles_no_discard_patterns_.erase(browser_context_id);
   if (opt_out_policy_changed_callback_) {
@@ -103,7 +104,7 @@ void DiscardEligibilityPolicy::RemovesDiscardAttemptMarkerForTesting(
 }
 
 void DiscardEligibilityPolicy::SetOptOutPolicyChangedCallback(
-    base::RepeatingCallback<void(std::string_view)> callback) {
+    base::RepeatingCallback<void(const base::UnguessableToken&)> callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   opt_out_policy_changed_callback_ = std::move(callback);
 }
@@ -148,6 +149,9 @@ bool DiscardEligibilityPolicy::WillDiscardBePerceptible(
 
 bool DiscardEligibilityPolicy::IsDiscardAllowed(
     const PageNode* page_node) const {
+  if (page_node->GetType() != PageType::kTab) {
+    return false;
+  }
   const GURL& main_frame_url = page_node->GetMainFrameUrl();
   if (IsPageOptedOutOfDiscarding(page_node->GetBrowserContextID(),
                                  main_frame_url)) {
@@ -267,7 +271,7 @@ CanDiscardResult DiscardEligibilityPolicy::CanDiscard(
 
   // Do not discard PDFs as they might contain entry that is not saved and they
   // don't remember their scrolling positions. See crbug.com/40441737 and
-  // crbug.com/65244.
+  // crbug.com/40487491.
   if (page_node->GetContentsMimeType() == "application/pdf") {
     add_reason_and_update_result(CannotDiscardReason::kPdf,
                                  CanDiscardResult::kProtected);
@@ -304,8 +308,9 @@ CanDiscardResult DiscardEligibilityPolicy::CanDiscard(
       if (tab_interface) {
         auto* glic_service = glic::GlicKeyedServiceFactory::GetGlicKeyedService(
             web_contents->GetBrowserContext());
-        if (glic_service && glic_service->sharing_manager().IsTabPinned(
-                                tab_interface->GetHandle())) {
+        if (glic_service &&
+            glic_service->instance_coordinator().IsTabPinnedToAnyInstance(
+                tab_interface->GetHandle())) {
           add_reason_and_update_result(CannotDiscardReason::kGlicShared,
                                        CanDiscardResult::kProtected);
         }
@@ -432,7 +437,7 @@ CanDiscardResult DiscardEligibilityPolicy::CanDiscard(
 }
 
 bool DiscardEligibilityPolicy::IsPageOptedOutOfDiscarding(
-    const std::string& browser_context_id,
+    const base::UnguessableToken& browser_context_id,
     const GURL& url) const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   auto it = profiles_no_discard_patterns_.find(browser_context_id);

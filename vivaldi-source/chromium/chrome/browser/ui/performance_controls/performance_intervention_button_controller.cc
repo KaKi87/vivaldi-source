@@ -14,11 +14,12 @@
 #include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/feature_engagement/non_iph_promo.h"
 #include "chrome/browser/feature_engagement/tracker_factory.h"
 #include "chrome/browser/performance_manager/public/user_tuning/performance_detection_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/performance_controls/performance_controls_metrics.h"
 #include "chrome/browser/ui/performance_controls/performance_intervention_button_controller_delegate.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -285,17 +286,15 @@ void PerformanceInterventionButtonController::MaybeShowUi(
   CHECK(pref_service);
   // Only trigger performance detection UI for the active window and if we are
   // not already showing the UI.
-  if (browser_ != chrome::FindLastActive() || delegate_->IsButtonShowing() ||
+  if (browser_ !=
+          GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser() ||
+      delegate_->IsButtonShowing() ||
       !performance_manager::user_tuning::prefs::
           ShouldShowPerformanceInterventionNotification(pref_service)) {
     return;
   }
 
   Profile* const profile = browser_->profile();
-  auto* const tracker =
-      feature_engagement::TrackerFactory::GetForBrowserContext(profile);
-  CHECK(tracker);
-
   InterventionMessageTriggerResult trigger_result =
       InterventionMessageTriggerResult::kShown;
 
@@ -305,15 +304,12 @@ void PerformanceInterventionButtonController::MaybeShowUi(
                  performance_manager::features::
                      kPerformanceInterventionDemoMode)) {
     trigger_result = InterventionMessageTriggerResult::kShown;
-  } else if (ShouldShowNotification(tracker) &&
-             tracker->ShouldTriggerHelpUI(
-                 feature_engagement::
-                     kIPHPerformanceInterventionDialogFeature)) {
-    // Immediately dismiss the feature engagement tracker because the
-    // performance intervention UI shouldn't prevent other promos from
-    // showing.
-    tracker->Dismissed(
-        feature_engagement::kIPHPerformanceInterventionDialogFeature);
+  } else if (ShouldShowNotification(
+                 feature_engagement::TrackerFactory::GetForBrowserContext(
+                     profile)) &&
+             feature_engagement::NonIphPromo::RequestPermissionToShow(
+                 profile, feature_engagement::
+                              kIPHPerformanceInterventionDialogFeature)) {
     trigger_result = InterventionMessageTriggerResult::kShown;
     RecordInterventionMessageCount(type, pref_service);
   } else {
@@ -337,7 +333,9 @@ void PerformanceInterventionButtonController::MaybeShowUi(
 
 bool PerformanceInterventionButtonController::ContainsNonLastActiveProfile(
     const PerformanceDetectionManager::ActionableTabsResult& result) {
-  Profile* const profile = chrome::FindLastActive()->profile();
+  Profile* const profile = GlobalBrowserCollection::GetInstance()
+                               ->GetLastActiveBrowser()
+                               ->GetProfile();
   for (const resource_attribution::PageContext& context : result) {
     content::WebContents* const web_content = context.GetWebContents();
     if (!web_content) {

@@ -18,6 +18,7 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.ui.signin.BottomSheetSigninAndHistorySyncCoordinator;
 import org.chromium.chrome.browser.ui.signin.DelegateContext;
+import org.chromium.chrome.browser.ui.signin.SigninSurveyController;
 import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.browser.WebSigninTrackerResult;
 import org.chromium.components.signin.metrics.AccountConsistencyPromoAction;
@@ -123,26 +124,22 @@ public class WebSigninAccountPickerDelegate
             @Nullable DelegateContext delegateContext,
             Callback<@PostSigninOperationResult Integer> onComplete) {
         assert delegateContext != null;
-        WebSigninDelegateContext webSigninDelegateContext =
-                (WebSigninDelegateContext) delegateContext;
+        SigninDelegateContext signinDelegateContext = (SigninDelegateContext) delegateContext;
 
         // Destroy WebSigninBridge in case it is still alive to avoid interference with the new
         // sign-in.
         destroyWebSigninBridge();
 
         assert mTabModelSelector != null;
-        @Nullable Tab resolvedTab =
-                mTabModelSelector.getTabById(webSigninDelegateContext.getTabId());
+        @Nullable Tab resolvedTab = mTabModelSelector.getTabById(signinDelegateContext.getTabId());
 
-        // Create WebSigninBridge and wait for redirect to the continue url.
+        // Create WebSigninBridge and wait for it to redirect to the continue url.
         mWebSigninBridge =
                 mWebSigninBridgeFactory.createWithCoreAccountId(
                         mProfile,
                         signedInAccount.getId(),
                         createWebSigninBridgeCallback(
-                                resolvedTab,
-                                webSigninDelegateContext.getContinueUrl(),
-                                onComplete));
+                                resolvedTab, signinDelegateContext.getContinueUrl(), onComplete));
     }
 
     /**
@@ -157,7 +154,7 @@ public class WebSigninAccountPickerDelegate
     /** Implements {@link BottomSheetSigninAndHistorySyncCoordinator.Delegate}. */
     @Override
     public @Nullable Function<Bundle, DelegateContext> getDelegateContextFactory() {
-        return WebSigninDelegateContext::fromBundle;
+        return SigninDelegateContext::fromBundle;
     }
 
     private Callback<@WebSigninTrackerResult Integer> createWebSigninBridgeCallback(
@@ -174,6 +171,8 @@ public class WebSigninAccountPickerDelegate
                         // that the tab is still alive.
                         tab.loadUrl(new LoadUrlParams(continueUrl));
                     }
+                    SigninSurveyController.registerTrigger(
+                            mProfile, SigninSurveyController.SigninSurveyType.WEB);
                     break;
                 case WebSigninTrackerResult.AUTH_ERROR:
                     SigninMetricsUtils.logAccountConsistencyPromoAction(

@@ -110,30 +110,6 @@ class VivaldiAccountGetStateFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
-class VivaldiAccountSetPendingRegistrationFunction : public ExtensionFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("vivaldiAccount.setPendingRegistration",
-                             VIVALDI_ACCOUNT_SET_PENDING_REGISTRATION)
-  VivaldiAccountSetPendingRegistrationFunction() = default;
-
- private:
-  ~VivaldiAccountSetPendingRegistrationFunction() override = default;
-  // ExtensionFunction:
-  ResponseAction Run() override;
-};
-
-class VivaldiAccountGetPendingRegistrationFunction : public ExtensionFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("vivaldiAccount.getPendingRegistration",
-                             VIVALDI_ACCOUNT_GET_PENDING_REGISTRATION)
-  VivaldiAccountGetPendingRegistrationFunction() = default;
-
- private:
-  ~VivaldiAccountGetPendingRegistrationFunction() override = default;
-  // ExtensionFunction:
-  ResponseAction Run() override;
-};
-
 }  // namespace extensions
 
 #endif  // EXTENSIONS_API_VIVALDI_ACCOUNT_VIVALDI_ACCOUNT_H_

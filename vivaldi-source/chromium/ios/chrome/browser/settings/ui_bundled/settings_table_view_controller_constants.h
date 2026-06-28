@@ -39,6 +39,10 @@ typedef NS_ENUM(NSInteger, SettingsItemType) {
   SettingsItemTypePasswords,
   SettingsItemTypeAutofillCreditCard,
   SettingsItemTypeAutofillProfile,
+  SettingsItemTypeIdentityDocs,
+  SettingsItemTypeTravelInfo,
+  SettingsItemTypeAutofillAndPasswords,
+  SettingsItemTypeAutofillSettings,
   SettingsItemTypeVoiceSearch,
   SettingsItemTypeAddressBar,
   SettingsItemTypeNotifications,
@@ -61,9 +65,10 @@ typedef NS_ENUM(NSInteger, SettingsItemType) {
   SettingsItemTypeTabs,
   SettingsItemTypeESBPromo,
   SettingsItemTypeBWGSettings,
+  SettingsItemTypeBackendPromoDebugTools
 
   // Vivaldi
-  SettingsItemTypeVivaldiSyncSettings,
+  , SettingsItemTypeVivaldiSyncSettings,
   SettingsItemTypeVivaldiGeneralSettings,
   SettingsItemTypeAddressBarSettings,
   SettingsItemTypeVivaldiTabsSettings,
@@ -121,6 +126,18 @@ extern NSString* const kSettingsPaymentMethodsCellId;
 // The accessibility identifier of the Addresses and More cell.
 extern NSString* const kSettingsAddressesAndMoreCellId;
 
+// The accessibility identifier of the Identity Docs cell.
+extern NSString* const kSettingsIdentityDocsCellId;
+
+// The accessibility identifier of the Travel Info cell.
+extern NSString* const kSettingsTravelInfoCellId;
+
+// The accessibility identifier of the Autofill and Passwords cell.
+extern NSString* const kSettingsAutofillAndPasswordsCellId;
+
+// The accessibility identifier of the Autofill Settings cell.
+extern NSString* const kSettingsAutofillSettingsCellId;
+
 // The accessibility identifier of the Privacy cell.
 extern NSString* const kSettingsPrivacyCellId;
 
@@ -173,7 +190,7 @@ extern NSString* const kSettingsShowReadingModeAvailableCellId;
 extern NSString* const kSettingsDetectAddressesCellId;
 
 // The accessibility identifier of the Mini map native cell.
-extern NSString* const kSettingsMimiMapNativeCellId;
+extern NSString* const kSettingsMiniMapNativeCellId;
 
 // The accessibility identifier of the Default Apps cell.
 extern NSString* const kSettingsDefaultAppsCellId;

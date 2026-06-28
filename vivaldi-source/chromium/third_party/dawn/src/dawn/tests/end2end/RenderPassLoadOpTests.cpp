@@ -32,9 +32,10 @@
 #include <type_traits>
 #include <vector>
 
-#include "dawn/tests/DawnTest.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/compiler.h"
 
 namespace dawn {
 namespace {
@@ -509,8 +510,9 @@ TEST_P(RenderPassLoadOpTests, LoadOpClearWithBig32BitIntegralValuesOnMultipleCol
             static_assert(sizeof(int32_t) * expData.size() == sizeof(attachmentCase.mExpData));
             attachmentCase.mFormat = format;
             attachmentCase.mClearValue = clearValue;
-            memcpy(attachmentCase.mExpData, reinterpret_cast<const uint8_t*>(expData.data()),
-                   sizeof(attachmentCase.mExpData));
+            DAWN_UNSAFE_TODO(memcpy(attachmentCase.mExpData,
+                                    reinterpret_cast<const uint8_t*>(expData.data()),
+                                    sizeof(attachmentCase.mExpData)));
             return attachmentCase;
         }
         static AttachmentCase Uint(wgpu::TextureFormat format,
@@ -520,8 +522,9 @@ TEST_P(RenderPassLoadOpTests, LoadOpClearWithBig32BitIntegralValuesOnMultipleCol
             static_assert(sizeof(uint32_t) * expData.size() == sizeof(attachmentCase.mExpData));
             attachmentCase.mFormat = format;
             attachmentCase.mClearValue = clearValue;
-            memcpy(attachmentCase.mExpData, reinterpret_cast<const uint8_t*>(expData.data()),
-                   sizeof(attachmentCase.mExpData));
+            DAWN_UNSAFE_TODO(memcpy(attachmentCase.mExpData,
+                                    reinterpret_cast<const uint8_t*>(expData.data()),
+                                    sizeof(attachmentCase.mExpData)));
             return attachmentCase;
         }
 

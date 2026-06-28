@@ -26,7 +26,6 @@
 #include "chrome/browser/ui/views/find_bar_host.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/user_education/user_education_service.h"
-#include "chrome/grit/branded_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/find_in_page/find_notification_details.h"
 #include "components/find_in_page/find_tab_helper.h"
@@ -41,6 +40,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/theme_provider.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider.h"
 #include "ui/events/event.h"
@@ -274,39 +274,60 @@ FindBarView::FindBarView(FindBarHost* host) {
 
   // Theme-aware image models.
   views::SetImageFromVectorIconWithColor(
-      find_previous_button_, kKeyboardArrowUpChromeRefreshIcon,
+      find_previous_button_,
+      features::IsRoundedIconsEnabled() ? kKeyboardArrowUpIcon
+                                        : kKeyboardArrowUpChromeRefreshOldIcon,
       {kColorFindBarButtonIcon, kColorFindBarButtonIconDisabled});
   find_previous_button_->SetImageModel(
       views::Button::STATE_HOVERED,
-      ui::ImageModel::FromVectorIcon(kKeyboardArrowUpChromeRefreshIcon,
+      ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                         ? kKeyboardArrowUpIcon
+                                         : kKeyboardArrowUpChromeRefreshOldIcon,
                                      kColorFindBarButtonIconHovered));
   find_previous_button_->SetImageModel(
       views::Button::STATE_PRESSED,
-      ui::ImageModel::FromVectorIcon(kKeyboardArrowUpChromeRefreshIcon,
+      ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                         ? kKeyboardArrowUpIcon
+                                         : kKeyboardArrowUpChromeRefreshOldIcon,
                                      kColorFindBarButtonIconHovered));
 
   views::SetImageFromVectorIconWithColor(
-      find_next_button_, kKeyboardArrowDownChromeRefreshIcon,
+      find_next_button_,
+      features::IsRoundedIconsEnabled()
+          ? kKeyboardArrowDownIcon
+          : kKeyboardArrowDownChromeRefreshOldIcon,
       {kColorFindBarButtonIcon, kColorFindBarButtonIconDisabled});
   find_next_button_->SetImageModel(
       views::Button::STATE_HOVERED,
-      ui::ImageModel::FromVectorIcon(kKeyboardArrowDownChromeRefreshIcon,
-                                     kColorFindBarButtonIconHovered));
+      ui::ImageModel::FromVectorIcon(
+          features::IsRoundedIconsEnabled()
+              ? kKeyboardArrowDownIcon
+              : kKeyboardArrowDownChromeRefreshOldIcon,
+          kColorFindBarButtonIconHovered));
   find_next_button_->SetImageModel(
       views::Button::STATE_PRESSED,
-      ui::ImageModel::FromVectorIcon(kKeyboardArrowDownChromeRefreshIcon,
-                                     kColorFindBarButtonIconHovered));
+      ui::ImageModel::FromVectorIcon(
+          features::IsRoundedIconsEnabled()
+              ? kKeyboardArrowDownIcon
+              : kKeyboardArrowDownChromeRefreshOldIcon,
+          kColorFindBarButtonIconHovered));
 
   views::SetImageFromVectorIconWithColor(
-      close_button_, kCloseChromeRefreshIcon,
+      close_button_,
+      features::IsRoundedIconsEnabled() ? kCloseSmallIcon
+                                        : kCloseChromeRefreshOldIcon,
       {kColorFindBarButtonIcon, kColorFindBarButtonIconDisabled});
   close_button_->SetImageModel(
       views::Button::STATE_HOVERED,
-      ui::ImageModel::FromVectorIcon(kCloseChromeRefreshIcon,
+      ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                         ? kCloseSmallIcon
+                                         : kCloseChromeRefreshOldIcon,
                                      kColorFindBarButtonIconHovered));
   close_button_->SetImageModel(
       views::Button::STATE_PRESSED,
-      ui::ImageModel::FromVectorIcon(kCloseChromeRefreshIcon,
+      ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                         ? kCloseSmallIcon
+                                         : kCloseChromeRefreshOldIcon,
                                      kColorFindBarButtonIconHovered));
 
   SetOrientation(views::BoxLayout::Orientation::kVertical);
@@ -375,7 +396,7 @@ void FindBarView::UpdateForResult(
   bool have_valid_range =
       result.number_of_matches() != -1 && result.active_match_ordinal() != -1;
 
-  // http://crbug.com/34970: some IMEs get confused if we change the text
+  // http://crbug.com/41093231: some IMEs get confused if we change the text
   // composed by them. To avoid this problem, we should check the IME status and
   // update the text only when the IME is not composing text.
   //
@@ -528,7 +549,7 @@ void FindBarView::OnAfterUserAction(views::Textfield* sender) {
 void FindBarView::OnAfterPaste() {
   // Clear the last search text so we always search for the user input after
   // a paste operation, even if the pasted text is the same as before.
-  // See http://crbug.com/79002
+  // See http://crbug.com/40552385
   last_searched_text_.clear();
 }
 

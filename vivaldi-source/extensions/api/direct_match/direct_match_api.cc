@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "base/lazy_instance.h"
+#include "base/logging.h"
 #include "components/direct_match/direct_match_service_factory.h"
 #include "extensions/schema/direct_match.h"
 #include "extensions/tools/vivaldi_tools.h"

@@ -3,18 +3,14 @@
 import("//build/config/apple/swift_source_set.gni")
 
 source_set("top_toolbar") {
-  sources = [
-    "vivaldi_ntp_top_toolbar_view_consumer.h",
-  ]
+  sources = [ "vivaldi_ntp_top_toolbar_view_consumer.h" ]
 
-  frameworks = [
-    "UIKit.framework",
-  ]
+  frameworks = [ "UIKit.framework" ]
 
   deps = [
+    ":top_toolbar_swift",
     "//base",
     "//ui/base",
-    ":top_toolbar_swift"
   ]
 }
 
@@ -23,8 +19,8 @@ swift_source_set("top_toolbar_swift") {
   sources = [
     "vivaldi_ntp_top_toolbar_item.swift",
     "vivaldi_ntp_top_toolbar_state.swift",
-    "vivaldi_ntp_top_toolbar_view_cell.swift",
     "vivaldi_ntp_top_toolbar_view.swift",
+    "vivaldi_ntp_top_toolbar_view_cell.swift",
   ]
 
   deps = [

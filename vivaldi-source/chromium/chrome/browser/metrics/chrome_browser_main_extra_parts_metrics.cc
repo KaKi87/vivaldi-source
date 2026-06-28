@@ -51,6 +51,8 @@
 #include "chrome/browser/web_applications/sampling_metrics_provider.h"
 #include "chrome/common/chrome_switches.h"
 #include "components/metrics/android_metrics_helper.h"
+#include "components/metrics/metrics_reporting_choice_service.h"
+#include "components/metrics/metrics_service.h"
 #include "components/policy/core/common/management/management_service.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
@@ -76,6 +78,7 @@
 
 #if BUILDFLAG(IS_ANDROID)
 #include "base/android/apk_info.h"
+#include "components/metrics/android_unconditional_persistent_histograms_field_trial.h"
 #if defined(__arm__)
 #include <cpu-features.h>
 #endif
@@ -817,6 +820,22 @@ void RecordAppCompatMetrics() {
   base::UmaHistogramBoolean("Windows.AcLayersLoaded", !!mod);
 }
 
+void RecordWin11HardwareRequirementsMetrics(
+    const base::win::HardwareEvaluationResult& result) {
+  base::UmaHistogramBoolean("Windows.Win11UpgradeEligible",
+                            result.IsEligible());
+  base::UmaHistogramBoolean("Windows.Win11HardwareRequirements.CPUCheck",
+                            result.cpu);
+  base::UmaHistogramBoolean("Windows.Win11HardwareRequirements.MemoryCheck",
+                            result.memory);
+  base::UmaHistogramBoolean("Windows.Win11HardwareRequirements.DiskCheck",
+                            result.disk);
+  base::UmaHistogramBoolean("Windows.Win11HardwareRequirements.FirmwareCheck",
+                            result.firmware);
+  base::UmaHistogramBoolean("Windows.Win11HardwareRequirements.TPMCheck",
+                            result.tpm);
+}
+
 void MaybeRecordOneDriveSyncMetrics() {
   if (!base::FeatureList::IsEnabled(
           cloud_synced_folder_checker::features::kCloudSyncedFolderChecker)) {
@@ -832,28 +851,6 @@ void MaybeRecordOneDriveSyncMetrics() {
                             status.desktop_synced());
   base::UmaHistogramBoolean("Windows.OneDriveSyncState.DocumentsSynced",
                             status.documents_synced());
-}
-
-void EvaluateAndRecordWin11Metrics() {
-  if (base::win::OSInfo::Kernel32Version() >= base::win::Version::WIN11) {
-    return;
-  }
-
-  base::win::HardwareEvaluationResult result =
-      base::win::EvaluateWin11HardwareRequirements();
-
-  base::UmaHistogramBoolean("Windows.Win11UpgradeEligible",
-                            result.IsEligible());
-  base::UmaHistogramBoolean("Windows.Win11HardwareRequirements.CPUCheck",
-                            result.cpu);
-  base::UmaHistogramBoolean("Windows.Win11HardwareRequirements.MemoryCheck",
-                            result.memory);
-  base::UmaHistogramBoolean("Windows.Win11HardwareRequirements.DiskCheck",
-                            result.disk);
-  base::UmaHistogramBoolean("Windows.Win11HardwareRequirements.FirmwareCheck",
-                            result.firmware);
-  base::UmaHistogramBoolean("Windows.Win11HardwareRequirements.TPMCheck",
-                            result.tpm);
 }
 
 #endif  // BUILDFLAG(IS_WIN)
@@ -928,11 +925,11 @@ void RecordStartupMetrics() {
 
   MaybeRecordOneDriveSyncMetrics();
 
-  base::ThreadPool::PostTask(FROM_HERE,
-                             {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
-                              base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN},
-                             base::BindOnce(&EvaluateAndRecordWin11Metrics));
-
+  if (base::win::OSInfo::Kernel32Version() < base::win::Version::WIN11) {
+    base::win::HardwareEvaluationResult result =
+        base::win::EvaluateWin11HardwareRequirements();
+    RecordWin11HardwareRequirementsMetrics(result);
+  }
   key_credential_manager_support::ReportKeyCredentialManagerSupport();
 #endif  // BUILDFLAG(IS_WIN)
 
@@ -941,7 +938,7 @@ void RecordStartupMetrics() {
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 
   // Record whether Chrome is the default browser or not.
-  // Disabled on Linux due to hanging browser tests, see crbug.com/1216328.
+  // Disabled on Linux due to hanging browser tests, see crbug.com/40770414.
 #if !BUILDFLAG(IS_LINUX)
   shell_integration::DefaultWebClientState default_state =
       shell_integration::GetDefaultBrowser();
@@ -1043,6 +1040,10 @@ void ChromeBrowserMainExtraPartsMetrics::PreBrowserStart() {
       g_browser_process->local_state());
   about_flags::RecordUMAStatistics(&flags_storage, "Launch.FlagsAtStartup");
 
+  metrics::MetricsReportingChoiceService::InitSyntheticFieldTrial(
+      g_browser_process->local_state(),
+      g_browser_process->metrics_service()->GetSyntheticTrialRegistry());
+
   // Log once here at browser start rather than at each renderer launch.
   ChromeMetricsServiceAccessor::RegisterSyntheticFieldTrial("ClangPGO",
 #if BUILDFLAG(CLANG_PGO_OPTIMIZED)
@@ -1079,6 +1080,19 @@ void ChromeBrowserMainExtraPartsMetrics::PreBrowserStart() {
     ChromeMetricsServiceAccessor::RegisterSyntheticFieldTrial(trial_name,
                                                               group_name);
   }
+
+#if BUILDFLAG(IS_ANDROID)
+  std::string_view unconditional_histograms_group =
+      metrics::android_unconditional_persistent_histograms_field_trial::
+          GetSyntheticTrialGroup();
+  if (!unconditional_histograms_group.empty()) {
+    ChromeMetricsServiceAccessor::RegisterSyntheticFieldTrial(
+        metrics::android_unconditional_persistent_histograms_field_trial::
+            kTrialName,
+        unconditional_histograms_group,
+        variations::SyntheticTrialAnnotationMode::kCurrentLog);
+  }
+#endif  // BUILDFLAG(IS_ANDROID)
 }
 
 void ChromeBrowserMainExtraPartsMetrics::PostBrowserStart() {

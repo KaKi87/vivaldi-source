@@ -6,7 +6,7 @@ source_set("vivaldi_symbols") {
     "vivaldi_symbol_names.mm",
   ]
 
-  deps = ["resources:vivaldi_symbol_assets"]
+  deps = [ "resources:vivaldi_symbol_assets" ]
 
   frameworks = [
     "Foundation.framework",

@@ -20,7 +20,6 @@
 #include "chrome/browser/ui/views/frame/immersive_mode_tester.h"
 #include "chrome/browser/ui/views/frame/test_with_browser_view.h"
 #include "chrome/browser/ui/views/frame/top_container_view.h"
-#include "chrome/browser/ui/views/frame/webui_tab_strip_container_view.h"
 #include "chrome/browser/ui/views/fullscreen_control/fullscreen_control_host.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
@@ -280,40 +279,44 @@ TEST_F(ImmersiveModeControllerChromeosTest, CallEnableForWidgetWhenNeeded) {
   ASSERT_FALSE(controller()->IsEnabled());
 }
 
-class ImmersiveModeControllerChromeosWebUITabStripTest
-    : public ImmersiveModeControllerChromeosTest {
- public:
-  ImmersiveModeControllerChromeosWebUITabStripTest() {
-    scoped_feature_list_.InitAndEnableFeature(features::kWebUITabStrip);
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-// Ensures the WebUI tab strip can be opened during immersive reveal.
-// Regression test for crbug.com/1096569 where it couldn't be opened.
-TEST_F(ImmersiveModeControllerChromeosWebUITabStripTest, CanOpen) {
+// Test that `theme_background_y_offset` is correctly set during immersive
+// reveal animation.
+TEST_F(ImmersiveModeControllerChromeosTest, ThemeOffsetDuringReveal) {
   AddTab(browser(), GURL("about:blank"));
-
-  // The WebUI tab strip is only used in touch mode.
-  ui::TouchUiController::TouchUiScoperForTesting touch_mode_override(true);
-
-  WebUITabStripContainerView* const webui_tab_strip =
-      browser_view()->webui_tab_strip();
-  ASSERT_TRUE(webui_tab_strip);
-  EXPECT_FALSE(webui_tab_strip->GetVisible());
-
   ChromeOSBrowserUITest::EnterImmersiveFullscreenMode(browser());
-  EXPECT_FALSE(webui_tab_strip->GetVisible());
 
-  AttemptReveal();
-  EXPECT_FALSE(webui_tab_strip->GetVisible());
+  ASSERT_TRUE(browser_view()->theme_background_y_offset().has_value());
+  EXPECT_EQ(0, browser_view()->theme_background_y_offset().value());
 
-  webui_tab_strip->SetVisibleForTesting(true);
+  auto* delegate =
+      static_cast<chromeos::ImmersiveFullscreenControllerDelegate*>(
+          static_cast<ImmersiveModeControllerChromeos*>(controller()));
 
-  // The WebUITabStrip should be layed out.
-  browser_view()->GetWidget()->LayoutRootViewIfNecessary();
-  EXPECT_TRUE(webui_tab_strip->GetVisible());
-  EXPECT_FALSE(webui_tab_strip->size().IsEmpty());
+  // Initially, visible fraction is 0 in immersive fullscreen (unrevealed).
+  delegate->SetVisibleFraction(0.0);
+  ASSERT_TRUE(browser_view()->theme_background_y_offset().has_value());
+  EXPECT_EQ(0, browser_view()->theme_background_y_offset().value());
+
+  // Start of reveal animation: old fraction = 0.0, new fraction > 0.0.
+  // The theme offset should be set to -GetTopContainerVerticalOffset.
+  delegate->SetVisibleFraction(0.1);
+  int expected_offset = -controller()->GetTopContainerVerticalOffset(
+      browser_view()->top_container()->size());
+  ASSERT_TRUE(browser_view()->theme_background_y_offset().has_value());
+  EXPECT_EQ(expected_offset,
+            browser_view()->theme_background_y_offset().value());
+
+  // Subsequent updates during the animation should reset the offset to 0.
+  delegate->SetVisibleFraction(0.5);
+  ASSERT_TRUE(browser_view()->theme_background_y_offset().has_value());
+  EXPECT_EQ(0, browser_view()->theme_background_y_offset().value());
+
+  // End of reveal animation:
+  delegate->SetVisibleFraction(1.0);
+  ASSERT_TRUE(browser_view()->theme_background_y_offset().has_value());
+  EXPECT_EQ(0, browser_view()->theme_background_y_offset().value());
+
+  // Exiting immersive mode should clear the offset.
+  ChromeOSBrowserUITest::ExitImmersiveFullscreenMode(browser());
+  EXPECT_FALSE(browser_view()->theme_background_y_offset().has_value());
 }

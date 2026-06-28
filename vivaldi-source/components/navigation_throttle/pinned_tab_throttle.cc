@@ -22,13 +22,13 @@
 
 using ThrottleCheckResult = content::NavigationThrottle::ThrottleCheckResult;
 
-PinnedTabsThrottle ::PinnedTabsThrottle(
+PinnedTabsThrottle::PinnedTabsThrottle(
     content::NavigationThrottleRegistry& registry)
     : content::NavigationThrottle(registry) {}
 
-PinnedTabsThrottle ::~PinnedTabsThrottle() = default;
+PinnedTabsThrottle::~PinnedTabsThrottle() = default;
 
-const char* PinnedTabsThrottle ::GetNameForLogging() {
+const char* PinnedTabsThrottle::GetNameForLogging() {
   return "PinnedTabsThrottle";
 }
 

@@ -38,7 +38,6 @@
 #include "chrome/browser/task_manager/task_manager_browsertest_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -58,6 +57,7 @@
 #include "components/no_state_prefetch/browser/no_state_prefetch_manager.h"
 #include "components/prefs/pref_service.h"
 #include "components/privacy_sandbox/privacy_sandbox_features.h"
+#include "components/safe_browsing/core/common/features.h"
 #include "components/ukm/test_ukm_recorder.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -1114,36 +1114,9 @@ IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest, PrefetchLoadFlag) {
   EXPECT_TRUE(script_request->load_flags & net::LOAD_PREFETCH);
 }
 
-class NoStatePrefetchPurposeHeaderBrowserTest
-    : public NoStatePrefetchBrowserTest,
-      public testing::WithParamInterface<bool> {
- public:
-  NoStatePrefetchPurposeHeaderBrowserTest() {
-    std::vector<base::test::FeatureRef> enabled_features, disabled_features;
-
-    // Parameter determines whether kRemovePurposeHeaderForPrefetch is enabled
-    if (GetParam()) {
-      enabled_features.push_back(
-          blink::features::kRemovePurposeHeaderForPrefetch);
-    } else {
-      disabled_features.push_back(
-          blink::features::kRemovePurposeHeaderForPrefetch);
-    }
-
-    purpose_header_feature_list_.InitWithFeatures(enabled_features,
-                                                  disabled_features);
-  }
-
-  bool IsRemovePurposeHeaderEnabled() const { return GetParam(); }
-
- private:
-  base::test::ScopedFeatureList purpose_header_feature_list_;
-};
-
 // Check that prefetched resources and subresources set the 'Purpose: prefetch'
 // header.
-IN_PROC_BROWSER_TEST_P(NoStatePrefetchPurposeHeaderBrowserTest,
-                       PurposeHeaderIsSet) {
+IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest, PurposeHeaderIsSet) {
   GURL prefetch_page = src_server()->GetURL(kPrefetchPage);
   GURL prefetch_script = src_server()->GetURL(kPrefetchScript);
 
@@ -1159,29 +1132,16 @@ IN_PROC_BROWSER_TEST_P(NoStatePrefetchPurposeHeaderBrowserTest,
         monitor.GetRequestInfo(url);
     EXPECT_TRUE(request->load_flags & net::LOAD_PREFETCH);
 
-    // Test Purpose headers based on feature flag state
-    if (IsRemovePurposeHeaderEnabled()) {
-      // When feature is enabled, legacy Purpose header should be removed
-      EXPECT_FALSE(request->headers.HasHeader(blink::kPurposeHeaderName));
-      EXPECT_FALSE(
-          request->cors_exempt_headers.HasHeader(blink::kPurposeHeaderName));
-    } else {
-      // When feature is disabled, legacy Purpose header should be present
-      EXPECT_FALSE(request->headers.HasHeader(blink::kPurposeHeaderName));
-      EXPECT_TRUE(
-          request->cors_exempt_headers.HasHeader(blink::kPurposeHeaderName));
-      EXPECT_EQ(
-          blink::kSecPurposePrefetchHeaderValue,
-          request->cors_exempt_headers.GetHeader(blink::kPurposeHeaderName)
-              .value_or(std::string()));
-    }
+    // Legacy Purpose header should be removed.
+    EXPECT_FALSE(request->headers.HasHeader(blink::kPurposeHeaderName));
+    EXPECT_FALSE(
+        request->cors_exempt_headers.HasHeader(blink::kPurposeHeaderName));
   }
 }
 
 // Check that prefetched resources and subresources set the 'Sec-Purpose:
 // prefetch' header.
-IN_PROC_BROWSER_TEST_P(NoStatePrefetchPurposeHeaderBrowserTest,
-                       SecPurposeHeaderIsSet) {
+IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest, SecPurposeHeaderIsSet) {
   GURL prefetch_page = src_server()->GetURL(kPrefetchPage);
   GURL prefetch_script = src_server()->GetURL(kPrefetchScript);
 
@@ -1204,7 +1164,7 @@ IN_PROC_BROWSER_TEST_P(NoStatePrefetchPurposeHeaderBrowserTest,
 }
 
 // Check that on normal navigations the 'Purpose: prefetch' header is not set.
-IN_PROC_BROWSER_TEST_P(NoStatePrefetchPurposeHeaderBrowserTest,
+IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest,
                        PurposeHeaderNotSetWhenNotPrefetching) {
   GURL prefetch_page = src_server()->GetURL(kPrefetchPage);
   GURL prefetch_script = src_server()->GetURL(kPrefetchScript);
@@ -1227,10 +1187,6 @@ IN_PROC_BROWSER_TEST_P(NoStatePrefetchPurposeHeaderBrowserTest,
         request->cors_exempt_headers.HasHeader(blink::kPurposeHeaderName));
   }
 }
-
-INSTANTIATE_TEST_SUITE_P(RemovePurposeHeaderVariations,
-                         NoStatePrefetchPurposeHeaderBrowserTest,
-                         ::testing::Bool());
 
 // Checks the prefetch of an img tag.
 IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest, PrefetchImage) {
@@ -1291,7 +1247,7 @@ IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest, ResponseHeaderCSP) {
 
 // Checks that CSP in the meta tag cancels the prefetch.
 // TODO(mattcary): probably this behavior should be consistent with
-// response-header CSP. See crbug/656581.
+// response-header CSP. See crbug.com/40489267.
 IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest, MetaTagCSP) {
   GURL second_script_url(base::StringPrintf(
       "http://%s%s", test_utils::kSecondaryDomain, kPrefetchScript2));
@@ -1569,7 +1525,7 @@ IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest, Loop) {
   WaitForRequestCount(src_server()->GetURL(kPrefetchScript), 1);
 }
 
-// Crashes on Win.  http://crbug.com/1516892
+// Crashes on Win.  http://crbug.com/41489875
 #if BUILDFLAG(IS_WIN)
 #define MAYBE_RendererCrash DISABLED_RendererCrash
 #else
@@ -1693,8 +1649,8 @@ IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest, IssuesIdlePriorityRequests) {
 
 // Checks that a registered ServiceWorker (SW) that is not currently running
 // will intercepts a prefetch request.
-// TODO(crbug.com/499825436): Failing on CrOS/Windows.
-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN)
+// TODO(crbug.com/500524504): Enable the test.
+#if BUILDFLAG(IS_WIN)
 #define MAYBE_ServiceWorkerIntercept DISABLED_ServiceWorkerIntercept
 #else
 #define MAYBE_ServiceWorkerIntercept ServiceWorkerIntercept
@@ -1738,8 +1694,26 @@ IN_PROC_BROWSER_TEST_F(NoStatePrefetchBrowserTest,
     iter.GetCurrentValue()->Shutdown(content::RESULT_CODE_KILLED);
     process_exit_observer.Wait();
   }
-  // There should be at most one render_process_host, that created for the SW.
-  EXPECT_EQ(1, host_count);
+  // We expect two render_process_hosts for the service worker when
+  // kMigrateToBlockV8OptimizerOnUnfamiliarSites is enabled. This happens
+  // due to a BrowsingInstance swap triggered by mismatched V8 settings:
+  //
+  // 1. Initial State: On test startup, a navigation to about:blank occurs.
+  //    The BlockV8OptimizersOnUnfamiliarSites policy considers about:blank
+  //    a "familiar" site, so V8 optimizers remain enabled.
+  // 2. Navigation: The test navigates to the kServiceWorkerLoader URL.
+  //    The policy marks this URL as "unfamiliar," requiring V8 optimizers
+  //    to be disabled.
+  // 3. Result: This transition from a familiar site (V8 ON) to an unfamiliar
+  //    site (V8 OFF) forces a BrowsingInstance swap. Consequently, 2 hosts
+  //    are created instead of the previously expected 1.
+  // TODO(crbug.com/493200120): Find a better way to handle this situation.
+  if (base::FeatureList::IsEnabled(
+          safe_browsing::kMigrateToBlockV8OptimizerOnUnfamiliarSites)) {
+    EXPECT_EQ(2, host_count);
+  } else {
+    EXPECT_EQ(1, host_count);
+  }
 
   // Open a new tab to replace the one closed with all the RenderProcessHosts.
   ui_test_utils::NavigateToURLWithDisposition(

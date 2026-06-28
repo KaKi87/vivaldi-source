@@ -5,12 +5,10 @@
 package org.chromium.chrome.browser.toolbar.optional_button;
 
 import android.content.res.Resources;
-import android.graphics.drawable.Drawable;
 import android.view.View;
 import android.view.View.OnClickListener;
 
 import androidx.annotation.CallSuper;
-import androidx.annotation.StringRes;
 
 import org.chromium.base.FeatureList;
 import org.chromium.base.ObserverList;
@@ -18,8 +16,8 @@ import org.chromium.build.annotations.Contract;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarButtonVariant;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarFeatures;
+import org.chromium.chrome.browser.toolbar.optional_button.ButtonData.ButtonSpec;
 import org.chromium.chrome.browser.user_education.IphCommandBuilder;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogManagerObserver;
@@ -28,6 +26,7 @@ import org.chromium.ui.modelutil.PropertyModel;
 import java.util.function.Supplier;
 
 // Vivaldi
+import org.chromium.build.BuildConfig;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.vivaldi.browser.common.VivaldiUrlConstants;
 
@@ -49,27 +48,12 @@ public abstract class BaseButtonDataProvider implements ButtonDataProvider, OnCl
      * @param activeTabSupplier Supplier for the current active tab.
      * @param modalDialogManager Modal dialog manager, used to disable the button when a dialog is
      *     visible. Can be null to disable this behavior.
-     * @param buttonDrawable Drawable for the button icon.
-     * @param contentDescription String for the button's content description.
-     * @param actionChipLabelResId String for the button's action chip label, can be
-     *     Resources.ID_NULL is the button doesn't support action chip.
-     * @param supportsTinting Whether the button's icon should be tinted.
-     * @param iphCommandBuilder An IPH command builder instance to show when the button is
-     *     displayed, can be null.
-     * @param adaptiveButtonVariant Enum value of {@link AdaptiveToolbarButtonVariant}, used for
-     *     metrics.
-     * @param tooltipTextResId String to show as a tooltip when the button is hovered over.
+     * @param buttonSpec ButtonSpec describing the button.
      */
     public BaseButtonDataProvider(
             Supplier<@Nullable Tab> activeTabSupplier,
             @Nullable ModalDialogManager modalDialogManager,
-            Drawable buttonDrawable,
-            String contentDescription,
-            @StringRes int actionChipLabelResId,
-            boolean supportsTinting,
-            @Nullable IphCommandBuilder iphCommandBuilder,
-            @AdaptiveToolbarButtonVariant int adaptiveButtonVariant,
-            @StringRes int tooltipTextResId) {
+            ButtonSpec buttonSpec) {
         mActiveTabSupplier = activeTabSupplier;
         mModalDialogManager = modalDialogManager;
         if (mModalDialogManager != null) {
@@ -90,23 +74,15 @@ public abstract class BaseButtonDataProvider implements ButtonDataProvider, OnCl
             mModalDialogManager.addObserver(mModalDialogObserver);
         }
 
-        if (!AdaptiveToolbarFeatures.isDynamicAction(adaptiveButtonVariant)) {
-            assert actionChipLabelResId == Resources.ID_NULL
+        if (!AdaptiveToolbarFeatures.isDynamicAction(buttonSpec.getButtonVariant())) {
+            assert buttonSpec.getActionChipLabelResId() == Resources.ID_NULL
                     : "Action chip should only be used on dynamic actions";
         }
 
+        ButtonSpec specWithListener =
+                new ButtonSpec.Builder(buttonSpec).setOnClickListener(this).build();
         mButtonData =
-                new ButtonDataImpl(
-                        /* canShow= */ false,
-                        buttonDrawable,
-                        /* onClickListener= */ this,
-                        contentDescription,
-                        actionChipLabelResId,
-                        supportsTinting,
-                        /* iphCommandBuilder= */ iphCommandBuilder,
-                        /* isEnabled= */ true,
-                        adaptiveButtonVariant,
-                        tooltipTextResId);
+                new ButtonDataImpl(/* canShow= */ false, /* isEnabled= */ true, specWithListener);
     }
 
     /**
@@ -118,13 +94,12 @@ public abstract class BaseButtonDataProvider implements ButtonDataProvider, OnCl
      */
     @Contract("null -> false")
     protected boolean shouldShowButton(@Nullable Tab tab) {
+        if (tab == null) return false;
         // Note(david@vivaldi.com): We don't show the button on internal pages.
-        if (tab != null) {
+        if (BuildConfig.IS_VIVALDI) {
             return !(VivaldiUrlConstants.VIVALDI_SCHEME.equalsIgnoreCase(tab.getUrl().getScheme())
                     || UrlUtilities.isInternalScheme(tab.getUrl()));
         }
-
-        if (tab == null) return false;
 
         if (tab.isIncognito() && !mShouldShowOnIncognitoTabs) return false;
 
@@ -144,12 +119,25 @@ public abstract class BaseButtonDataProvider implements ButtonDataProvider, OnCl
      * @param tab Current tab.
      */
     private void maybeSetIphCommandBuilder(@Nullable Tab tab) {
-        if (tab == null
-                || !FeatureList.isInitialized()
-                || mButtonData.getButtonSpec().getIphCommandBuilder() != null
-                || !AdaptiveToolbarFeatures.isCustomizationEnabled()
-                || AdaptiveToolbarFeatures.shouldShowActionChip(
-                        mButtonData.getButtonSpec().getButtonVariant())) {
+        // State not ready.
+        if (tab == null || !FeatureList.isInitialized()) {
+            return;
+        }
+
+        // Button already has an override IPH builder.
+        if (mButtonData.getButtonSpec().getIphCommandBuilder() != null) {
+            return;
+        }
+
+        // Adaptive toolbar customization is disabled.
+        if (!AdaptiveToolbarFeatures.isCustomizationEnabled()) {
+            return;
+        }
+
+        // Do not show IPH if the action chip is shown with a valid label.
+        if (AdaptiveToolbarFeatures.shouldShowActionChip(
+                        mButtonData.getButtonSpec().getButtonVariant())
+                && mButtonData.getButtonSpec().getActionChipLabelResId() != Resources.ID_NULL) {
             return;
         }
 

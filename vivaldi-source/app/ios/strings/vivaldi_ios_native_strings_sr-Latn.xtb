@@ -218,7 +218,7 @@ reklama</translation>
           other {obeleživači ({count}) su premešteni u "{title}"}}</translation>
 <translation id="3638687955382971136">Zumiraj tekst</translation>
 <translation id="3646647753063635401">Sinhronizuj sve podatke i automatski omogući sinhronizaciju novih tipova podataka</translation>
-<translation id="3682791711395736890">Prikaži verziju sajta za računare</translation>
+<translation id="3682791711395736890">Prikaži desktop verziju sajta</translation>
 <translation id="3689125468279190285">Prikaži dugme matične stranice</translation>
 <translation id="3694122362646626770">Veb sajtovi</translation>
 <translation id="3699026013955941879">Kod je istekao. Zatražite novi aktivacioni kod.</translation>
@@ -354,6 +354,7 @@ praćenje</translation>
 <translation id="495421405224926623">Pročitao sam i prihvatam Uslove korišćenja i Politiku privatnosti</translation>
 <translation id="497942794017668482">Blokiranje praćenja i reklama</translation>
 <translation id="4983968022327077496">Vaša organizacija zahteva da pregledate privatno. Kartice se ne čuvaju u privatnom režimu. <ph name="BEGIN_LINK" />Saznajte više<ph name="END_LINK" /></translation>
+<translation id="4991261712398289852">Dva nivoa</translation>
 <translation id="4993477362660748586">Sinhronizacija</translation>
 <translation id="500392125908657603">Opcije adresnog polja</translation>
 <translation id="5037761343305489956">Kopirano u belešku</translation>
@@ -452,7 +453,7 @@ praćenje</translation>
 <translation id="6329717714920146925">Veb sajtovi (samo prikaz)</translation>
 <translation id="6346549829676591152">Omogući istoriju pretrage</translation>
 <translation id="6365929278691047681">Nemački (<ph name="ORIGIN" />)</translation>
-<translation id="638249699236255123">Izgld veb sajt je neispravan ili izgleda čudno</translation>
+<translation id="638249699236255123">Izgled veb sajta je neispravan ili izgleda čudno</translation>
 <translation id="6383855939619098095">Teško je prilagoditi početnu stranicu Vivaldi pregledača</translation>
 <translation id="6406506848690869874">Sinhronizacija</translation>
 <translation id="641394169129472837">Izaberite koja stranica da se otvori dodirom na dugme Nova kartica.</translation>
@@ -621,7 +622,7 @@ praćenje</translation>
 <translation id="8284356787013856231">Dozvola za otvaranje datoteke je odbijena</translation>
 <translation id="8289933454364510719">Vrh ili dno</translation>
 <translation id="8304044605002588416">Dugme ’Prilagodi početnu stranicu’</translation>
-<translation id="8304538706952727936">Oslobodite se IT giganata</translation>
+<translation id="8304538706952727936">Oslobodite se tehnoloških giganata</translation>
 <translation id="8316087354921793295">Vaši podaci će biti sačuvani na vašem Vivaldi nalogu kada je sinhronizacija aktivna.</translation>
 <translation id="8323167517179506834">Unesite URL adresu</translation>
 <translation id="8326104954595890674">Nova privatna kartica</translation>
@@ -700,7 +701,6 @@ reklame</translation>
 <translation id="9157459516617966251">Uredi vezu</translation>
 <translation id="9157539936604258187">Otvori vezu</translation>
 <translation id="9165758833825521812">Režim čitanja</translation>
-<translation id="9171713938468458286">Dva nivoa</translation>
 <translation id="9195659219948942754">Nastavite da koristite sinhronizovane podatke na svom Vivaldi nalogu</translation>
 <translation id="9195802773917252923">Omogući nadimke obeleživača</translation>
 <translation id="9212737146310746733">Persijski (<ph name="ORIGIN" />)</translation>

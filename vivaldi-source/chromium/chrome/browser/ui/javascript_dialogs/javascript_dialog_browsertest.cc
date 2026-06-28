@@ -530,12 +530,20 @@ IN_PROC_BROWSER_TEST_P(JavaScriptDialogOriginTest,
                 opened_tab->GetPrimaryMainFrame()->GetLastCommittedOrigin()));
 }
 
+#if BUILDFLAG(IS_MAC)
+// Flaky: https://crbug.com/468829956
+#define MAYBE_HandlesSwappingTabWithDialogIntoSplitView \
+  DISABLED_HandlesSwappingTabWithDialogIntoSplitView
+#else
+#define MAYBE_HandlesSwappingTabWithDialogIntoSplitView \
+  HandlesSwappingTabWithDialogIntoSplitView
+#endif
 IN_PROC_BROWSER_TEST_F(JavaScriptDialogTest,
-                       HandlesSwappingTabWithDialogIntoSplitView) {
+                       MAYBE_HandlesSwappingTabWithDialogIntoSplitView) {
   // Create three tabs with the first two in a split view.
   chrome::NewTab(browser());
   tab_strip_model()->ActivateTabAt(0);
-  chrome::NewSplitTab(browser(),
+  chrome::NewSplitTab(browser(), split_tabs::SplitTabLayout::kSideBySide,
                       split_tabs::SplitTabCreatedSource::kToolbarButton);
 
   // Open a alert dialog from the third tab.

@@ -53,6 +53,8 @@
 #import "ui/base/cocoa/window_size_constants.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
+#include "ui/base/ui_base_features.h"
+#include "ui/native_theme/native_theme.h"
 #import "ui/views/cocoa/native_widget_mac_ns_window_host.h"
 #include "ui/views/interaction/element_tracker_views.h"
 
@@ -73,12 +75,12 @@ bool UsesRemoteCocoaApplicationHost(Browser* browser) {
 
 bool ShouldHandleKeyboardEvent(const input::NativeWebKeyboardEvent& event) {
   // |event.skip_if_unhandled| is true when it shouldn't be handled by the
-  // browser if it was ignored by the renderer. See http://crbug.com/25000.
+  // browser if it was ignored by the renderer. See http://crbug.com/41018016.
   if (event.skip_if_unhandled) {
     return false;
   }
 
-  // Ignore synthesized keyboard events. See http://crbug.com/23221.
+  // Ignore synthesized keyboard events. See http://crbug.com/41007517.
   if (event.GetType() == input::NativeWebKeyboardEvent::Type::kChar) {
     return false;
   }
@@ -89,6 +91,19 @@ bool ShouldHandleKeyboardEvent(const input::NativeWebKeyboardEvent& event) {
 }
 
 }  // namespace
+
+// NSGlassEffectView intercepts hit testing even when added below the
+// WebContents NSViews. Returning nil here lets clicks pass through to the
+// sibling subviews that are supposed to receive them.
+API_AVAILABLE(macos(26.0))
+@interface GlassFrameBackgroundView : NSGlassEffectView
+@end
+
+@implementation GlassFrameBackgroundView
+- (NSView*)hitTest:(NSPoint)point {
+  return nil;
+}
+@end
 
 // Bridge Obj-C class for WindowTouchBarDelegate and
 // BrowserWindowTouchBarController.
@@ -209,7 +224,10 @@ void BrowserNativeWidgetMac::OnWidgetDestroyed(views::Widget* widget) {
     chrome::RemoveCommandObserver(browser_view_->browser(), IDC_FORWARD, this);
   }
   touch_bar_delegate_ = nullptr;
+  background_view_ = nil;
   browser_view_ = nullptr;
+  last_preferred_color_scheme_.reset();
+  last_theme_color_.reset();
   NativeWidgetMac::OnWidgetDestroyed(widget);
 }
 
@@ -336,10 +354,9 @@ void BrowserNativeWidgetMac::ValidateUserInterfaceItem(
       result->new_toggle_state =
           prefs->GetBoolean(omnibox::kShowGoogleLensShortcut);
       // Disable this menu option if the LensOverlay feature is not enabled.
-      result->enable = lens::features::IsOmniboxEntryPointEnabled() &&
-                       browser->GetFeatures()
-                           .lens_overlay_entry_point_controller()
-                           ->IsEnabled();
+      result->enable =
+          lens::features::IsOmniboxEntryPointEnabled() &&
+          lens::LensOverlayEntryPointController::From(browser)->IsEnabled();
       break;
     }
     case IDC_SHOW_AI_MODE_OMNIBOX_BUTTON: {
@@ -428,7 +445,7 @@ bool BrowserNativeWidgetMac::WillExecuteCommand(
     // If a command is reserved, then we also have it bypass the main menu.
     // This is based on the rough approximation that reserved commands are
     // also the ones that we want to be quickly repeatable.
-    // https://crbug.com/836947.
+    // https://crbug.com/41385540.
     // The function IsReservedCommandOrKey does not examine its event argument
     // on macOS.
     input::NativeWebKeyboardEvent dummy_event(
@@ -509,6 +526,10 @@ NativeWidgetMacNSWindow* BrowserNativeWidgetMac::CreateNSWindow(
     const remote_cocoa::mojom::CreateWindowParams* params) {
   CHECK(browser_view_);
   NativeWidgetMacNSWindow* ns_window = NativeWidgetMac::CreateNSWindow(params);
+  if (features::IsGlassFrameEnabled()) {
+    [ns_window setBackgroundColor:[NSColor clearColor]];
+    [ns_window setOpaque:NO];
+  }
   touch_bar_delegate_ = [[BrowserWindowTouchBarViewsDelegate alloc]
       initWithBrowser:browser_view_->browser()
                window:ns_window];
@@ -535,6 +556,16 @@ void BrowserNativeWidgetMac::OnWindowInitialized() {
           GetNSWindowHost()->bridged_native_widget_id());
     }
   }
+}
+
+void BrowserNativeWidgetMac::OnWidgetInitDone() {
+  NativeWidgetMac::OnWidgetInitDone();
+  UpdateBackground();
+}
+
+void BrowserNativeWidgetMac::OnWidgetThemeChanged(views::Widget* widget) {
+  NativeWidgetMac::OnWidgetThemeChanged(widget);
+  UpdateBackground();
 }
 
 void BrowserNativeWidgetMac::OnWindowDestroying(
@@ -642,5 +673,57 @@ void BrowserNativeWidgetMac::AnnounceTextInInProcessWindow(
     NSAccessibilityPostNotificationWithUserInfo(
         ns_window, NSAccessibilityAnnouncementRequestedNotification,
         notification_info);
+  }
+}
+
+void BrowserNativeWidgetMac::UpdateBackground() {
+  if (!features::IsGlassFrameEnabled()) {
+    return;
+  }
+
+  if (@available(macOS 26.0, *)) {
+    auto color_scheme =
+        browser_view_->GetNativeTheme()->preferred_color_scheme();
+    auto theme_color =
+        browser_view_->GetColorProvider()->GetColor(ui::kColorFrameActive);
+
+    if (background_view_ && last_preferred_color_scheme_ == color_scheme &&
+        last_theme_color_ == theme_color) {
+      return;
+    }
+
+    last_preferred_color_scheme_ = color_scheme;
+    last_theme_color_ = theme_color;
+
+    if (background_view_) {
+      [background_view_ removeFromSuperview];
+    }
+    background_view_ = nil;
+
+    NSWindow* ns_window = GetNSWindowHost()->GetInProcessNSWindow();
+    if (!ns_window) {
+      return;
+    }
+
+    NSView* content_view = [ns_window contentView];
+
+    NSGlassEffectView* glass_view =
+        [[GlassFrameBackgroundView alloc] initWithFrame:content_view.bounds];
+    glass_view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    glass_view.style = NSGlassEffectViewStyleRegular;
+
+    CGFloat r = SkColorGetR(theme_color) / 255.0;
+    CGFloat g = SkColorGetG(theme_color) / 255.0;
+    CGFloat b = SkColorGetB(theme_color) / 255.0;
+
+    glass_view.tintColor = [NSColor colorWithSRGBRed:r
+                                               green:g
+                                                blue:b
+                                               alpha:0.55];
+
+    background_view_ = glass_view;
+    [content_view addSubview:background_view_
+                  positioned:NSWindowBelow
+                  relativeTo:nil];
   }
 }

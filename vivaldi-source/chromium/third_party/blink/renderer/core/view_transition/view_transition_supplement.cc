@@ -110,7 +110,7 @@ DOMViewTransition* ViewTransitionSupplement::StartTransition(
   // Disallow script initiated transitions during a navigation initiated
   // transition.
   if (document_transition_ && !document_transition_->IsCreatedViaScriptAPI()) {
-    return ViewTransition::CreateSkipped(&element, callback)
+    return ViewTransition::CreateSkipped(&element, callback, types)
         ->GetScriptDelegate();
   }
 
@@ -133,7 +133,8 @@ DOMViewTransition* ViewTransitionSupplement::StartTransition(
 
   // We need to be connected to a view to have a transition.
   if (!document.View()) {
-    return nullptr;
+    return ViewTransition::CreateSkipped(&element, callback, types)
+        ->GetScriptDelegate();
   }
 
   ViewTransition* transition = ViewTransition::CreateFromScript(
@@ -350,10 +351,11 @@ void ViewTransitionSupplement::OnTransitionCaptured(
   if (--in_flight_capture_requests_ == 0) {
     std::sort(captured_transitions_.begin(), captured_transitions_.end(),
               CompareTransitions);
-    for (auto captured_transition : captured_transitions_) {
+    HeapVector<Member<ViewTransition>> local_copy(captured_transitions_);
+    captured_transitions_.clear();
+    for (auto captured_transition : local_copy) {
       captured_transition->OnCapturePhaseComplete();
     }
-    captured_transitions_.clear();
   }
 }
 

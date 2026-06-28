@@ -43,10 +43,12 @@
 #include "chrome/browser/safe_browsing/safe_browsing_metrics_collector_factory.h"
 #include "chrome/browser/safe_browsing/safe_browsing_navigation_observer_manager_factory.h"
 #include "chrome/browser/safe_browsing/safe_browsing_pref_change_handler.h"
+#include "chrome/browser/safe_browsing/security_settings_bundle_pref_change_handler.h"
 #include "chrome/browser/safe_browsing/services_delegate.h"
 #include "chrome/browser/site_protection/site_familiarity_utils.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
+#include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/features.h"
@@ -218,6 +220,7 @@ void MigrateUserToEnhancedSecurityBundleIfNeeded(
   // Do not perform migration if the any bundled settings are managed by a
   // policy.
   PrefService* prefs = profile->GetPrefs();
+
   if (IsSafeBrowsingPolicyManaged(*prefs) ||
       IsJavascriptOptimizerPolicyManaged(*prefs)) {
     return;
@@ -247,11 +250,6 @@ void MigrateUserToEnhancedSecurityBundleIfNeeded(
   if (GetSafeBrowsingState(*prefs) != SafeBrowsingState::ENHANCED_PROTECTION) {
     return;
   }
-
-  // LINT.IfChange
-  // TODO(http://crbug.com/464331450): Add migration code once https-first
-  // feature row is added.
-  // LINT.ThenChange(//chrome/browser/resources/settings/privacy_page/security/security_page_v2.ts,//chrome/browser/safe_browsing/metrics/bundled_settings_metrics_provider.cc)
 
   SetSecurityBundleSetting(*prefs, SecuritySettingsBundleSetting::ENHANCED);
 
@@ -394,6 +392,7 @@ void SafeBrowsingServiceImpl::ShutDown() {
   user_population_prefs_.clear();
   min_allowed_time_for_referrer_chains_.clear();
   pref_change_handlers_map_.clear();
+  bundled_settings_pref_change_handlers_map_.clear();
 
   Stop(true);
 
@@ -513,7 +512,7 @@ SafeBrowsingUIManager* SafeBrowsingServiceImpl::CreateUIManager() {
   return new SafeBrowsingUIManager(
       std::make_unique<ChromeSafeBrowsingUIManagerDelegate>(),
       std::make_unique<ChromeSafeBrowsingBlockingPageFactory>(),
-      GURL(chrome::kChromeUINewTabURL));
+      chrome::ChromeUINewTabURLAsGURL());
 }
 
 void SafeBrowsingServiceImpl::RegisterAllDelayedAnalysis() {
@@ -593,6 +592,10 @@ void SafeBrowsingServiceImpl::OnProfileAdded(Profile* profile) {
                  base::BindRepeating(
                      &SafeBrowsingServiceImpl::EnhancedProtectionPrefChange,
                      base::Unretained(this), profile));
+  registrar->Add(prefs::kSecuritySettingsBundle,
+                 base::BindRepeating(
+                     &SafeBrowsingServiceImpl::SecuritySettingsBundlePrefChange,
+                     base::Unretained(this), profile));
   registrar->Add(
       unified_consent::prefs::kUrlKeyedAnonymizedDataCollectionEnabled,
       base::BindRepeating(
@@ -663,6 +666,8 @@ void SafeBrowsingServiceImpl::OnProfileAdded(Profile* profile) {
   // Create pref change handler for each profile.
   pref_change_handlers_map_[profile] =
       std::make_unique<SafeBrowsingPrefChangeHandler>(profile);
+  bundled_settings_pref_change_handlers_map_[profile] =
+      std::make_unique<SecuritySettingsBundlePrefChangeHandler>(profile);
 
   SafeBrowsingMetricsCollectorFactory::GetForProfile(profile)->StartLogging();
 
@@ -721,6 +726,7 @@ void SafeBrowsingServiceImpl::OnProfileWillBeDestroyed(Profile* profile) {
   DCHECK(pref_service);
   prefs_map_.erase(pref_service);
   pref_change_handlers_map_.erase(profile);
+  bundled_settings_pref_change_handlers_map_.erase(profile);
   user_population_prefs_.erase(pref_service);
   min_allowed_time_for_referrer_chains_.erase(profile);
 }
@@ -743,6 +749,14 @@ void SafeBrowsingServiceImpl::EnhancedProtectionPrefChange(Profile* profile) {
   auto it = pref_change_handlers_map_.find(profile);
   if (it != pref_change_handlers_map_.end()) {
     it->second->MaybeShowEnhancedProtectionSettingChangeNotification();
+  }
+}
+
+void SafeBrowsingServiceImpl::SecuritySettingsBundlePrefChange(
+    Profile* profile) {
+  auto it = bundled_settings_pref_change_handlers_map_.find(profile);
+  if (it != bundled_settings_pref_change_handlers_map_.end()) {
+    it->second->MaybeShowEnhancedBundleSettingChangeNotification();
   }
 }
 
@@ -819,11 +833,8 @@ void SafeBrowsingServiceImpl::SendDownloadReport(
                                      show_download_in_folder);
   Profile* profile = Profile::FromBrowserContext(
       content::DownloadItemUtils::GetBrowserContext(download));
-  PingManager::ReportThreatDetailsResult result =
-      ChromePingManagerFactory::GetForBrowserContext(profile)
-          ->ReportThreatDetails(std::move(report));
-  base::UmaHistogramEnumeration(
-      "SafeBrowsing.ClientSafeBrowsingReport.SendDownloadReportResult", result);
+  ChromePingManagerFactory::GetForBrowserContext(profile)->ReportThreatDetails(
+      std::move(report));
   return;
 }
 
@@ -1000,7 +1011,8 @@ bool SafeBrowsingServiceImpl::IsURLAllowlisted(
           primary_main_frame->GetFrameToken().value());
   return ui_manager_->IsAllowlisted(url, rfh_locator,
                                     /*navigation_id=*/std::nullopt,
-                                    SBThreatType::SB_THREAT_TYPE_URL_PHISHING);
+                                    SBThreatType::SB_THREAT_TYPE_URL_PHISHING,
+                                    safe_browsing::ThreatSource::UNKNOWN);
 }
 
 void SafeBrowsingServiceImpl::MaybeSendExternalAppRedirectReport(

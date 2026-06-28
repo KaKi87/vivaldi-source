@@ -534,6 +534,30 @@ void main() {
     verifyCountInTranslation(GL_FRAGMENT_SHADER, "loopForwardProgress", 2 + 1);
 }
 
+// Test that loopForwardProgress() is inserted when the loop variable is global.
+TEST_P(GLSLOutputMSLTest_EnsureLoopForwardProgress, InfiniteForWithGlobal)
+{
+    constexpr char kFS[] = R"(#version 300 es
+highp int i;
+void f()
+{
+    i = 0;
+}
+void main() {
+    for (i = 0; i < 100; i++)
+    {
+        i = 0;
+    }
+    for (i = 0; i < 100; i++)
+    {
+        f();
+    }
+})";
+    compileShader(GL_FRAGMENT_SHADER, kFS);
+    // One occurrence for defining |loopForwardProgress()|, and one call in each loop.
+    verifyCountInTranslation(GL_FRAGMENT_SHADER, "loopForwardProgress", 2 + 1);
+}
+
 // Test that loopForwardProgress() is not inserted when the for loop is not an infinite loop,
 // testing various tricky loops.
 TEST_P(GLSLOutputMSLTest_EnsureLoopForwardProgress, FiniteFors)
@@ -580,18 +604,24 @@ void main() {
 
 )";
     const char kShaderSuffix[] = "}\n";
-    const char *kTests[]{"for (;;) { }",
-                         "for (bool b = true; b; b = false) { }",
-                         "for (int i = 0; i < 10;) { }",
-                         "int i = 101; for (; i < 10; i+=2) { }",
-                         "int i = 101; for (; i < 10; i-=2) { }",
-                         "int z = 7; for (int i = 0; i < z; i++) { }",
-                         "for (int i = 0; i < 10; i++) { i++; }",
-                         "for (int i = 0; i < 10;) { i++; }",
-                         "for (int i = 0; i < a/2; i++) { }",
-                         "for (int i = 0; float(i) < 10e10; ++i) { }",
-                         "for (int i = 0; i < 10; i++) { for (int j = 0; j < 1000; ++i) { }}",
-                         "for (int i = 0; i != 1; i+=2) { }"};
+    const char *kTests[]{
+        "for (;;) { }",
+        "for (bool b = true; b; b = false) { }",
+        "for (int i = 0; i < 10;) { }",
+        "int i = 101; for (; i < 10; i+=2) { }",
+        "int i = 101; for (; i < 10; i-=2) { }",
+        "int z = 7; for (int i = 0; i < z; i++) { }",
+        "for (int i = 0; i < 10; i++) { i++; }",
+        "for (int i = 0; i < 10;) { i++; }",
+        "for (int i = 0; i < a/2; i++) { }",
+        "for (int i = 0; float(i) < 10e10; ++i) { }",
+        "for (int i = 0; i < 10; i++) { for (int j = 0; j < 1000; ++i) { }}",
+        "for (int i = 0; i != 1; i+=2) { }",
+        "for (int i = 0; i < 10; i++) { int j; for (j = 0, i = 0; j < 10; j++) { } }",
+        "for (int i = 0; i < 10; i++) { for (int j = 0; i = 0, j < 10; j++) { } }",
+        "for (int i = 0; i < 10; i++) { for (int j = 0; j < 10; i = 0, j++) { } }",
+        "for (int i = 0; i < 10; i++) { for (int j = 0; j < 10; i--, j++) { } }",
+    };
 
     for (const char *test : kTests)
     {
@@ -599,6 +629,45 @@ void main() {
         compileShader(GL_FRAGMENT_SHADER, shader.c_str());
         verifyIsInTranslation(GL_FRAGMENT_SHADER, "loopForwardProgress");
     }
+}
+
+// Test that too-complex expressions are broken up in the IR.  With AST, the shader fails
+// compilation instead.
+TEST_P(WebGLGLSLOutputGLSLTest, ComplexExpression)
+{
+    ANGLE_SKIP_TEST_IF(!getEGLWindow()->isFeatureEnabled(Feature::UseIr));
+
+    std::ostringstream fs;
+    fs << R"(precision highp float;
+            uniform vec4 u_color;
+            void main()
+            {
+               gl_FragColor = u_color)";
+    for (uint32_t i = 0; i < 600; ++i)
+    {
+        fs << "+ vec4(" << i << ")";
+    }
+    fs << "; }";
+    compileShader(GL_FRAGMENT_SHADER, fs.str().c_str());
+    // The output contains (with a lot of parenthesization not shown):
+    //
+    //     webgl_FragColor = vec4(0.0, 0.0, 0.0, 0.0)
+    //               temp1 = _uu_color + vec4(0.0, 0.0, 0.0, 0.0)
+    //                                 + vec4(1.0, 1.0, 1.0, 1.0)
+    //                                 + ...
+    //                                 + vec4(127.0, 127.0, 127.0, 127.0);
+    //               temp2 =     temp1 + vec4(128.0, 128.0, 128.0, 128.0)
+    //                                 + ...
+    //                                 + vec4(255.0, 255.0, 255.0, 255.0);
+    //                    ...
+    //     webgl_FragColor =     temp3 + vec4(512.0, 512.0, 512.0, 512.0)
+    //                                 + ...
+    //                                 + vec4(599.0, 599.0, 599.0, 599.0);
+    verifyIsInTranslation(GL_FRAGMENT_SHADER, "vec4(127.0, 127.0, 127.0, 127.0)));");
+    verifyIsInTranslation(GL_FRAGMENT_SHADER, "vec4(255.0, 255.0, 255.0, 255.0)));");
+    verifyIsInTranslation(GL_FRAGMENT_SHADER, "vec4(383.0, 383.0, 383.0, 383.0)));");
+    verifyIsInTranslation(GL_FRAGMENT_SHADER, "vec4(511.0, 511.0, 511.0, 511.0)));");
+    verifyIsInTranslation(GL_FRAGMENT_SHADER, "vec4(599.0, 599.0, 599.0, 599.0)));");
 }
 }  // namespace
 

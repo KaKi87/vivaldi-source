@@ -13,10 +13,11 @@ import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.util.ArraySet;
 
+import org.jni_zero.JniZero;
+
 import org.chromium.base.BundleUtils;
 import org.chromium.base.CommandLine;
 import org.chromium.base.ContextUtils;
-import org.chromium.base.JNIUtils;
 import org.chromium.base.JavaUtils;
 import org.chromium.base.TraceEvent;
 import org.chromium.base.library_loader.LibraryLoader;
@@ -29,6 +30,7 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.init.InitializeFeatureList;
 import org.chromium.chrome.modules.on_demand.OnDemandModule;
+import org.chromium.components.variations.firstrun.VariationsSeedFetcher;
 
 /**
  * Application class for Chrome that knows how to deal with isolated splits. This class will perform
@@ -215,11 +217,11 @@ public class SplitChromeApplication extends SplitCompatApplication {
                             // able to access all chrome classes.
                             BundleUtils.replaceClassLoader(
                                     SplitChromeApplication.this, chromeContext.getClassLoader());
-                            JNIUtils.setDefaultClassLoader(chromeContext.getClassLoader());
+                            JniZero.setJniClassLoader(BundleUtils.getSplitCompatClassLoader());
                             // Resources holds a reference to a ClassLoader. Make our Application's
                             // getResources() return a reference to the Chrome split's resources
                             // since there are a spots where ContextUtils.getApplicationContext()
-                            // is used to retrieve resources (https://crbug.com/1287000).
+                            // is used to retrieve resources (https://crbug.com/40815958).
                             mResources = chromeContext.getResources();
                         }
                     }
@@ -237,14 +239,16 @@ public class SplitChromeApplication extends SplitCompatApplication {
 
             if (ChromeFeatureList.sInitFeatureListEarly.getValue()) {
                 if (BuildConfig.IS_FOR_TEST) {
+                    // For test builds, we should initialize the feature list early to apply the
+                    // fieldtrial_testing_config.json.
                     ContextUtils.sDoFeatureListInitHookForTesting =
-                            () -> {
-                                if (CommandLine.getInstance()
-                                        .hasSwitch(ChromeSwitches.FORCE_INIT_FEATURE_LIST_EARLY)) {
-                                    InitializeFeatureList.initializeFeatureList();
-                                }
-                            };
-                } else {
+                            InitializeFeatureList::initializeFeatureList;
+                } else if (!BuildConfig.IS_CHROME_BRANDED
+                        || !VariationsSeedFetcher.shouldFetchSeed()) {
+                    // For non-Chrome branded builds, we should initialize the feature list early to
+                    // apply the fieldtrial_testing_config.json. Otherwise, we should initialize the
+                    // feature list early in non-first run when we are not fetching the first run
+                    // variations seed.
                     InitializeFeatureList.initializeFeatureList();
                 }
             }

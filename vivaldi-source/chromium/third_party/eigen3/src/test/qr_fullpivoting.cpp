@@ -7,6 +7,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
 #include <Eigen/QR>
@@ -81,7 +82,7 @@ void qr_invertible() {
   MatrixType m1(size, size), m2(size, size), m3(size, size);
   m1 = MatrixType::Random(size, size);
 
-  if (internal::is_same<RealScalar, float>::value) {
+  if (std::is_same<RealScalar, float>::value) {
     // let's build a matrix more stable to inverse
     MatrixType a = MatrixType::Random(size, size * 2);
     m1 += a * a.adjoint();

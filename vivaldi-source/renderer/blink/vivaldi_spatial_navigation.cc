@@ -47,7 +47,8 @@ bool IsUnobscured(const blink::Element* element) {
     return true;
 
   blink::PhysicalRect viewport_rect(
-      local_main_frame->GetPage()->GetVisualViewport().VisibleContentRect());
+      local_main_frame->GetPage()->GetVisualViewport().VisibleContentRect(
+          blink::kExcludeScrollbars));
   blink::PhysicalRect interesting_rect =
       Intersection(NodeRectInRootFrame(node), viewport_rect);
 

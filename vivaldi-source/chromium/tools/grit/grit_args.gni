@@ -60,6 +60,12 @@ if (is_android) {
   _grit_environment_vars += [ "ANDROID_JAVA_TAGGED_ONLY=true" ]
 }
 
+# Vivaldi - needed by
+# components/policy/tools/template_writers/writer_configuration.py
+if (defined(is_vivaldi) && is_vivaldi) {
+  _grit_defines += [ "_vivaldi=1" ]
+}
+
 # Convert |_grit_defines| and |_grit_environment_vars| to command line flags.
 grit_args = []
 foreach(i, _grit_defines) {

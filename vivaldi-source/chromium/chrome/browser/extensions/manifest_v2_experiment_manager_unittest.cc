@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/extensions/manifest_v2_experiment_manager.h"
+#include "extensions/browser/manifest_v2_experiment_manager.h"
 
 #include "base/memory/raw_ptr.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -10,13 +10,13 @@
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/extension_management_internal.h"
 #include "chrome/browser/extensions/extension_service_user_test_base.h"
-#include "chrome/browser/extensions/mv2_experiment_stage.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/crx_file/id_util.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "extensions/browser/disable_reason.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_registrar.h"
+#include "extensions/browser/mv2_experiment_stage.h"
 #include "extensions/browser/pref_names.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/extension_features.h"
@@ -87,10 +87,22 @@ class ManifestV2ExperimentManagerWarningUnitTest
  public:
   ManifestV2ExperimentManagerWarningUnitTest()
       : ManifestV2ExperimentManagerUnitTestBase(
-            {},
-            {extensions_features::kExtensionManifestV2Disabled,
-             extensions_features::kExtensionManifestV2Unsupported}) {}
+            {extensions_features::kExtensionManifestV2DeprecationWarning},
+            {}) {}
   ~ManifestV2ExperimentManagerWarningUnitTest() override = default;
+};
+
+// Test suite for cases where the user is not in any experiment phase; i.e., the
+// experiment is disabled.
+class ManifestV2ExperimentManagerDisabledUnitTest
+    : public ManifestV2ExperimentManagerUnitTestBase {
+ public:
+  ManifestV2ExperimentManagerDisabledUnitTest()
+      : ManifestV2ExperimentManagerUnitTestBase(
+            {},
+            {extensions_features::kExtensionManifestV2DeprecationWarning,
+             }) {}
+  ~ManifestV2ExperimentManagerDisabledUnitTest() override = default;
 };
 
 // Test suite for cases where the user is in the "disable with re-enable"
@@ -100,22 +112,9 @@ class ManifestV2ExperimentManagerDisableWithReEnableUnitTest
  public:
   ManifestV2ExperimentManagerDisableWithReEnableUnitTest()
       : ManifestV2ExperimentManagerUnitTestBase(
-            {extensions_features::kExtensionManifestV2Disabled},
+            {},
             {extensions_features::kExtensionManifestV2Unsupported}) {}
   ~ManifestV2ExperimentManagerDisableWithReEnableUnitTest() override = default;
-};
-
-// Test suite for cases where the user is in the "disable with re-enable"
-// experiment phase *and* the warning experiment is still active.
-class ManifestV2ExperimentManagerDisableWithReEnableAndWarningUnitTest
-    : public ManifestV2ExperimentManagerUnitTestBase {
- public:
-  ManifestV2ExperimentManagerDisableWithReEnableAndWarningUnitTest()
-      : ManifestV2ExperimentManagerUnitTestBase(
-            {extensions_features::kExtensionManifestV2Disabled},
-            {extensions_features::kExtensionManifestV2Unsupported}) {}
-  ~ManifestV2ExperimentManagerDisableWithReEnableAndWarningUnitTest() override =
-      default;
 };
 
 // Test suite for cases where the user is in the "unsupported" experiment phase.
@@ -124,7 +123,7 @@ class ManifestV2ExperimentManagerUnsupportedUnitTest
  public:
   ManifestV2ExperimentManagerUnsupportedUnitTest()
       : ManifestV2ExperimentManagerUnitTestBase(
-            {extensions_features::kExtensionManifestV2Unsupported},
+            {},
             {}) {}
   ~ManifestV2ExperimentManagerUnsupportedUnitTest() override = default;
 };
@@ -212,18 +211,61 @@ TEST_F(ManifestV2ExperimentManagerWarningUnitTest,
   EXPECT_TRUE(experiment_manager()->DidUserAcknowledgeNoticeGlobally());
 }
 
-// Tests that the experiment phase is properly set for a user in the
-// "disable with re-enable" experiment phase.
-TEST_F(ManifestV2ExperimentManagerDisableWithReEnableUnitTest,
-       ExperimentStageIsSetToDisableWithReEnable) {
-  EXPECT_EQ(MV2ExperimentStage::kDisableWithReEnable,
+// Tests that the experiment stage is properly set when the manifest V2
+// deprecation warning experiment is disabled.
+TEST_F(ManifestV2ExperimentManagerDisabledUnitTest,
+       ExperimentStageIsSetToNone) {
+  EXPECT_EQ(MV2ExperimentStage::kNone,
             experiment_manager()->GetCurrentExperimentStage());
 }
 
+// Sanity check that no extensions are considered affected when the
+// experiment is disabled. The "is affected" logic is much more heavily tested
+// in mv2_deprecation_impact_checker_unittest.cc.
+TEST_F(ManifestV2ExperimentManagerDisabledUnitTest, NoExtensionsAreAffected) {
+  struct {
+    mojom::ManifestLocation manifest_location;
+    const char* name;
+  } test_cases[] = {
+      {mojom::ManifestLocation::kInternal, "internal"},
+      {mojom::ManifestLocation::kExternalPref, "external pref"},
+      {mojom::ManifestLocation::kExternalRegistry, "external registry"},
+      {mojom::ManifestLocation::kExternalComponent, "external component"},
+  };
+
+  for (const auto& test_case : test_cases) {
+    SCOPED_TRACE(test_case.name);
+    scoped_refptr<const Extension> mv2_extension =
+        ExtensionBuilder(test_case.name)
+            .SetManifestVersion(2)
+            .SetLocation(test_case.manifest_location)
+            .Build();
+    EXPECT_FALSE(experiment_manager()->IsExtensionAffected(*mv2_extension));
+    EXPECT_FALSE(experiment_manager()->ShouldBlockExtensionInstallation(
+        mv2_extension->id(), mv2_extension->manifest_version(),
+        mv2_extension->GetType(), mv2_extension->location(),
+        mv2_extension->hashed_id()));
+    EXPECT_FALSE(
+        experiment_manager()->ShouldBlockExtensionEnable(*mv2_extension));
+
+    scoped_refptr<const Extension> mv3_extension =
+        ExtensionBuilder(test_case.name)
+            .SetManifestVersion(3)
+            .SetLocation(test_case.manifest_location)
+            .Build();
+    EXPECT_FALSE(experiment_manager()->IsExtensionAffected(*mv3_extension));
+    EXPECT_FALSE(experiment_manager()->ShouldBlockExtensionInstallation(
+        mv3_extension->id(), mv3_extension->manifest_version(),
+        mv3_extension->GetType(), mv3_extension->location(),
+        mv3_extension->hashed_id()));
+    EXPECT_FALSE(
+        experiment_manager()->ShouldBlockExtensionEnable(*mv3_extension));
+  }
+}
+
 // Tests that the experiment phase is properly set for a user in the
-// "disable with re-enable" experiment phase if the "warning" experiment is
-// still active. That is, verifies that the "latest" stage takes precedence.
-TEST_F(ManifestV2ExperimentManagerDisableWithReEnableAndWarningUnitTest,
+// "disable with re-enable" experiment phase.
+TEST_F(ManifestV2ExperimentManagerDisableWithReEnableUnitTest,
        ExperimentStageIsSetToDisableWithReEnable) {
   EXPECT_EQ(MV2ExperimentStage::kDisableWithReEnable,
             experiment_manager()->GetCurrentExperimentStage());
@@ -647,7 +689,7 @@ TEST_F(ManifestV2ExperimentManagerDisableWithReEnableAndPolicyUnitTest,
     ExtensionId extension_id = crx_file::id_util::GenerateId(test_case.name);
 
     EXPECT_TRUE(experiment_manager()->ShouldBlockExtensionInstallation(
-        extension_id, /*manifest_version=*/2, Manifest::TYPE_EXTENSION,
+        extension_id, /*manifest_version=*/2, Manifest::Type::kExtension,
         test_case.manifest_location, HashedExtensionId(extension_id)));
   }
 }
@@ -693,7 +735,7 @@ TEST_F(
     EXPECT_EQ(
         test_case.should_block_install,
         experiment_manager()->ShouldBlockExtensionInstallation(
-            extension_id, /*manifest_version=*/2, Manifest::TYPE_EXTENSION,
+            extension_id, /*manifest_version=*/2, Manifest::Type::kExtension,
             test_case.manifest_location, HashedExtensionId(extension_id)));
   }
 }

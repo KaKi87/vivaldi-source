@@ -79,6 +79,18 @@
         }
       },
       {
+        "id": "SessionOpenResult",
+        "type": "object",
+        "description": "Result returned when opening a saved session.",
+        "properties": {
+          "workspaces": {
+            "type": "array",
+            "items": { "$ref": "WorkspaceItem" },
+            "description": "List of workspaces stored in the session."
+          }
+        }
+      },
+      {
         "id": "TabContent",
         "type": "object",
         "description": "Holds information of a tab",
@@ -435,6 +447,10 @@
             "type": "boolean",
             "description": "Open workspace tabs."
           },
+          "workspaceAsTabs": {
+            "type": "boolean",
+            "description": "Don't create workspaces, put all the tabs into the window."
+          },
           "tabIds": {
             "type": "array",
             "items": {
@@ -757,9 +773,8 @@
           "optional": true,
           "parameters": [
             {
-              "name": "status",
-              "type": "integer",
-              "description": "0 for success, error code for any error."
+              "name": "result",
+              "$ref": "SessionOpenResult"
             }
           ]
         }
@@ -874,17 +889,6 @@
           {
             "name": "data",
             "$ref": "SessionChangeData"
-          }
-        ]
-      },
-      {
-        "name": "onPersistentLoad",
-        "type": "function",
-        "description": "Fired when a persisted session is loaded.",
-        "parameters": [
-          {
-            "name": "state",
-            "type": "boolean"
           }
         ]
       }

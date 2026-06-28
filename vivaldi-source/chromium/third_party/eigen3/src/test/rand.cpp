@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include <cstdlib>
 #include "main.h"
@@ -87,7 +88,7 @@ struct get_range_type {
   using type = std::conditional_t<(sizeof(T) < sizeof(int)), unsigned int, std::make_unsigned_t<T>>;
 };
 template <typename T>
-struct get_range_type<SafeScalar<T>> : internal::make_unsigned<T> {};
+struct get_range_type<SafeScalar<T>> : std::make_unsigned<T> {};
 
 template <typename Scalar>
 class HistogramHelper<Scalar, std::enable_if_t<Eigen::NumTraits<Scalar>::IsInteger>> {

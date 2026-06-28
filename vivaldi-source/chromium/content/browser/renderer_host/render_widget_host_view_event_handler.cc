@@ -117,8 +117,7 @@ RenderWidgetHostViewEventHandler::RenderWidgetHostViewEventHandler(
     RenderWidgetHostImpl* host,
     RenderWidgetHostViewBase* host_view,
     Delegate* delegate)
-    : pinch_zoom_enabled_(input::switches::IsPinchToZoomEnabled()),
-      host_(host),
+    : host_(host),
       host_view_(host_view),
       delegate_(delegate),
       mouse_wheel_phase_handler_(host_view) {}
@@ -534,7 +533,7 @@ void RenderWidgetHostViewEventHandler::OnGestureEvent(ui::GestureEvent* event) {
   if ((event->type() == ui::EventType::kGesturePinchBegin ||
        event->type() == ui::EventType::kGesturePinchUpdate ||
        event->type() == ui::EventType::kGesturePinchEnd) &&
-      !pinch_zoom_enabled_) {
+      !host_->IsPinchToZoomEnabled()) {
     event->SetHandled();
     return;
   }

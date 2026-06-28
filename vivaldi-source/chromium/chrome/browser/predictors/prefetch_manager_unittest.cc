@@ -119,16 +119,8 @@ class PrefetchManagerTest : public testing::TestWithParam<bool> {
   }
 
   void CheckHeaders(network::ResourceRequest& request) {
-    // Test Purpose headers based on feature flag state
-    if (GetParam()) {
-      // When feature is enabled, legacy Purpose header should be removed
-      EXPECT_FALSE(request.headers.HasHeader(blink::kPurposeHeaderName));
-    } else {
-      // When feature is disabled, ensure legacy Purpose header is working
-      EXPECT_THAT(request.headers.GetHeader(blink::kPurposeHeaderName),
-                  testing::Optional(
-                      std::string(blink::kSecPurposePrefetchHeaderValue)));
-    }
+    // Legacy Purpose header should be removed
+    EXPECT_FALSE(request.headers.HasHeader(blink::kPurposeHeaderName));
 
     EXPECT_THAT(
         request.headers.GetHeader(blink::kSecPurposeHeaderName),
@@ -156,8 +148,7 @@ PrefetchManagerTest::PrefetchManagerTest()
     features_.InitWithFeatures(
         /*enabled_features=*/
         {features::kLoadingPredictorPrefetch,
-         features::kLoadingPredictorPrefetchUseReadAndDiscardBody,
-         blink::features::kRemovePurposeHeaderForPrefetch},
+         features::kLoadingPredictorPrefetchUseReadAndDiscardBody},
         /*disabled_features=*/{
             features::kPrefetchManagerUseNetworkContextPrefetch});
   } else {
@@ -165,8 +156,7 @@ PrefetchManagerTest::PrefetchManagerTest()
         /*enabled_features=*/{features::kLoadingPredictorPrefetch},
         /*disabled_features=*/{
             features::kLoadingPredictorPrefetchUseReadAndDiscardBody,
-            features::kPrefetchManagerUseNetworkContextPrefetch,
-            blink::features::kRemovePurposeHeaderForPrefetch});
+            features::kPrefetchManagerUseNetworkContextPrefetch});
   }
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
       switches::kLoadingPredictorAllowLocalRequestForTesting);
@@ -494,7 +484,7 @@ TEST_P(PrefetchManagerTest, Stop) {
               UnorderedElementsAreArray({test_server.GetURL(path2)}));
 }
 
-// Flaky on Mac/Linux/CrOS/Android/Windows. http://crbug.com/1239235
+// Flaky on Mac/Linux/CrOS/Android/Windows. http://crbug.com/40784662
 #if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
     BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_WIN)
 #define MAYBE_StopAndStart DISABLED_StopAndStart

@@ -7,9 +7,9 @@
 <translation id="1041637248958093184">A kereséseket, meglátogatott oldalakat, cookie-kat és ideiglenes fájlokat a Vivaldi nem tárolja privát lap használatakor.</translation>
 <translation id="104766043551382253">Ikon</translation>
 <translation id="1062373127858055283">Kérlek, add meg a kép URL-jét</translation>
-<translation id="1066692930984703744">Nyomkövető- és reklámblokkolás bekapcsolása a gyorsabb és biztonságosabb böngészéshez</translation>
+<translation id="1066692930984703744">Nyomkövető- és hirdetésblokkolás bekapcsolása a gyorsabb és biztonságosabb böngészéshez</translation>
 <translation id="1116694919640316211">Névjegy</translation>
-<translation id="1123707809902612118">Követés- és reklámok blokkolása</translation>
+<translation id="1123707809902612118">Követés- és hirdetések blokkolása</translation>
 <translation id="1134179431044204911">Nehezen kezelhetőnek találom a gesztusokat vagy a navigációt</translation>
 <translation id="1151972924205500581">Jelszó szükséges</translation>
 <translation id="1166425484559430538">A szinkronizációs adataid titkosítottak. Kérlek, add meg a titkosítási jelszavad az adatok dekódolásához.</translation>
@@ -52,7 +52,7 @@
 <translation id="1558430487788094817">Egy érvényes protokollt kell megadni.</translation>
 <translation id="1567659716528258242">A Vivaldi felmelegíti a készülékemet</translation>
 <translation id="156793582229023040">Aggódom a követés vagy az adatgyűjtés miatt</translation>
-<translation id="1573784689611551537">Reklámblokkolási források kezelése</translation>
+<translation id="1573784689611551537">Hirdetésblokkolási források kezelése</translation>
 <translation id="1577761519530347814">Weboldal tárolt jelszavainak szinkronizálása</translation>
 <translation id="1620921465699122417">Add meg a lefordítandó szöveget</translation>
 <translation id="1624621765073396937">A lap bezárása húzással</translation>
@@ -66,7 +66,7 @@
 <translation id="1717473843091433383">Sötét téma kényszerítése minden weboldalon</translation>
 <translation id="1721265415699013829">Fogalmazz a lehető legpontosabban</translation>
 <translation id="173924678149983125">URL megadása a blokkolási szabályok importálásához</translation>
-<translation id="1751280147639351837">Reklám- és nyomkövetés blokkoló</translation>
+<translation id="1751280147639351837">Hirdetés- és nyomkövetés blokkoló</translation>
 <translation id="1752547299766512813">Jelszavak mentése</translation>
 <translation id="1754797958074421486">Használati feltételek</translation>
 <translation id="1755590309862395270">Törölhető automatikus kiegészítési javaslatokhoz.</translation>
@@ -99,7 +99,7 @@
 <translation id="2179052183774520942">Keresőmotor hozzáadása</translation>
 <translation id="2195713384412091023">Ezzel törlődik minden szinkronizált adat a szerverünkről, alaphelyzetbe áll a titkosítási jelszavad, és ki leszel jelentkeztetve.</translation>
 <translation id="2228584369802328636">Játék</translation>
-<translation id="2240680014596059312">Privát. Gyors. Kevesebb reklám.</translation>
+<translation id="2240680014596059312">Privát. Gyors. Kevesebb hirdetés.</translation>
 <translation id="2243210264130642074">Jegyzet elmentve</translation>
 <translation id="2272338747456392228">A fiók zárolva</translation>
 <translation id="2273327106802955778">További menü</translation>
@@ -134,10 +134,10 @@
 <translation id="2638305832232696831">Címsor húzási-gesztus engedélyezése</translation>
 <translation id="2653659639078652383">Küldés</translation>
 <translation id="2666092431469916601">Fent</translation>
-<translation id="2677862276555105603">reklám
+<translation id="2677862276555105603">hirdetés
 blokkolva</translation>
 <translation id="2678542925523700624">Észt (<ph name="ORIGIN" />)</translation>
-<translation id="2701366016894985129">Reklámok a keresési eredményekben</translation>
+<translation id="2701366016894985129">Hirdetések a keresési eredményekben</translation>
 <translation id="2702801445560668637">Olvasási lista</translation>
 <translation id="2709516037105925701">Automatikus kitöltés</translation>
 <translation id="271033894570825754">Új</translation>
@@ -162,7 +162,7 @@ blokkolva</translation>
 <translation id="2898963176829412617">Új mappa…</translation>
 <translation id="2918704853620385162">Új lap megnyitása az utolsó lap bezárásakor</translation>
 <translation id="2924890236896835588">Csoport neve</translation>
-<translation id="294138200684170250">Reklám- és követésblokkoló, és weboldal-beállítások</translation>
+<translation id="294138200684170250">Hirdetés- és követésblokkoló, és weboldal-beállítások</translation>
 <translation id="2961573414320947355">Minden linket a Vivaldiban akarsz megnyitni? Győződj meg róla, hogy ez az alapértelmezett.</translation>
 <translation id="3006429105107822794">Nem szükséges emlékezned erre a jelszóra. A Vivaldi Jelszókezelőben lesz tárolva.</translation>
 <translation id="3018244467214569202">Görög (<ph name="ORIGIN" />)</translation>
@@ -172,7 +172,7 @@ blokkolva</translation>
 <translation id="3086746722712840547">jegyzet</translation>
 <translation id="3087734570205094154">Alul</translation>
 <translation id="309084557304084991">Nem akarok előtelepített könyvjelzőket és Gyorshívókat</translation>
-<translation id="3091563570137981919">Követés- és reklám blokkolása</translation>
+<translation id="3091563570137981919">Követés- és hirdetés blokkolása</translation>
 <translation id="3097968995088564986">Hozzáadás gomb megjelenítése</translation>
 <translation id="3134385238404760368">Nincs nemrég megnyitott lap</translation>
 <translation id="3142562627629111859">Új csoport</translation>
@@ -259,7 +259,7 @@ blokkolva</translation>
 <translation id="4072876042695422377">Fordítási nézet bezárása</translation>
 <translation id="4073968054795398875">A szinkronizációs szerver problémába ütközött. Szinkronizációs inicializálás újraindítása...</translation>
 <translation id="4084682180776658562">Könyvjelző</translation>
-<translation id="408984524719804241">Miért látok reklámokat</translation>
+<translation id="408984524719804241">Miért látok hirdetéseket</translation>
 <translation id="4096707694175478403">Oldalsáv</translation>
 <translation id="4118801221225128605">Lefordított szöveg</translation>
 <translation id="4134597009271720826">Alkalmazás értékelése</translation>
@@ -271,7 +271,7 @@ blokkolva</translation>
 <translation id="4152623049003960417">Nyomkövető részletei</translation>
 <translation id="4176463684765177261">Kikapcsolva</translation>
 <translation id="4181792832006033883">A Vivaldit a felhasználóink tartják fent, nem a nagyvállalatok vagy befektetők. Minden adomány közvetlenül a nyílt, privát internetért folytatott küldetésünket támogatja. Légy a változás részese.</translation>
-<translation id="4184746246941929945">A Vivaldi összefogott a(z) <ph name="PARTNER_NAME" /> társasággal, ezért ezen az oldalon nincsenek blokkolja a reklámokat. Ez segít finanszírozni a Vivaldi fejlesztését.</translation>
+<translation id="4184746246941929945">A Vivaldi összefogott a(z) <ph name="PARTNER_NAME" /> társasággal, ezért ezen az oldalon nincsenek blokkolja a hirdetéseket. Ez segít finanszírozni a Vivaldi fejlesztését.</translation>
 <translation id="4193549853510262477">Automatikus felismerés</translation>
 <translation id="4209092469652827314">Nagy</translation>
 <translation id="4219175188138757774">Cseh és Szlovák (<ph name="ORIGIN" />)</translation>
@@ -318,7 +318,7 @@ blokkolva</translation>
 <translation id="462860218383788109">Módosítás dátuma</translation>
 <translation id="4640946580087069269">Másolás jegyzetbe</translation>
 <translation id="4643117005422448078">Top weboldalak</translation>
-<translation id="4654578955713250802">Reklám- és követés blokkolása</translation>
+<translation id="4654578955713250802">Hirdetés- és követés blokkolása</translation>
 <translation id="4655510151391078468">A kód nem egyezik azzal, amit neked küldtünk.
         Még <ph name="ATTEMPTS" /> próbálkozásod maradt.</translation>
 <translation id="466494460776294423">Megerősítő kód szükséges</translation>
@@ -341,7 +341,7 @@ blokkolva</translation>
 <translation id="4833044618885331665">Frissítened kell a Vivaldit a szinkronizálás használatához.</translation>
 <translation id="484344804915260122">Szükségem van egy beépített fordítóra</translation>
 <translation id="484462545196658690">Automatikus</translation>
-<translation id="4852383705713307704">Reklám blokkolva</translation>
+<translation id="4852383705713307704">Hirdetés blokkolva</translation>
 <translation id="4899260893220375866">Több kontrollra van szükségem a sütik és a weboldal engedélyei felett</translation>
 <translation id="4903325570808402486">Vivaldi beállítások szinkronizálása (még nem minden beállítás szinkronizálható)</translation>
 <translation id="4906074979036008980">Új cím megadása</translation>
@@ -349,11 +349,12 @@ blokkolva</translation>
 <translation id="4929196061847506605">Hatékony. Személyes. Privát.</translation>
 <translation id="4936675324097895694">Pénzügyek</translation>
 <translation id="4936710149174207991">Nem szinkronizált</translation>
-<translation id="4943266325467647391">A Vivaldi beépített nyomkövető- és reklámblokkolója megvéd a rosszindulatú programoktól és a reklámoktól.</translation>
+<translation id="4943266325467647391">A Vivaldi beépített nyomkövető- és hirdetésblokkolója megvéd a rosszindulatú programoktól és a hirdetésektől.</translation>
 <translation id="4950266778127803750">X gomb megjelenítése háttérbeli lapnál</translation>
 <translation id="495421405224926623">Elolvastam és elfogadom a Felhasználási feltételeket és az Adatvédelmi szabályzatot</translation>
-<translation id="497942794017668482">Követés- és reklámok blokkolása</translation>
+<translation id="497942794017668482">Követés- és hirdetések blokkolása</translation>
 <translation id="4983968022327077496">A szervezeted megköveteli, hogy privát módban böngéssz. Privát módban a lapok nem kerülnek mentésre. <ph name="BEGIN_LINK" />Tudj meg többet<ph name="END_LINK" /></translation>
+<translation id="4991261712398289852">Kétsoros</translation>
 <translation id="4993477362660748586">Szinkronizálás</translation>
 <translation id="500392125908657603">Címmező beállításai</translation>
 <translation id="5037761343305489956">Jegyzetbe másolva</translation>
@@ -377,11 +378,11 @@ blokkolva</translation>
 <translation id="5317780077021120954">Mentés</translation>
 <translation id="5327248766486351172">Név</translation>
 <translation id="5349678548463426691">Leírás szerint</translation>
-<translation id="5350737901534958404">Reklámok engedélyezése partnereinktől (Vivaldi támogatása)</translation>
+<translation id="5350737901534958404">Hirdetések engedélyezése partnereinktől (Vivaldi támogatása)</translation>
 <translation id="5351912500249789547">A Vivaldi.net elutasította a hitelesítő adataid: Hibakód <ph name="ERROR_CODE" /></translation>
-<translation id="535312628536375213">Partnerséget kötöttünk a weboldallal, és alapértelmezetten megjelenítjük a reklámokat a keresési eredményekben. Ezen reklámok bevételt generálnak a Vivaldinak, amikor interakcióba lépsz velük.</translation>
+<translation id="535312628536375213">Partnerséget kötöttünk a weboldallal, és alapértelmezetten megjelenítjük a hirdetéseket a keresési eredményekben. Ezen hirdetések bevételt generálnak a Vivaldinak, amikor interakcióba lépsz velük.</translation>
 <translation id="5378841821586202982">Kuka mappa</translation>
-<translation id="5398772614898833570">Reklám blokkolva</translation>
+<translation id="5398772614898833570">Hirdetés blokkolva</translation>
 <translation id="5415265829033764921">Blokkolási szabályok engedélyezése bizonyos weboldalak blokkolásához.</translation>
 <translation id="5421638721143596928">A hitelesítő adataid dekódolása sikertelen. Kérlek, lépj be újra.</translation>
 <translation id="5439599923922718668">Gyakran látogatott</translation>
@@ -468,7 +469,7 @@ blokkolva</translation>
 <translation id="659351303388691480">Böngészési adatok törlése ...</translation>
 <translation id="6602272356389933803">Megjelenés és téma</translation>
 <translation id="6609906162587123522">Ne nyissa meg a hivatkozásokat külső alkalmazásokban</translation>
-<translation id="6614744450826097546">Reklám részletei</translation>
+<translation id="6614744450826097546">Hirdetés részletei</translation>
 <translation id="6631760746795162665">Kolumbiai (<ph name="ORIGIN" />)</translation>
 <translation id="6639866709520319699">Nyomkövetők és a hirdetések blokkolva. Egyes weboldalak hibásan működhetnek.</translation>
 <translation id="6642196070615520677">Szinkronizált adatok törlése</translation>
@@ -544,7 +545,7 @@ blokkolva</translation>
 <translation id="7379938540614588640">Holland (<ph name="ORIGIN" />)</translation>
 <translation id="7386354767119759965">Mobil webhely</translation>
 <translation id="7388525939184421699">Új forrás hozzáadása</translation>
-<translation id="7393145587390257456">A reklámblokkoló nem működik megfelelően</translation>
+<translation id="7393145587390257456">A hirdetésblokkoló nem működik megfelelően</translation>
 <translation id="7400418766976504921">URL</translation>
 <translation id="7417521636956146248">A keresőmotorok az alapértelmezett értékekre állnak vissza, és az egyéni keresőmotorok törlődnek.</translation>
 <translation id="7451784507428459503">A YouTube-videók nem játszódnak le, vagy problémái vannak</translation>
@@ -685,7 +686,7 @@ blokkolva</translation>
           =1 {Könyvjelző áthelyezve: "{title}"}
           other {Könyvjelzők áthelyezve: "{title}"}}</translation>
 <translation id="9028089729841356743">Hálózati hiba.</translation>
-<translation id="9043882097999887291">reklám
+<translation id="9043882097999887291">hirdetés
 blokkolva</translation>
 <translation id="9065203028668620118">Szerkesztés</translation>
 <translation id="9077265667054763280">A webhelyek túl lassan töltődnek be</translation>
@@ -700,7 +701,6 @@ blokkolva</translation>
 <translation id="9157459516617966251">Hivatkozás szerkesztése</translation>
 <translation id="9157539936604258187">Hivatkozás megnyitása</translation>
 <translation id="9165758833825521812">Olvasó nézet</translation>
-<translation id="9171713938468458286">Kétsoros</translation>
 <translation id="9195659219948942754">A szinkronizált adatok további használata a Vivaldi-fiókban</translation>
 <translation id="9195802773917252923">Könyvjelzői kulcsszavak bekapcsolása</translation>
 <translation id="9212737146310746733">Farszi (<ph name="ORIGIN" />)</translation>
@@ -709,7 +709,7 @@ blokkolva</translation>
 <translation id="924053859552461110">Kezdőlap testreszabása</translation>
 <translation id="925891113183098411">Problémáim vannak az adataim, eszközök közötti szinkronizálásával</translation>
 <translation id="932327136139879170">Kezdőlap</translation>
-<translation id="937440209447114831">Nem blokkolunk nyomkövetőt sem reklámot.</translation>
+<translation id="937440209447114831">Nem blokkolunk nyomkövetőt sem hirdetést.</translation>
 <translation id="941088499334202542">Módosíthatod, eltávolíthatod a hivatkozást, vagy megnyithatod egy új lapon.</translation>
 <translation id="958688202859970851">Az utoljára meglátogatott lapok itt jelennek meg</translation>
 <translation id="984650419570014454">Az aktiváló kód 6-számjegy hosszú.</translation>

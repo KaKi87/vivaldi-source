@@ -12,6 +12,7 @@
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
 #include "chrome/browser/ui/toolbar/toolbar_pref_names.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/pref_names.h"
@@ -21,7 +22,7 @@
 
 namespace {
 
-std::optional<bool> g_tab_search_trailing_tabstrip_at_startup = std::nullopt;
+std::optional<bool> g_tab_search_trailing_tabstrip_at_startup;
 }
 
 namespace tabs {
@@ -89,6 +90,18 @@ void MigrateTabSearchPref(PrefService* profile_prefs) {
 
   profile_prefs->SetBoolean(prefs::kTabSearchPinnedToTabstripMigrationComplete2,
                             true);
+}
+
+void MigrateHoverCardMemoryPref(PrefService* local_prefs) {
+  if (!features::IsTabStripDeclutterEnabled() ||
+      local_prefs->GetBoolean(
+          prefs::kHoverCardMemoryUsageDisableMigrationComplete)) {
+    return;
+  }
+
+  local_prefs->SetBoolean(prefs::kHoverCardMemoryUsageEnabled, false);
+  local_prefs->SetBoolean(prefs::kHoverCardMemoryUsageDisableMigrationComplete,
+                          true);
 }
 
 TabSearchPosition GetTabSearchPosition(

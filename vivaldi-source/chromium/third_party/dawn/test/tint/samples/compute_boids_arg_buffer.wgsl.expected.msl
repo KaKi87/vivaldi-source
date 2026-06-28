@@ -2,13 +2,13 @@
 using namespace metal;
 
 struct SimParams {
-  float deltaT;
-  float rule1Distance;
-  float rule2Distance;
-  float rule3Distance;
-  float rule1Scale;
-  float rule2Scale;
-  float rule3Scale;
+  /* 0x0000 */ float deltaT;
+  /* 0x0004 */ float rule1Distance;
+  /* 0x0008 */ float rule2Distance;
+  /* 0x000c */ float rule3Distance;
+  /* 0x0010 */ float rule1Scale;
+  /* 0x0014 */ float rule2Scale;
+  /* 0x0018 */ float rule3Scale;
 };
 
 template<typename T, size_t N>
@@ -121,5 +121,5 @@ void comp_main_inner(uint3 gl_GlobalInvocationID, const constant SimParams* cons
 
 [[max_total_threads_per_threadgroup(1)]]
 kernel void comp_main(uint3 gl_GlobalInvocationID [[thread_position_in_grid]], const constant tint_arg_buffer_struct_0* tint_arg_buffer_0 [[buffer(20)]], const device tint_array<uint, 1>* tint_dynamic_offset_buffer_0 [[buffer(23)]], const constant tint_arg_buffer_struct_1* tint_arg_buffer_1 [[buffer(21)]], const constant tint_arg_buffer_struct_2* tint_arg_buffer_2 [[buffer(22)]]) {
-  comp_main_inner(gl_GlobalInvocationID, reinterpret_cast<const constant SimParams*>(reinterpret_cast<const constant char*>((*tint_arg_buffer_0).params) + (*tint_dynamic_offset_buffer_0)[2u]), (*tint_arg_buffer_1).particlesA, (*tint_arg_buffer_2).particlesB);
+  (comp_main_inner(gl_GlobalInvocationID, reinterpret_cast<const constant SimParams*>(reinterpret_cast<const constant char*>((*tint_arg_buffer_0).params) + (*tint_dynamic_offset_buffer_0)[2u]), (*tint_arg_buffer_1).particlesA, (*tint_arg_buffer_2).particlesB));
 }

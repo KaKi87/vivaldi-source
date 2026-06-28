@@ -11,6 +11,7 @@
 #include "base/task/thread_pool.h"
 #include "base/values.h"
 #include "build/build_config.h"
+#include "chrome/browser/platform_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/db/mail_client/mail_client_service_factory.h"
 #include "extensions/browser/api/file_handlers/app_file_handler_util.h"
@@ -234,6 +235,51 @@ void MailPrivateGetFilePathsFunction::GetFilePaths(bool directory_exists) {
       FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
       base::BindOnce(&FindMailFiles, file_path_),
       base::BindOnce(&MailPrivateGetFilePathsFunction::OnFinished, this));
+}
+
+ResponseAction MailPrivateCheckFolderFunction::Run() {
+  std::optional<mail_private::CheckFolder::Params> params(
+      mail_private::CheckFolder::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  base::FilePath file_path = base::FilePath::FromUTF8Unsafe(params->path);
+
+  if (!file_path.IsAbsolute()) {
+    return RespondNow(Error(base::StringPrintf(
+        "Path must be absolute %s", file_path.AsUTF8Unsafe().c_str())));
+  }
+  base::OnceCallback<void(bool)> check_directory_callback =
+      base::BindOnce(&MailPrivateCheckFolderFunction::CheckFolderResult, this);
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
+      base::BindOnce(&base::DirectoryExists, file_path),
+      std::move(check_directory_callback));
+
+  return RespondLater();
+}
+
+void MailPrivateCheckFolderFunction::CheckFolderResult(bool directory_exists) {
+  Respond(ArgumentList(
+      mail_private::CheckFolder::Results::Create(directory_exists)));
+}
+
+ResponseAction MailPrivateOpenFolderFunction::Run() {
+  std::optional<mail_private::OpenFolder::Params> params(
+      mail_private::OpenFolder::Params::Create(args()));
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  base::FilePath folder_path = base::FilePath::FromUTF8Unsafe(params->path);
+
+  if (!folder_path.IsAbsolute()) {
+    return RespondNow(Error(base::StringPrintf(
+        "Path must be absolute %s", folder_path.AsUTF8Unsafe().c_str())));
+  }
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  platform_util::ShowItemInFolder(profile, folder_path);
+
+  return RespondNow(NoArguments());
 }
 
 ResponseAction MailPrivateGetFullPathFunction::Run() {

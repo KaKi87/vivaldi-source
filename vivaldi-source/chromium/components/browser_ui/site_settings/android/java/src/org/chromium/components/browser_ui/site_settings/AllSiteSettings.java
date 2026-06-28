@@ -357,6 +357,9 @@ public class AllSiteSettings extends BaseSiteSettingsFragment
 
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
+        String title = getArguments().getString(EXTRA_TITLE);
+        if (title != null) mPageTitle.set(title);
+
         // Handled in onActivityCreated. Moving the addPreferencesFromResource call up to here
         // causes animation jank (crbug.com/985734).
     }
@@ -367,9 +370,6 @@ public class AllSiteSettings extends BaseSiteSettingsFragment
 
         // Vivaldi ref. VAB-10766
         if (getArguments() != null) {
-        String title = getArguments().getString(EXTRA_TITLE);
-        if (title != null) mPageTitle.set(title);
-
         mSelectedDomains =
                 getArguments().containsKey(EXTRA_SELECTED_DOMAINS)
                         ? new HashSet<>(getArguments().getStringArrayList(EXTRA_SELECTED_DOMAINS))
@@ -479,8 +479,7 @@ public class AllSiteSettings extends BaseSiteSettingsFragment
     @Override
     public void onStart() {
         super.onStart();
-
-        if (mSearch == null && mSearchItem != null) {
+        if (mSearch != null && mSearchItem != null) {
             SearchUtils.clearSearch(mSearchItem, getActivity());
             mSearch = null;
         }
@@ -523,6 +522,9 @@ public class AllSiteSettings extends BaseSiteSettingsFragment
             clearBrowsingDataLink.setSummary(spannableString);
             clearBrowsingDataLink.setOnPreferenceClickListener(
                     pref -> {
+                        if (mSearchItem != null) {
+                            SearchUtils.clearSearch(mSearchItem, getActivity());
+                        }
                         getSiteSettingsDelegate().launchClearBrowsingDataDialog(getActivity());
                         return true;
                     });

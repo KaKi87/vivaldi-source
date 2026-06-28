@@ -52,12 +52,14 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
+import org.chromium.base.test.util.DisableLeakChecks;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.data_sharing.DataSharingServiceFactory;
 import org.chromium.chrome.browser.data_sharing.DataSharingUiDelegateAndroid;
@@ -73,7 +75,6 @@ import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab_group_sync.TabGroupSyncServiceFactory;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.util.ChromeRenderTestRule;
 import org.chromium.chrome.test.util.browser.sync.SyncTestUtil;
 import org.chromium.components.browser_ui.widget.RecyclerViewTestUtils;
@@ -87,7 +88,6 @@ import org.chromium.components.data_sharing.GroupData;
 import org.chromium.components.data_sharing.GroupToken;
 import org.chromium.components.data_sharing.member_role.MemberRole;
 import org.chromium.components.signin.base.AccountInfo;
-import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.tab_group_sync.EitherId.EitherGroupId;
 import org.chromium.components.tab_group_sync.LocalTabGroupId;
 import org.chromium.components.tab_group_sync.TabGroupSyncService;
@@ -110,6 +110,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Restriction({
     DeviceRestriction.RESTRICTION_TYPE_NON_AUTO,
     GmsCoreVersionRestriction.RESTRICTION_TYPE_VERSION_GE_20W02
+})
+@DisableLeakChecks({
+    "crbug.com/512491896 (DataSharingUiDelegateAndroid)",
+    "crbug.com/512493320 (DataSharingUiDelegateAndroid)",
+    "crbug.com/512492355 (DataSharingUiDelegateAndroid)"
 })
 public class CollaborationIntegrationTest {
 
@@ -158,7 +163,7 @@ public class CollaborationIntegrationTest {
     public ChromeRenderTestRule mRenderTestRule =
             ChromeRenderTestRule.Builder.withPublicCorpus()
                     .setBugComponent(Component.UI_BROWSER_MOBILE_TAB_GROUPS)
-                    .setRevision(1)
+                    .setRevision(2)
                     .build();
 
     private FakeDataSharingUIDelegateImpl mDataSharingUIDelegate;
@@ -324,7 +329,7 @@ public class CollaborationIntegrationTest {
         onViewWaiting(withId(R.id.button_secondary)).perform(click());
 
         // The user is signed out.
-        assertNull(mActivityTestRule.getSigninTestRule().getPrimaryAccount(ConsentLevel.SIGNIN));
+        assertNull(mActivityTestRule.getSigninTestRule().getPrimaryAccount());
     }
 
     @Test

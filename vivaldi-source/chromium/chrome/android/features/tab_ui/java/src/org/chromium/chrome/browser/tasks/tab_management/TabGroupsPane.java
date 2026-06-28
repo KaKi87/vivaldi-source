@@ -24,7 +24,7 @@ import org.chromium.chrome.browser.hub.PaneBase;
 import org.chromium.chrome.browser.hub.PaneId;
 import org.chromium.chrome.browser.hub.PaneManager;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
+import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.ui.actions.button.DelegateButtonData;
 import org.chromium.chrome.browser.ui.actions.button.FullButtonData;
 import org.chromium.chrome.browser.ui.actions.button.ResourceButtonData;
@@ -40,10 +40,10 @@ import java.util.function.Supplier;
 /** A {@link Pane} representing the tab group UI. Contains opened and closed tab groups. */
 @NullMarked
 public class TabGroupsPane extends PaneBase {
-    private final LazyOneshotSupplier<TabGroupModelFilter> mTabGroupModelFilterSupplier;
+    private final LazyOneshotSupplier<TabModel> mTabModelSupplier;
     private final OneshotSupplier<ProfileProvider> mProfileProviderSupplier;
     private final Supplier<PaneManager> mPaneManagerSupplier;
-    private final Supplier<@Nullable TabGroupUiActionHandler> mTabGroupUiActionHandlerSupplier;
+    private final Supplier<TabGroupUiActionHandler> mTabGroupUiActionHandlerSupplier;
     private final Supplier<@Nullable ModalDialogManager> mModalDialogManagerSupplier;
     private final MonotonicObservableSupplier<FullButtonData> mEmptyActionButtonDataSupplier =
             ObservableSuppliers.alwaysNull();
@@ -58,7 +58,7 @@ public class TabGroupsPane extends PaneBase {
 
     /**
      * @param context Used to inflate UI.
-     * @param tabGroupModelFilterSupplier Used to pull tab data from.
+     * @param tabModelSupplier Used to pull tab data from.
      * @param onToolbarAlphaChange Observer to notify when alpha changes during animations.
      * @param profileProviderSupplier Used to fetch the current profile.
      * @param paneManagerSupplier Used to switch and communicate with other panes.
@@ -69,16 +69,16 @@ public class TabGroupsPane extends PaneBase {
      */
     TabGroupsPane(
             Context context,
-            LazyOneshotSupplier<TabGroupModelFilter> tabGroupModelFilterSupplier,
+            LazyOneshotSupplier<TabModel> tabModelSupplier,
             DoubleConsumer onToolbarAlphaChange,
             OneshotSupplier<ProfileProvider> profileProviderSupplier,
             Supplier<PaneManager> paneManagerSupplier,
-            Supplier<@Nullable TabGroupUiActionHandler> tabGroupUiActionHandlerSupplier,
+            Supplier<TabGroupUiActionHandler> tabGroupUiActionHandlerSupplier,
             Supplier<@Nullable ModalDialogManager> modalDialogManagerSupplier,
             MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeSupplier,
             DataSharingTabManager dataSharingTabManager) {
         super(PaneId.TAB_GROUPS, context, onToolbarAlphaChange);
-        mTabGroupModelFilterSupplier = tabGroupModelFilterSupplier;
+        mTabModelSupplier = tabModelSupplier;
         mProfileProviderSupplier = profileProviderSupplier;
         mPaneManagerSupplier = paneManagerSupplier;
         mTabGroupUiActionHandlerSupplier = tabGroupUiActionHandlerSupplier;
@@ -90,7 +90,7 @@ public class TabGroupsPane extends PaneBase {
                         context,
                         modalDialogManagerSupplier,
                         (Supplier<@Nullable PaneManager>) paneManagerSupplier,
-                        mTabGroupModelFilterSupplier::get,
+                        mTabModelSupplier::get,
                         TabGroupCreationDialogManager::new);
         mActionButtonSupplier.set(
                 new DelegateButtonData.Builder(
@@ -123,7 +123,7 @@ public class TabGroupsPane extends PaneBase {
             mTabGroupListCoordinator =
                     new TabGroupListCoordinator(
                             mContext,
-                            assertNonNull(mTabGroupModelFilterSupplier.get()),
+                            assertNonNull(mTabModelSupplier.get()),
                             assertNonNull(mProfileProviderSupplier.get()),
                             assertNonNull(mPaneManagerSupplier.get()),
                             assertNonNull(mTabGroupUiActionHandlerSupplier.get()),

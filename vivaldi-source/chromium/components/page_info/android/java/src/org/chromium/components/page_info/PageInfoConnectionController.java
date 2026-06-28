@@ -169,6 +169,10 @@ public class PageInfoConnectionController
         rowParams.subtitle = subtitle;
         rowParams.visible = rowParams.title != null || rowParams.subtitle != null;
         int securityLevel = SecurityStateModel.getSecurityLevelForWebContents(mWebContents);
+        boolean isShowingHttpsFirstWarning =
+                mDelegate.isHttpsFirstDialogUiEnabled()
+                        && SecurityStateModel.isHttpsOnlyModeUpgradedForWebContents(mWebContents);
+
         // Page info should always show lock icon as the connection security indicator.
         rowParams.iconResId =
                 SecurityStatusIcon.getSecurityIconResource(
@@ -179,6 +183,7 @@ public class PageInfoConnectionController
                         /* isSmallDevice= */ false,
                         /* skipIconForNeutralState= */ false,
                         /* useLockIconForSecureState= */ true,
+                        isShowingHttpsFirstWarning,
                         R.drawable.omnibox_https_valid_refresh); // Vivaldi
         rowParams.iconTint = getSecurityIconColor(securityLevel);
         rowParams.decreaseIconSize = true; // Vivaldi

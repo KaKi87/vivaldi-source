@@ -39,6 +39,18 @@ class TestSystemIdentityManager : public SystemIdentityManager {
     NOTREACHED();
   }
   void DismissDialogs() final {}
+  void RegisterExternalPrivacyContextProvider(
+      id<ExternalPrivacyContextUIProvider> provider) final {
+    NOTREACHED();
+  }
+  void UnregisterExternalPrivacyContextProvider(
+      id<ExternalPrivacyContextUIProvider> provider) final {
+    NOTREACHED();
+  }
+  void ExternalPrivacyContextProviderReady(
+      id<ExternalPrivacyContextUIProvider> provider) final {
+    NOTREACHED();
+  }
   id<SystemIdentityInteractionManager> CreateInteractionManager() final {
     NOTREACHED();
   }
@@ -80,10 +92,11 @@ class TestSystemIdentityManager : public SystemIdentityManager {
                          FetchCapabilitiesCallback callback) final {
     NOTREACHED();
   }
-  void BuildExternalPrivacyContext(
+  void FetchCapabilitiesWithPartial(
       id<SystemIdentity> identity,
-      UIViewController* view_controller,
-      BuildExternalPrivacyContextCallback callback) final {
+      const std::vector<std::string>& names,
+      FetchCapabilitiesCompletion completion,
+      FetchPartialCapabilitiesCallback partial_callback) final {
     NOTREACHED();
   }
   bool HandleMDMNotification(id<SystemIdentity> identity,

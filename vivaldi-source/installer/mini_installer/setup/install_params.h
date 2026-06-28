@@ -5,6 +5,8 @@
 #ifndef CHROME_INSTALLER_SETUP_INSTALL_PARAMS_H_
 #define CHROME_INSTALLER_SETUP_INSTALL_PARAMS_H_
 
+#include <stdint.h>
+
 #include "base/memory/raw_ref.h"
 #include "modify_params.h"
 
@@ -33,6 +35,8 @@ struct InstallParams : public ModifyParams {
   const raw_ref<const base::FilePath> temp_path;
   // Chrome version to be installed
   const raw_ref<const base::Version> new_version;
+  // Estimated size (kb) of the unpacked chrome package
+  const uint32_t estimated_size;
 
   InstallParams(InstallerState& installer_state,
                 InstallationState& installation_state,
@@ -41,7 +45,8 @@ struct InstallParams : public ModifyParams {
                 const base::FilePath& archive_path,
                 const base::FilePath& src_path,
                 const base::FilePath& temp_path,
-                const base::Version& new_version)
+                const base::Version& new_version,
+                uint32_t estimated_size)
       : ModifyParams(installer_state,
                      installation_state,
                      setup_path,
@@ -49,7 +54,8 @@ struct InstallParams : public ModifyParams {
         archive_path(archive_path),
         src_path(src_path),
         temp_path(temp_path),
-        new_version(new_version) {}
+        new_version(new_version),
+        estimated_size(estimated_size) {}
 };
 
 }  // namespace installer

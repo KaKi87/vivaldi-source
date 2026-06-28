@@ -237,25 +237,52 @@ class AlertGroupWorkflow:
 
   def _FindDuplicateGroupKeys(self):
     try:
-      group_keys = perf_issue_service_client.GetDuplicateGroupKeys(
-          self._group.key.string_id())
+      group_id = self._group.key.string_id()
+      logging.info(
+          '[_FindDuplicateGroupKeys] Fetching duplicate group keys for ID: %s',
+          group_id)
+      group_keys = perf_issue_service_client.GetDuplicateGroupKeys(group_id)
+      logging.info(
+          '[_FindDuplicateGroupKeys] Found %d duplicate group keys for %s',
+          len(group_keys), self._group.key)
       return group_keys
     except (ValueError, datastore_errors.BadValueError):
       # only 'ungrouped' has integer key, which we should not find duplicate.
-      logging.debug('[GroupingDebug] Failed to get duplicate groups. %s',
-                    self._group.key)
+      logging.info(
+          '[_FindDuplicateGroupKeys] Failed to get duplicate groups for key: '
+          '%s (likely an integer key)', self._group.key)
       return []
+    except Exception as e:
+      logging.error(
+          '[_FindDuplicateGroupKeys] Unexpected error fetching duplicates for '
+          '%s: %s', self._group.key, str(e))
+      raise
 
   def _FindDuplicateGroups(self):
+    logging.info(
+        '[_FindDuplicateGroups] Querying active duplicate groups for %s',
+        self._group.key)
     query = alert_group.AlertGroup.query(
         alert_group.AlertGroup.active == True,
         alert_group.AlertGroup.canonical_group == self._group.key)
-    return query.fetch()
+    results = query.fetch()
+    logging.info(
+        '[_FindDuplicateGroups] Found %d active duplicate groups for %s',
+        len(results), self._group.key)
+    return results
 
   def _FindRelatedAnomalies(self, groups):
+    group_keys = [g.key for g in groups]
+    logging.info(
+        '[_FindRelatedAnomalies] Querying anomalies for %d groups '
+        '(including %s)', len(groups), self._group.key)
     query = anomaly.Anomaly.query(
-        anomaly.Anomaly.groups.IN([g.key for g in groups]))
-    return query.fetch()
+        anomaly.Anomaly.groups.IN(group_keys))
+    results = query.fetch()
+    logging.info(
+        '[_FindRelatedAnomalies] Found %d related anomalies for group %s',
+        len(results), self._group.key)
+    return results
 
   def _PrepareGroupUpdate(self):
     """Prepares default input for the workflow Process
@@ -279,13 +306,19 @@ class AlertGroupWorkflow:
       logging.warning('Parity logic failed in _FindDuplicateGroups(%s). %s.',
                       self._group.key, str(e))
 
+    logging.info(
+        '[_PrepareGroupUpdate] Fetching related anomalies for group %s',
+        self._group.key)
     duplicate_groups = [
-        ndb.Key('AlertGroup', k).get() for k in duplicate_group_keys
+        g for g in ndb.get_multi(
+            [ndb.Key('AlertGroup', k) for k in duplicate_group_keys])
+        if g is not None
     ]
     anomalies = self._FindRelatedAnomalies([self._group] + duplicate_groups)
-    logging.debug(
-        '[GroupingDebug] Anomalies %s found for group %s and duplicates %s',
-        anomalies, self._group.key, duplicate_group_keys)
+    logging.info(
+        '[_PrepareGroupUpdate] Found %d anomalies for group %s and '
+        'duplicates %s', len(anomalies), self._group.key,
+        duplicate_group_keys)
 
     now = datetime.datetime.utcnow()
     issue = None
@@ -322,8 +355,11 @@ class AlertGroupWorkflow:
     Returns the key for the associated group when the workflow was
     initialized."""
 
-    logging.info('Processing workflow for group %s', self._group.key)
-    update = update or self._PrepareGroupUpdate()
+    logging.info('Processing workflow for group %s (name: %s)', self._group.key, self._group.name)
+    if not update:
+      logging.info(
+          '[Process] Preparing group update for %s', self._group.key)
+      update = self._PrepareGroupUpdate()
     logging.info('%d anomalies', len(update.anomalies))
 
     # TODO(crbug.com/1240370): understand why Datastore query may return empty
@@ -331,39 +367,54 @@ class AlertGroupWorkflow:
     if (not update.anomalies and self._group.anomalies
         and self._group.group_type != alert_group.AlertGroup.Type.reserved):
       logging.error(
-          'No anomalies detected. Skipping this run for %s. with anomalies %s ',
-          self._group.key, self._group.anomalies)
+          'No anomalies detected. Skipping this run for %s. with %d anomalies ',
+          self._group.key, len(self._group.anomalies))
       return self._group.key
 
     # Process input before we start processing the group.
-    for a in update.anomalies:
-      subscriptions, _ = self._sheriff_config.Match(
-          a.test.string_id(), check=True)
-      a.subscriptions = subscriptions
-      matching_subs = [
-          s for s in subscriptions if s.name == self._group.subscription_name
-      ]
-      a.auto_triage_enable = any(s.auto_triage_enable for s in matching_subs)
-      if a.auto_triage_enable:
-        logging.info('auto_triage_enable for %s due to subscription: %s',
-                     a.test.string_id(),
-                     [s.name for s in matching_subs if s.auto_triage_enable])
+    if not self._group.name.startswith('Ungrouped'):
+      for a in update.anomalies:
+        # Initialize attributes to prevent AttributeError on skipped anomalies
+        a.auto_triage_enable = False
+        a.auto_merge_enable = False
+        a.auto_bisect_enable = False
+        a.subscriptions = []
 
-      a.auto_merge_enable = any(s.auto_merge_enable for s in matching_subs)
+        # Skip corrupted anomalies that lack required math properties.
+        if a.median_before_anomaly is None or a.median_after_anomaly is None:
+          continue
 
-      if a.auto_merge_enable:
-        logging.info('auto_merge_enable for %s due to subscription: %s',
-                     a.test.string_id(),
-                     [s.name for s in matching_subs if s.auto_merge_enable])
+        subscriptions, _ = self._sheriff_config.Match(
+            a.test.string_id(), check=True)
+        a.subscriptions = subscriptions
+        matching_subs = [
+            s for s in subscriptions if s.name == self._group.subscription_name
+        ]
+        a.auto_triage_enable = any(s.auto_triage_enable for s in matching_subs)
+        if a.auto_triage_enable:
+          logging.info('auto_triage_enable for %s due to subscription: %s',
+                       a.test.string_id(),
+                       [s.name for s in matching_subs if s.auto_triage_enable])
 
-      a.auto_bisect_enable = any(s.auto_bisect_enable for s in matching_subs)
-      a.relative_delta = (
-          abs(a.absolute_delta / float(a.median_before_anomaly))
-          if a.median_before_anomaly != 0. else float('Inf'))
+        a.auto_merge_enable = any(s.auto_merge_enable for s in matching_subs)
+
+        if a.auto_merge_enable:
+          logging.info('auto_merge_enable for %s due to subscription: %s',
+                       a.test.string_id(),
+                       [s.name for s in matching_subs if s.auto_merge_enable])
+
+        a.auto_bisect_enable = any(s.auto_bisect_enable for s in matching_subs)
+        a.relative_delta = (
+            abs(a.absolute_delta / float(a.median_before_anomaly))
+            if a.median_before_anomaly != 0. else float('Inf'))
 
     # anomaly.groups are updated in upload-processing. Here we update
     # the group.anomalies
+    logging.info('[Process] Calling _UpdateAnomalies for %d items.', len(update.anomalies))
     added = self._UpdateAnomalies(update.anomalies)
+
+    if self._group.name.startswith('Ungrouped'):
+      return self._CommitGroup()
 
     if update.issue:
       group_merged = self._UpdateCanonicalGroup(update.anomalies,
@@ -418,10 +469,11 @@ class AlertGroupWorkflow:
     return self._group.put()
 
   def _UpdateAnomalies(self, anomalies):
-    added = [a for a in anomalies if a.key not in self._group.anomalies]
+    existing_keys = set(self._group.anomalies)
+    added = [a for a in anomalies if a.key not in existing_keys]
     self._group.anomalies = [a.key for a in anomalies]
-    logging.debug('[GroupingDebug] Group %s is associated with anomalies %s.',
-                  self._group.key, self._group.anomalies)
+    logging.debug('[GroupingDebug] Group %s is associated with %d anomalies.',
+                  self._group.key, len(self._group.anomalies))
     return added
 
   def _UpdateStatus(self, issue):
@@ -1094,12 +1146,10 @@ class AlertGroupWorkflow:
 
     template_args = {}
     try:
-      # Add the public url only if at least one of the anomalies in the group
-      # are public
-      if any(not r.test.get().internal_only for r in regressions):
-        skia_urls_public = skia_helper.GetSkiaUrlsForAlertGroup(
-            self._group.key.string_id(), False, list(masters))
-        template_args['skia_urls_text_public'] = skia_urls_public
+      # Always add the public url, even if all anomalies are private.
+      skia_urls_public = skia_helper.GetSkiaUrlsForAlertGroup(
+          self._group.key.string_id(), False, list(masters))
+      template_args['skia_urls_text_public'] = skia_urls_public
     except Exception:  #pylint: disable=broad-except
       template_args['skia_urls_text_public'] = None
     try:

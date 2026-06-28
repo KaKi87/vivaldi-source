@@ -1,4 +1,3 @@
-
 static_library("importer") {
   if (!is_android) {
     sources = [
@@ -8,59 +7,63 @@ static_library("importer") {
       "chromium_extension_importer.h",
       "chromium_importer.cpp",
       "chromium_importer.h",
+      "chromium_session_importer.cpp",
+      "chromium_session_importer.h",
+      "firefox_import_tabs.cc",
+      "firefox_import_tabs.h",
+      "imported_raw_password_form.cc",
+      "imported_raw_password_form.h",
       "import_error_utils.cc",
       "import_error_utils.h",
       "imported_tab_entry.cpp",
       "imported_tab_entry.h",
-      "chromium_session_importer.cpp",
-      "chromium_session_importer.h",
+      "viv_importer.cpp",
+      "viv_importer.h",
       "viv_importer_bookmark.cpp",
       "viv_importer_notes.cpp",
+      "viv_importer_utils.h",
       "viv_importer_wand.cpp",
       "viv_opera_reader.cpp",
       "viv_opera_reader.h",
-      "viv_importer.cpp",
-      "viv_importer.h",
-      "viv_importer_utils.h",
-      "firefox_import_tabs.cc",
-      "firefox_import_tabs.h",
     ]
     deps = [
-      "//base:base",
+      "//base",
       "//chrome/app:branded_strings",
-      #"//chrome/app:generated_resources",
-      "//extensions/browser:cws_item_service_proto",
+
       #"//chrome/common:common",
       #"//chrome/utility:utility",
       "//chrome/common:buildflags",
       "//components/autofill/core/common",
-      "//components/bookmarks/browser:browser",
+      "//components/bookmarks/browser",
       "//components/facilitated_payments/core/mojom:pix_code_validator_mojom",
       "//components/paint_preview/buildflags",
       "//components/policy:generated",
       "//components/policy/proto",
+      "//components/safe_browsing:buildflags",
       "//components/sync/protocol",
-      "//components/surface_embed/buildflags",
-      "//extensions/common/api",
+
+      #"//chrome/app:generated_resources",
+      "//extensions/browser:cws_item_service_proto",
       "//extensions/common:mojom",
+
+      #"//components/surface_embed/buildflags",
+      "//extensions/common/api",
       "//pdf:buildflags",
       "//printing/buildflags",
-      "//services/data_decoder/public/mojom:mojom",
+      "//services/data_decoder/public/mojom",
       "//sql",
-      "//third_party/boringssl",
       "//third_party/blink/public/mojom:mojom_core__parser_action",
+      "//third_party/boringssl",
       "//third_party/private_membership:private_membership_proto",
-      "//vivaldi/thirdparty:lz4_minimal",
       "//ui/base",
-      "//url:url",
+      "//url",
       "//vivaldi/app:resources",
-      "//vivaldi/app:vivaldi_native_strings",
       "//vivaldi/app:vivaldi_native_resources",
+      "//vivaldi/app:vivaldi_native_strings",
       "//vivaldi/app:vivaldi_unscaled_native_resources",
+      "//vivaldi/thirdparty:lz4_minimal",
     ]
-    public_deps = [
-      "//components/os_crypt/sync",
-    ]
+    public_deps = [ "//components/os_crypt/async/browser" ]
   }
 }
 
@@ -71,16 +74,16 @@ static_library("browser") {
       "chromium_profile_importer.h",
       "chromium_profile_lock.cpp",
       "chromium_profile_lock.h",
+      "imported_contact_row.cc",
+      "imported_contact_row.h",
       "imported_notes_entry.cpp",
       "imported_notes_entry.h",
       "imported_speeddial_entry.cpp",
       "imported_speeddial_entry.h",
+      "thunderbird_contacts.cc",
       "viv_detect_opera.cc",
       "viv_detect_thunderbird.cc",
       "viv_importer.h",
-      "thunderbird_contacts.cc",
-      "imported_contact_row.cc",
-      "imported_contact_row.h",
     ]
     if (is_win) {
       sources += [
@@ -98,26 +101,25 @@ static_library("browser") {
     }
     if (is_mac) {
       sources += [
-        "chromium_profile_lock_mac.mm",
         "chromium_importer_util_mac.mm",
+        "chromium_profile_lock_mac.mm",
         "viv_importer_util_mac.mm",
       ]
     }
 
     deps = [
       ":importer",
-      "//base:base",
+      "//base",
+
       #"//chrome/common:common",
       "//components/autofill/core/common",
       "//ui/base",
-      "//url:url",
+      "//url",
       "//vivaldi/app:resources",
-      "//vivaldi/app:vivaldi_native_strings",
       "//vivaldi/app:vivaldi_native_resources",
+      "//vivaldi/app:vivaldi_native_strings",
       "//vivaldi/app:vivaldi_unscaled_native_resources",
     ]
-    allow_circular_includes_from = [
-      ":importer",
-    ]
+    allow_circular_includes_from = [ ":importer" ]
   }
 }

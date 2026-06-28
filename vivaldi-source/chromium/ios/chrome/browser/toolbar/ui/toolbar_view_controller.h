@@ -12,10 +12,13 @@
 #import "ios/chrome/browser/toolbar/ui/toolbar_consumer.h"
 
 @protocol ActivityServiceCommands;
+@protocol BannerPromoViewDelegate;
 @protocol BrowserCoordinatorCommands;
 @class LayoutGuideCenter;
+@class LayoutState;
 @protocol PopupMenuCommands;
 @protocol SceneCommands;
+@class TabGroupIndicatorView;
 @class ToolbarButtonFactory;
 @protocol ToolbarHeightDelegate;
 @protocol ToolbarMutator;
@@ -50,14 +53,24 @@
 // Layout Guide Center.
 @property(nonatomic, strong) LayoutGuideCenter* layoutGuideCenter;
 
+// The layout state.
+@property(nonatomic, weak) LayoutState* layoutState;
+
 // Whether this toolbar is currently visible or not.
 @property(nonatomic, assign) BOOL visible;
+
+// Whether this toolbar is currently showing a promo banner.
+@property(nonatomic, readonly) BOOL bannerPromoVisible;
+
+// Delegate for banner promo interactions.
+@property(nonatomic, weak) id<BannerPromoViewDelegate> bannerPromoDelegate;
 
 // The location bar in this toolbar.
 @property(nonatomic, strong) UIViewController* locationBarViewController;
 
-// Initializer for the toolbar, in `incognito` or not.
-- (instancetype)initInIncognito:(BOOL)incognito NS_DESIGNATED_INITIALIZER;
+// Initializer for the toolbar, in `incognito` and `topPosition` or not.
+- (instancetype)initInIncognito:(BOOL)incognito
+                    topPosition:(BOOL)topPosition NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;
 - (instancetype)initWithCoder:(NSCoder*)coder NS_UNAVAILABLE;
@@ -67,9 +80,15 @@
 // Shows/Hides the location bar.
 - (void)setLocationBarHidden:(BOOL)hidden;
 
+// Sets the alpha of the toolbar or location bar on the NTP based on `progress`.
+- (void)setNTPScrollProgress:(CGFloat)progress;
+
 // Returns a copy of the location bar container, with its frame in the same
 // coordinates as the real in window coordinates.
 - (UIView*)locationBarContainerCopy;
+
+// Sets the tab group indicator view.
+- (void)setTabGroupIndicatorView:(TabGroupIndicatorView*)view;
 
 @end
 

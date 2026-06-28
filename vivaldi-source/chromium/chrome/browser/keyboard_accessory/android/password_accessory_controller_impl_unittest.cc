@@ -51,6 +51,7 @@
 #include "components/password_manager/core/browser/password_generation_frame_helper.h"
 #include "components/password_manager/core/browser/password_manager_test_utils.h"
 #include "components/password_manager/core/browser/password_store/mock_password_store_interface.h"
+#include "components/password_manager/core/browser/password_store/password_form_converters.h"
 #include "components/password_manager/core/browser/password_store/test_password_store.h"
 #include "components/password_manager/core/browser/stub_password_manager_client.h"
 #include "components/password_manager/core/browser/stub_password_manager_driver.h"
@@ -229,15 +230,6 @@ class MockPasswordManagerDriver
   MOCK_METHOD(PasswordGenerationFrameHelper*,
               GetPasswordGenerationHelper,
               (),
-              (override));
-};
-
-class MockAutofillClient : public autofill::TestContentAutofillClient {
- public:
-  using autofill::TestContentAutofillClient::TestContentAutofillClient;
-  MOCK_METHOD(void,
-              TriggerPlusAddressUserPerceptionSurvey,
-              (plus_addresses::hats::SurveyType),
               (override));
 };
 
@@ -457,7 +449,7 @@ class PasswordAccessoryControllerTest : public ChromeRenderViewHostTestHarness {
     return webauthn_credentials_delegate_.get();
   }
 
-  MockAutofillClient& autofill_client() {
+  autofill::TestContentAutofillClient& autofill_client() {
     return *autofill_client_injector_[web_contents()];
   }
 
@@ -505,7 +497,8 @@ class PasswordAccessoryControllerTest : public ChromeRenderViewHostTestHarness {
   std::unique_ptr<MockPasswordGenerationFrameHelper> mock_frame_helper_;
   std::unique_ptr<password_manager::MockWebAuthnCredentialsDelegate>
       webauthn_credentials_delegate_;
-  autofill::TestAutofillClientInjector<NiceMock<MockAutofillClient>>
+  autofill::TestAutofillClientInjector<
+      NiceMock<autofill::TestContentAutofillClient>>
       autofill_client_injector_;
   std::unique_ptr<ui::WindowAndroid::ScopedWindowAndroidForTesting>
       window_android_;
@@ -1341,7 +1334,8 @@ TEST_F(PasswordAccessoryControllerTest,
   expected_form.signon_realm = kExampleSignonRealm;
   expected_form.url = GURL(kExampleSite);
   expected_form.date_created = base::Time::Now();
-  EXPECT_CALL(*mock_account_password_store_, AddLogin(Eq(expected_form), _));
+  EXPECT_CALL(*mock_account_password_store_,
+              AddLogin(password_manager::EqStoredCredential(expected_form), _));
   controller()->OnToggleChanged(
       autofill::AccessoryAction::TOGGLE_SAVE_PASSWORDS, false);
 }
@@ -1355,7 +1349,8 @@ TEST_F(PasswordAccessoryControllerTest,
   expected_form.signon_realm = kExampleSignonRealm;
   expected_form.url = GURL(kExampleSite);
   expected_form.date_created = base::Time::Now();
-  EXPECT_CALL(*mock_profile_password_store_, AddLogin(Eq(expected_form), _));
+  EXPECT_CALL(*mock_profile_password_store_,
+              AddLogin(password_manager::EqStoredCredential(expected_form), _));
   controller()->OnToggleChanged(
       autofill::AccessoryAction::TOGGLE_SAVE_PASSWORDS, false);
 }
@@ -1695,27 +1690,6 @@ TEST_F(PasswordAccessoryControllerTest, CancelsOngoingAuthIfDestroyed) {
   EXPECT_CALL(*mock_authenticator_ptr, Cancel());
 }
 
-TEST_F(PasswordAccessoryControllerTest, FillsPlusAddressSuggestion) {
-  CreateSheetController();
-  controller()->RefreshSuggestionsForField(
-      FocusedFieldType::kFillableUsernameField,
-      /*is_field_eligible_for_manual_generation=*/false);
-
-  EXPECT_CALL(autofill_client(), TriggerPlusAddressUserPerceptionSurvey(
-                                     plus_addresses::hats::SurveyType::
-                                         kFilledPlusAddressViaManualFallack));
-  EXPECT_CALL(*driver(),
-              FillIntoFocusedField(
-                  false, Eq(plus_addresses::test::kFakePlusAddressU16)));
-  controller()->OnFillingTriggered(
-      autofill::FieldGlobalId(),
-      AccessorySheetField::Builder()
-          .SetSuggestionType(AccessorySuggestionType::kPlusAddress)
-          .SetDisplayText(plus_addresses::test::kFakePlusAddressU16)
-          .SetSelectable(true)
-          .Build());
-  EXPECT_TRUE(plus_address_service().was_plus_address_suggestion_filled());
-}
 
 TEST_F(PasswordAccessoryControllerTest, ShowCredManReentry) {
   WebAuthnCredManDelegate::override_cred_man_support_for_testing(
@@ -2092,8 +2066,8 @@ class PasswordAccessoryControllerWithTestStoreTest
 
   void SetUp() override {
     PasswordAccessoryControllerTest::SetUp();
-    test_account_store_->Init(/*affiliated_match_helper=*/nullptr);
-    test_profile_store_->Init(/*affiliated_match_helper=*/nullptr);
+    test_account_store_->Init();
+    test_profile_store_->Init();
   }
 
   void TearDown() override {
@@ -2122,9 +2096,11 @@ class PasswordAccessoryControllerWithTestStoreTest
 TEST_P(PasswordAccessoryControllerWithTestStoreTest,
        AddsShowOtherPasswordsForPasswordField) {
   if (GetParam()) {
-    test_account_store().AddLogin(MakeSavedPassword());
+    test_account_store().AddLogin(
+        password_manager::FromPasswordForm(MakeSavedPassword()));
   } else {
-    test_profile_store().AddLogin(MakeSavedPassword());
+    test_profile_store().AddLogin(
+        password_manager::FromPasswordForm(MakeSavedPassword()));
   }
   task_environment()->RunUntilIdle();
   CreateSheetController();
@@ -2151,9 +2127,11 @@ TEST_P(PasswordAccessoryControllerWithTestStoreTest,
 TEST_P(PasswordAccessoryControllerWithTestStoreTest,
        AddsShowOtherPasswordsForUsernameField) {
   if (GetParam()) {
-    test_account_store().AddLogin(MakeSavedPassword());
+    test_account_store().AddLogin(
+        password_manager::FromPasswordForm(MakeSavedPassword()));
   } else {
-    test_profile_store().AddLogin(MakeSavedPassword());
+    test_profile_store().AddLogin(
+        password_manager::FromPasswordForm(MakeSavedPassword()));
   }
   task_environment()->RunUntilIdle();
   CreateSheetController();
@@ -2180,9 +2158,11 @@ TEST_P(PasswordAccessoryControllerWithTestStoreTest,
 TEST_P(PasswordAccessoryControllerWithTestStoreTest,
        AddsShowOtherPasswordForOnlyCryptographicSchemeSites) {
   if (GetParam()) {
-    test_account_store().AddLogin(MakeSavedPassword());
+    test_account_store().AddLogin(
+        password_manager::FromPasswordForm(MakeSavedPassword()));
   } else {
-    test_profile_store().AddLogin(MakeSavedPassword());
+    test_profile_store().AddLogin(
+        password_manager::FromPasswordForm(MakeSavedPassword()));
   }
   task_environment()->RunUntilIdle();
   CreateSheetController();
@@ -2208,9 +2188,11 @@ TEST_P(PasswordAccessoryControllerWithTestStoreTest,
 TEST_P(PasswordAccessoryControllerWithTestStoreTest,
        HideShowOtherPasswordForLowSecurityLevelSites) {
   if (GetParam()) {
-    test_account_store().AddLogin(MakeSavedPassword());
+    test_account_store().AddLogin(
+        password_manager::FromPasswordForm(MakeSavedPassword()));
   } else {
-    test_profile_store().AddLogin(MakeSavedPassword());
+    test_profile_store().AddLogin(
+        password_manager::FromPasswordForm(MakeSavedPassword()));
   }
   task_environment()->RunUntilIdle();
   CreateSheetController(security_state::WARNING);

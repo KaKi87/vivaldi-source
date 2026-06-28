@@ -223,6 +223,14 @@ class JavaScriptFeature {
       base::OnceCallback<void(const base::Value*)> callback,
       base::TimeDelta timeout);
 
+  // Calls `name` with `parameters` in `web_frame` within the content
+  // world that this feature has been configured. `web_frame` must not be null.
+  // See WebFrame::CallAsyncJavaScriptFunction for more details.
+  bool CallAsyncJavaScriptFunction(WebFrame* web_frame,
+                                   const std::string& name,
+                                   const base::DictValue& parameters,
+                                   ExecuteJavaScriptCallbackWithError callback);
+
   // Use of this function is DISCOURAGED. Prefer the `CallJavaScriptFunction`
   // family of functions instead to keep the API clear and well defined.
   // Executes `script` in `web_frame` within the content world that this feature
@@ -231,6 +239,16 @@ class JavaScriptFeature {
   bool ExecuteJavaScript(WebFrame* web_frame,
                          const std::u16string& script,
                          ExecuteJavaScriptCallbackWithError callback);
+
+  // Use of this function is DISCOURAGED. Prefer the
+  // `CallAsyncJavaScriptFunction` function instead to keep the API clear and
+  // well defined. Executes an async `script` in `web_frame` within the content
+  // world that this feature has been configured. See
+  // WebFrame::ExecuteAsyncJavaScript for more details.
+  bool ExecuteAsyncJavaScript(WebFrame* web_frame,
+                              const std::u16string& script,
+                              const base::DictValue& parameters,
+                              ExecuteJavaScriptCallbackWithError callback);
 
   // Friending JavaScriptContentWorld so it can bind ScriptMessageReceived and
   // ScriptMessageReceivedWithReply.
@@ -258,8 +276,12 @@ class JavaScriptFeature {
       ScriptMessageReplyCallback callback);
 
  private:
+  // Whether this feature can call into a frame with `origin`. Always returns
+  // `YES` for `kPublic` features.
+  bool ShouldAllowCallingFunctionInOrigin(const url::Origin& origin);
+
   // Whether a message coming from a frame showing a page from `origin` should
-  // be handled. Always return `YES` for `kPublic` features.
+  // be handled. Always returns `YES` for `kPublic` features.
   bool ShouldHandleMessageFromOrigin(const url::Origin& origin);
 
   ContentWorld supported_world_;

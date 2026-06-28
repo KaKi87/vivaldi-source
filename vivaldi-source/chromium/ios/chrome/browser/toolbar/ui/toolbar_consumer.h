@@ -26,10 +26,13 @@ typedef NS_ENUM(NSUInteger, ToolbarButtonType) {
 - (void)setCanGoBack:(BOOL)canGoBack;
 
 // Sets whether the forward button is enabled.
-- (void)setCanGoForward:(BOOL)canGoForward;
+- (void)setCanGoForward:(BOOL)canGoForward animated:(BOOL)animated;
 
 // Sets whether the page is loading.
 - (void)setIsLoading:(BOOL)isLoading;
+
+// Sets the `progress` between 0.0 and 1.0 for the loading progress bar.
+- (void)setLoadingProgress:(double)progress;
 
 // Sets whether the share button is enabled.
 - (void)setShareEnabled:(BOOL)enabled;
@@ -46,6 +49,21 @@ typedef NS_ENUM(NSUInteger, ToolbarButtonType) {
 // Sets whether the location indicator should be visible.
 - (void)setLocationIndicatorVisible:(BOOL)locationIndicatorVisible
                     forNotification:(NSNotification*)notification;
+
+// Shows the banner promo view.
+- (void)showBannerPromo;
+
+// Hides the banner promo view.
+- (void)hideBannerPromo;
+
+// Sets the tab count to display.
+- (void)updateTabCount:(NSUInteger)tabCount;
+
+// Sets whether the active web state is inside a tab group.
+- (void)setInTabGroup:(BOOL)inTabGroup;
+
+// Sets the state of the assistant button.
+- (void)setAssistantButtonVisible:(BOOL)visible enabled:(BOOL)enabled;
 
 @end
 

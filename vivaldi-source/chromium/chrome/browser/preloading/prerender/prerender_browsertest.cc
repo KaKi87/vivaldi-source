@@ -218,7 +218,7 @@ IN_PROC_BROWSER_TEST_F(PrerenderBrowserTest,
 
 // Prerendering in a new tab should not be activate for a new window with an
 // opener.
-// The test is flaky on android-12l-x64-dbg-tests: https://crbug.com/1490582.
+// The test is flaky on android-12l-x64-dbg-tests: https://crbug.com/40935364.
 #if BUILDFLAG(IS_ANDROID)
 #define MAYBE_PrerenderAndActivate_InNewTab_Opener \
   DISABLED_PrerenderAndActivate_InNewTab_Opener
@@ -807,7 +807,7 @@ IN_PROC_BROWSER_TEST_F(PrerenderNewTabPageBrowserTest,
 
   // Navigate to an initial page.
   ASSERT_TRUE(content::NavigateToURL(GetActiveWebContents(),
-                                     GURL(chrome::kChromeUINewTabURL)));
+                                     chrome::ChromeUINewTabURLAsGURL()));
   GURL prerender_url = GetUrl("/simple.html");
 
   std::unique_ptr<NewTabPagePreloadPipelineManager> ntp_preload_manager =
@@ -844,7 +844,7 @@ IN_PROC_BROWSER_TEST_F(PrerenderNewTabPageBrowserTest,
                        NewTabPagePrerenderNonHttps) {
   // Navigate to an initial page.
   ASSERT_TRUE(content::NavigateToURL(GetActiveWebContents(),
-                                     GURL(chrome::kChromeUINewTabURL)));
+                                     chrome::ChromeUINewTabURLAsGURL()));
   GURL prerender_url = embedded_test_server()->GetURL("/simple.html?prerender");
 
   std::unique_ptr<NewTabPagePreloadPipelineManager> ntp_preload_manager =
@@ -882,7 +882,7 @@ IN_PROC_BROWSER_TEST_F(PrerenderNewTabPageBrowserTest,
 
   // Navigate to an initial page.
   ASSERT_TRUE(content::NavigateToURL(GetActiveWebContents(),
-                                     GURL(chrome::kChromeUINewTabURL)));
+                                     chrome::ChromeUINewTabURLAsGURL()));
   GURL prerender_url = GetUrl("/simple.html");
 
   std::unique_ptr<NewTabPagePreloadPipelineManager> ntp_preload_manager =
@@ -928,7 +928,7 @@ IN_PROC_BROWSER_TEST_F(PrerenderNewTabPageBrowserTest,
 
   // Navigate to an initial page.
   ASSERT_TRUE(content::NavigateToURL(GetActiveWebContents(),
-                                     GURL(chrome::kChromeUINewTabURL)));
+                                     chrome::ChromeUINewTabURLAsGURL()));
   GURL prerender_url = GetUrl("/simple.html?prerender");
 
   std::unique_ptr<NewTabPagePreloadPipelineManager> ntp_preload_manager =
@@ -1288,6 +1288,40 @@ IN_PROC_BROWSER_TEST_F(PrerenderPrewarmDefaultSearchEngineTest,
   observer.WaitForNotification();
   EXPECT_FALSE(service->HasOnGoingSearchPrewarm());
   EXPECT_FALSE(service->IsOnGoingSearchPrewarm(host_id));
+}
+
+IN_PROC_BROWSER_TEST_F(PrerenderPrewarmDefaultSearchEngineTest,
+                       DisableFeatureOn404) {
+  // Navigate to an initial page.
+  GURL url = embedded_test_server()->GetURL("/empty.html");
+  ASSERT_TRUE(content::NavigateToURL(GetActiveWebContents(), url));
+
+  auto* profile =
+      Profile::FromBrowserContext(GetActiveWebContents()->GetBrowserContext());
+  auto* service = SearchPrewarmProgressServiceFactory::GetForProfile(profile);
+  ASSERT_TRUE(service);
+  EXPECT_FALSE(service->ShouldBlockPrewarm());
+
+  auto* prerender_manager =
+      PrerenderManager::FromWebContents(GetActiveWebContents());
+  ASSERT_TRUE(prerender_manager);
+
+  // Set a prewarm URL that will return 404.
+  GURL url_404 = embedded_test_server()->GetURL("search.example.com",
+                                                "/non-existent.html");
+  prerender_manager->SetPrewarmUrlForTesting(url_404);
+
+  SearchPrewarmProgressTestObserver observer(service);
+
+  // Start prewarm.
+  EXPECT_TRUE(prerender_manager->MaybeStartPrewarmSearchResult());
+
+  // Wait for it to finish.
+  observer.WaitForNotification();
+
+  // Verify that the feature is now disabled.
+  EXPECT_TRUE(service->ShouldBlockPrewarm());
+  EXPECT_FALSE(prerender_manager->MaybeStartPrewarmSearchResult());
 }
 
 // Tests that if the `PrerenderManager` is destroyed (by closing the tab) while

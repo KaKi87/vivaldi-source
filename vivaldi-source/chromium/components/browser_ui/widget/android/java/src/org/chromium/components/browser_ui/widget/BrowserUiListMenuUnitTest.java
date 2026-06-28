@@ -17,7 +17,7 @@ import static org.chromium.ui.listmenu.ListItemType.MENU_ITEM_WITH_SUBMENU;
 import static org.chromium.ui.listmenu.ListMenuItemProperties.CLICK_LISTENER;
 import static org.chromium.ui.listmenu.ListMenuItemProperties.ENABLED;
 import static org.chromium.ui.listmenu.ListMenuItemProperties.TITLE;
-import static org.chromium.ui.listmenu.ListMenuSubmenuItemProperties.SUBMENU_ITEMS;
+import static org.chromium.ui.listmenu.ListMenuSubmenuItemProperties.SUBMENU_PROVIDER;
 
 import android.app.Activity;
 import android.graphics.drawable.ColorDrawable;
@@ -43,7 +43,6 @@ import org.robolectric.shadows.ShadowListView;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Batch;
-import org.chromium.ui.R;
 import org.chromium.ui.listmenu.BasicListMenu;
 import org.chromium.ui.listmenu.ListMenuSubmenuItemProperties;
 import org.chromium.ui.listmenu.ListMenuUtils;
@@ -95,7 +94,7 @@ public class BrowserUiListMenuUnitTest {
                         MENU_ITEM_WITH_SUBMENU,
                         new PropertyModel.Builder(ListMenuSubmenuItemProperties.ALL_KEYS)
                                 .with(TITLE, TEST_LABEL)
-                                .with(SUBMENU_ITEMS, subList)
+                                .with(SUBMENU_PROVIDER, () -> subList)
                                 .with(ENABLED, true)
                                 .build()));
         for (int i = NUM_SUBMENU_ITEMS; i < (NUM_SUBMENU_ITEMS + NUM_NORMAL_ITEMS_IN_ROOT); i++) {
@@ -171,11 +170,11 @@ public class BrowserUiListMenuUnitTest {
                         MENU_ITEM_WITH_SUBMENU,
                         new PropertyModel.Builder(ListMenuSubmenuItemProperties.ALL_KEYS)
                                 .with(TITLE, TEST_LABEL)
-                                .with(SUBMENU_ITEMS, submenuItems)
+                                .with(SUBMENU_PROVIDER, () -> submenuItems)
                                 .build());
         data.add(submenuParentItem);
         mBasicListMenu = getBasicListMenu(mActivity, data, (item, view) -> {}, 0, colorIntForTest);
-        mBasicListMenu.setupCallbacksRecursively(
+        mBasicListMenu.setupCallbacks(
                 () -> {}, ListMenuUtils.createHierarchicalMenuController(mActivity));
         mView = mBasicListMenu.getContentView();
         int itemHeight =
@@ -224,7 +223,7 @@ public class BrowserUiListMenuUnitTest {
     }
 
     private ListView setupListViewForSubmenuTesting() {
-        mBasicListMenu.setupCallbacksRecursively(
+        mBasicListMenu.setupCallbacks(
                 () -> {}, ListMenuUtils.createHierarchicalMenuController(mActivity));
         mView = mBasicListMenu.getContentView();
         int width = mActivity.getResources().getDimensionPixelSize(R.dimen.list_menu_width);

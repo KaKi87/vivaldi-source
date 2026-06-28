@@ -303,7 +303,7 @@ TEST(TransitionArray_SameFieldNamesDifferentAttributes) {
     if (key == *name) {
       // Attributes transition.
       PropertyAttributes attributes =
-          target->GetLastDescriptorDetails(isolate).attributes();
+          target->GetLastDescriptorDetails().attributes();
       CHECK_EQ(*attr_maps[static_cast<int>(attributes)], target);
     } else {
       for (int j = 0; j < PROPS_COUNT; j++) {
@@ -462,6 +462,197 @@ UNINITIALIZED_TEST(TransitionArray_InsertToBinarySearchSizeAfterRehashing) {
   isolate->Dispose();
   delete[] blob.data;
   FreeCurrentEmbeddedBlob();
+}
+
+UNINITIALIZED_TEST(TransitionArray_RehashNoDuplicatesWithinLinearSearchSize) {
+  v8_flags.rehash_snapshot = true;
+  v8_flags.hash_seed = 42;
+  v8_flags.allow_natives_syntax = true;
+  DisableEmbeddedBlobRefcounting();
+  v8::StartupData blob;
+  // Stay within linear search size.
+  constexpr int initial_size = TransitionArray::kMaxElementsForLinearSearch / 2;
+
+  {
+    v8::Isolate::CreateParams testing_params;
+    testing_params.array_buffer_allocator = CcTest::array_buffer_allocator();
+    v8::SnapshotCreator creator(testing_params);
+    v8::Isolate* isolate = creator.GetIsolate();
+    {
+      v8::HandleScope handle_scope(isolate);
+      v8::Local<v8::Context> context = v8::Context::New(isolate);
+      v8::Context::Scope context_scope(context);
+      Isolate* i_isolate = reinterpret_cast<Isolate*>(isolate);
+      v8::Local<v8::Object> obj = v8::Object::New(isolate);
+      DirectHandle<Map> first_map =
+          direct_handle(v8::Utils::OpenDirectHandle(*obj)->map(), i_isolate);
+
+      {
+        TestTransitionsAccessor transitions(i_isolate, first_map);
+        CHECK_EQ(0, transitions.NumberOfTransitions());
+      }
+
+      // Insert transitions that will be rehashed on deserialization.
+      v8::Local<v8::Value> null_value = v8::Null(isolate);
+      v8::LocalVector<v8::Value> objects(isolate);
+      for (int i = 0; i < initial_size; i++) {
+        std::string prop_name = "prop_" + std::to_string(i);
+        v8::Local<v8::String> name =
+            v8::String::NewFromUtf8(isolate, prop_name.c_str(),
+                                    v8::NewStringType::kNormal)
+                .ToLocalChecked();
+        v8::Local<v8::Object> new_obj = v8::Object::New(isolate);
+        new_obj->Set(context, name, null_value).Check();
+        objects.push_back(new_obj);
+      }
+      context->Global()
+          ->Set(context, v8_str("objects_for_transitions"),
+                v8::Array::New(isolate, objects.data(), objects.size()))
+          .Check();
+
+      creator.SetDefaultContext(context);
+
+      TestTransitionsAccessor transitions(i_isolate, first_map);
+      CHECK_EQ(initial_size, transitions.NumberOfTransitions());
+    }
+    blob =
+        creator.CreateBlob(v8::SnapshotCreator::FunctionCodeHandling::kClear);
+    CHECK(blob.CanBeRehashed());
+  }
+
+  // Deserialize with a different hash seed to trigger rehashing.
+  v8_flags.hash_seed = 1337;
+  v8::Isolate::CreateParams testing_params;
+  testing_params.array_buffer_allocator = CcTest::array_buffer_allocator();
+  testing_params.snapshot_blob = &blob;
+  v8::Isolate* isolate = v8::Isolate::New(testing_params);
+  {
+    v8::Isolate::Scope isolate_scope(isolate);
+    CHECK_EQ(static_cast<uint64_t>(1337),
+             HashSeed(reinterpret_cast<Isolate*>(isolate)).seed());
+    v8::HandleScope handle_scope(isolate);
+    v8::Local<v8::Context> context = v8::Context::New(isolate);
+    CHECK(!context.IsEmpty());
+    v8::Context::Scope context_scope(context);
+
+    Isolate* i_isolate = reinterpret_cast<Isolate*>(isolate);
+    v8::Local<v8::Object> obj = v8::Object::New(isolate);
+    DirectHandle<Map> first_map =
+        direct_handle(v8::Utils::OpenDirectHandle(*obj)->map(), i_isolate);
+
+    // Collect existing transition keys from the rehashed array.
+    Handle<String> keys[initial_size];
+    {
+      TestTransitionsAccessor transitions(i_isolate, first_map);
+      CHECK_EQ(initial_size, transitions.NumberOfTransitions());
+      for (int i = 0; i < initial_size; i++) {
+        keys[i] = handle(Cast<String>(transitions.GetKey(i)), i_isolate);
+      }
+    }
+
+    // For each existing transition, create a fresh map and re-insert it with
+    // the same field name.
+    for (int i = 0; i < initial_size; i++) {
+      Handle<Map> new_map =
+          Map::CopyWithField(i_isolate, first_map, keys[i],
+                             FieldType::Any(i_isolate), NONE,
+                             PropertyConstness::kMutable,
+                             Representation::Tagged(), OMIT_TRANSITION)
+              .ToHandleChecked();
+      TransitionsAccessor::Insert(i_isolate, first_map, keys[i], new_map,
+                                  PROPERTY_TRANSITION);
+    }
+
+    // Verify no duplicates were created.
+    {
+      TestTransitionsAccessor transitions(i_isolate, first_map);
+      CHECK_EQ(initial_size, transitions.NumberOfTransitions());
+    }
+  }
+
+  isolate->Dispose();
+  delete[] blob.data;
+  FreeCurrentEmbeddedBlob();
+}
+
+// LinearSearchName should work correctly even when the underlying
+// TransitionArray is not in hash-sorted order.
+TEST(TransitionArray_LinearSearchHandlesUnsortedArray) {
+  CcTest::InitializeVM();
+  v8::HandleScope scope(CcTest::isolate());
+  Isolate* isolate = CcTest::i_isolate();
+  Factory* factory = isolate->factory();
+
+  // Keep the number of transitions small to ensure linear search is used.
+  constexpr int kCount = TransitionArray::kMaxElementsForLinearSearch / 2;
+  DirectHandle<Map> map0 = Map::Create(isolate, 0);
+
+  Handle<String> names[kCount];
+  for (int i = 0; i < kCount; i++) {
+    base::EmbeddedVector<char, 64> buffer;
+    SNPrintF(buffer, "prop%d", i);
+    Handle<String> name = factory->InternalizeUtf8String(buffer.begin());
+    Handle<Map> next =
+        Map::CopyWithField(isolate, map0, name, FieldType::Any(isolate), NONE,
+                           PropertyConstness::kMutable,
+                           Representation::Tagged(), OMIT_TRANSITION)
+            .ToHandleChecked();
+    TransitionsAccessor::Insert(isolate, map0, name, next, PROPERTY_TRANSITION);
+    names[i] = name;
+  }
+
+  // Sort by hash, then reverse so the array is no longer in increasing order.
+  {
+    DisallowGarbageCollection no_gc;
+    TestTransitionsAccessor transitions(isolate, map0);
+    CHECK_EQ(kCount, transitions.NumberOfTransitions());
+    Tagged<TransitionArray> array = transitions.transitions();
+    array->Sort(/* force= */ true);
+
+    for (int i = 0, j = kCount - 1; i < j; i++, j--) {
+      Tagged<Name> ki = array->GetKey(i);
+      Tagged<Name> kj = array->GetKey(j);
+      Tagged<MaybeObject> ti = array->GetRawTarget(i);
+      Tagged<MaybeObject> tj = array->GetRawTarget(j);
+      array->SetKey(i, kj);
+      array->SetRawTarget(i, tj);
+      array->SetKey(j, ki);
+      array->SetRawTarget(j, ti);
+    }
+
+    // Verify that the array is no longer in increasing hash order.
+    // Use CHECK_GE to allow for hash collisions.
+    for (int i = 0; i + 1 < kCount; i++) {
+      CHECK_GE(array->GetKey(i)->hash(), array->GetKey(i + 1)->hash());
+    }
+  }
+
+  // Every transition must still be findable.
+  {
+    TestTransitionsAccessor transitions(isolate, map0);
+    Tagged<TransitionArray> array = transitions.transitions();
+    for (int i = 0; i < kCount; i++) {
+      int insertion = -1;
+      int idx = array->SearchNameForTesting(*names[i], &insertion);
+      CHECK_NE(TransitionArray::kNotFound, idx);
+      CHECK_EQ(*names[i], array->GetKey(idx));
+    }
+  }
+
+  // Re-inserting any existing key with a fresh target must overwrite in place
+  // rather than create a duplicate.
+  for (int i = 0; i < kCount; i++) {
+    DirectHandle<Map> fresh =
+        Map::CopyWithField(isolate, map0, names[i], FieldType::Any(isolate),
+                           NONE, PropertyConstness::kMutable,
+                           Representation::Tagged(), OMIT_TRANSITION)
+            .ToHandleChecked();
+    TransitionsAccessor::Insert(isolate, map0, names[i], fresh,
+                                PROPERTY_TRANSITION);
+
+    TestTransitionsAccessor transitions(isolate, map0);
+    CHECK_EQ(kCount, transitions.NumberOfTransitions());
+  }
 }
 
 }  // namespace internal

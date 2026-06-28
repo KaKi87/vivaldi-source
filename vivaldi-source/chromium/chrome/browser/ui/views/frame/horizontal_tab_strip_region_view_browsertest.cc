@@ -189,7 +189,7 @@ IN_PROC_BROWSER_TEST_F(HorizontalTabStripRegionViewTest, DISABLED_NewTabButtonIn
   // Add a few tabs and simulate the new tab button's ink drop animation. This
   // should not cause any crashes since the ink drop layer size as well as the
   // ink drop container size should remain equal to the new tab button visible
-  // bounds size. https://crbug.com/814105.
+  // bounds size. https://crbug.com/40563841.
   auto* button = static_cast<TabStripControlButton*>(
       tab_strip_region_view()->new_tab_button_for_testing());
   for (int i = 0; i < 10; ++i) {
@@ -239,11 +239,12 @@ IN_PROC_BROWSER_TEST_F(HorizontalTabStripRegionViewTest,
   EXPECT_EQ(0, new_tab_button_origin.y());
 }
 
-IN_PROC_BROWSER_TEST_F(HorizontalTabStripRegionViewTest, HasMultiselectableState) {
+IN_PROC_BROWSER_TEST_F(HorizontalTabStripRegionViewTest, HasPaneRole) {
   ui::AXNodeData ax_node_data;
   tab_strip_region_view()->GetViewAccessibility().GetAccessibleNodeData(
       &ax_node_data);
-  EXPECT_TRUE(ax_node_data.HasState(ax::mojom::State::kMultiselectable));
+  EXPECT_EQ(ax::mojom::Role::kPane, ax_node_data.role);
+  EXPECT_FALSE(ax_node_data.HasState(ax::mojom::State::kMultiselectable));
 }
 
 IN_PROC_BROWSER_TEST_F(HorizontalTabStripRegionViewTest,

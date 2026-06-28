@@ -3,13 +3,13 @@
 // found in the LICENSE file.
 
 #include "ash/constants/ash_features.h"
+#include "ash/constants/ash_login_pref_names.h"
 #include "ash/public/cpp/login_screen_test_api.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/thread_restrictions.h"
-#include "chrome/browser/ash/login/login_pref_names.h"
 #include "chrome/browser/ash/login/screens/consolidated_consent_screen.h"
 #include "chrome/browser/ash/login/screens/guest_tos_screen.h"
 #include "chrome/browser/ash/login/startup_utils.h"
@@ -49,6 +49,7 @@
 #include "components/version_info/version_info.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/browser_test_utils.h"
 
 namespace ash {
 
@@ -123,6 +124,9 @@ IN_PROC_BROWSER_TEST_F(OobePreConsentMetricsTest, RegularUserConsented) {
   test::TapConsolidatedConsentAccept();
   OobeScreenExitWaiter(ConsolidatedConsentScreenView::kScreenId).Wait();
 
+  // Wait for the background file-writing task to finish
+  content::RunAllTasksUntilIdle();
+
   ValidateMetricsConsent(/*enabled=*/true);
   CheckForMarkerFile();
 }
@@ -140,6 +144,9 @@ IN_PROC_BROWSER_TEST_F(OobePreConsentMetricsTest, RegularUserDissented) {
   test::TapConsolidatedConsentAccept();
   OobeScreenExitWaiter(ConsolidatedConsentScreenView::kScreenId).Wait();
 
+  // Wait for the background file-writing task to finish
+  content::RunAllTasksUntilIdle();
+
   ValidateMetricsConsent(/*enabled=*/false);
   CheckForMarkerFile();
 }
@@ -156,6 +163,9 @@ IN_PROC_BROWSER_TEST_F(OobePreConsentMetricsTest, GuestUserConsented) {
 
   // Accept guest tos since usage optin is default on.
   test::OobeJS().ClickOnPath({"guest-tos", "acceptButton"});
+
+  // Wait for the background file-writing task to finish
+  content::RunAllTasksUntilIdle();
 
   EXPECT_TRUE(g_browser_process->local_state()->GetBoolean(
       ash::prefs::kOobeGuestMetricsEnabled));
@@ -182,6 +192,9 @@ IN_PROC_BROWSER_TEST_F(OobePreConsentMetricsTest, GuestUserDissented) {
   // Toggle usage optin off.
   test::OobeJS().ClickOnPath({"guest-tos", "usageOptin"});
   test::OobeJS().ClickOnPath({"guest-tos", "acceptButton"});
+
+  // Wait for the background file-writing task to finish
+  content::RunAllTasksUntilIdle();
 
   EXPECT_FALSE(g_browser_process->local_state()->GetBoolean(
       ash::prefs::kOobeGuestMetricsEnabled));

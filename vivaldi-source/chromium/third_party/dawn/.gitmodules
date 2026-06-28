@@ -1,9 +1,6 @@
-[submodule "third_party/dxc"]
-	path = third_party/dxc
+[submodule "third_party/directx-shader-compiler/src"]
+	path = third_party/directx-shader-compiler/src
 	url = ../../external/github.com/microsoft/DirectXShaderCompiler.git
-[submodule "third_party/dxheaders"]
-	path = third_party/dxheaders
-	url = ../../external/github.com/microsoft/DirectX-Headers.git
 [submodule "third_party/directx-headers/src"]
 	path = third_party/directx-headers/src
 	url = ../../external/github.com/microsoft/DirectX-Headers.git

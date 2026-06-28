@@ -11,7 +11,6 @@
 #include "chrome/browser/ui/views/bubble/webui_bubble_dialog_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/webui/top_chrome/top_chrome_web_ui_controller.h"
-#include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "content/public/browser/spare_render_process_host_manager.h"
 #include "content/public/test/browser_test.h"
@@ -120,7 +119,7 @@ IN_PROC_BROWSER_TEST_F(WebUIBubbleManagerBrowserTest,
 }
 
 // Ensures that the WebUI bubble is destroyed synchronously with the manager.
-// This guards against a potential UAF crash (see crbug.com/1345546).
+// This guards against a potential UAF crash (see crbug.com/40060325).
 IN_PROC_BROWSER_TEST_F(WebUIBubbleManagerBrowserTest,
                        ManagerDestructionClosesBubble) {
   EXPECT_EQ(nullptr, bubble_manager()->GetBubbleWidget());

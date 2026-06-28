@@ -54,7 +54,7 @@ suite('<history-synced-device-manager>', function() {
     element = document.createElement('history-synced-device-manager');
     // |signInState| is generally set after |searchTerm| in Polymer 2. Set in
     // the same order in tests, in order to catch regressions like
-    // https://crbug.com/915641.
+    // https://crbug.com/40606784.
     element.searchTerm = '';
     element.configureSignInForTest({
       signInAllowed: true,
@@ -278,9 +278,9 @@ suite('<history-synced-device-manager>', function() {
   });
 
   // <if expr="is_chromeos">
-  // On ChromeOS only, the kReplaceSyncPromosWithSignInPromos flag is false and
-  // this promo may be shown. For other platforms, the flag is true so this
-  // promo is not shown (checked in other tests below).
+  // On ChromeOS, this promo may be shown depending on the
+  // kReplaceSyncPromosWithSignInPromos flag value. For other platforms, the
+  // flag is true so this promo is not shown (checked in other tests below).
   test('show sign in promo', async () => {
     webUIListenerCallback('history-identity-state-changed', {
       signIn: HistorySignInState.SIGNED_OUT,
@@ -288,7 +288,9 @@ suite('<history-synced-device-manager>', function() {
       historySync: SyncState.TURNED_OFF,
     });
     await microtasksFinished();
-    assertFalse(element.$.signInGuide.hidden);
+    assertEquals(
+        loadTimeData.getBoolean('replaceSyncPromosWithSignInPromos'),
+        element.$.signInGuide.hidden);
     webUIListenerCallback('history-identity-state-changed', {
       signIn: HistorySignInState.SIGNED_IN,
       tabsSync: SyncState.TURNED_ON,
@@ -388,7 +390,7 @@ suite('<history-synced-device-manager>', function() {
     setForeignSessions([]);
     element.clearSyncedDevicesForTest();
     // Should show no synced tabs message on initial load. Regression test for
-    // https://crbug.com/915641.
+    // https://crbug.com/40606784.
     await microtasksFinished();
     assertNoSyncedTabsMessageShown(element, 'noSyncedResults');
     const cards = getCards(element);
@@ -422,7 +424,7 @@ suite('<history-sync-optin>', function() {
     element = document.createElement('history-synced-device-manager');
     // |signInState| is generally set after |searchTerm| in Polymer 2. Set in
     // the same order in tests, in order to catch regressions like
-    // https://crbug.com/915641.
+    // https://crbug.com/40606784.
     element.searchTerm = '';
     // Setting the sign in state to WEB_ONLY_SIGNED_IN, because user's name,
     // email and profile icon are only shown on the page when the sign in

@@ -17,12 +17,15 @@ import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.back_press.BackPressManager;
+import org.chromium.chrome.browser.bookmarks.TabBookmarker;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.compositor.LayerTitleCache;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutHelperManager;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutHelperManager.TabModelStartupInfo;
 import org.chromium.chrome.browser.data_sharing.DataSharingTabManager;
 import org.chromium.chrome.browser.device.DeviceClassManager;
+/*import org.chromium.chrome.browser.glic.GlicButtonDelegate;
+import org.chromium.chrome.browser.glic.GlicKeyedService; Vivaldi */
 import org.chromium.chrome.browser.hub.HubLayoutDependencyHolder;
 import org.chromium.chrome.browser.layouts.LayoutType;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
@@ -34,12 +37,13 @@ import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tab_ui.TabSwitcher;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
-import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
+import org.chromium.chrome.browser.theme.ToolbarThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.ControlContainer;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
+import org.chromium.ui.base.ActivityResultTracker;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.dragdrop.DragAndDropDelegate;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
@@ -66,7 +70,7 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
     /** A LayerTitleCache instance that stores all title/favicon bitmaps as CC resources. */
     // This cache should not be cleared in LayoutManagerImpl#emptyCachesExcept(), since that method
     // is currently called when returning to the static layout, which is when these titles will be
-    // visible. See https://crbug.com/1329293.
+    // visible. See https://crbug.com/40842526.
     protected @Nullable LayerTitleCache mLayerTitleCache;
 
     protected SettableMonotonicObservableSupplier<LayerTitleCache> mLayerTitleCacheSupplier =
@@ -83,7 +87,7 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
      * @param tabModelSelectorSupplier Supplier for an interface to talk to the Tab Model Selector.
      * @param browserControlsStateProvider The BrowserControlsStateProvider for top controls.
      * @param tabContentManagerSupplier Supplier of the TabContentManager instance.
-     * @param topUiThemeColorProvider ThemeColorProvider for top UI.
+     * @param toolbarThemeColorProvider ThemeColorProvider for the toolbar.
      * @param lifecycleDispatcher ActivityLifecycleDispatcher to be passed to TabStrip helper.
      * @param hubLayoutDependencyHolder The dependency holder for creating HubLayout.
      * @param multiInstanceManager MultiInstanceManager passed to StripLayoutHelper to support tab
@@ -99,11 +103,13 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
      * @param dataSharingTabManager The {@link DataSharingTabManager} for shared groups.
      * @param bottomSheetController The {@link BottomSheetController} used to show bottom sheets.
      * @param shareDelegateSupplier Supplies {@link ShareDelegate} to share tab URLs.
+     * @param tabBookmarkerSupplier Supplies {@link TabBookmarker} to add/edit bookmarks.
      * @param xrSceneCoreSessionManager The {@link XrSceneCoreSessionManager} to switch between
      *     space modes on XR.
      * @param backPressManager The {@link BackPressManager} for handling back press.
      * @param snackbarManager The {@link SnackbarManager} used to show snackbar UI.
-     * @param glicClickHandler The click handler for the tab strip Glic button.
+     * @param activityResultTracker The {@link ActivityResultTracker}.
+     * @param glicClickHandler The {@link GlicButtonDelegate} for the tab strip Glic button.
      */
     @SuppressWarnings("NullAway") // TODO(jarle@vivaldi.com): check use of mLayerTitleCache being
     // null when instantiating StripLayoutHelperManager
@@ -114,7 +120,7 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
             Supplier<TabModelSelector> tabModelSelectorSupplier,
             BrowserControlsStateProvider browserControlsStateProvider,
             MonotonicObservableSupplier<TabContentManager> tabContentManagerSupplier,
-            Supplier<TopUiThemeColorProvider> topUiThemeColorProvider,
+            Supplier<ToolbarThemeColorProvider> toolbarThemeColorProvider,
             MonotonicObservableSupplier<TabModelStartupInfo> tabModelStartupInfoSupplier,
             ActivityLifecycleDispatcher lifecycleDispatcher,
             HubLayoutDependencyHolder hubLayoutDependencyHolder,
@@ -129,10 +135,13 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
             DataSharingTabManager dataSharingTabManager,
             BottomSheetController bottomSheetController,
             MonotonicObservableSupplier<ShareDelegate> shareDelegateSupplier,
+            Supplier<TabBookmarker> tabBookmarkerSupplier,
             @Nullable XrSceneCoreSessionManager xrSceneCoreSessionManager,
             BackPressManager backPressManager,
             SnackbarManager snackbarManager,
-            Runnable glicClickHandler,
+            ActivityResultTracker activityResultTracker,
+            /* GlicButtonDelegate glicClickHandler,
+            @Nullable GlicKeyedService glicKeyedService) { // Vivaldi*/
             ViewStub tabHoverCardViewStubStack) { // Vivaldi
         super(
                 host,
@@ -140,7 +149,7 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
                 tabSwitcherSupplier,
                 tabModelSelectorSupplier,
                 tabContentManagerSupplier,
-                topUiThemeColorProvider,
+                toolbarThemeColorProvider,
                 hubLayoutDependencyHolder);
 
         mXrSceneCoreSessionManager = xrSceneCoreSessionManager;
@@ -172,10 +181,14 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
                         dataSharingTabManager,
                         bottomSheetController,
                         shareDelegateSupplier,
+                        tabBookmarkerSupplier,
                         xrSpaceModeObservableSupplier,
                         backPressManager,
                         snackbarManager,
-                        null,
+                        activityResultTracker,
+                        // glicClickHandler, // Vivaldi
+                        // glicKeyedService); // Vivaldi
+
                         /* isStackStrip */ false); // Vivaldi
         addSceneOverlay(mTabStripLayoutHelperManager);
         addObserver(mTabStripLayoutHelperManager.getTabSwitcherObserver());
@@ -206,6 +219,7 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
                     dataSharingTabManager,
                     bottomSheetController,
                     shareDelegateSupplier,
+                    tabBookmarkerSupplier,
                     xrSpaceModeObservableSupplier,
                     backPressManager,
                     snackbarManager,
@@ -269,7 +283,7 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
             TabCreatorManager creator,
             @Nullable ControlContainer controlContainer,
             DynamicResourceLoader dynamicResourceLoader,
-            TopUiThemeColorProvider topUiColorProvider,
+            ToolbarThemeColorProvider toolbarColorProvider,
             NonNullObservableSupplier<Integer> bottomControlsOffsetSupplier) {
 
         // Vivaldi
@@ -280,7 +294,7 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
                 creator,
                 controlContainer,
                 dynamicResourceLoader,
-                topUiColorProvider,
+                toolbarColorProvider,
                 bottomControlsOffsetSupplier);
         if (DeviceClassManager.enableLayerDecorationCache()) {
             mLayerTitleCache =

@@ -21,11 +21,14 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/passwords/manage_passwords_ui_controller.h"
+#include "components/autofill/content/browser/content_autofill_driver.h"
+#include "components/autofill/core/browser/foundations/test_autofill_manager_waiter.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/form_data.h"
 #include "components/password_manager/content/browser/content_password_manager_driver.h"
 #include "components/password_manager/core/browser/password_form_manager.h"
 #include "components/password_manager/core/browser/password_manager.h"
+#include "components/password_manager/core/browser/password_store/password_form_converters.h"
 #include "components/password_manager/core/browser/password_store/test_password_store.h"
 #include "components/password_manager/core/common/password_manager_features.h"
 #include "components/signin/public/base/signin_buildflags.h"
@@ -40,7 +43,34 @@
 
 namespace {
 
-constexpr autofill::FieldRendererId kElementId(1000);
+constexpr autofill::FieldGlobalId kElementId(autofill::LocalFrameToken(),
+                                             autofill::FieldRendererId(1000));
+
+void TriggerPasswordSuggestionsAndWait(
+    autofill::ContentAutofillDriver* autofill_driver,
+    const autofill::FormData& form,
+    const gfx::RectF& element_bounds) {
+  autofill::TestAutofillManagerSingleEventWaiter waiter(
+      autofill_driver->GetAutofillManager(),
+      &autofill::AutofillManager::Observer::OnAfterAskForValuesToFill);
+
+  autofill_driver->renderer_events().AskForValuesToFill(
+      form, kElementId.renderer_id,
+      gfx::Rect(gfx::Point(element_bounds.x(), element_bounds.y()),
+                gfx::Size(0, 10)),
+      autofill::AutofillSuggestionTriggerSource::kFormControlElementClicked,
+      autofill::PasswordSuggestionRequest(
+          autofill::TriggeringField(kElementId,
+                                    autofill::AutofillSuggestionTriggerSource::
+                                        kFormControlElementClicked,
+                                    base::i18n::LEFT_TO_RIGHT, std::u16string(),
+                                    /*show_webauthn_credentials=*/false,
+                                    /*show_identity_credentials=*/false,
+                                    element_bounds),
+          form, autofill::FieldGlobalId(), autofill::FieldGlobalId()));
+
+  ASSERT_TRUE(std::move(waiter).Wait());
+}
 
 }  // namespace
 
@@ -55,6 +85,11 @@ class PasswordManagerInteractiveTest
     // in PasswordFormManager unit tests.
     password_manager::PasswordFormManager::
         set_wait_for_server_predictions_for_filling(false);
+
+    // TODO(504600482): Remove this and update tests when the bug is closed.
+    // Disable kFillOnAccountSelect by default to match test assumptions.
+    feature_list_.InitAndDisableFeature(
+        password_manager::features::kFillOnAccountSelect);
   }
   ~PasswordManagerInteractiveTest() override = default;
 
@@ -64,6 +99,9 @@ class PasswordManagerInteractiveTest
     // deferred commits.
     command_line->AppendSwitch(blink::switches::kAllowPreCommitInput);
   }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(PasswordManagerInteractiveTest, UsernameChanged) {
@@ -75,7 +113,7 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerInteractiveTest, UsernameChanged) {
   signin_form.url = embedded_test_server()->base_url();
   signin_form.username_value = u"temp";
   signin_form.password_value = u"random";
-  password_store->AddLogin(signin_form);
+  password_store->AddLogin(password_manager::FromPasswordForm(signin_form));
 
   // Load the page to have the saved credentials autofilled.
   NavigateToFile("/password/signup_form.html");
@@ -104,12 +142,12 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerInteractiveTest, UsernameChanged) {
   // Spin the message loop to make sure the password store had a chance to save
   // the password.
   WaitForPasswordStore();
-  EXPECT_FALSE(password_store->IsEmpty());
+  EXPECT_FALSE(GetAllLoginsSync(password_store.get()).empty());
 
   // Verify that there are two saved password, the old password and the new
   // password.
   password_manager::TestPasswordStore::PasswordMap stored_passwords =
-      password_store->stored_passwords();
+      GetAllLoginsSync(password_store.get());
   EXPECT_EQ(1u, stored_passwords.size());
   EXPECT_EQ(2u, stored_passwords.begin()->second.size());
   EXPECT_EQ(u"temp", (stored_passwords.begin()->second)[0].username_value);
@@ -180,7 +218,7 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerInteractiveTest,
   signin_form.url = embedded_test_server()->base_url();
   signin_form.username_value = u"temp";
   signin_form.password_value = u"random";
-  password_store->AddLogin(signin_form);
+  password_store->AddLogin(password_manager::FromPasswordForm(signin_form));
 
   NavigateToFile("/password/password_form.html");
 
@@ -299,16 +337,8 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerInteractiveTest,
                                  "username_field", "password_field", submit);
 }
 
-// TODO(https://crbug.com/455605090): Very flaky on
-// linux-blink-web-tests-force-accessibility-rel builder.
-#if BUILDFLAG(IS_LINUX)
-#define MAYBE_DeleteCredentialsUpdateDropdown \
-  DISABLED_DeleteCredentialsUpdateDropdown
-#else
-#define MAYBE_DeleteCredentialsUpdateDropdown DeleteCredentialsUpdateDropdown
-#endif
 IN_PROC_BROWSER_TEST_F(PasswordManagerInteractiveTest,
-                       MAYBE_DeleteCredentialsUpdateDropdown) {
+                       DISABLED_DeleteCredentialsUpdateDropdown) {
   scoped_refptr<password_manager::TestPasswordStore> password_store =
       GetDefaultPasswordStore(browser()->profile());
 
@@ -319,12 +349,12 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerInteractiveTest,
   admin_form.username_value = u"admin";
   admin_form.password_value = u"random_secret";
   admin_form.date_last_used = base::Time::FromTimeT(1);
-  password_store->AddLogin(admin_form);
+  password_store->AddLogin(password_manager::FromPasswordForm(admin_form));
 
   password_manager::PasswordForm user_form = admin_form;
   user_form.username_value = u"user";
   admin_form.date_last_used = base::Time::FromTimeT(0);
-  password_store->AddLogin(user_form);
+  password_store->AddLogin(password_manager::FromPasswordForm(user_form));
 
   NavigateToFile("/password/password_form.html");
 
@@ -344,8 +374,8 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerInteractiveTest,
   // removes logins from the password store).
   autofill_client->SetKeepPopupOpenForTesting(true);
 
-  autofill::mojom::PasswordManagerDriver* driver =
-      ContentPasswordManagerDriver::GetForRenderFrameHost(
+  autofill::ContentAutofillDriver* autofill_driver =
+      autofill::ContentAutofillDriver::GetForRenderFrameHost(
           WebContents()->GetPrimaryMainFrame());
 
   // Just fake a position of the <input> element within the content_area_bounds.
@@ -357,14 +387,12 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerInteractiveTest,
 
   // Instruct Chrome to show the password dropdown.
   autofill::FormData form;
-  driver->ShowPasswordSuggestions(autofill::PasswordSuggestionRequest(
-      autofill::TriggeringField(
-          kElementId,
-          autofill::AutofillSuggestionTriggerSource::kFormControlElementClicked,
-          base::i18n::LEFT_TO_RIGHT, std::u16string(),
-          /*show_webauthn_credentials=*/false,
-          /*show_identity_credentials=*/false, element_bounds),
-      form, 0, 0));
+  autofill::FormFieldData dummy_field;
+  dummy_field.set_renderer_id(kElementId.renderer_id);
+  form.set_fields({dummy_field});
+
+  TriggerPasswordSuggestionsAndWait(autofill_driver, form, element_bounds);
+
   autofill::AutofillSuggestionController* controller = nullptr;
   // Showing the Autofill Popup is an asynchronous task.
   EXPECT_TRUE(base::test::RunUntil([&]() {
@@ -381,21 +409,17 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerInteractiveTest,
   WaitForElementValue("username_field", "admin");
 
   // Delete one credential. It should not be in the dropdown.
-  password_store->RemoveLogin(FROM_HERE, admin_form);
+  password_store->RemoveLogin(FROM_HERE,
+                              password_manager::FromPasswordForm(admin_form));
   WaitForPasswordStore();
 
   // Wait for the refetch to finish.
   EXPECT_FALSE(autofill_client->suggestion_controller_for_testing());
   WaitForPasswordStore();
+
   // Reshow the dropdown.
-  driver->ShowPasswordSuggestions(autofill::PasswordSuggestionRequest(
-      autofill::TriggeringField(
-          kElementId,
-          autofill::AutofillSuggestionTriggerSource::kFormControlElementClicked,
-          base::i18n::LEFT_TO_RIGHT, std::u16string(),
-          /*show_webauthn_credentials=*/false,
-          /*show_identity_credentials=*/false, element_bounds),
-      form, 0, 0));
+  TriggerPasswordSuggestionsAndWait(autofill_driver, form, element_bounds);
+
   // Showing the Autofill Popup is an asynchronous task.
   EXPECT_TRUE(base::test::RunUntil([&]() {
     return controller =
@@ -409,23 +433,17 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerInteractiveTest,
   WaitForElementValue("username_field", "user");
 
   // Delete all the credentials.
-  password_store->RemoveLogin(FROM_HERE, user_form);
+  password_store->RemoveLogin(FROM_HERE,
+                              password_manager::FromPasswordForm(user_form));
   WaitForPasswordStore();
 
   // Wait for the refetch to finish.
   EXPECT_FALSE(autofill_client->suggestion_controller_for_testing());
   WaitForPasswordStore();
+
   // Reshow the dropdown won't work because there is nothing to suggest.
-  driver->ShowPasswordSuggestions(autofill::PasswordSuggestionRequest(
-      autofill::TriggeringField(
-          kElementId,
-          autofill::AutofillSuggestionTriggerSource::kFormControlElementClicked,
-          base::i18n::LEFT_TO_RIGHT, std::u16string(),
-          /*show_webauthn_credentials=*/false,
-          /*show_identity_credentials=*/false, element_bounds),
-      form, 0, 0));
-  // Showing the Autofill Popup is an asynchronous task.
-  base::RunLoop().RunUntilIdle();
+  TriggerPasswordSuggestionsAndWait(autofill_driver, form, element_bounds);
+
   EXPECT_FALSE(autofill_client->suggestion_controller_for_testing());
 
   WaitForElementValue("username_field", "");
@@ -441,7 +459,7 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerInteractiveTest, ChangePwdFormCleared) {
   signin_form.signon_realm = embedded_test_server()->base_url().spec();
   signin_form.username_value = u"temp";
   signin_form.password_value = u"old_pw";
-  password_store->AddLogin(signin_form);
+  password_store->AddLogin(password_manager::FromPasswordForm(signin_form));
 
   NavigateToFile("/password/cleared_change_password_forms.html");
 
@@ -481,7 +499,7 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerInteractiveTest,
   signin_form.signon_realm = embedded_test_server()->base_url().spec();
   signin_form.username_value = u"temp";
   signin_form.password_value = u"old_pw";
-  password_store->AddLogin(signin_form);
+  password_store->AddLogin(password_manager::FromPasswordForm(signin_form));
 
   for (bool all_fields_cleared : {false, true}) {
     base::HistogramTester histogram_tester;
@@ -537,7 +555,7 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerInteractiveTest,
   signin_form.signon_realm = embedded_test_server()->base_url().spec();
   signin_form.username_value = u"temp";
   signin_form.password_value = u"old_pw";
-  password_store->AddLogin(signin_form);
+  password_store->AddLogin(password_manager::FromPasswordForm(signin_form));
 
   for (bool relevant_fields_cleared : {false, true}) {
     SCOPED_TRACE(testing::Message("#relevant_fields_cleared = ")

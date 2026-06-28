@@ -28,11 +28,12 @@
 <translation id="3365529507898144230">写真に保存</translation>
 <translation id="3434473769478814796">貼り付けて移動</translation>
 <translation id="3463990832590571933">新しいプライベートタブで開く</translation>
-<translation id="3473652525653758699">新しいプライベートウィンドウ</translation>
+<translation id="3473652525653758699">新しいプライベートタブ</translation>
 <translation id="3501504415290398157">プライベートタブのロックを解除には<ph name="BIOMETRIC_AUTHENITCATION_TYPE" />を使用してください。</translation>
 <translation id="353418192940651934">スタックを保持する</translation>
 <translation id="3607792383367580513">翻訳</translation>
 <translation id="3692650606013198282">プライベートタブで開く</translation>
+<translation id="3812085181789967792">プライベートタブグリッド</translation>
 <translation id="3873885181515160073">名前と色を設定して、新しいタブスタックを作成する</translation>
 <translation id="3922395466317605522">メニューのカスタマイズ</translation>
 <translation id="3981599532037327317">${url} をプライベートタブで開く</translation>
@@ -40,7 +41,7 @@
 <translation id="3993429087389909418">タブはこのデバイスで開いたままになりますが、スタックは <ph name="USER_EMAIL" /> でサインインしているすべてのデバイスから削除されます。</translation>
 <translation id="4216644171369573466">タブスタック、<ph name="GROUP_TITLE" />、メニュー。</translation>
 <translation id="4304713468139749426">パスワードマネージャー</translation>
-<translation id="4439281775431634915">あなたのタブスタックはここに保存されます</translation>
+<translation id="4439281775431634915">タブスタックはここに保存されます。</translation>
 <translation id="4569525137269575065">スタックを閉じる</translation>
 <translation id="473775607612524610">更新</translation>
 <translation id="4755216899422789286">URL を Vivaldi で開く</translation>
@@ -55,7 +56,7 @@
 <translation id="5022440170224170365">タブスタック。折りたたまれています。</translation>
 <translation id="5132327651247938019">右にスワイプするとプライベートタブでブラウジングできます。</translation>
 <translation id="5204006339739481307">左にスワイプするとプライベートタブでブラウジングできます。</translation>
-<translation id="5217245356412073535">設定 &gt; コンテンツの設定で、デフォルトサイトビューをデスクトップに変更できます</translation>
+<translation id="5217245356412073535">設定 &gt; コンテンツの設定で、デフォルトサイト表示をデスクトップに変更できます</translation>
 <translation id="5271549068863921519">パスワードを保存</translation>
 <translation id="5317780077021120954">保存</translation>
 <translation id="5385953732213322025">このサイトはアプリケーションを開こうとしています。これにより、プライベートモードが解除されます。</translation>
@@ -67,7 +68,7 @@
 Handoff は「設定」の「一般」でも有効にする必要があり、さらにデバイス同士が同じ iCloud アカウントを使用している必要があります。</translation>
 <translation id="5614553682702429503">パスワードを保存しますか？</translation>
 <translation id="5620163320393916465">保存されたパスワードはありません</translation>
-<translation id="570209299585559496">設定 &gt;コンテンツの設定で、デフォルトサイトビューをデスクトップに変更できます</translation>
+<translation id="570209299585559496">設定 &gt;コンテンツの設定で、デフォルトサイト表示をデスクトップに変更できます</translation>
 <translation id="5719777162751096990">タブスタックに移動する</translation>
 <translation id="5869522115854928033">保存されたパスワード</translation>
 <translation id="5962477178930921574">貼り付けて検索</translation>

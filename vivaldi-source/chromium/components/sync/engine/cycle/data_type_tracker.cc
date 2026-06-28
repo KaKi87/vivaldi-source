@@ -119,7 +119,7 @@ base::TimeDelta GetDefaultLocalChangeNudgeDelay(DataType data_type) {
     case CONTEXTUAL_TASK:
     case SKILL:
     case GEMINI_THREAD:
-    case ACCESSIBILITY_ANNOTATION:
+    case THEMES_ANDROID:
       return kMediumLocalChangeNudgeDelay;
     case UNSPECIFIED:
       NOTREACHED();
@@ -197,7 +197,7 @@ bool CanGetCommitsFromExtensions(DataType data_type) {
     case CONTEXTUAL_TASK:
     case SKILL:
     case GEMINI_THREAD:
-    case ACCESSIBILITY_ANNOTATION:
+    case THEMES_ANDROID:
 
     case NOTES: // Vivaldi
       return false;

@@ -135,7 +135,7 @@ const CGFloat kTopBarLargeInset = 20;
 
     [self setupTopBar];
     _groupSnapshotsView = [[TabGroupSnapshotsView alloc]
-        initWithLightInterface:self.theme == GridThemeLight
+        initWithLightInterface:self.theme == GridTheme::kDynamic
                           cell:YES];
     _groupSnapshotsView.translatesAutoresizingMaskIntoConstraints = NO;
 
@@ -243,7 +243,7 @@ const CGFloat kTopBarLargeInset = 20;
     return;
   } // End Vivaldi
 
-  if (self.theme == GridThemeLight) {
+  if (self.theme == GridTheme::kDynamic) {
     [self updateInterfaceStyleForWindow:self.window];
   }
 }
@@ -333,8 +333,8 @@ const CGFloat kTopBarLargeInset = 20;
 
 #pragma mark - Setters
 
-// Updates the theme to either dark or light. Updating is only done if the
-// current theme is not the desired theme.
+// Updates the theme to either forced dark or dynamic. Updating is only done if
+// the current theme is not the desired theme.
 - (void)setTheme:(GridTheme)theme {
   if (_theme == theme) {
     return;
@@ -347,16 +347,16 @@ const CGFloat kTopBarLargeInset = 20;
     return;
   } // End Vivaldi
 
-  // The light and dark themes have different colored borders based on the
-  // theme, regardless of dark mode, so `overrideUserInterfaceStyle` is not
-  // enough here.
+  // The dynamic and dark themes have different colored borders based on the
+  // mode (incognito/regular), regardless of dark mode, so
+  // `overrideUserInterfaceStyle` is not enough here.
   switch (theme) {
-    case GridThemeLight:
+    case GridTheme::kDynamic:
       [self updateInterfaceStyleForWindow:self.window];
       _border.layer.borderColor =
           [UIColor colorNamed:kStaticBlue400Color].CGColor;
       break;
-    case GridThemeDark:
+    case GridTheme::kDark:
       self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
       _border.layer.borderColor = UIColor.whiteColor.CGColor;
       break;
@@ -817,10 +817,10 @@ const CGFloat kTopBarLargeInset = 20;
 
 - (void)applyUserInterfaceStyleForTheme {
   switch (_theme) {
-    case GridThemeLight:
+    case GridTheme::kDynamic:
       self.overrideUserInterfaceStyle = UIUserInterfaceStyleUnspecified;
       break;
-    case GridThemeDark:
+    case GridTheme::kDark:
       self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
       break;
   }

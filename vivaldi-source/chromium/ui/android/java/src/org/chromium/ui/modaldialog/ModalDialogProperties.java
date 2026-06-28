@@ -325,15 +325,12 @@ public class ModalDialogProperties {
     /** Whether the dialog should follow {@link DialogStyles}. */
     public static final ReadableIntPropertyKey DIALOG_STYLES = new ReadableIntPropertyKey();
 
-    /** Whether the dialog should be focused for accessibility. */
-    public static final WritableBooleanPropertyKey FOCUS_DIALOG = new WritableBooleanPropertyKey();
-
     /**
      * The handler for back presses done on a {@ModalDialogType.APP}. By default, a back press
      * dismisses the dialog.
      */
     public static final WritableObjectPropertyKey<OnBackPressedCallback>
-            APP_MODAL_DIALOG_BACK_PRESS_HANDLER = new WritableObjectPropertyKey();
+            APP_MODAL_DIALOG_BACK_PRESS_HANDLER = new WritableObjectPropertyKey<>();
 
     /**
      * Duration of initial tap protection period after dialog is displayed to user. During this
@@ -366,7 +363,7 @@ public class ModalDialogProperties {
     public static final WritableIntPropertyKey MAX_HEIGHT = new WritableIntPropertyKey();
 
     /** The padding used by the dialog content view. */
-    public static final WritableObjectPropertyKey<Rect> PADDING = new WritableObjectPropertyKey();
+    public static final WritableObjectPropertyKey<Rect> PADDING = new WritableObjectPropertyKey<>();
 
     /**
      * Block all inputs on the rest of the dialog view. Note that this does not override any
@@ -413,7 +410,6 @@ public class ModalDialogProperties {
                 TITLE_BACK_BUTTON_VISIBLE,
                 BUTTON_STYLES,
                 DIALOG_STYLES,
-                FOCUS_DIALOG,
                 APP_MODAL_DIALOG_BACK_PRESS_HANDLER,
                 BUTTON_TAP_PROTECTION_PERIOD_MS,
                 TAB_MODAL_DIALOG_CANCEL_ON_ESCAPE,

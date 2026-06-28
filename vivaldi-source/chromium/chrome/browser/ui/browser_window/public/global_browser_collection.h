@@ -24,7 +24,7 @@
 //
 // TODO(crbug.com/474120522): The Android implementation does not yet fire
 // OnBrowserActivated and OnBrowserDeactivated BrowserCollectionObserver events.
-class GlobalBrowserCollection final : public BrowserCollection {
+class GlobalBrowserCollection : public BrowserCollection {
  public:
   GlobalBrowserCollection();
   GlobalBrowserCollection(const GlobalBrowserCollection&) = delete;
@@ -39,19 +39,32 @@ class GlobalBrowserCollection final : public BrowserCollection {
 
   GlobalBrowserCollectionPlatformDelegate* GetPlatformDelegate();
 
+  // Returns the last-active browser if its window is currently active,
+  // nullptr otherwise.
+  BrowserWindowInterface* GetActiveBrowser();
+
+  // Returns the number of incognito browsers across all profiles, excluding
+  // DevTools windows. Mirrors the prior chrome::GetIncognitoBrowserCount()
+  // free function.
+  size_t GetIncognitoBrowserCount();
+
+  // Returns the number of browser windows whose profile is a Guest session,
+  // excluding DevTools windows.
+  size_t GetGuestBrowserCount();
+
  protected:
   // BrowserCollection:
   BrowserVector GetBrowsers(Order order) override;
-
- private:
-  friend base::ScopedObservationTraits<GlobalBrowserCollection,
-                                       BrowserCollectionObserver>;
-  friend GlobalBrowserCollectionPlatformDelegate;
 
   void OnBrowserCreated(BrowserWindowInterface* browser);
   void OnBrowserClosed(BrowserWindowInterface* browser);
   void OnBrowserActivated(BrowserWindowInterface* browser);
   void OnBrowserDeactivated(BrowserWindowInterface* browser);
+
+ private:
+  friend base::ScopedObservationTraits<GlobalBrowserCollection,
+                                       BrowserCollectionObserver>;
+  friend GlobalBrowserCollectionPlatformDelegate;
 
   GlobalBrowserCollectionPlatformDelegate platform_delegate_;
 

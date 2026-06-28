@@ -96,15 +96,14 @@ class PageContext;
 // Whether to show the Gemini image remix in-product help in the Floaty.
 @property(nonatomic, assign) BOOL imageRemixIPHShouldShow;
 
-// Whether to use the response ready interval to show the response ready
-// notification in the floaty.
-@property(nonatomic, assign) double responseReadyInterval;
+// Whether to show the Gemini Live onboarding in-product help.
+@property(nonatomic, assign) BOOL shouldShowGeminiLiveIPH;
 
-// Whether to use the dynamic size for the response view in the floaty.
-@property(nonatomic, assign) BOOL responseViewDynamicSizeEnabled;
+// Whether to show the Gemini Live "new" badge.
+@property(nonatomic, assign) BOOL shouldShowGeminiLiveNewBadge;
 
-// Whether chat persistence is enabled.
-@property(nonatomic, assign) BOOL geminiChatPersistenceEnabled;
+// The text to display for the Gemini Live in-product help.
+@property(nonatomic, copy) NSString* geminiLiveIPHText;
 
 // The initial bottom offset of the floaty.
 @property(nonatomic, assign) CGFloat initialBottomOffset;
@@ -115,6 +114,9 @@ class PageContext;
 
 // The entry point where the floaty was triggered from.
 @property(nonatomic, assign) gemini::EntryPoint entryPoint;
+
+// Whether the account requires capability-based restriction.
+@property(nonatomic, assign) BOOL needsAccountCapabilityRestriction;
 
 @end
 

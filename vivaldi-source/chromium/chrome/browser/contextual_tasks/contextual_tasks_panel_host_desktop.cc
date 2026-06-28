@@ -12,6 +12,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry.h"
+#include "chrome/browser/ui/side_panel/side_panel_enums.h"
 #include "chrome/browser/ui/side_panel/side_panel_registry.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
@@ -25,17 +26,9 @@ inline constexpr int kSidePanelPreferredDefaultWidth = 440;
 
 namespace contextual_tasks {
 
-// static
-std::unique_ptr<ContextualTasksPanelHost> ContextualTasksPanelHost::Create(
-    BrowserWindowInterface* browser_window) {
-  return std::make_unique<ContextualTasksPanelHostDesktop>(
-      browser_window, browser_window->GetFeatures().side_panel_ui());
-}
-
 ContextualTasksPanelHostDesktop::ContextualTasksPanelHostDesktop(
-    BrowserWindowInterface* browser_window,
-    SidePanelUI* side_panel_ui)
-    : browser_window_(browser_window), side_panel_ui_(side_panel_ui) {
+    BrowserWindowInterface* browser_window)
+    : browser_window_(browser_window) {
   CreateAndRegisterEntry();
 }
 
@@ -63,20 +56,21 @@ void ContextualTasksPanelHostDesktop::RemoveObserver(
 void ContextualTasksPanelHostDesktop::Show(
     ContextualTasksPanelHost::AnimationStyle animation) {
   // Only show the side panel if it's closed.
-  if (IsPanelOpenForContextualTask()) {
+  auto* side_panel_ui = SidePanelUI::From(browser_window_);
+  if (!side_panel_ui || IsPanelOpenForContextualTask()) {
     return;
   }
 
   switch (animation) {
     case ContextualTasksPanelHost::AnimationStyle::kStandard:
-      side_panel_ui_->Show(
+      side_panel_ui->Show(
           SidePanelEntry::Key(SidePanelEntry::Id::kContextualTasks));
       break;
     case ContextualTasksPanelHost::AnimationStyle::kTransitionFromTab:
       ShowFromTab();
       break;
     case ContextualTasksPanelHost::AnimationStyle::kNoAnimation:
-      side_panel_ui_->Show(
+      side_panel_ui->Show(
           SidePanelEntry::Key(SidePanelEntry::Id::kContextualTasks),
           /*open_trigger=*/std::nullopt,
           /*suppress_animations=*/true);
@@ -86,12 +80,16 @@ void ContextualTasksPanelHostDesktop::Show(
 
 void ContextualTasksPanelHostDesktop::Close(
     ContextualTasksPanelHost::AnimationStyle animation) {
+  auto* side_panel_ui = SidePanelUI::From(browser_window_);
+  if (!side_panel_ui) {
+    return;
+  }
+
   // `kTransitionFromTab` is only supported for showing the panel.
   CHECK_NE(animation,
            ContextualTasksPanelHost::AnimationStyle::kTransitionFromTab);
 
-  side_panel_ui_->Close(
-      SidePanelEntry::PanelType::kToolbar,
+  side_panel_ui->Close(
       SidePanelEntryHideReason::kSidePanelClosed,
       /*suppress_animations=*/animation ==
           ContextualTasksPanelHost::AnimationStyle::kNoAnimation);
@@ -102,17 +100,20 @@ bool ContextualTasksPanelHostDesktop::IsPanelInitialized() {
 }
 
 bool ContextualTasksPanelHostDesktop::IsPanelOpenForContextualTask() const {
-  return side_panel_ui_->IsSidePanelEntryShowing(
-      SidePanelEntry::Key(SidePanelEntry::Id::kContextualTasks));
+  auto* side_panel_ui = SidePanelUI::From(browser_window_);
+  return side_panel_ui &&
+         side_panel_ui->IsSidePanelEntryShowing(
+             SidePanelEntry::Key(SidePanelEntry::Id::kContextualTasks));
 }
 
 bool ContextualTasksPanelHostDesktop::IsPanelSuppressed() const {
-  if (suppressed_for_testing_) {
+  auto* side_panel_ui = SidePanelUI::From(browser_window_);
+  if (!side_panel_ui || suppressed_for_testing_) {
     return true;
   }
   // If the glic side panel is open, do not override it with the contextual
   // tasks side panel when active tab is changed.
-  return side_panel_ui_->IsSidePanelEntryShowing(
+  return side_panel_ui->IsSidePanelEntryShowing(
       SidePanelEntry::Key(SidePanelEntry::Id::kGlic));
 }
 
@@ -180,7 +181,7 @@ void ContextualTasksPanelHostDesktop::CreateAndRegisterEntry() {
   }
 
   auto entry = std::make_unique<SidePanelEntry>(
-      SidePanelEntry::PanelType::kToolbar,
+      SidePanelType::kToolbar,
       SidePanelEntry::Key(SidePanelEntry::Id::kContextualTasks),
       base::BindRepeating(
           [](base::WeakPtr<ContextualTasksPanelHostDesktop> host,
@@ -191,7 +192,6 @@ void ContextualTasksPanelHostDesktop::CreateAndRegisterEntry() {
       base::BindRepeating([]() { return kSidePanelPreferredDefaultWidth; }));
   entry->set_should_show_ephemerally_in_toolbar(false);
   entry->set_should_show_header(false);
-  entry->set_should_show_outline(false);
   global_registry->Register(std::move(entry));
 
   // Observe the side panel entry.
@@ -201,11 +201,16 @@ void ContextualTasksPanelHostDesktop::CreateAndRegisterEntry() {
 }
 
 void ContextualTasksPanelHostDesktop::ShowFromTab() {
+  auto* side_panel_ui = SidePanelUI::From(browser_window_);
+  if (!side_panel_ui) {
+    return;
+  }
+
   views::View* content = BrowserElementsViews::From(browser_window_)
                              ->RetrieveView(kActiveContentsWebViewRetrievalId);
   gfx::Rect content_bounds_in_browser_coordinates =
       content->ConvertRectToWidget(content->GetContentsBounds());
-  side_panel_ui_->ShowFrom(
+  side_panel_ui->ShowFrom(
       SidePanelEntry::Key(SidePanelEntry::Id::kContextualTasks),
       content_bounds_in_browser_coordinates);
 }

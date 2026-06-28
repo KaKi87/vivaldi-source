@@ -3,20 +3,20 @@
 <translationbundle lang="el">
 <translation id="1204037785786432551">Σύνδεσμος λήψης</translation>
 <translation id="1206892813135768548">Αντιγραφή κειμένου συνδέσμου</translation>
+<translation id="1328749518742029305">Η στοίβα καρτελών <ph name="TAB_GROUP_TITLE" /> έκλεισε και αποθηκεύτηκε</translation>
 <translation id="1397811292916898096">Αναζήτηση με <ph name="PRODUCT_NAME" /></translation>
 <translation id="1435593198351412143">Αυτόματο άνοιγμα PDF</translation>
 <translation id="1456207338570705181">Το Αγγίξτε για Αναζήτηση είναι μια λειτουργία που είναι διαθέσιμη μόνο όταν το Google έχει οριστεί ως προεπιλεγμένη μηχανή αναζήτησης στο Vivaldi. Στέλνει την επιλεγμένη λέξη και την τρέχουσα σελίδα ως πλαίσιο στην Αναζήτηση Google. Μπορείτε να το απενεργοποιήσετε στις <ph name="BEGIN_LINK" />Ρυθμίσεις<ph name="END_LINK" />.</translation>
 <translation id="1598449788754183301">Εναλλαγή κανονικών/ ιδιωτικών καρτελών</translation>
 <translation id="1644574205037202324">Ιστορικό</translation>
 <translation id="1829244130665387512">Εύρεση στη σελίδα</translation>
-<translation id="1910514478706885609">Άνοιγμα σε νέα στοίβα καρτελών</translation>
 <translation id="1925021887439448749">Εισαγάγετε προσαρμοσμένη διεύθυνση ιστού</translation>
 <translation id="2038563949887743358">Ενεργοποίηση αιτήματος ιστότοπου για υπολογιστές</translation>
+<translation id="2067565353468675023">Συμμετοχή στη στοίβα καρτελών με τον/την <ph name="OWNER_FIRST_NAME" /></translation>
 <translation id="208033313373016095">Προβολή αναγνώστη για ιστοσελίδες</translation>
 <translation id="2149973817440762519">Επεξεργασία Σελιδοδείκτη</translation>
 <translation id="2306442503286132111">Ο σελιδοδείκτης αποθηκεύτηκε στον φάκελο <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Εμφάνιση</translation>
-<translation id="2501278716633472235">Πάει πίσω</translation>
 <translation id="2546283357679194313">Cookies και δεδομένα ιστότοπου</translation>
 <translation id="2633278372998075009">Ιδιωτικές καρτέλες</translation>
 <translation id="2650751991977523696">Επανάληψη λήψης αρχείου;</translation>
@@ -43,7 +43,7 @@
 <translation id="3700829948786686853">Καλώς ήρθατε στο Vivaldi</translation>
 <translation id="3719826155360621982">Αρχική σελίδα</translation>
 <translation id="3738139272394829648">Αγγίξτε για Αναζήτηση</translation>
-<translation id="385051799172605136">Πίσω</translation>
+<translation id="395421286877117532">Προσαρμόστε τη στοίβα καρτελών και πατήστε Ολοκλήρωση</translation>
 <translation id="3987993985790029246">Αντιγραφή συνδέσμου</translation>
 <translation id="399014816462153200">Διαβασμένα Άρθρα:</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
@@ -59,16 +59,17 @@
 <translation id="4269820728363426813">Αντιγραφή Διεύθυνσης Συνδέσμου</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Ενεργοποιήστε το κλείδωμα οθόνης στις ρυθμίσεις του Android<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Διαχειριστής Κωδικών Πρόσβασης</translation>
-<translation id="441100617989818073">Μη χρησιμοποιούμενες ή διπλότυπες καρτέλες και ομάδες</translation>
+<translation id="4445802392779002787">Προσθήκη καρτέλας σε στοίβα</translation>
 <translation id="451872707440238414">Αναζήτηση στους σελιδοδείκτες</translation>
 <translation id="4526803704855831732">Ιδιωτικές Καρτέλες</translation>
 <translation id="4532845899244822526">Επιλογή φακέλου</translation>
+<translation id="454284936014822050">Στοίβα καρτελών <ph name="GROUP_TITLE" /></translation>
 <translation id="4699172675775169585">Εικόνες και αρχεία στην προσωρινή μνήμη</translation>
 <translation id="4719086422742491124">Μάθετε για θέματα σε ιστότοπους χωρίς να φύγετε από τη σελίδα. Επιλέξτε μία ή περισσότερες λέξεις στη σελίδα για να τις αναζητήσετε.
 
 Το Αγγίξτε για Αναζήτηση είναι μια λειτουργία που είναι διαθέσιμη μόνο όταν το Google έχει οριστεί ως η προεπιλεγμένη μηχανή αναζήτησης στο Vivaldi.</translation>
 <translation id="4759238208242260848">Λήψεις</translation>
-<translation id="4777866634702576038">Διαγραφή ομάδας καρτελών;</translation>
+<translation id="4771820744342013314">Διαγραφή στοίβας καρτελών;</translation>
 <translation id="4850886885716139402">Προβολή</translation>
 <translation id="4883379392681899581">Έξοδος από την ιδιωτική λειτουργία</translation>
 <translation id="4943872375798546930">Δεν υπάρχουν αποτελέσματα</translation>
@@ -83,10 +84,12 @@
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {Λήψη αρχείου…}
             other {Λήψη # αρχείων…}}</translation>
+<translation id="5210689723585747462">Η στοίβα καρτελών <ph name="TAB_GROUP_TITLE" /> έκλεισε</translation>
 <translation id="5233638681132016545">Νέα καρτέλα</translation>
 <translation id="5375131951310889874">Μάθετε για θέματα σε ιστότοπους χωρίς να φύγετε από τη σελίδα. Το Αγγίξτε για Αναζήτηση είναι μια λειτουργία που είναι διαθέσιμη μόνο όταν το Google έχει οριστεί ως προεπιλεγμένη μηχανή αναζήτησης στο Vivaldi. Στέλνει μια λέξη και το γύρο της περιεχόμενο στην Αναζήτηση Google, επιστρέφοντας ορισμούς, εικόνες, αποτελέσματα αναζήτησης και άλλες λεπτομέρειες.
 
 Για να προσαρμόσετε τον όρο αναζήτησής σας, πατήστε παρατεταμένα για επιλογή. Για να κάνετε πιο συγκεκριμένη την αναζήτησή σας, σύρετε το πλαίσιο μέχρι τέρμα προς τα πάνω και πατήστε το πλαίσιο αναζήτησης.</translation>
+<translation id="5570837353202786816">Όλοι θα χάσουν άμεσα την πρόσβαση στη στοίβα καρτελών “<ph name="GROUP_NAME" />” και όλοι οι σύνδεσμοι πρόσκλησης θα απενεργοποιηθούν</translation>
 <translation id="572328651809341494">Πρόσφατες καρτέλες</translation>
 <translation id="5833984609253377421">Κοινοποίηση συνδέσμου</translation>
 <translation id="6150320133806434356">Ο σελιδοδείκτης αποθηκεύτηκε</translation>
@@ -104,11 +107,13 @@
 <translation id="6593061639179217415">Για υπολογιστή</translation>
 <translation id="6610147964972079463">Κλείσιμο ιδιωτικών καρτελών</translation>
 <translation id="6627583120233659107">Επεξεργασία φακέλου</translation>
+<translation id="6785740335511995065">Διατήρηση στοίβας καρτελών;</translation>
 <translation id="6865313869410766144">Φόρμα αυτόματης συμπλήρωσης δεδομένων</translation>
 <translation id="6909589135458168665">Προφόρτωση Σελίδων</translation>
 <translation id="7029995644714925509">Όταν ένας ιστότοπος ζητά να προφορτώσει ιδιωτικά συνδέσμους στη σελίδα του, ο Vivaldi κρυπτογραφεί και προφορτώνει σελίδες μέσω των διακομιστών Google χωρίς cookie. Αυτό αποκρύπτει την ταυτότητά σας από τον προφορτωμένο ιστότοπο.</translation>
 <translation id="706339621163631076">Πολιτική Απορρήτου του Προγράμματος Περιήγησης</translation>
 <translation id="7100573672995171864">Προσαρμογή και έλεγχος του Vivaldi</translation>
+<translation id="7133879160432070247">Αποκλεισμός και έξοδος από τη στοίβα;</translation>
 <translation id="732145680195464316">Ο σελιδοδείκτης αποθηκεύτηκε στο <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Αποστολή αιτήματος «Μην παρακολουθείτε»</translation>
 <translation id="7359002509206457351">Πρόσβαση σε τρόπους πληρωμής</translation>
@@ -117,6 +122,9 @@
 <translation id="7456774706094330779">Εκτεταμένη προφόρτωση</translation>
 <translation id="7465104139234185284">Κλείσιμο όλων των ιδιωτικών καρτελών</translation>
 <translation id="7481312909269577407">Προώθηση</translation>
+<translation id="759273611317559136">Η στοίβα καρτελών <ph name="TAB_GROUP_TITLE" /> διαγράφηκε</translation>
+<translation id="7630413501995820846">Διατήρηση στοίβας</translation>
+<translation id="7640137753339219124">Διαγραφή στοίβας</translation>
 <translation id="7764225426217299476">Προσθήκη διεύθυνσης</translation>
 <translation id="7968014550143838305">Προστέθηκε στη λίστα ανάγνωσης</translation>
 <translation id="804786196054284061">Άδεια Χρήσης</translation>
@@ -128,6 +136,7 @@
           other {(#) ανενεργά στοιχεία}}</translation>
 <translation id="8266862848225348053">Τοποθεσία λήψης</translation>
 <translation id="8348430946834215779">Χρησιμοποιήστε HTTPS όποτε είναι δυνατόν και λάβετε ειδοποίηση πριν από τη φόρτωση ιστοτόπων που δεν το υποστηρίζουν</translation>
+<translation id="8543049482641423692">Προσθήκη καρτέλας σε νέα στοίβα</translation>
 <translation id="8560602726703398413">Βρείτε τη λίστα ανάγνωσης στους Σελιδοδείκτες</translation>
 <translation id="85991616550051997">Μετάβαση στην αρχική σελίδα</translation>
 <translation id="8738163682604285902">Προβολή σε Λειτουργία Ανάγνωσης;</translation>
@@ -135,6 +144,7 @@
 <translation id="9042893549633094279">Απόρρητο και ασφάλεια</translation>
 <translation id="9063523880881406963">Απενεργοποίηση αιτήματος ιστότοπου για υπολογιστές</translation>
 <translation id="9080642952018487277">Είσοδος σε ιδιωτική λειτουργία</translation>
+<translation id="9099398755190923267">Όλοι θα χάσουν άμεσα την πρόσβαση στη στοίβα καρτελών “<ph name="GROUP_NAME" />” και θα διαγραφεί από όλες τις συσκευές</translation>
 <translation id="930124987204876019">Διαγραφή ιστορικού, cookies, δεδομένων ιστοτόπου, κρυφής μνήμης…</translation>
 <translation id="961856697154696964">Διαγραφή δεδομένων περιήγησης</translation>
 </translationbundle>

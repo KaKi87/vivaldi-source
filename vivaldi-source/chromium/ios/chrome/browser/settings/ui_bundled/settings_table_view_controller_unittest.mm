@@ -14,10 +14,10 @@
 #import "components/password_manager/core/browser/password_manager_test_utils.h"
 #import "components/password_manager/core/browser/password_store/test_password_store.h"
 #import "components/password_manager/core/common/password_manager_pref_names.h"
-#import "components/plus_addresses/core/common/features.h"
 #import "components/policy/core/common/policy_loader_ios_constants.h"
 #import "components/policy/policy_constants.h"
 #import "components/search_engines/template_url_service.h"
+#import "components/signin/public/base/consent_level.h"
 #import "components/signin/public/base/signin_metrics.h"
 #import "components/signin/public/base/signin_pref_names.h"
 #import "components/sync/test/test_sync_service.h"
@@ -463,4 +463,50 @@ TEST_F(SettingsTableViewControllerTest, ObservedPreferencesChangedDoesntCrash) {
   profile_->GetPrefs()->SetBoolean(autofill::prefs::kAutofillCreditCardEnabled,
                                    NO);
   CheckController();
+}
+
+// Verifies that the Basics section only shows the Autofill and Passwords row
+// when the YourSavedInfoSettingsPageIos flag is enabled.
+TEST_F(SettingsTableViewControllerTest,
+       BasicsSectionWithYourSavedInfoSettingsPageIosEnabled) {
+  base::test::ScopedFeatureList features{kYourSavedInfoSettingsPageIos};
+
+  CreateController();
+  CheckController();
+
+  NSArray* basics_items = [controller().tableViewModel
+      itemsInSectionWithIdentifier:SettingsSectionIdentifier::
+                                       SettingsSectionIdentifierBasics];
+  ASSERT_EQ(1U, basics_items.count);
+
+  TableViewItem* item = static_cast<TableViewItem*>(basics_items[0]);
+  EXPECT_EQ(SettingsItemTypeAutofillAndPasswords, item.type);
+}
+
+// Verifies that the Basics section shows the Passwords, Payment Methods, and
+// Addresses and More rows when the YourSavedInfoSettingsPageIos flag is
+// disabled.
+// TODO(crbug.com/496456595): Remove once kYourSavedInfoSettingsPageIos is
+// launched.
+TEST_F(SettingsTableViewControllerTest,
+       BasicsSectionWithYourSavedInfoSettingsPageIosDisabled) {
+  base::test::ScopedFeatureList features;
+  features.InitAndDisableFeature(kYourSavedInfoSettingsPageIos);
+
+  CreateController();
+  CheckController();
+
+  NSArray* basics_items = [controller().tableViewModel
+      itemsInSectionWithIdentifier:SettingsSectionIdentifier::
+                                       SettingsSectionIdentifierBasics];
+  ASSERT_EQ(3U, basics_items.count);
+
+  TableViewItem* item1 = static_cast<TableViewItem*>(basics_items[0]);
+  EXPECT_EQ(SettingsItemTypePasswords, item1.type);
+
+  TableViewItem* item2 = static_cast<TableViewItem*>(basics_items[1]);
+  EXPECT_EQ(SettingsItemTypeAutofillCreditCard, item2.type);
+
+  TableViewItem* item3 = static_cast<TableViewItem*>(basics_items[2]);
+  EXPECT_EQ(SettingsItemTypeAutofillProfile, item3.type);
 }

@@ -49,9 +49,9 @@
   self.viewProvider = [[VivaldiStartPageReopenWithViewProvider alloc] init];
 
   // Set up controller
-  self.viewController = [self.viewProvider
-      makeViewControllerWith:[self reopenStartPageWith]
-        presentationDelegate:self];
+  self.viewController =
+      [self.viewProvider makeViewControllerWith:[self reopenStartPageWith]
+                           presentationDelegate:self];
 
   self.viewController.title =
       l10n_util::GetNSString(IDS_IOS_START_PAGE_START_PAGE_OPEN_WITH_TITLE);

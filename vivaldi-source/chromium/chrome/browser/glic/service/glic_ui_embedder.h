@@ -36,7 +36,10 @@ class GlicUiEmbedder {
         const ShowOptions& options,
         glic::mojom::ConversationInfoPtr info,
         mojom::WebClientHandler::SwitchConversationCallback callback) = 0;
-    virtual void WillCloseFor(EmbedderKey key) = 0;
+    // Called by the embedder after it closes. This method will by called by
+    // GlicInstanceImpl on behalf of embedders closed by being destroyed when
+    // the become inactive.
+    virtual void DidCloseFor(EmbedderKey key, EmbedderCloseReason reason) = 0;
     virtual Host& host() = 0;
     virtual void Show(const ShowOptions& options) = 0;
     // Closes the side panel UI and opens the floating UI for this instance.
@@ -61,10 +64,13 @@ class GlicUiEmbedder {
   // active embedder.
   virtual void Show(const ShowOptions& options) = 0;
 
-  // Returns true if the embedder is currently showing.
-  // Note: For side panels, "showing" can mean it's currently visible, or it
-  // will be automatically shown when its tab is activated.
+  // Returns true if the embedder is strictly visible.
   virtual bool IsShowing() const = 0;
+
+  // Returns true if the embedder is visible or backgrounded (but not closed).
+  // Note: For side panels, this can mean it's currently visible, or it
+  // will be automatically shown when its tab is activated.
+  virtual bool IsShowingOrBackgrounded() const = 0;
 
   // Close the glic UI (keeps webclient alive for now)
   virtual void Close(const CloseOptions& options) = 0;

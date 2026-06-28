@@ -42,7 +42,8 @@ VivaldiAccountManagerFactory::BuildServiceInstanceFor(
 
   return std::make_unique<VivaldiAccountManager>(
       profile->GetPrefs(), GetApplicationContext()->GetLocalState(),
-      std::move(url_loader_factory), std::move(password_store));
+      GetApplicationContext()->GetOSCryptAsync(), std::move(url_loader_factory),
+      std::move(password_store));
 }
 
 }  // namespace vivaldi

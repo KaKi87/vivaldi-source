@@ -19,12 +19,14 @@ import org.chromium.chrome.browser.layouts.toolbar.ToolbarWidthConsumer;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabCreator;
+import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.theme.ThemeColorProvider;
 import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTask;
 import org.chromium.chrome.browser.ui.extensions.ExtensionUi;
 import org.chromium.components.embedder_support.contextmenu.ContextMenuPopulatorFactory;
 import org.chromium.content_public.browser.selection.SelectionDropdownMenuDelegate;
 import org.chromium.ui.base.WindowAndroid;
+import org.chromium.ui.modaldialog.ModalDialogManager;
 
 /**
  * The coordinator of the extension-related toolbar UI.
@@ -53,7 +55,9 @@ public interface ExtensionsToolbarCoordinator extends Destroyable {
             ThemeColorProvider themeColorProvider,
             ViewGroup rootView,
             @Nullable ContextMenuPopulatorFactory contextMenuPopulatorFactory,
-            @Nullable SelectionDropdownMenuDelegate selectionDropdownMenuDelegate) {
+            @Nullable SelectionDropdownMenuDelegate selectionDropdownMenuDelegate,
+            TabModelSelector tabModelSelector,
+            ModalDialogManager modalDialogManager) {
         // Check if the extension UI is enabled first.
         if (!ExtensionUi.isEnabled(profile)) {
             return null;
@@ -75,7 +79,9 @@ public interface ExtensionsToolbarCoordinator extends Destroyable {
                 themeColorProvider,
                 rootView,
                 contextMenuPopulatorFactory,
-                selectionDropdownMenuDelegate);
+                selectionDropdownMenuDelegate,
+                tabModelSelector,
+                modalDialogManager);
         return coordinator;
     }
 
@@ -97,7 +103,9 @@ public interface ExtensionsToolbarCoordinator extends Destroyable {
             ThemeColorProvider themeColorProvider,
             ViewGroup rootView,
             @Nullable ContextMenuPopulatorFactory contextMenuPopulatorFactory,
-            @Nullable SelectionDropdownMenuDelegate selectionDropdownMenuDelegate);
+            @Nullable SelectionDropdownMenuDelegate selectionDropdownMenuDelegate,
+            TabModelSelector tabModelSelector,
+            ModalDialogManager modalDialogManager);
 
     /**
      * Dispatches the key event to trigger the corresponding extension action if any.

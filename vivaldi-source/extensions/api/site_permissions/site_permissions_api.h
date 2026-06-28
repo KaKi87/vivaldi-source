@@ -78,9 +78,10 @@ class SitePermissionsAPI : public BrowserContextKeyedAPI,
       const std::string& protocol_url = "",
       const std::string& embedding_origin = "");
 
-  // VB-114658: Fire onPermissionRequest event for device choosers (async variant).
-  // Used by BridgeDeviceChooser to fire initial event with deviceChooserPending=true.
-  // Devices will be sent separately via FirePermissionDeviceChooserUpdate.
+  // VB-114658: Fire onPermissionRequest event for device choosers (async
+  // variant). Used by BridgeDeviceChooser to fire initial event with
+  // deviceChooserPending=true. Devices will be sent separately via
+  // FirePermissionDeviceChooserUpdate.
   void FirePermissionRequestEventForDeviceChooser(
       int tab_id,
       const std::string& request_id,
@@ -88,20 +89,21 @@ class SitePermissionsAPI : public BrowserContextKeyedAPI,
       const std::string& origin,
       bool allow_multiple_selection);
 
-  // VB-114658: Fire onDeviceChooserUpdate event with devices for a pending chooser request.
-  // Sends available devices and whether enumeration is complete.
-  void FirePermissionDeviceChooserUpdate(
-      int tab_id,
-      const std::string& request_id,
-      const base::ListValue& devices,
-      bool is_complete);
+  // VB-114658: Fire onDeviceChooserUpdate event with devices for a pending
+  // chooser request. Sends available devices and whether enumeration is
+  // complete.
+  void FirePermissionDeviceChooserUpdate(int tab_id,
+                                         const std::string& request_id,
+                                         const base::ListValue& devices,
+                                         bool is_complete);
 
-  // Respond to a permission request (called by respondToPermissionRequest function)
-  // VB-114658: For device chooser requests, device_indices can be provided to specify
-  // which devices were selected (only used when setting=CONTENT_SETTING_ALLOW).
+  // Respond to a permission request (called by respondToPermissionRequest
+  // function) VB-114658: For device chooser requests, device_indices can be
+  // provided to specify which devices were selected (only used when
+  // setting=CONTENT_SETTING_ALLOW).
   bool RespondToPermissionRequest(const std::string& request_id,
-                                   ContentSetting setting,
-                                   const std::vector<int>& device_indices = {});
+                                  ContentSetting setting,
+                                  const std::vector<int>& device_indices = {});
 
   // Clean up pending requests for a specific tab
   void CleanupRequestsForTab(int tab_id);
@@ -146,10 +148,13 @@ class SitePermissionsAPI : public BrowserContextKeyedAPI,
   };
 
   // Pending permission requests: request_id -> unique_ptr to PendingRequest
-  std::map<std::string, std::unique_ptr<PendingRequest>> pending_permission_requests_;
+  std::map<std::string, std::unique_ptr<PendingRequest>>
+      pending_permission_requests_;
 
-  // VB-114658: Pending device chooser requests: request_id -> unique_ptr to PendingDeviceRequest
-  std::map<std::string, std::unique_ptr<PendingDeviceRequest>> pending_device_requests_;
+  // VB-114658: Pending device chooser requests: request_id -> unique_ptr to
+  // PendingDeviceRequest
+  std::map<std::string, std::unique_ptr<PendingDeviceRequest>>
+      pending_device_requests_;
 
   int next_request_id_ = 0;
 };
@@ -209,7 +214,8 @@ class SitePermissionsResetSitePermissionsFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
-class SitePermissionsRespondToPermissionRequestFunction : public ExtensionFunction {
+class SitePermissionsRespondToPermissionRequestFunction
+    : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("sitePermissions.respondToPermissionRequest",
                              SITE_PERMISSIONS_RESPOND_TO_PERMISSION_REQUEST)

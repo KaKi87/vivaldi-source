@@ -25,6 +25,7 @@
 #import "base/task/task_traits.h"
 #import "base/task/thread_pool.h"
 #import "base/time/default_tick_clock.h"
+#import "base/trace_event/named_trigger.h"
 #import "build/blink_buildflags.h"
 #import "components/content_settings/core/common/content_settings_pattern.h"
 #import "components/crash/core/common/crash_key.h"
@@ -38,7 +39,6 @@
 #import "components/metrics/metrics_service.h"
 #import "components/metrics_services_manager/metrics_services_manager.h"
 #import "components/open_from_clipboard/clipboard_recent_content.h"
-#import "components/os_crypt/sync/os_crypt.h"
 #import "components/prefs/json_pref_store.h"
 #import "components/prefs/pref_service.h"
 #import "components/previous_session_info/previous_session_info.h"
@@ -94,6 +94,10 @@
 #import "components/heap_profiling/in_process/heap_profiler_controller.h"
 #endif
 
+#if !BUILDFLAG(USE_BLINK)
+#import "ios/chrome/browser/tracing/ios_tracing_controller.h"
+#endif
+
 // Vivaldi
 #import "app/vivaldi_apptools.h"
 #import "browser/stats_reporter.h"
@@ -103,14 +107,6 @@ using vivaldi::IsVivaldiRunning;
 // End Vivaldi
 
 namespace {
-
-// Initializes OSCrypt.
-void EnsureOSCryptInitialized() {
-  // There is no public API to initialize OSCrypt. It is performed one the
-  // first call to the library, so call `OSCrypt::IsEncryptionAvailable()`
-  // and discard the result to perform the initialisation.
-  std::ignore = OSCrypt::IsEncryptionAvailable();
-}
 
 }  // namespace
 
@@ -205,6 +201,13 @@ void IOSChromeMainParts::ApplyFeatureList() {
 }
 
 void IOSChromeMainParts::PreCreateThreads() {
+#if !BUILDFLAG(USE_BLINK)
+  // Initialize Perfetto tracing before threads are spawned so the
+  // TrackNameRecorder can capture and name the new background threads.
+  // For Blink, the content layer handles Perfetto initialization.
+  IOSTracingController::CreateInstance();
+#endif
+
   // Create and start the stack sampling profiler if CANARY or DEV. The warning
   // below doesn't apply.
   const version_info::Channel channel = ::GetChannel();
@@ -295,12 +298,6 @@ void IOSChromeMainParts::PreMainMessageLoopRun() {
       FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
       base::BindOnce(&FirstRun::LoadSentinelInfo));
 
-  // Force the initialisation of the OSCrypt library early in the application
-  // startup sequence. See https://crbug.com/383661630 for why this is needed.
-  base::ThreadPool::PostTask(
-      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
-      base::BindOnce(&EnsureOSCryptInitialized));
-
   // ContentSettingsPattern need to be initialized before creating the
   // ProfileIOS.
   ContentSettingsPattern::SetNonWildcardDomainNonPortSchemes(nullptr, 0);
@@ -323,6 +320,11 @@ void IOSChromeMainParts::PreMainMessageLoopRun() {
 
   // Now that the file thread has been started, start recording.
   StartMetricsRecording();
+
+  // This must happen after `SetupFieldTracingFromFieldTrial()`, which is
+  // triggered by `SetupMetrics()` above.
+  base::trace_event::EmitNamedTrigger(
+      base::trace_event::kStartupTracingTriggerName);
 
   // Ensure that the KeyedService factories are registered.
   EnsureProfileKeyedServiceFactoriesBuilt();
@@ -357,6 +359,7 @@ void IOSChromeMainParts::PreMainMessageLoopRun() {
       ->ReconfigureAfterFeatureListInit("");
   base::allocator::PartitionAllocSupport::Get()->ReconfigureAfterTaskRunnerInit(
       "");
+  crash_helper::CacheCorruptionDetectedMemoryRangesKillSwitch();
 #endif  // PA_BUILDFLAG(USE_PARTITION_ALLOC)
 
   TranslateServiceIOS::Initialize();

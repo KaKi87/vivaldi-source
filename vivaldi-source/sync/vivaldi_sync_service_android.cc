@@ -15,77 +15,91 @@
 static jlong JNI_VivaldiSyncService_Init(
     JNIEnv* env,
     const base::android::JavaRef<jobject>& obj) {
-  VivaldiSyncServiceAndroid* vivaldi_account_manager_android =
+  VivaldiSyncServiceAndroid* sync_service_android =
       new VivaldiSyncServiceAndroid(env, obj);
-  if (!vivaldi_account_manager_android->Init(env)) {
-    delete vivaldi_account_manager_android;
+  if (!sync_service_android->Init(env)) {
+    delete sync_service_android;
     return 0;
   }
-  return reinterpret_cast<intptr_t>(vivaldi_account_manager_android);
+  return reinterpret_cast<intptr_t>(sync_service_android);
 }
 
 VivaldiSyncServiceAndroid::VivaldiSyncServiceAndroid(
     JNIEnv* env,
     const base::android::JavaRef<jobject>& obj)
-    : weak_java_ref_(env, obj) {
-  Profile* profile = ProfileManager::GetActiveUserProfile();
-  DCHECK(profile);
-  sync_service_ = SyncServiceFactory::GetForProfile(profile);
-
-  SendCycleData();
-}
+    : weak_java_ref_(env, obj) {}
 
 VivaldiSyncServiceAndroid::~VivaldiSyncServiceAndroid() {
-  sync_service_->RemoveObserver(this);
+  if (sync_service_)
+    sync_service_->RemoveObserver(this);
 }
 
 bool VivaldiSyncServiceAndroid::Init(JNIEnv* env) {
-  if (sync_service_) {
-    sync_service_->AddObserver(this);
-    return true;
-  }
-  return false;
+  // VAB-12889: Guard against launch before native init is complete.
+  Profile* profile = ProfileManager::GetActiveUserProfile();
+  if (!profile)
+    return false;
+  sync_service_ = SyncServiceFactory::GetForProfile(profile);
+  if (!sync_service_)
+    return false;
+  sync_service_->AddObserver(this);
+  SendCycleData();
+  return true;
 }
 
 jboolean VivaldiSyncServiceAndroid::SetEncryptionPassword(
     JNIEnv* env,
     const base::android::JavaRef<jstring>& password) {
+  if (!sync_service_)
+    return false;
   return vivaldi::sync_ui_helpers::SetEncryptionPassword(
       sync_service_, base::android::ConvertJavaStringToUTF8(env, password));
 }
 
 void VivaldiSyncServiceAndroid::ClearServerData(JNIEnv* env) {
-  if (vivaldi::IsVivaldiRunning())
+  if (sync_service_ && vivaldi::IsVivaldiRunning())
     sync_service_->ClearSyncData();
 }
 
 jboolean VivaldiSyncServiceAndroid::HasServerError(JNIEnv* env) {
+  if (!sync_service_)
+    return false;
   return sync_service_->GetSyncTokenStatusForDebugging().connection_status ==
          syncer::CONNECTION_SERVER_ERROR;
 }
 
 jboolean VivaldiSyncServiceAndroid::IsSetupInProgress(JNIEnv* env) {
+  if (!sync_service_)
+    return false;
   return sync_service_->IsSetupInProgress();
 }
 
 base::android::ScopedJavaLocalRef<jstring>
 VivaldiSyncServiceAndroid::GetBackupEncryptionToken(JNIEnv* env) {
+  if (!sync_service_)
+    return base::android::ConvertUTF8ToJavaString(env, "");
   return base::android::ConvertUTF8ToJavaString(
-      env, vivaldi::sync_ui_helpers::GetBackupEncryptionToken(sync_service_));
+      env, sync_service_->GetEncryptionBootstrapTokenForBackup().value_or(""));
 }
 
 jboolean VivaldiSyncServiceAndroid::RestoreEncryptionToken(
     JNIEnv* env,
     const base::android::JavaRef<jstring>& token) {
-  return vivaldi::sync_ui_helpers::RestoreEncryptionToken(
-      sync_service_, base::android::ConvertJavaStringToUTF8(env, token));
+  if (!sync_service_)
+    return false;
+  return sync_service_->ResetEncryptionBootstrapTokenFromBackup(
+      base::android::ConvertJavaStringToUTF8(env, token));
 }
 
 jboolean VivaldiSyncServiceAndroid::CanSyncFeatureStart(JNIEnv* env) {
+  if (!sync_service_)
+    return false;
   return sync_service_->CanSyncFeatureStart();
 }
 
 void VivaldiSyncServiceAndroid::SendCycleData() {
+  if (!sync_service_)
+    return;
   JNIEnv* env = base::android::AttachCurrentThread();
   base::android::ScopedJavaLocalRef<jobject> obj = weak_java_ref_.get(env);
 
@@ -103,6 +117,9 @@ void VivaldiSyncServiceAndroid::OnSyncCycleCompleted(
   SendCycleData();
 }
 
-void VivaldiSyncServiceAndroid::OnSyncShutdown(syncer::SyncService* sync) {}
+void VivaldiSyncServiceAndroid::OnSyncShutdown(syncer::SyncService* sync) {
+  sync->RemoveObserver(this);
+  sync_service_ = nullptr;
+}
 
 DEFINE_JNI_FOR_VivaldiSyncService()

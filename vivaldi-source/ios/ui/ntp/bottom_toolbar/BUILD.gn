@@ -3,17 +3,13 @@
 import("//build/config/apple/swift_source_set.gni")
 
 source_set("bottom_toolbar") {
-  sources = [
-    "vivaldi_ntp_bottom_toolbar_consumer.h",
-  ]
+  sources = [ "vivaldi_ntp_bottom_toolbar_consumer.h" ]
 
-  frameworks = [
-    "UIKit.framework",
-  ]
+  frameworks = [ "UIKit.framework" ]
 
   deps = [
+    ":bottom_toolbar_swift",
     "//ui/base",
-    ":bottom_toolbar_swift"
   ]
 }
 
@@ -21,8 +17,8 @@ swift_source_set("bottom_toolbar_swift") {
   bridge_header = "vivaldi_ntp_bottom_toolbar_swift_bridge.h"
   sources = [
     "vivaldi_ntp_bottom_toolbar_state.swift",
-    "vivaldi_ntp_bottom_toolbar_view_provider.swift",
     "vivaldi_ntp_bottom_toolbar_view.swift",
+    "vivaldi_ntp_bottom_toolbar_view_provider.swift",
   ]
 
   deps = [

@@ -653,6 +653,9 @@ public class HomeModulesMediator {
 
         assumeNonNull(mOnHomeModulesChangedCallback);
         mOnHomeModulesChangedCallback.run();
+        mOnHomeModulesChangedCallback = null;
+
+        mHandler.removeCallbacksAndMessages(null);
     }
 
     /** Returns the instance of a module {@link ModuleProvider} of the given type. */
@@ -758,7 +761,8 @@ public class HomeModulesMediator {
         ensureEnabledModuleSetCreated();
         Set<Integer> set = new HashSet<>(mEnabledModuleSet);
         assert !set.contains(ModuleType.DEPRECATED_EDUCATIONAL_TIP)
-                && !set.contains(ModuleType.DEPRECATED_TAB_RESUMPTION);
+                && !set.contains(ModuleType.DEPRECATED_TAB_RESUMPTION)
+                && !set.contains(ModuleType.DEPRECATED_TIPS_NOTIFICATIONS_PROMO);
 
         boolean isHomeSurface = mModuleDelegateHost.isHomeSurface();
 

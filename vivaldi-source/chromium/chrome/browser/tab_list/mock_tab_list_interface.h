@@ -46,7 +46,10 @@ class MockTabListInterface : public TabListInterface {
   MOCK_METHOD(int, GetActiveIndex, (), (const, override));
   MOCK_METHOD(tabs::TabInterface*, GetActiveTab, (), (override));
   MOCK_METHOD(void, ActivateTab, (tabs::TabHandle), (override));
-  MOCK_METHOD(tabs::TabInterface*, OpenTab, (const GURL&, int), (override));
+  MOCK_METHOD(tabs::TabInterface*,
+              OpenTab,
+              (const GURL&, int, bool),
+              (override));
   MOCK_METHOD(void,
               SetOpenerForTab,
               (tabs::TabHandle, tabs::TabHandle),
@@ -111,7 +114,7 @@ class MockTabListInterface : public TabListInterface {
               MoveTabToWindow,
               (tabs::TabHandle, SessionID, int),
               (override));
-  MOCK_METHOD(void,
+  MOCK_METHOD(bool,
               MoveTabGroupToWindow,
               (tab_groups::TabGroupId, SessionID, int),
               (override));

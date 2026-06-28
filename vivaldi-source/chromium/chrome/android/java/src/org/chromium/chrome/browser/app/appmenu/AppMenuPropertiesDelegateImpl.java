@@ -11,7 +11,6 @@ import android.content.pm.ResolveInfo;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
-import android.os.SystemClock;
 import android.util.Pair;
 import android.view.MenuItem;
 import android.view.View;
@@ -32,7 +31,6 @@ import org.chromium.base.CallbackController;
 import org.chromium.base.DeviceInfo;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.Token;
-import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.supplier.NullableObservableSupplier;
@@ -61,18 +59,21 @@ import org.chromium.chrome.browser.readaloud.ReadAloudController;
 import org.chromium.chrome.browser.share.ShareHelper;
 import org.chromium.chrome.browser.sync.settings.SyncSettingsUtils;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
+import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
 import org.chromium.chrome.browser.translate.TranslateUtils;
+import org.chromium.chrome.browser.ui.appmenu.AppMenuBookmarkItemProperties;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuHandler;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuHandler.AppMenuItemType;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuItemProperties;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuItemWithSubmenuProperties;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuPropertiesDelegate;
+import org.chromium.chrome.browser.ui.appmenu.AppMenuTabItemProperties;
 import org.chromium.chrome.browser.util.BrowserUiUtils;
 import org.chromium.chrome.browser.util.BrowserUiUtils.ModuleTypeOnStartAndNtp;
 import org.chromium.chrome.browser.webapps.WebappRegistry;
+import org.chromium.components.bookmarks.BookmarkId;
 import org.chromium.components.commerce.core.CommerceFeatureUtils;
 import org.chromium.components.commerce.core.CommerceSubscription;
 import org.chromium.components.commerce.core.IdentifierType;
@@ -97,6 +98,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Supplier;
 
 // Vivaldi
 import android.text.style.ForegroundColorSpan;
@@ -123,6 +125,10 @@ import org.vivaldi.browser.preferences.VivaldiPreferences;
  */
 @NullMarked
 public abstract class AppMenuPropertiesDelegateImpl implements AppMenuPropertiesDelegate {
+
+    public static final String BOOKMARK_ID_BUNDLE_KEY = "BookmarkId";
+    public static final String TAB_ID_BUNDLE_KEY = "TabId";
+
     private static @Nullable Boolean sItemBookmarkedForTesting;
 
     protected final Context mContext;
@@ -135,7 +141,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
     protected final MonotonicObservableSupplier<ReadAloudController> mReadAloudControllerSupplier;
 
     private CallbackController mCallbackController = new CallbackController();
-    private final NullableObservableSupplier<BookmarkModel> mBookmarkModelSupplier;
+    protected /*final*/ NullableObservableSupplier<BookmarkModel> mBookmarkModelSupplier; // Vivaldi
     private @Nullable ModelList mModelList;
     private int mReadAloudPos;
     protected @Nullable Runnable mReadAloudAppMenuResetter;
@@ -472,31 +478,58 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
      * @param id The id of the menu item.
      * @param titleId The resource id of the title to be displayed.
      * @param iconResId The resource id of the icon to be displayed (or 0 for no icon).
-     * @param submenuItems The list of {@code ListItem}s in the submenu.
+     * @param submenuItemProvider The provider of {@code ListItem}s in the submenu.
      * @return The property model for this item.
      */
     public PropertyModel buildModelForMenuItemWithSubmenu(
             @IdRes int id,
             @StringRes int titleId,
             @DrawableRes int iconResId,
-            List<ListItem> submenuItems) {
+            Supplier<List<ListItem>> submenuItemProvider) {
+        return buildModelForMenuItemWithSubmenu(
+                id, mContext.getString(titleId), iconResId, submenuItemProvider);
+    }
+
+    public PropertyModel buildModelForMenuItemWithSubmenu(
+            @IdRes int id,
+            String title,
+            @DrawableRes int iconResId,
+            Supplier<List<ListItem>> submenuItemProvider) {
+        Drawable icon = iconResId != 0 ? AppCompatResources.getDrawable(mContext, iconResId) : null;
+        return buildModelForMenuItemWithSubmenu(id, title, icon, submenuItemProvider);
+    }
+
+    public PropertyModel buildModelForMenuItemWithSubmenu(
+            @IdRes int id,
+            @StringRes int titleId,
+            @Nullable Drawable icon,
+            Supplier<List<ListItem>> submenuItemProvider) {
+        return buildModelForMenuItemWithSubmenu(
+                id, mContext.getString(titleId), icon, submenuItemProvider);
+    }
+
+    public PropertyModel buildModelForMenuItemWithSubmenu(
+            @IdRes int id,
+            String title,
+            @Nullable Drawable icon,
+            Supplier<List<ListItem>> submenuItemProvider) {
         PropertyModel model =
                 new PropertyModel.Builder(AppMenuItemWithSubmenuProperties.ALL_KEYS)
                         .with(AppMenuItemProperties.MENU_ITEM_ID, id)
-                        .with(AppMenuItemProperties.TITLE, mContext.getString(titleId))
+                        .with(AppMenuItemProperties.TITLE, title)
                         .with(AppMenuItemProperties.ENABLED, true)
                         .with(AppMenuItemProperties.ICON_COLOR_RES, getMenuItemIconColorRes(id))
                         .with(AppMenuItemProperties.MENU_ICON_AT_START, isMenuIconAtStart())
                         .with(AppMenuItemProperties.MANAGED, isMenuItemManaged(id))
-                        .with(AppMenuItemWithSubmenuProperties.SUBMENU_ITEMS, submenuItems)
+                        .with(
+                                AppMenuItemWithSubmenuProperties.SUBMENU_PROVIDER,
+                                submenuItemProvider)
                         .with(
                                 AppMenuItemProperties.ICON_SHOW_BADGE,
                                 shouldShowBadgeOnMenuItemIcon(id))
                         .build();
-        if (iconResId != 0) {
-            model.set(
-                    AppMenuItemProperties.ICON,
-                    AppCompatResources.getDrawable(mContext, iconResId));
+        if (icon != null) {
+            model.set(AppMenuItemProperties.ICON, icon);
         }
         return model;
     }
@@ -749,7 +782,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
                         R.id.back_menu_id,
                         R.string.accessibility_menu_back,
                         R.string.menu_back,
-                        R.drawable.btn_back);
+                        R.drawable.nav_back_24dp); // Vivaldi
         backwardButton.set(
                 AppMenuItemProperties.ENABLED, currentTab != null && currentTab.canGoBack());
         return backwardButton;
@@ -793,7 +826,11 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
     }
 
     protected boolean shouldShowPageInfoItem() {
-        return ChromeFeatureList.sAndroidPageInfoAsAppMenuItem.isEnabled()
+        Tab currentTab = mActivityTabProvider.get();
+        if (currentTab != null && UrlUtilities.isNtpUrl(currentTab.getUrl())) {
+            return false;
+        }
+        return BrowserUiUtils.isPageInfoMovedToAppMenu(mContext)
                 || ChromeFeatureList.sThreeDotMenuBackButton.isEnabled();
     }
 
@@ -839,9 +876,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
                             mContext, R.color.vivaldi_main_menu_icon_tint));
         } else // Vivaldi End
         DrawableCompat.setTintList(
-                icon,
-                AppCompatResources.getColorStateList(
-                        mContext, R.color.default_icon_color_tint_list));
+                icon, mContext.getColorStateList(R.color.default_icon_color_tint_list));
         reloadButton.set(AppMenuItemProperties.ICON, icon);
         reloadButton.set(AppMenuItemProperties.ENABLED, currentTab != null
                 /*Vivaldi*/ && !currentTab.isNativePage());
@@ -857,11 +892,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
      * @return The add to homescreen list item.
      */
     protected ListItem buildAddToHomescreenListItem(Tab currentTab, boolean showIcon) {
-        long addToHomeScreenStart = SystemClock.elapsedRealtime();
         ResolveInfo resolveInfo = queryWebApkResolveInfo(mContext, currentTab);
-        RecordHistogram.recordTimesHistogram(
-                "Android.PrepareMenu.OpenWebApkVisibilityCheck",
-                SystemClock.elapsedRealtime() - addToHomeScreenStart);
 
         // When Universal Install is active, we only show this menu item if we are browsing
         // the root page of an already installed app.
@@ -892,7 +923,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
                     AppMenuItemType.STANDARD,
                     buildModelForStandardMenuItem(
                             R.id.universal_install,
-                            R.string.menu_add_to_homescreen,
+                            R.string.menu_install_create_shortcut,
                             showIcon ? R.drawable.ic_add_to_home_screen : 0));
         }
     }
@@ -917,7 +948,22 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
     }
 
     @Override
-    public @Nullable Bundle getBundleForMenuItem(int itemId) {
+    public @Nullable Bundle getBundleForMenuItem(PropertyModel model) {
+        if (model.containsKey(AppMenuBookmarkItemProperties.BOOKMARK_ID)) {
+            BookmarkId bookmarkId = model.get(AppMenuBookmarkItemProperties.BOOKMARK_ID);
+            if (bookmarkId != null) {
+                Bundle bundle = new Bundle();
+                bundle.putString(
+                        AppMenuPropertiesDelegateImpl.BOOKMARK_ID_BUNDLE_KEY,
+                        bookmarkId.toString());
+                return bundle;
+            }
+        }
+        if (model.containsKey(AppMenuTabItemProperties.TAB_ID)) {
+            Bundle bundle = new Bundle();
+            bundle.putInt(TAB_ID_BUNDLE_KEY, model.get(AppMenuTabItemProperties.TAB_ID));
+            return bundle;
+        }
         return null;
     }
 
@@ -1436,13 +1482,10 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
     }
 
     public @StringRes int getAddToGroupMenuItemString(@Nullable Token currentTabGroupId) {
-        TabGroupModelFilter filter = mTabModelSelector.getCurrentTabGroupModelFilter();
+        TabModel tabModel = mTabModelSelector.getCurrentModel();
         if (currentTabGroupId != null) return R.string.menu_move_tab_to_group;
-        if (filter != null) {
-            boolean hasGroups = filter.getTabGroupCount() != 0;
-            return hasGroups ? R.string.menu_add_tab_to_group : R.string.menu_add_tab_to_new_group;
-        }
-        return R.string.menu_add_tab_to_group;
+        boolean hasGroups = tabModel.getTabGroupCount() != 0;
+        return hasGroups ? R.string.menu_add_tab_to_group : R.string.menu_add_tab_to_new_group;
     }
 
     /** Returns whether to show the open in app menu item. */

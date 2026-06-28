@@ -22,7 +22,7 @@
 #if BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/android/shortcut_helper.h"
 #else
-#include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
+#include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"  // nogncheck
 #include "chrome/browser/web_applications/web_app_install_manager.h"
 #include "chrome/browser/web_applications/web_app_install_manager_observer.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
@@ -141,12 +141,13 @@ void PeriodicBackgroundSyncPermissionContext::NotifyPermissionSet(
     const permissions::PermissionRequestData& request_data,
     permissions::BrowserPermissionCallback callback,
     bool persist,
+    const content::PermissionResult* permission_result,
     const permissions::PermissionPromptDecision& decision) {
   DCHECK(!persist);
   DCHECK(decision.is_final);
 
   permissions::ContentSettingPermissionContextBase::NotifyPermissionSet(
-      request_data, std::move(callback), persist, decision);
+      request_data, std::move(callback), persist, permission_result, decision);
 }
 
 void PeriodicBackgroundSyncPermissionContext::OnContentSettingChanged(

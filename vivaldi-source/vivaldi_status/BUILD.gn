@@ -5,13 +5,9 @@ source_set("vivaldi_status") {
     "vivaldi_status.cc",
     "vivaldi_status.h",
   ]
-  deps = [
-    "//base",
-  ]
+  deps = [ "//base" ]
   if (!is_ios) {
-    deps += [
-      "//content/public/browser",
-    ]
+    deps += [ "//content/public/browser" ]
   }
 }
 

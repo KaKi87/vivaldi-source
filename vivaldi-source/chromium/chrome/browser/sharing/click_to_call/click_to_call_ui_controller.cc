@@ -11,17 +11,18 @@
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/external_protocol/external_protocol_handler.h"
 #include "chrome/browser/sharing/click_to_call/click_to_call_utils.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/grit/branded_strings.h"
 #include "components/sharing_message/sharing_constants.h"
 #include "components/sharing_message/sharing_dialog.h"
 #include "components/sharing_message/sharing_target_device_info.h"
+#include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/weak_document_ptr.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/strings/grit/ui_strings.h"
 
@@ -31,7 +32,9 @@ using SharingMessage = components_sharing_message::SharingMessage;
 ClickToCallUiController* ClickToCallUiController::GetOrCreateFromWebContents(
     content::WebContents* web_contents) {
   // Use active WebContents if available.
-  BrowserWindowInterface* browser = chrome::FindBrowserWithTab(web_contents);
+  auto* tab = tabs::TabInterface::MaybeGetFromContents(web_contents);
+  BrowserWindowInterface* browser =
+      tab ? tab->GetBrowserWindowInterface() : nullptr;
   if (browser)
     web_contents = browser->GetTabStripModel()->GetActiveWebContents();
   ClickToCallUiController::CreateForWebContents(web_contents);
@@ -116,8 +119,9 @@ void ClickToCallUiController::DoUpdateApps(UpdateAppsCallback callback) {
   }
 
   if (!default_program_name_.empty()) {
-    apps.emplace_back(&kOpenInNewIcon, gfx::Image(), default_program_name_,
-                      std::string());
+    apps.emplace_back(&(features::IsRoundedIconsEnabled() ? kOpenInNewIcon
+                                                          : kOpenInNewOldIcon),
+                      gfx::Image(), default_program_name_, std::string());
   }
   std::move(callback).Run(std::move(apps));
 }
@@ -167,7 +171,8 @@ std::u16string ClickToCallUiController::GetContentType() const {
 }
 
 const gfx::VectorIcon& ClickToCallUiController::GetVectorIcon() const {
-  return vector_icons::kCallRefreshIcon;
+  return features::IsRoundedIconsEnabled() ? vector_icons::kCallIcon
+                                           : vector_icons::kCallRefreshOldIcon;
 }
 
 std::u16string ClickToCallUiController::GetTextForTooltipAndAccessibleName()
@@ -186,8 +191,9 @@ SharingDialogData ClickToCallUiController::CreateDialogData(
 
   // Do not add the header image for error dialogs.
   if (dialog_type != SharingDialogType::kErrorDialog) {
-    data.header_icons = SharingDialogData::HeaderIcons(
-        &kClickToCallIllustrationIcon, &kClickToCallIllustrationDarkIcon);
+    data.header_icons =
+        SharingDialogData::HeaderIcons(&kClickToCallIllustrationCustomIcon,
+                                       &kClickToCallIllustrationDarkCustomIcon);
   }
 
   data.help_text_id =

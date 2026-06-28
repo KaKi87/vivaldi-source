@@ -30,7 +30,6 @@
 #include "ash/public/cpp/window_properties.h"
 #include "ash/shelf/shelf_application_menu_model.h"
 #include "ash/shell.h"
-#include "ash/webui/system_apps/public/system_web_app_type.h"
 #include "base/check.h"
 #include "base/check_deref.h"
 #include "base/check_op.h"
@@ -119,8 +118,8 @@
 #include "chrome/browser/ui/ash/wallpaper/wallpaper_controller_client_impl.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/web_applications/test/isolated_web_app_test_utils.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
@@ -139,7 +138,6 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "chrome/common/pref_names.h"
-#include "chrome/grit/branded_strings.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "chrome/test/base/test_browser_window_aura.h"
 #include "chrome/test/base/testing_browser_process.h"
@@ -150,6 +148,7 @@
 #include "chromeos/ash/components/dbus/concierge/concierge_client.h"
 #include "chromeos/ash/components/file_manager/app_id.h"
 #include "chromeos/ash/components/login/session/session_termination_manager.h"
+#include "chromeos/ash/components/system_web_apps/system_web_app_type.h"
 #include "chromeos/ash/experiences/arc/app/arc_app_constants.h"
 #include "chromeos/ash/experiences/arc/arc_prefs.h"
 #include "chromeos/ash/experiences/arc/metrics/arc_metrics_constants.h"
@@ -1343,7 +1342,7 @@ class ChromeShelfControllerTestBase : public BrowserWithTestWindowTest,
     base::ListValue pinned_launcher_apps;
     (AppendPrefValue(pinned_launcher_apps, std::forward<Args>(args)), ...);
     profile()->GetTestingPrefService()->SetManagedPref(
-        prefs::kPolicyPinnedLauncherApps,
+        ash::prefs::kPolicyPinnedLauncherApps,
         base::Value(std::move(pinned_launcher_apps)));
   }
 
@@ -2027,7 +2026,7 @@ TEST_F(ChromeShelfControllerTest, MergePolicyAndUserPrefPinnedApps) {
   AppendPrefValue(policy_value, extension2_->id());
   AppendPrefValue(policy_value, google_docs_install_url_v2.spec());
   profile()->GetTestingPrefService()->SetManagedPref(
-      prefs::kPolicyPinnedLauncherApps, base::Value(policy_value.Clone()));
+      ash::prefs::kPolicyPinnedLauncherApps, base::Value(policy_value.Clone()));
 
   EXPECT_TRUE(shelf_controller_->IsAppPinned(extension1_->id()));
   // 2 is not pinned as it's not installed
@@ -2566,7 +2565,7 @@ TEST_F(ChromeShelfControllerWithArcTest, ArcDeferredLaunchForSuspendedApp) {
 }
 
 // Ensure the spinner controller does not override the active app controller
-// (crbug.com/701152).
+// (crbug.com/40510580).
 TEST_F(ChromeShelfControllerWithArcTest, ArcDeferredLaunchForActiveApp) {
   InitShelfController();
   SendListOfArcApps();
@@ -2783,7 +2782,7 @@ TEST_F(ChromeShelfControllerWithArcTest, ArcWindowRecreation) {
 // ARC app item controller and vice versa. This should not happen in normal
 // cases but in case of ARC boot failure this may lead to such situation. This
 // test verifies that dynamic change of app item controllers is safe. See more
-// crbug.com/770005.
+// crbug.com/40542371.
 TEST_F(ChromeShelfControllerWithArcTest, OverrideAppItemController) {
   extension_registrar_->AddExtension(arc_support_host_.get());
 
@@ -3164,7 +3163,7 @@ TEST_F(MultiProfileMultiBrowserShelfLayoutChromeShelfControllerTest,
   EXPECT_EQ(1, model_->item_count());
 }
 
-// Check edge case where a visiting V1 app gets closed (crbug.com/321374).
+// Check edge case where a visiting V1 app gets closed (crbug.com/40342048).
 TEST_F(MultiProfileMultiBrowserShelfLayoutChromeShelfControllerTest,
        V1CloseOnVisitingDesktop) {
   // Create a browser item in the controller.
@@ -3502,7 +3501,7 @@ TEST_F(ChromeShelfControllerTest, Policy) {
   AppendPrefValue(policy_value, gmail_install_url.spec());
 
   profile()->GetTestingPrefService()->SetManagedPref(
-      prefs::kPolicyPinnedLauncherApps, base::Value(policy_value.Clone()));
+      ash::prefs::kPolicyPinnedLauncherApps, base::Value(policy_value.Clone()));
 
   InitShelfController();
 
@@ -3524,7 +3523,7 @@ TEST_F(ChromeShelfControllerTest, Policy) {
   // shelf and pin will exist.
   RemovePrefValue(policy_value, extension1_->id());
   profile()->GetTestingPrefService()->SetManagedPref(
-      prefs::kPolicyPinnedLauncherApps, base::Value(policy_value.Clone()));
+      ash::prefs::kPolicyPinnedLauncherApps, base::Value(policy_value.Clone()));
   EXPECT_EQ("Chrome, App1, App2, Camera, Gmail", GetPinnedAppStatus());
   EXPECT_FALSE(IsAppPolicyPinned(extension1_->id()));
 
@@ -3532,14 +3531,14 @@ TEST_F(ChromeShelfControllerTest, Policy) {
   // fixed.
   RemovePrefValue(policy_value, gmail_install_url.spec());
   profile()->GetTestingPrefService()->SetManagedPref(
-      prefs::kPolicyPinnedLauncherApps, base::Value(policy_value.Clone()));
+      ash::prefs::kPolicyPinnedLauncherApps, base::Value(policy_value.Clone()));
   EXPECT_EQ("Chrome, App1, App2, Camera, Gmail", GetPinnedAppStatus());
   EXPECT_FALSE(IsAppPolicyPinned(ash::kGmailAppId));
 
   // Check that Gmail can also be pinned by direct mapping.
   AppendPrefValue(policy_value, std::string(kGmailPolicyId));
   profile()->GetTestingPrefService()->SetManagedPref(
-      prefs::kPolicyPinnedLauncherApps, base::Value(policy_value.Clone()));
+      ash::prefs::kPolicyPinnedLauncherApps, base::Value(policy_value.Clone()));
   EXPECT_EQ("Chrome, App1, App2, Camera, Gmail", GetPinnedAppStatus());
   EXPECT_TRUE(IsAppPolicyPinned(ash::kGmailAppId));
 }
@@ -3670,7 +3669,7 @@ void CheckAppMenu(ChromeShelfController* controller,
 
 // Check that browsers get reflected correctly in the shelf menu.
 TEST_F(ChromeShelfControllerTest, BrowserMenuGeneration) {
-  EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
   chrome::NewTab(browser());
 
   InitShelfController();
@@ -3753,7 +3752,7 @@ TEST_F(MultiProfileMultiBrowserShelfLayoutChromeShelfControllerTest,
 // Note that the extension matching logic is tested by the extension system
 // and does not need a separate test here.
 TEST_F(ChromeShelfControllerTest, V1AppMenuGeneration) {
-  EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
   EXPECT_EQ(0, browser()->tab_strip_model()->count());
 
   InitShelfControllerWithBrowser();

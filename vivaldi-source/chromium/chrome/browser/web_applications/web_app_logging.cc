@@ -32,7 +32,7 @@
 #include "base/timer/timer.h"
 #include "base/types/expected_macros.h"
 #include "chrome/browser/web_applications/file_utils_wrapper.h"
-#include "chrome/browser/web_applications/web_app_install_info.h"
+#include "chrome/browser/web_applications/model/web_app_icon_types.h"
 #include "chrome/browser/web_applications/web_app_install_utils.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
 #include "chrome/common/chrome_features.h"
@@ -251,10 +251,8 @@ PersistableLog::~PersistableLog() {
 }
 
 void PersistableLog::Append(base::DictValue object) {
-  if (!object.contains("timestamp_ms")) {
-    object.Set("timestamp_ms",
-               base::saturated_cast<int>(
-                   clock_->Now().ToDeltaSinceWindowsEpoch().InMilliseconds()));
+  if (!object.contains("timestamp")) {
+    object.Set("timestamp", base::TimeFormatAsIso8601(clock_->Now()));
   }
 #if DCHECK_IS_ON()
   // This is wrapped with DCHECK_IS_ON() to prevent calling DebugString() in

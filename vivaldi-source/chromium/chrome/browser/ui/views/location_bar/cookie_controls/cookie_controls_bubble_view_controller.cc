@@ -12,8 +12,8 @@
 #include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/feedback/show_feedback_page.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/url_identity.h"
 #include "chrome/browser/ui/views/accessibility/non_accessible_image_view.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
@@ -55,7 +55,10 @@ constexpr UrlIdentity::FormatOptions kUrlIdentityOptions{
                             kOmitSchemePathAndTrivialSubdomains}};
 
 const gfx::VectorIcon& GetToggleIcon(bool enabled) {
-  return enabled ? views::kEyeRefreshIcon : views::kEyeCrossedRefreshIcon;
+  return enabled ? features::IsRoundedIconsEnabled() ? views::kVisibilityIcon
+                                                     : views::kEyeRefreshOldIcon
+         : features::IsRoundedIconsEnabled() ? views::kVisibilityOffIcon
+                                             : views::kEyeCrossedRefreshOldIcon;
 }
 }  // namespace
 
@@ -143,7 +146,10 @@ void CookieControlsBubbleViewController::ApplyThirdPartyCookiesBlockedState() {
       l10n_util::GetStringUTF16(
           IDS_COOKIE_CONTROLS_BUBBLE_SITE_NOT_WORKING_TITLE),
       l10n_util::GetStringUTF16(
-          IDS_TRACKING_PROTECTION_BUBBLE_SITE_NOT_WORKING_DESCRIPTION));
+          base::FeatureList::IsEnabled(
+              content_settings::features::kUserBypassUxSimplification)
+              ? IDS_COOKIE_CONTROLS_BUBBLE_SITE_NOT_WORKING_DESCRIPTION
+              : IDS_TRACKING_PROTECTION_BUBBLE_SITE_NOT_WORKING_DESCRIPTION));
   bubble_view_->GetContentView()->SetCookiesLabel(l10n_util::GetStringUTF16(
       IDS_TRACKING_PROTECTION_BUBBLE_3PC_BLOCKED_SUBTITLE));
 }
@@ -166,9 +172,6 @@ void CookieControlsBubbleViewController::FillViewForThirdPartyCookies(
           tpcs_allowed);
       bubble_view_->GetContentView()->SetToggleVisible(true);
       bubble_view_->GetContentView()->SetEnforcedIconVisible(false);
-      break;
-    case CookieControlsEnforcement::kEnforcedByTpcdGrant:
-      bubble_view_->CloseWidget();
       break;
     case CookieControlsEnforcement::kEnforcedByPolicy:
     case CookieControlsEnforcement::kEnforcedByExtension:
@@ -253,7 +256,8 @@ void CookieControlsBubbleViewController::OnToggleButtonPressed(
 
 void CookieControlsBubbleViewController::OnFeedbackButtonPressed() {
   chrome::ShowFeedbackPage(
-      chrome::FindBrowserWithTab(web_contents_.get()),
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+          web_contents_.get()),
       feedback::kFeedbackSourceCookieControls,
       /*description_template=*/std::string(),
       l10n_util::GetStringUTF8(

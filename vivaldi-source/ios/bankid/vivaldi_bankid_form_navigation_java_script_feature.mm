@@ -20,14 +20,13 @@ VivaldiBankIDFormNavigationJavaScriptFeature::GetInstance() {
 
 VivaldiBankIDFormNavigationJavaScriptFeature::
     VivaldiBankIDFormNavigationJavaScriptFeature()
-    : web::JavaScriptFeature(
-          web::ContentWorld::kPageContentWorld,
-          {FeatureScript::CreateWithFilename(
-              kScriptName,
-              FeatureScript::InjectionTime::kDocumentStart,
-              FeatureScript::TargetFrames::kAllFrames,
-              FeatureScript::ReinjectionBehavior::
-                  kReinjectOnDocumentRecreation)}) {}
+    : web::JavaScriptFeature(web::ContentWorld::kPageContentWorld,
+                             {FeatureScript::CreateWithFilename(
+                                 kScriptName,
+                                 FeatureScript::InjectionTime::kDocumentStart,
+                                 FeatureScript::TargetFrames::kAllFrames,
+                                 FeatureScript::ReinjectionBehavior::
+                                     kReinjectOnDocumentRecreation)}) {}
 
 VivaldiBankIDFormNavigationJavaScriptFeature::
     ~VivaldiBankIDFormNavigationJavaScriptFeature() = default;

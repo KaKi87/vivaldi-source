@@ -15,6 +15,7 @@
 #include "chrome/common/buildflags.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "chrome/grit/browser_resources.h"
+#include "chrome/grit/component_extension_resources.h"
 #include "extensions/buildflags/buildflags.h"
 #include "extensions/common/constants.h"
 #include "printing/buildflags/buildflags.h"
@@ -34,6 +35,7 @@ namespace extensions {
 
 bool IsComponentExtensionAllowlisted(const std::string& extension_id) {
   constexpr auto kAllowed = base::MakeFixedFlatSet<std::string_view>({
+      extension_misc::kGlicExtensionId,
       extension_misc::kInAppPaymentsSupportAppId,
       extension_misc::kPdfExtensionId,
 #if BUILDFLAG(IS_CHROMEOS)
@@ -46,7 +48,6 @@ bool IsComponentExtensionAllowlisted(const std::string& extension_id) {
       extension_misc::kGuestModeTestExtensionId,
       extension_misc::kSelectToSpeakExtensionId,
       extension_misc::kSwitchAccessExtensionId,
-      extension_misc::kContactCenterInsightsExtensionId,
       extension_misc::kDeskApiExtensionId,
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
       extension_misc::kQuickOfficeComponentExtensionId,
@@ -57,6 +58,9 @@ bool IsComponentExtensionAllowlisted(const std::string& extension_id) {
       extension_misc::kTTSEngineExtensionId,
       extension_misc::kComponentUpdaterTTSEngineExtensionId,
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+#if !BUILDFLAG(IS_ANDROID)
+      extension_misc::kIndigoExtensionId,
+#endif  // !BUILDFLAG(IS_ANDROID)
   });
 
   if (kAllowed.contains(extension_id)) {
@@ -87,6 +91,7 @@ bool IsComponentExtensionAllowlisted(int manifest_resource_id) {
     case IDR_HANGOUT_SERVICES_MANIFEST_V2:
     case IDR_HANGOUT_SERVICES_MANIFEST_V3:
 #endif
+    case IDR_GLIC_EXTENSION_MANIFEST:
     case IDR_NETWORK_SPEECH_SYNTHESIS_MANIFEST:
     case IDR_NETWORK_SPEECH_SYNTHESIS_MANIFEST_MV3:
     case IDR_READING_MODE_GDOCS_HELPER_MANIFEST:
@@ -101,7 +106,6 @@ bool IsComponentExtensionAllowlisted(int manifest_resource_id) {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
     case IDR_HELP_MANIFEST:
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
-    case IDR_CONTACT_CENTER_INSIGHTS_MANIFEST:
     case IDR_DESK_API_MANIFEST:
     case IDR_ECHO_MANIFEST:
 #endif  // BUILDFLAG(IS_CHROMEOS)

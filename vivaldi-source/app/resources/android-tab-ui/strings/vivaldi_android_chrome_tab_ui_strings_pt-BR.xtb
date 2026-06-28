@@ -20,7 +20,6 @@
           =1 {Salvar aba nos favoritos}
           other {Salvar abas nos favoritos}
         }</translation>
-<translation id="2498435670446402865">Renomear grupo de abas</translation>
 <translation id="2734252994837336591">{NUM_WEEKS, plural,
           =1 {Atualizado à <ph name="NUM_WEEKS_ONE" /> semana}
           other {Atualizado à <ph name="NUM_WEEKS_MANY" />semanas}
@@ -56,7 +55,6 @@
           =1 {Atualizado a <ph name="NUM_YEARS_ONE" /> ano}
           other {Atualizado a <ph name="NUM_YEARS_MANY" /> anos}
         }</translation>
-<translation id="7825973332242257878">Grupos de abas</translation>
 <translation id="8207688828622594111">{NUM_MINS, plural,
           =1 {Atualizado a <ph name="NUM_MINS_ONE" /> minuto}
           other {Atualizado a <ph name="NUM_MINS_MANY" /> minutos}
@@ -72,5 +70,4 @@
                 other {Criado a <ph name="NUM_MONTHS_MANY" /> meses}
               }</translation>
 <translation id="8851621822786801079">Remover da pilha</translation>
-<translation id="8887921976452567404">Suas abas e grupos fechados podem ser reabertos na seção Abas recentes e na seção Grupos de abas.</translation>
 </translationbundle>

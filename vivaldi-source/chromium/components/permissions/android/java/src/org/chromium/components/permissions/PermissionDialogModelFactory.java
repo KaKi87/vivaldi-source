@@ -34,7 +34,6 @@ class PermissionDialogModelFactory {
         PropertyModel.Builder builder =
                 new PropertyModel.Builder(ModalDialogProperties.ALL_KEYS)
                         .with(ModalDialogProperties.CONTROLLER, controller)
-                        .with(ModalDialogProperties.FOCUS_DIALOG, true)
                         .with(ModalDialogProperties.CUSTOM_VIEW, customView)
                         .with(ModalDialogProperties.CONTENT_DESCRIPTION, messageText)
                         .with(ModalDialogProperties.FILTER_TOUCH_FOR_SECURITY,

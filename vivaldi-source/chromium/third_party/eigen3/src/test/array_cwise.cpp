@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include <vector>
 #include "main.h"
@@ -191,6 +192,7 @@ void unary_ops_test() {
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(exp));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(exp2));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(log));
+  unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(log10));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(sin));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(cos));
   unary_op_test<Scalar>(UNARY_FUNCTOR_TEST_ARGS(tan));
@@ -1291,8 +1293,8 @@ struct cast_test_impl {
   static constexpr int MaxPacketSize = internal::plain_enum_max(SrcPacketSize, DstPacketSize);
 
   static void run() {
-    const Index testRows = RowsAtCompileTime == Dynamic ? ((10 * MaxPacketSize) + 1) : RowsAtCompileTime;
-    const Index testCols = ColsAtCompileTime == Dynamic ? ((10 * MaxPacketSize) + 1) : ColsAtCompileTime;
+    constexpr Index testRows = RowsAtCompileTime == Dynamic ? ((10 * MaxPacketSize) + 1) : RowsAtCompileTime;
+    constexpr Index testCols = ColsAtCompileTime == Dynamic ? ((10 * MaxPacketSize) + 1) : ColsAtCompileTime;
     const Index testSize = testRows * testCols;
     const Index minTestSize = 100;
     const Index repeats = numext::div_ceil(minTestSize, testSize);
@@ -1329,8 +1331,8 @@ struct cast_tests_impl {
 
   template <size_t i = 0, size_t j = i + 1, bool Done = (i >= ScalarTupleSize - 1) || (j >= ScalarTupleSize)>
   static std::enable_if_t<!Done> run() {
-    using Type1 = typename std::tuple_element<i, ScalarTuple>::type;
-    using Type2 = typename std::tuple_element<j, ScalarTuple>::type;
+    using Type1 = std::tuple_element_t<i, ScalarTuple>;
+    using Type2 = std::tuple_element_t<j, ScalarTuple>;
     cast_test_impl<Type1, Type2, RowsAtCompileTime, ColsAtCompileTime>::run();
     cast_test_impl<Type2, Type1, RowsAtCompileTime, ColsAtCompileTime>::run();
     static constexpr size_t next_i = (j == ScalarTupleSize - 1) ? (i + 1) : (i + 0);
@@ -1425,9 +1427,9 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_33((cast_test<Dynamic, 1>()));
   }
 
-  VERIFY((internal::is_same<internal::global_math_functions_filtering_base<int>::type, int>::value));
-  VERIFY((internal::is_same<internal::global_math_functions_filtering_base<float>::type, float>::value));
-  VERIFY((internal::is_same<internal::global_math_functions_filtering_base<Array2i>::type, ArrayBase<Array2i>>::value));
+  VERIFY((std::is_same<internal::global_math_functions_filtering_base<int>::type, int>::value));
+  VERIFY((std::is_same<internal::global_math_functions_filtering_base<float>::type, float>::value));
+  VERIFY((std::is_same<internal::global_math_functions_filtering_base<Array2i>::type, ArrayBase<Array2i>>::value));
   typedef CwiseUnaryOp<internal::scalar_abs_op<double>, ArrayXd> Xpr;
-  VERIFY((internal::is_same<internal::global_math_functions_filtering_base<Xpr>::type, ArrayBase<Xpr>>::value));
+  VERIFY((std::is_same<internal::global_math_functions_filtering_base<Xpr>::type, ArrayBase<Xpr>>::value));
 }

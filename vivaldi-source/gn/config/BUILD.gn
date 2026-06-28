@@ -1,7 +1,7 @@
+import("//build/config/sanitizers/sanitizers.gni")
+import("//build/toolchain/cc_wrapper.gni")
 import("features.gni")
 import("product.gni")
-import("//build/toolchain/cc_wrapper.gni")
-import("//build/config/sanitizers/sanitizers.gni")
 
 if (is_ios) {
   import("//build/config/ios/ios_sdk.gni")
@@ -15,7 +15,7 @@ declare_args() {
 
 config("diagnostics") {
   if (is_win && windows_use_absolute_path_diagnostics) {
-    cflags = ["-fdiagnostics-absolute-paths"]
+    cflags = [ "-fdiagnostics-absolute-paths" ]
   }
 }
 
@@ -31,7 +31,10 @@ config("features") {
   if (vivaldi_disable_sparkle) {
     defines += [ "VIVALDI_SPARKLE_DISABLED" ]
   }
-  include_dirs = [ "//vivaldi/", "//vivaldi/platform_media/" ]
+  include_dirs = [
+    "//vivaldi/",
+    "//vivaldi/platform_media/",
+  ]
   if (is_official_build) {
     defines += [ "VIVALDI_PRODUCT_VERSION=\"$official_product_kind_string\"" ]
   }
@@ -76,10 +79,8 @@ config("extra_cfi_flags") {
   cflags = []
   if (is_cfi && current_toolchain == default_toolchain) {
     extra_cfi_blacklist_path =
-          rebase_path("//vivaldi/gn/config/cfi/blacklist.txt", root_build_dir)
-    cflags += [
-      "-fsanitize-blacklist=$extra_cfi_blacklist_path",
-    ]
+        rebase_path("//vivaldi/gn/config/cfi/blacklist.txt", root_build_dir)
+    cflags += [ "-fsanitize-blacklist=$extra_cfi_blacklist_path" ]
   }
 }
 

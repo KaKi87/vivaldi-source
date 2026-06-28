@@ -42,7 +42,6 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.toolbar.R;
@@ -75,7 +74,6 @@ public class TabSwitcherActionMenuCoordinatorUnitTest {
     @Mock private ListMenuButton mRootView;
     @Mock private Callback<Integer> mOnItemClickedCallback;
     @Mock private Tracker mTracker;
-    @Mock private TabGroupModelFilter mTabGroupModelFilter;
     @Mock private Tab mTab;
 
     private Context mContext;
@@ -97,7 +95,7 @@ public class TabSwitcherActionMenuCoordinatorUnitTest {
 
         when(mTabModelSelector.getModel(true)).thenReturn(mIncognitoTabModel);
         when(mTabModelSelector.getModel(false)).thenReturn(mNormalTabModel);
-        when(mTabModelSelector.getCurrentTabGroupModelFilter()).thenReturn(mTabGroupModelFilter);
+        when(mTabModelSelector.getCurrentModel()).thenReturn(mNormalTabModel);
         when(mTabModelSelector.getCurrentTabSupplier()).thenReturn(mCurrentTabSupplier);
 
         when(mContext.getResources()).thenReturn(mResources);
@@ -107,7 +105,7 @@ public class TabSwitcherActionMenuCoordinatorUnitTest {
         when(mAnchorView.getRootView()).thenReturn(mRootView);
         when(mAnchorView.getContext()).thenReturn(mContext);
         when(mTabModelSelector.isTabStateInitialized()).thenReturn(true);
-        when(mTabGroupModelFilter.isTabModelRestored()).thenReturn(true);
+        when(mNormalTabModel.isTabModelRestored()).thenReturn(true);
 
         mCoordinator = new TabSwitcherActionMenuCoordinator(mProfile, mTabModelSelectorSupplier);
     }
@@ -148,7 +146,7 @@ public class TabSwitcherActionMenuCoordinatorUnitTest {
     public void testBuildMenuItems_NormalMode_NoIncognitoTabs_NoGroups() {
         when(mTabModelSelector.isIncognitoBrandedModelSelected()).thenReturn(false);
         when(mIncognitoTabModel.getCount()).thenReturn(0);
-        when(mTabGroupModelFilter.getTabGroupCount()).thenReturn(0);
+        when(mNormalTabModel.getTabGroupCount()).thenReturn(0);
 
         ModelList items = mCoordinator.buildMenuItems();
         assertEquals(5, items.size());
@@ -166,7 +164,7 @@ public class TabSwitcherActionMenuCoordinatorUnitTest {
     public void testBuildMenuItems_NormalMode_WithIncognitoTabs_NoGroups_MigrationOff() {
         when(mTabModelSelector.isIncognitoBrandedModelSelected()).thenReturn(false);
         when(mIncognitoTabModel.getCount()).thenReturn(1);
-        when(mTabGroupModelFilter.getTabGroupCount()).thenReturn(0);
+        when(mNormalTabModel.getTabGroupCount()).thenReturn(0);
 
         ModelList items = mCoordinator.buildMenuItems();
         assertEquals(5, items.size());
@@ -184,7 +182,7 @@ public class TabSwitcherActionMenuCoordinatorUnitTest {
     public void testBuildMenuItems_IncognitoMode_WithIncognitoTabs_NoGroups_MigrationOff() {
         when(mTabModelSelector.isIncognitoBrandedModelSelected()).thenReturn(true);
         when(mIncognitoTabModel.getCount()).thenReturn(1);
-        when(mTabGroupModelFilter.getTabGroupCount()).thenReturn(0);
+        when(mNormalTabModel.getTabGroupCount()).thenReturn(0);
 
         ModelList items = mCoordinator.buildMenuItems();
 
@@ -201,7 +199,7 @@ public class TabSwitcherActionMenuCoordinatorUnitTest {
     public void testBuildMenuItems_IncognitoMode_WithIncognitoTabs_NoGroups_MigrationOn() {
         when(mTabModelSelector.isIncognitoBrandedModelSelected()).thenReturn(true);
         when(mIncognitoTabModel.getCount()).thenReturn(1);
-        when(mTabGroupModelFilter.getTabGroupCount()).thenReturn(0);
+        when(mNormalTabModel.getTabGroupCount()).thenReturn(0);
 
         ModelList items = mCoordinator.buildMenuItems();
 
@@ -218,14 +216,13 @@ public class TabSwitcherActionMenuCoordinatorUnitTest {
     }
 
     @Test
-    @EnableFeatures({ChromeFeatureList.TAB_MODEL_INIT_FIXES})
     @DisableFeatures(ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW)
     public void testBuildMenuItems_NormalMode_TabGroupsExist() {
         when(mTabModelSelector.isIncognitoBrandedModelSelected()).thenReturn(false);
         when(mTabModelSelector.isTabStateInitialized()).thenReturn(true);
         when(mIncognitoTabModel.getCount()).thenReturn(0);
-        when(mTabGroupModelFilter.getTabGroupCount()).thenReturn(1);
-        when(mTabGroupModelFilter.isTabModelRestored()).thenReturn(true);
+        when(mNormalTabModel.getTabGroupCount()).thenReturn(1);
+        when(mNormalTabModel.isTabModelRestored()).thenReturn(true);
 
         ModelList items = mCoordinator.buildMenuItems();
 
@@ -235,14 +232,13 @@ public class TabSwitcherActionMenuCoordinatorUnitTest {
     }
 
     @Test
-    @EnableFeatures({ChromeFeatureList.TAB_MODEL_INIT_FIXES})
     @DisableFeatures(ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW)
     public void testBuildMenuItems_NormalMode_NoTabGroups() {
         when(mTabModelSelector.isIncognitoBrandedModelSelected()).thenReturn(false);
         when(mTabModelSelector.isTabStateInitialized()).thenReturn(true);
         when(mIncognitoTabModel.getCount()).thenReturn(0);
-        when(mTabGroupModelFilter.getTabGroupCount()).thenReturn(0);
-        when(mTabGroupModelFilter.isTabModelRestored()).thenReturn(true);
+        when(mNormalTabModel.getTabGroupCount()).thenReturn(0);
+        when(mNormalTabModel.isTabModelRestored()).thenReturn(true);
 
         ModelList items = mCoordinator.buildMenuItems();
 
@@ -252,36 +248,13 @@ public class TabSwitcherActionMenuCoordinatorUnitTest {
     }
 
     @Test
-    @DisableFeatures({
-        ChromeFeatureList.TAB_MODEL_INIT_FIXES,
-        ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW
-    })
-    public void testBuildMenuItems_NormalMode_WithoutInitFixes() {
-        when(mTabModelSelector.isIncognitoBrandedModelSelected()).thenReturn(false);
-        when(mTabModelSelector.isTabStateInitialized()).thenReturn(false);
-        when(mIncognitoTabModel.getCount()).thenReturn(0);
-        when(mTabGroupModelFilter.getTabGroupCount()).thenReturn(-1);
-        when(mTabGroupModelFilter.isTabModelRestored()).thenReturn(false);
-
-        ModelList items = mCoordinator.buildMenuItems();
-
-        // Close, Divider, New Tab, New Incognito, Add to New Group.
-        assertEquals(5, items.size());
-        // Note this is likely a bug that add_tab_to_group_menu_id is used instead of
-        // add_tab_to_new_group_menu_id because pre-init, the filter claims -1 groups, and -1 != 0.
-        // But this whole path should be deleted after init fixes launches.
-        assertEquals(R.id.add_tab_to_group_menu_id, getMenuItemId(items, 4));
-    }
-
-    @Test
-    @EnableFeatures({ChromeFeatureList.TAB_MODEL_INIT_FIXES})
     @DisableFeatures(ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW)
     public void testBuildMenuItems_NormalMode_BeforeTabModelInit() {
         when(mTabModelSelector.isIncognitoBrandedModelSelected()).thenReturn(false);
         when(mTabModelSelector.isTabStateInitialized()).thenReturn(false);
         when(mIncognitoTabModel.getCount()).thenReturn(0);
-        when(mTabGroupModelFilter.getTabGroupCount()).thenReturn(-1);
-        when(mTabGroupModelFilter.isTabModelRestored()).thenReturn(false);
+        when(mNormalTabModel.getTabGroupCount()).thenReturn(-1);
+        when(mNormalTabModel.isTabModelRestored()).thenReturn(false);
 
         ModelList items = mCoordinator.buildMenuItems();
 

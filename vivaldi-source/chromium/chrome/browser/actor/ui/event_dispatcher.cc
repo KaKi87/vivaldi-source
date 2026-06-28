@@ -28,6 +28,7 @@
 #include "chrome/browser/actor/ui/ui_event_debugstring.h"
 #include "chrome/common/actor.mojom-forward.h"
 #include "chrome/common/actor/action_result.h"
+#include "components/actor/public/mojom/actor_types.mojom.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/browser_context.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
@@ -98,6 +99,7 @@ constexpr absl::Overload PreToolEventsFn{
     NoUiEvents<WaitToolRequest>,
     NoUiEvents<AttemptLoginToolRequest>,
     NoUiEvents<AttemptFormFillingToolRequest>,
+    NoUiEvents<AttemptOtpFillingToolRequest>,
     NoUiEvents<ScriptToolRequest>,
     NoUiEvents<ScrollToToolRequest>};
 
@@ -125,6 +127,7 @@ constexpr absl::Overload PostToolEventsFn{
     NoUiEvents<WaitToolRequest>,
     NoUiEvents<AttemptLoginToolRequest>,
     NoUiEvents<AttemptFormFillingToolRequest>,
+    NoUiEvents<AttemptOtpFillingToolRequest>,
     NoUiEvents<ScriptToolRequest>,
     NoUiEvents<ScrollToToolRequest>};
 
@@ -146,8 +149,9 @@ constexpr absl::Overload ActorTaskSyncChangeFn{
       return seq;
     },
     [](const UiEventDispatcher::StopTask& c) {
-      return EventSequence<SyncUiEvent>{StopTask(
-          c.task_id, c.final_state, c.title, c.last_acted_on_tab_handle)};
+      return EventSequence<SyncUiEvent>{
+          StopTask(c.task_id, c.final_state, c.title,
+                   c.last_acted_on_tab_handle, c.duration, c.feature_mode)};
     },
     [](const UiEventDispatcher::RemoveTab& c) {
       return EventSequence<SyncUiEvent>{StoppedActingOnTab(c.handle)};
@@ -334,19 +338,23 @@ class UiEventDispatcherImpl : public UiEventDispatcher {
   ~UiEventDispatcherImpl() override = default;
 
   void OnPreTool(const ToolRequest& tr, UiCompleteCallback callback) override {
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     On<PreToolEventsFn>(tr, std::move(callback));
   }
 
   void OnPostTool(const ToolRequest& tr, UiCompleteCallback callback) override {
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     On<PostToolEventsFn>(tr, std::move(callback));
   }
 
   void OnActorTaskAsyncChange(const ActorTaskAsyncChange& change,
                               UiCompleteCallback callback) override {
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     On<ActorTaskAsyncChangeFn>(change, std::move(callback));
   }
 
   void OnActorTaskSyncChange(const ActorTaskSyncChange& change) override {
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     On<ActorTaskSyncChangeFn>(change);
   }
 
@@ -406,6 +414,8 @@ class UiEventDispatcherImpl : public UiEventDispatcher {
                  ActionResultPtr result) {
                 std::move(callback).Run(std::move(result));
                 if (dispatcher) {
+                  DCHECK_CALLED_ON_VALID_SEQUENCE(
+                      dispatcher->sequence_checker_);
                   dispatcher->in_flight_tasks_.erase(task);
                 }
               },
@@ -422,6 +432,7 @@ class UiEventDispatcherImpl : public UiEventDispatcher {
   // Synchronously send events.
   template <absl::Overload V>
   void SendAllEvents(EventSequence<SyncUiEvent> events) {
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     TRACE_EVENT("actor", "SendAllEvents");
     while (!events.empty()) {
       const SyncUiEvent event = std::move(events.front());

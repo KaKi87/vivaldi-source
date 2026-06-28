@@ -38,8 +38,6 @@
 #include "ui/views/test/widget_test.h"
 #include "ui/views/vector_icons.h"
 
-const int kDaysToExpiration = 30;
-
 class MockCookieControlsBubbleView : public CookieControlsBubbleView {
  public:
   ~MockCookieControlsBubbleView() override = default;
@@ -226,12 +224,9 @@ class CookieControlsBubbleViewControllerBrowserTest
     return time;
   }
 
-  void OnStatusChanged(int days_to_expiration = 0) {
-    auto expiration = days_to_expiration
-                          ? base::Time::Now() + base::Days(days_to_expiration)
-                          : base::Time();
+  void OnStatusChanged() {
     view_controller()->OnStatusChanged(controls_state_, enforcement_,
-                                       expiration);
+                                       base::Time());
   }
 
  protected:
@@ -279,15 +274,18 @@ IN_PROC_BROWSER_TEST_F(CookieControlsBubbleViewControllerPre3pcdBrowserTest,
           l10n_util::GetStringUTF16(
               IDS_COOKIE_CONTROLS_BUBBLE_SITE_NOT_WORKING_TITLE),
           l10n_util::GetStringUTF16(
-              IDS_TRACKING_PROTECTION_BUBBLE_SITE_NOT_WORKING_DESCRIPTION)));
+              IDS_COOKIE_CONTROLS_BUBBLE_SITE_NOT_WORKING_DESCRIPTION)));
   EXPECT_CALL(*mock_content_view(), SetFeedbackSectionVisibility(false));
   EXPECT_CALL(*mock_content_view(), SetToggleIsOn(false));
   EXPECT_CALL(*mock_content_view(),
               SetCookiesLabel(l10n_util::GetStringUTF16(
                   IDS_TRACKING_PROTECTION_BUBBLE_3PC_BLOCKED_SUBTITLE)));
   EXPECT_CALL(*mock_content_view(),
-              SetToggleIcon(testing::Field(
-                  &gfx::VectorIcon::name, views::kEyeCrossedRefreshIcon.name)));
+              SetToggleIcon(
+                  testing::Field(&gfx::VectorIcon::name,
+                                 features::IsRoundedIconsEnabled()
+                                     ? views::kVisibilityOffIcon.name
+                                     : views::kEyeCrossedRefreshOldIcon.name)));
   OnStatusChanged();
 }
 
@@ -308,9 +306,11 @@ IN_PROC_BROWSER_TEST_F(CookieControlsBubbleViewControllerPre3pcdBrowserTest,
   EXPECT_CALL(*mock_content_view(),
               SetCookiesLabel(l10n_util::GetStringUTF16(
                   IDS_TRACKING_PROTECTION_BUBBLE_3PC_ALLOWED_SUBTITLE)));
-  EXPECT_CALL(*mock_content_view(),
-              SetToggleIcon(testing::Field(&gfx::VectorIcon::name,
-                                           views::kEyeRefreshIcon.name)));
+  EXPECT_CALL(*mock_content_view(), SetToggleIcon(testing::Field(
+                                        &gfx::VectorIcon::name,
+                                        features::IsRoundedIconsEnabled()
+                                            ? views::kVisibilityIcon.name
+                                            : views::kEyeRefreshOldIcon.name)));
   controls_state_ = CookieControlsState::kAllowed3pc;
   OnStatusChanged();
 }
@@ -323,22 +323,23 @@ IN_PROC_BROWSER_TEST_F(CookieControlsBubbleViewControllerPre3pcdBrowserTest,
   EXPECT_CALL(
       *mock_content_view(),
       UpdateContentLabels(
-          l10n_util::GetPluralStringFUTF16(
-              IDS_TRACKING_PROTECTION_BUBBLE_BLOCKING_RESTART_TITLE,
-              kDaysToExpiration),
           l10n_util::GetStringUTF16(
-              IDS_TRACKING_PROTECTION_BUBBLE_BLOCKING_RESTART_DESCRIPTION)));
+              IDS_TRACKING_PROTECTION_BUBBLE_PERMANENT_ALLOWED_TITLE),
+          l10n_util::GetStringUTF16(
+              IDS_TRACKING_PROTECTION_BUBBLE_PERMANENT_ALLOWED_DESCRIPTION)));
   EXPECT_CALL(*mock_content_view(), SetFeedbackSectionVisibility(true));
   EXPECT_CALL(*mock_content_view(), SetToggleIsOn(true));
   EXPECT_CALL(*mock_content_view(),
               SetCookiesLabel(l10n_util::GetStringUTF16(
                   IDS_TRACKING_PROTECTION_BUBBLE_3PC_ALLOWED_SUBTITLE)));
-  EXPECT_CALL(*mock_content_view(),
-              SetToggleIcon(testing::Field(&gfx::VectorIcon::name,
-                                           views::kEyeRefreshIcon.name)));
+  EXPECT_CALL(*mock_content_view(), SetToggleIcon(testing::Field(
+                                        &gfx::VectorIcon::name,
+                                        features::IsRoundedIconsEnabled()
+                                            ? views::kVisibilityIcon.name
+                                            : views::kEyeRefreshOldIcon.name)));
   controls_state_ = CookieControlsState::kAllowed3pc;
 
-  OnStatusChanged(kDaysToExpiration);
+  OnStatusChanged();
 }
 
 class CookieControlsBubbleViewImplBrowserTest : public InProcessBrowserTest {

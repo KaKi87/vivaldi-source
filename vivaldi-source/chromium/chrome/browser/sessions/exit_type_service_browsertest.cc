@@ -16,10 +16,9 @@
 #include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/session_crashed_bubble_view.h"
 #include "chrome/common/chrome_constants.h"
@@ -37,7 +36,7 @@
 #include "content/public/test/browser_test_utils.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/events/event.h"
-#include "ui/views/bubble/bubble_dialog_delegate_view.h"
+#include "ui/views/bubble/bubble_dialog_model_host.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/widget/widget.h"
 
@@ -125,7 +124,7 @@ IN_PROC_BROWSER_TEST_F(ExitTypeServiceTest, PRE_PRE_CrashCrashNewBrowser) {
 // As the user didn't ack the crash, last session exit type should still be
 // crashed.
 IN_PROC_BROWSER_TEST_F(ExitTypeServiceTest, PRE_CrashCrashNewBrowser) {
-  EXPECT_EQ(1u, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(1u, GlobalBrowserCollection::GetInstance()->GetSize());
   ASSERT_EQ(ExitType::kCrashed, GetLastSessionExitType());
   EXPECT_FALSE(IsSessionServiceSavingEnabled());
   // As the crashed bubble is still open, creating a tab in the existing
@@ -142,7 +141,7 @@ IN_PROC_BROWSER_TEST_F(ExitTypeServiceTest, PRE_CrashCrashNewBrowser) {
 IN_PROC_BROWSER_TEST_F(ExitTypeServiceTest, CrashCrashNewBrowser) {
   ASSERT_EQ(ExitType::kClean, GetLastSessionExitType());
   EXPECT_TRUE(IsSessionServiceSavingEnabled());
-  EXPECT_EQ(2u, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(2u, GlobalBrowserCollection::GetInstance()->GetSize());
 }
 
 // Creates two browsers navigating to a couple of urls and sets it so on next
@@ -168,10 +167,10 @@ IN_PROC_BROWSER_TEST_F(ExitTypeServiceTest, RestoreFromCrashBubble) {
   ASSERT_EQ(ExitType::kCrashed, GetLastSessionExitType());
   EXPECT_FALSE(IsSessionServiceSavingEnabled());
 
-  views::BubbleDialogDelegate* crash_bubble_delegate =
-      SessionCrashedBubbleView::GetInstanceForTest();
-  ASSERT_TRUE(crash_bubble_delegate);
-  ClickButton(crash_bubble_delegate, crash_bubble_delegate->GetOkButton());
+  views::BubbleDialogModelHost* model_host =
+      SessionCrashedBubbleView::GetModelHostForTesting();
+  ASSERT_TRUE(model_host);
+  ClickButton(model_host, model_host->GetOkButton());
   ASSERT_TRUE(SessionRestore::IsRestoring(browser()->profile()));
   EXPECT_TRUE(GetExitTypeService()->waiting_for_user_to_ack_crash());
   base::RunLoop run_loop;
@@ -184,7 +183,7 @@ IN_PROC_BROWSER_TEST_F(ExitTypeServiceTest, RestoreFromCrashBubble) {
   const bool restores_to_initial_browser = true;
 #endif
   ASSERT_EQ(2u + (restores_to_initial_browser ? 0u : 1u),
-            chrome::GetTotalBrowserCount());
+            GlobalBrowserCollection::GetInstance()->GetSize());
   BrowserWindowInterface* const browser1 = FindBrowserWithUrl(GetUrl1());
   BrowserWindowInterface* const browser2 = FindBrowserWithUrl(GetUrl2());
 
@@ -226,12 +225,12 @@ IN_PROC_BROWSER_TEST_F(ExitTypeServiceTest,
   ASSERT_EQ(ExitType::kCrashed, GetLastSessionExitType());
   EXPECT_FALSE(IsSessionServiceSavingEnabled());
 
-  views::BubbleDialogDelegate* crash_bubble_delegate =
-      SessionCrashedBubbleView::GetInstanceForTest();
-  ASSERT_TRUE(crash_bubble_delegate);
+  views::BubbleDialogModelHost* model_host =
+      SessionCrashedBubbleView::GetModelHostForTesting();
+  ASSERT_TRUE(model_host);
   base::RunLoop run_loop;
   GetExitTypeService()->AddCrashAckCallback(run_loop.QuitClosure());
-  crash_bubble_delegate->GetBubbleFrameView()->GetWidget()->Close();
+  model_host->GetBubbleFrameView()->GetWidget()->Close();
   EXPECT_FALSE(SessionRestore::IsRestoring(browser()->profile()));
   run_loop.Run();
   EXPECT_FALSE(GetExitTypeService()->waiting_for_user_to_ack_crash());

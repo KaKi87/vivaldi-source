@@ -228,6 +228,11 @@ public class DefaultBrowserPromoFirstRunFragmentTest {
                     // Click the Continue button.
                     continueButton.performClick();
 
+                    // Verify the Fragment told the delegate to record the ACCEPTED metric.
+                    verify(mMockDelegate)
+                            .recordFreProgressHistogram(
+                                    MobileFreProgress.DEFAULT_BROWSER_PROMO_ACCEPTED);
+
                     // Verify RMD was triggered.
                     verify(mMockUtils, times(1))
                             .prepareLaunchPromoIfNeeded(
@@ -261,6 +266,11 @@ public class DefaultBrowserPromoFirstRunFragmentTest {
 
                     // Click the Dismiss button.
                     dismissButton.performClick();
+
+                    // Verify the Fragment told the delegate to record the REJECTED metric.
+                    verify(mMockDelegate)
+                            .recordFreProgressHistogram(
+                                    MobileFreProgress.DEFAULT_BROWSER_PROMO_REJECTED);
 
                     // Verify that we advance to the next page immediately without triggering the
                     // RMD.

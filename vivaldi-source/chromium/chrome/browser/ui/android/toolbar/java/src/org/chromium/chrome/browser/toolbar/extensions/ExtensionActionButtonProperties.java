@@ -53,12 +53,12 @@ public class ExtensionActionButtonProperties {
     public static final WritableObjectPropertyKey<View.OnClickListener> ON_CLICK_LISTENER =
             new WritableObjectPropertyKey<>();
 
-    /** The context-click listener. */
-    public static final WritableObjectPropertyKey<View.OnLongClickListener> ON_LONG_CLICK_LISTENER =
+    /** The hover listener. */
+    public static final WritableObjectPropertyKey<View.OnHoverListener> ON_HOVER_LISTENER =
             new WritableObjectPropertyKey<>();
 
-    /** The tooltip of the action. */
-    public static final WritableObjectPropertyKey<String> TOOLTIP =
+    /** The context-click listener. */
+    public static final WritableObjectPropertyKey<View.OnLongClickListener> ON_LONG_CLICK_LISTENER =
             new WritableObjectPropertyKey<>();
 
     /* The touch listener. */
@@ -74,8 +74,8 @@ public class ExtensionActionButtonProperties {
                 ID,
                 IS_DRAGGABLE,
                 ON_CLICK_LISTENER,
+                ON_HOVER_LISTENER,
                 ON_LONG_CLICK_LISTENER,
-                TOOLTIP,
                 TOUCH_LISTENER
             };
 }

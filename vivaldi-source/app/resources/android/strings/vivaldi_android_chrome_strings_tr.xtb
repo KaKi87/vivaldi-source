@@ -1,22 +1,35 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="tr">
+<translation id="1062777154504442433">Yeni sekme grubu</translation>
 <translation id="1204037785786432551">Bağlantıyı indir</translation>
 <translation id="1206892813135768548">Bağlantı metnini kopyala</translation>
+<translation id="1223158186497001208">Yeni etkinlik bulunan paylaşılan <ph name="GROUP_TITLE" /> sekme grubu</translation>
+<translation id="1328749518742029305"><ph name="TAB_GROUP_TITLE" /> sekme grubu kapandı ve kaydedildi</translation>
 <translation id="1397811292916898096"><ph name="PRODUCT_NAME" /> ile ara</translation>
 <translation id="1435593198351412143">PDF'leri otomatik olarak aç</translation>
 <translation id="1456207338570705181">Touch to Search, yalnızca Google, Vivaldi'de varsayılan arama motoru olarak ayarlandığında kullanılabilen bir özelliktir. Seçilen kelimeyi ve geçerli sayfayı bağlam olarak Google Arama'ya gönderir. <ph name="BEGIN_LINK" />Ayarlar<ph name="END_LINK" /> bölümünden kapatabilirsiniz.</translation>
 <translation id="1598449788754183301">Normal/özel sekmeler arasında geçiş yap</translation>
+<translation id="1626105448931436644">Paylaşılan sekme grupları hakkında bilgi edinin</translation>
 <translation id="1644574205037202324">Geçmiş</translation>
 <translation id="1829244130665387512">Sayfada bul</translation>
-<translation id="1910514478706885609">Yeni sekme yığınında aç</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+          =1 {Paylaşılan sekme gruplarındaki yeni etkinliğe sahip <ph name="TABS_COUNT_ONE" /> sekmeyi gör}
+          other {Paylaşılan sekme gruplarındaki yeni etkinliğe sahip <ph name="TABS_COUNT_MANY" /> sekmeyi gör}
+        }</translation>
 <translation id="1925021887439448749">Özel web adresi girin</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+          =1 {<ph name="OWNER_FIRST_NAME" /> ve diğer <ph name="NUMBER_OF_OTHER_MEMBERS" /> kişi ile sekme yığınına katıl}
+          other {<ph name="OWNER_FIRST_NAME" /> ve diğer <ph name="NUMBER_OF_OTHER_MEMBERS" /> kişi ile sekme yığınına katıl}
+        }</translation>
 <translation id="2038563949887743358">Masaüstü sitesi isteğini aç</translation>
+<translation id="2067565353468675023"><ph name="OWNER_FIRST_NAME" /> ile sekme gruba katıl</translation>
 <translation id="208033313373016095">Web sayfaları için okuyucu görünümü</translation>
 <translation id="2149973817440762519">Yer imini Düzenle</translation>
 <translation id="2306442503286132111">Yer imi <ph name="FOLDER_NAME" /> klasörüne kaydedildi</translation>
 <translation id="2433507940547922241">Görünüm</translation>
-<translation id="2501278716633472235">Geri dön</translation>
+<translation id="2495373685671077949">Sekmelerinizde ve gruplarınızda arayın</translation>
+<translation id="2500281581698062897">“<ph name="GROUP_NAME" />” sekme grubuna erişiminizi hemen kaybedeceksiniz ve <ph name="BLOCKED_MEMBER_FULL_NAME" /> (<ph name="BLOCKED_MEMBER_EMAIL" />) artık Google hizmetleri genelinde sizinle etkileşim kuramayacak.</translation>
 <translation id="2546283357679194313">Çerezler ve site verileri</translation>
 <translation id="2633278372998075009">Özel sekmeler</translation>
 <translation id="2650751991977523696">Dosya tekrar indirilsin mi?</translation>
@@ -26,6 +39,7 @@
 <translation id="2871733351037274014">Sayfaları önceden yükle</translation>
 <translation id="2904300462646366554">İndirilen PDF'ler, cihazınızdaki PDF görüntüleyicilerden biriyle otomatik olarak açılır</translation>
 <translation id="2951071800649516099">Daha sonrası için okuma listenize sayfalar ekleyin</translation>
+<translation id="3020023775880428664">Sekmeyi gruba taşı</translation>
 <translation id="3029276696788198026">Önceden yükleme kapalı</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> yer imi}
@@ -35,7 +49,13 @@
 <translation id="3232293466644486101">Tarama verilerini sil…</translation>
 <translation id="3234355010754616171">Yeni özel sekme</translation>
 <translation id="3237087289225714896">Standart önceden yükleme:</translation>
+<translation id="3298614730029636660">Gruptan ayrıl</translation>
+<translation id="3359462099791810823">Bu grubu daha sonra sekme eklemek için saklayın ya da artık ihtiyacınız yoksa silin.</translation>
 <translation id="3478414204555961127">Okuyucu görünümü</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> sekmeli, <ph name="COLOR_NAME" /> renkli sekme grubunu yeni bir arka plan sekme grubu olarak geri yükle.}
+          other {<ph name="TAB_COUNT_MANY" /> sekmeli, <ph name="COLOR_NAME" /> renkli sekme grubunu yeni bir arka plan sekme grubu olarak geri yükle.}
+        }</translation>
 <translation id="3504699618187058974">Yığın sekmeleri</translation>
 <translation id="3518985090088779359">Kabul et ve ilerle</translation>
 <translation id="3571177741182643350">Okunmamış Makaleler - Çevrimdışı kullanılabilir:</translation>
@@ -43,9 +63,11 @@
 <translation id="3700829948786686853">Vivaldi'ye Hoş Geldiniz</translation>
 <translation id="3719826155360621982">Ana sayfa</translation>
 <translation id="3738139272394829648">Dokun ve Ara</translation>
-<translation id="385051799172605136">Geri</translation>
+<translation id="3900825170941000696"><ph name="TITLE_OF_GROUP" /> sekme grubunu, <ph name="COLOR_NAME" /> rengini, yeni bir arka plan sekme grubu olarak geri yükle.</translation>
+<translation id="395421286877117532">Sekme grubunu özelleştirin ve "Tamam"a dokunun</translation>
 <translation id="3987993985790029246">Bağlantıyı kopyala</translation>
 <translation id="399014816462153200">Makaleleri Okuyun:</translation>
+<translation id="4048089913902125176"><ph name="TITLE_OF_GROUP" /> sekme grubunu <ph name="COLOR_NAME" /> renginde <ph name="URL_LIST" /> siteleriyle aç.</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> sekme}
           other {<ph name="TAB_COUNT_MANY" /> sekmeler, <ph name="TAB_COUNT_INCOGNITO" /> özel}}</translation>
@@ -54,25 +76,41 @@
 <translation id="4137746084635924146">Geçerli cihaz dili</translation>
 <translation id="4167670741834902166">Yeni Özel sekme</translation>
 <translation id="4195643157523330669">Yeni sekmede aç</translation>
+<translation id="4219031106525503429">“<ph name="GROUP_NAME" />” sekme grubunu paylaş</translation>
 <translation id="4225895483398857530">Araç çubuğu kısayolu</translation>
 <translation id="4243710787042215766">Özel sekmede aç</translation>
 <translation id="4269820728363426813">Bağlantı adresini kopyala</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Android ayarlarında ekran kilidini açın<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Şifre Yöneticisi</translation>
-<translation id="441100617989818073">Kullanılmayan veya yinelenen sekmeler ve gruplar</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {Paylaşılan sekme gruplarında yeni etkinlik içeren <ph name="TABS_COUNT_ONE" /> standart sekme}
+          other {Paylaşılan sekme gruplarında yeni etkinlik içeren <ph name="TABS_COUNT_MANY" /> standart sekme}
+        }</translation>
+<translation id="4445802392779002787">Sekmeyi gruba ekle</translation>
 <translation id="451872707440238414">Yer imlerinizde arayın</translation>
 <translation id="4526803704855831732">Özel Sekmeler</translation>
 <translation id="4532845899244822526">Klasör seçin</translation>
+<translation id="454284936014822050"><ph name="GROUP_TITLE" /> sekme grubu</translation>
+<translation id="4614713783237504866">Kullanılmayan veya yinelenen sekmeler ve gruplar</translation>
+<translation id="463284870544181537">Bu grubu daha sonra sekme eklemek için saklayın ya da artık erişmek istemiyorsanız silin</translation>
+<translation id="4638726726741656531">Buradan gruplara sekmeleri artık kolayca ekleyebilirsiniz</translation>
 <translation id="4699172675775169585">Önbelleğe alınan resimler ve dosyalar</translation>
 <translation id="4719086422742491124">Sayfadan ayrılmadan web sitelerindeki konular hakkında bilgi edinin. Aramak için sayfada bir veya daha fazla kelime seçin.
 
 Touch to Search, yalnızca Google, Vivaldi'de varsayılan arama motoru olarak ayarlandığında kullanılabilen bir özelliktir.</translation>
 <translation id="4759238208242260848">İndirilenler</translation>
-<translation id="4777866634702576038">Sekme grubu silinsin mi?</translation>
+<translation id="4771820744342013314">Sekme grubu silinsin mi?</translation>
 <translation id="4850886885716139402">Görüntüle</translation>
 <translation id="4883379392681899581">Özel moddan çık</translation>
+<translation id="4883812026489706387">“<ph name="TAB_GROUP_TITLE" />” sekme grubunda yeni etkinlik var</translation>
+<translation id="4887248255051238988">Sekme grubundan ayrılınsın mı?</translation>
 <translation id="4943872375798546930">Sonuç yok</translation>
 <translation id="49576331685473090">İçerik engelleyici</translation>
+<translation id="4964059453543967592">Kapatılan grubu yeniden aç</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" /> sekme grubu}
+          other {<ph name="TAB_GROUPS_MANY" /> sekme grubu}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> özel sekme}
           other {<ph name="TAB_COUNT_NORMAL" /> özel sekmeler}}</translation>
@@ -83,19 +121,26 @@ Touch to Search, yalnızca Google, Vivaldi'de varsayılan arama motoru olarak ay
 <translation id="5206168361184759344">{FILE_COUNT,plural,
             =1 {Dosya indiriliyor…}
             other {# dosya indiriliyor…}}</translation>
+<translation id="5210689723585747462"><ph name="TAB_GROUP_TITLE" /> sekme grubu kapandı</translation>
 <translation id="5233638681132016545">Yeni sekme</translation>
 <translation id="5375131951310889874">Sayfadan ayrılmadan web sitelerindeki konular hakkında bilgi edinin. Touch to Search, yalnızca Google, Vivaldi'de varsayılan arama motoru olarak ayarlandığında kullanılabilen bir özelliktir. Bir kelimeyi ve çevresindeki bağlamı Google Arama'ya göndererek tanımları, resimleri, arama sonuçlarını ve diğer ayrıntıları döndürür.
 
 Arama teriminizi ayarlamak için, seçmek için uzun basın. Aramanızı hassaslaştırmak için paneli tamamen yukarı kaydırın ve arama kutusuna dokunun.</translation>
+<translation id="5570837353202786816">Herkesin “<ph name="GROUP_NAME" />” sekme grubuna erişimi anında kesilecek ve tüm davet bağlantıları devre dışı bırakılacak</translation>
+<translation id="5614794348925178470">Paylaşılan <ph name="GROUP_TITLE" /> sekme grubu</translation>
 <translation id="572328651809341494">Son sekmeler</translation>
 <translation id="5833984609253377421">Bağlantıyı paylaş</translation>
+<translation id="6129507335719227488">Gruptaki sekmeler</translation>
 <translation id="6150320133806434356">Yer imi kaydedildi</translation>
 <translation id="6193448654517602979">Sekmeleri seç</translation>
+<translation id="6221225660285238685">Grubu başka pencereye taşı</translation>
+<translation id="6277377952699614191">Sekme grubu</translation>
 <translation id="6336451774241870485">Yeni özel sekme</translation>
 <translation id="6337323516034698937">Bu sekmeyi başka bir cihaza göndermek için her iki cihazda da Vivaldi Senkronizasyonun'da oturum açın. Gerekirse şifreleme parolasını girdiğinizden emin olun.</translation>
 <translation id="6341580099087024258">Dosyaların kaydedileceği yeri sor</translation>
 <translation id="6364438453358674297">Öneri geçmişten kaldırılsın mı?</translation>
 <translation id="6404511346730675251">Yer imini düzenle</translation>
+<translation id="6453011654157908292">Sekme grubu ayrıntıları</translation>
 <translation id="650224091954855786">{FILE_COUNT,plural,
           =1 {Dosya indirildi}
           other {# indirme işlemi tamamlandı}}</translation>
@@ -104,11 +149,13 @@ Arama teriminizi ayarlamak için, seçmek için uzun basın. Aramanızı hassasl
 <translation id="6593061639179217415">Masaüstü sitesi</translation>
 <translation id="6610147964972079463">Özel sekmeleri kapat</translation>
 <translation id="6627583120233659107">Klasörü düzenle</translation>
+<translation id="6785740335511995065">Sekme grubu saklansın mı?</translation>
 <translation id="6865313869410766144">Form otomatik doldurma verileri</translation>
 <translation id="6909589135458168665">Sayfaları Önceden Yükleme</translation>
 <translation id="7029995644714925509">Bir site, kendi sayfasındaki bağlantıları özel olarak önceden yüklemeyi istediğinde, Vivaldi, sayfaları çerezler olmadan Google sunucuları aracılığıyla şifreler ve önceden yükler.Bu, kimliğinizi önceden yüklenmiş siteden gizler.</translation>
 <translation id="706339621163631076">Tarayıcı Gizlilik Politikası</translation>
 <translation id="7100573672995171864">Vivaldi'yi özelleştirin ve kontrol edin</translation>
+<translation id="7133879160432070247">Gruptan ayrılıp engellensin mi?</translation>
 <translation id="732145680195464316"><ph name="PRODUCT_NAME" /> uygulamasına eklendi</translation>
 <translation id="7324354302972299151">"Do Not Track" isteği gönder</translation>
 <translation id="7359002509206457351">Ödeme Yapabilme Durumunu Sitelerle Paylaş</translation>
@@ -117,24 +164,33 @@ Arama teriminizi ayarlamak için, seçmek için uzun basın. Aramanızı hassasl
 <translation id="7456774706094330779">Genişletilmiş önceden yükleme</translation>
 <translation id="7465104139234185284">Tüm özel sekmeleri kapat</translation>
 <translation id="7481312909269577407">İleri</translation>
+<translation id="759273611317559136"><ph name="TAB_GROUP_TITLE" /> sekme grubu silindi</translation>
+<translation id="7630413501995820846">Grubu sakla</translation>
+<translation id="7640137753339219124">Grubu sil</translation>
 <translation id="7764225426217299476">Adres ekle</translation>
+<translation id="7910753230807645596">Yinelenen sekmeler ve yığınlar ya da <ph name="DAYS_INACTIVE" /> gündür kullanılmayanlar buraya taşınır <ph name="AUTODELETE_SECTION" />. Bunu istediğiniz zaman <ph name="DECLUTTER_SETTINGS_TITLE" /> sayfasından değiştirebilirsiniz.</translation>
 <translation id="7968014550143838305">Okuma listesine eklendi</translation>
 <translation id="804786196054284061">Son Kullanıcı Lisans Sözleşmesi</translation>
 <translation id="8062594758852531064">Genişletilmiş önceden yükleme:</translation>
 <translation id="8073388330009372546">Resmi yeni sekmede aç</translation>
 <translation id="8127542551745560481">Ana sayfayı düzenle</translation>
+<translation id="8149776854955817519">Etkin olmayan sekmelerinizi ve gruplarınızı buradan inceleyin</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
 =1 {(1) etkin olmayan öğe}
 other {(#) etkin olmayan öğe}}</translation>
 <translation id="8266862848225348053">İndirme konumu</translation>
 <translation id="8348430946834215779">Mümkün olduğunda HTTPS kullanın ve HTTPS'yi desteklemeyen siteleri yüklemeden önce uyarı alın</translation>
+<translation id="8480628728881718381">Grupta yeni sekmede aç</translation>
+<translation id="8543049482641423692">Sekmeyi yeni gruba ekle</translation>
 <translation id="8560602726703398413">Okuma listenizi Yer imlerinde bulun</translation>
 <translation id="85991616550051997">Ana sayfaya git</translation>
+<translation id="8680308397617585416">“<ph name="GROUP_NAME" />” sekme grubuna olan erişiminizi hemen kaybedeceksiniz ve bu grup tüm cihazlarınızdan silinecek</translation>
 <translation id="8738163682604285902">Okuma modunu görüntüle?</translation>
 <translation id="8820817407110198400">Yer imleri</translation>
 <translation id="9042893549633094279">Gizlilik ve güvenlik</translation>
 <translation id="9063523880881406963">Masaüstü sitesi isteğini kapat</translation>
 <translation id="9080642952018487277">Özel moda geç</translation>
+<translation id="9099398755190923267">Herkesin “<ph name="GROUP_NAME" />” sekme grubuna erişimi anında kesilecek ve bu grup tüm cihazlardan silinecek</translation>
 <translation id="930124987204876019">Geçmiş, çerezler, site verileri, önbelleği silin…</translation>
 <translation id="961856697154696964">Tarama verilerini sil</translation>
 </translationbundle>

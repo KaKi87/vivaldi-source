@@ -42,7 +42,6 @@ _DEVIL_DEFAULT_CONFIG = os.path.abspath(
 _LEGACY_ENVIRONMENT_VARIABLES = {
     'ADB_PATH': {
         'dependency_name': 'adb',
-        'platform': 'linux2_x86_64',
     },
 }
 
@@ -72,7 +71,8 @@ def _GetEnvironmentVariableConfig():
   path_config = ((p, c) for p, c in path_config if p)
   for p, c in path_config:
     env_config['dependencies'].update(
-        LocalConfigItem(c['dependency_name'], c['platform'], p))
+        LocalConfigItem(c['dependency_name'], c.get('platform', GetPlatform()),
+                        p))
   return env_config
 
 
@@ -174,9 +174,8 @@ class _Environment(object):
       self.Initialize()
     return self._dm.LocalPath(dependency, GetPlatform(arch, device))
 
-  def PrefetchPaths(self, dependencies=None, arch=None, device=None):
-    return self._dm.PrefetchPaths(
-        GetPlatform(arch, device), dependencies=dependencies)
+  def PrefetchPaths(self, arch=None, device=None):
+    return self._dm.PrefetchPaths(GetPlatform(arch, device))
 
 
 def GetPlatform(arch=None, device=None):

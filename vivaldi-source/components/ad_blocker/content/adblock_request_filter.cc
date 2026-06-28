@@ -392,8 +392,7 @@ class RequestHandler : public SimpleIndexBaseQuery, RulesIndex::RequestQuery {
   }
 
   content::RenderFrameHost* GetFrame() const {
-    return content::RenderFrameHost::FromID(request_->render_process_id,
-                                            request_->render_frame_id);
+    return content::RenderFrameHost::FromID(request_->global_id);
   }
 
   std::string_view GetMethod() const override {

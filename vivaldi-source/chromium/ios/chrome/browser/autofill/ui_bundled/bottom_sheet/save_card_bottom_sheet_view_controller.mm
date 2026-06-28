@@ -7,8 +7,8 @@
 #import "build/branding_buildflags.h"
 #import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/autofill/model/message/save_card_message_with_links.h"
-#import "ios/chrome/browser/autofill/ui_bundled/autofill_credit_card_util.h"
 #import "ios/chrome/browser/autofill/ui_bundled/bottom_sheet/bottom_sheet_constants.h"
+#import "ios/chrome/browser/autofill/ui_bundled/util/autofill_credit_card_util.h"
 #import "ios/chrome/browser/net/model/crurl.h"
 #import "ios/chrome/browser/shared/ui/bottom_sheet/table_view_bottom_sheet_view_controller+subclassing.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
@@ -263,19 +263,20 @@ CGFloat const kChromeLogoHeight = 22;
     case kChromeLogo:
       return MakeSymbolMulticolor(CustomSymbolWithPointSize(
           kMulticolorChromeballSymbol, kChromeLogoHeight));
-    case kGoogleWalletLogo:
-      return MakeSymbolMulticolor(CustomSymbolWithPointSize(
-          base::FeatureList::IsEnabled(
-              autofill::features::kAutofillEnableWalletBranding)
-              ? (base::FeatureList::IsEnabled(
-                     autofill::features::kAutofillEnableWalletBrandingV2)
-                     ? kGoogleWalletIconSymbol
-                     : kGoogleWalletSymbol)
-              : kGooglePaySymbol,
-          base::FeatureList::IsEnabled(
-              autofill::features::kAutofillEnableWalletBrandingV2)
-              ? kGoogleWalletLogoV2Height
-              : kGoogleWalletLogoHeight));
+    case kGoogleWalletLogo: {
+      NSString* symbol = kGoogleWalletSymbol;
+      CGFloat height = kGoogleWalletLogoHeight;
+      if (base::FeatureList::IsEnabled(
+              autofill::features::kAutofillEnableGradientGoogleLogos)) {
+        symbol = kGoogleWalletIconV2Symbol;
+        height = kGoogleWalletLogoV2Height;
+      } else if (base::FeatureList::IsEnabled(
+                     autofill::features::kAutofillEnableWalletBrandingV2)) {
+        symbol = kGoogleWalletIconSymbol;
+        height = kGoogleWalletLogoV2Height;
+      }
+      return MakeSymbolMulticolor(CustomSymbolWithPointSize(symbol, height));
+    }
     case kNoLogo:
     default:
       NOTREACHED() << "Unsupported logo type for save card bottomsheet.";
@@ -314,17 +315,25 @@ CGFloat const kChromeLogoHeight = 22;
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
   // The GPay pill icon is used as a trailing image in the cell when the feature
-  // kAutofillEnableWalletBrandingV2 is enabled and legal messages are present,
-  // as it indicates that the card will be saved to Google Wallet.
-  if (base::FeatureList::IsEnabled(
-          autofill::features::kAutofillEnableWalletBrandingV2) &&
+  // kAutofillEnableWalletBrandingV2 or kAutofillEnableGradientGoogleLogos is
+  // enabled and legal messages are present, as it indicates that the card will
+  // be saved to Google Wallet.
+  if ((base::FeatureList::IsEnabled(
+           autofill::features::kAutofillEnableGradientGoogleLogos) ||
+       base::FeatureList::IsEnabled(
+           autofill::features::kAutofillEnableWalletBrandingV2)) &&
       (_legalMessages != nil || _legalMessages.count > 0)) {
     ImageContentConfiguration* trailingImageConfiguration =
         [[ImageContentConfiguration alloc] init];
 
-    trailingImageConfiguration.image =
-        MakeSymbolMulticolor(CustomSymbolWithPointSize(
-            kGPayPillIconSymbol, kGoogleWalletLogoHeight));
+    NSString* symbol =
+        base::FeatureList::IsEnabled(
+            autofill::features::kAutofillEnableGradientGoogleLogos)
+            ? kGPayPillIconV2Symbol
+            : kGPayPillIconSymbol;
+
+    trailingImageConfiguration.image = MakeSymbolMulticolor(
+        CustomSymbolWithPointSize(symbol, kGoogleWalletLogoHeight));
 
     configuration.trailingConfiguration = trailingImageConfiguration;
 

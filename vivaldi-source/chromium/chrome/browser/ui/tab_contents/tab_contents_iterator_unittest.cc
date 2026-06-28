@@ -11,8 +11,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
@@ -38,7 +37,7 @@ size_t CountAllTabs() {
 
 TEST_F(BrowserListTest, TabContentsIteratorVerifyCount) {
   // Make sure we have 1 window to start with.
-  EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
 
   EXPECT_EQ(0U, CountAllTabs());
 
@@ -55,7 +54,7 @@ TEST_F(BrowserListTest, TabContentsIteratorVerifyCount) {
       CreateBrowserWithTestWindowForParams(ash_params));
 
   // Sanity checks.
-  EXPECT_EQ(4U, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(4U, GlobalBrowserCollection::GetInstance()->GetSize());
   EXPECT_EQ(0, browser()->tab_strip_model()->count());
   EXPECT_EQ(0, browser2->tab_strip_model()->count());
   EXPECT_EQ(0, browser3->tab_strip_model()->count());
@@ -88,7 +87,7 @@ TEST_F(BrowserListTest, TabContentsIteratorVerifyCount) {
 
 TEST_F(BrowserListTest, TabContentsIteratorVerifyBrowser) {
   // Make sure we have 1 window to start with.
-  EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
 
   // Create more browsers/windows.
   Browser::CreateParams native_params(profile(), true);
@@ -101,7 +100,7 @@ TEST_F(BrowserListTest, TabContentsIteratorVerifyBrowser) {
       CreateBrowserWithTestWindowForParams(ash_params));
 
   // Sanity checks.
-  EXPECT_EQ(3U, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(3U, GlobalBrowserCollection::GetInstance()->GetSize());
   EXPECT_EQ(0, browser()->tab_strip_model()->count());
   EXPECT_EQ(0, browser2->tab_strip_model()->count());
   EXPECT_EQ(0, browser3->tab_strip_model()->count());
@@ -129,7 +128,7 @@ TEST_F(BrowserListTest, TabContentsIteratorVerifyBrowser) {
   // This is normally invoked when the tab strip is empty (specifically from
   // BrowserView::OnWindowCloseRequested).
   browser2->OnWindowClosing();
-  EXPECT_TRUE(browser2->is_delete_scheduled());
+  EXPECT_TRUE(browser2->IsDeleteScheduled());
   browser3->tab_strip_model()->CloseWebContentsAt(1, TabCloseTypes::CLOSE_NONE);
 
   tab_counts.clear();

@@ -30,6 +30,7 @@ enum class Destination {
   SpotlightDebugger = 13,
   PriceNotifications = 14,
   Cobalt = 15,
+  LevelUp = 16,
 };
 // LINT.ThenChange(overflow_menu_metrics.h:destination)
 #else
@@ -47,6 +48,7 @@ enum class Destination {
   SpotlightDebugger = 9,
   PriceNotifications = 10,
   Cobalt = 11,
+  LevelUp = 12,
 };
 // LINT.ThenChange(
 // /ios/chrome/browser/popup_menu/overflow_menu/ui/overflow_menu_metrics.h:destination,
@@ -90,7 +92,7 @@ enum class ActionType {
   // TODO(crbug.com/416002705): Rename reference to BWG.
   AskBWG,
   HideToolbars,
-  TabGroup,
+  TabGroupDeprecated,  // This enum is deprecated due to feature cleanup.
   ShareThisPage,
 
   // Vivaldi action groups
@@ -103,7 +105,7 @@ enum class ActionType {
   // End Vivaldi
 
 };
-// LINT.ThenChange(ios/chrome/browser/popup_menu/overflow_menu/ui/overflow_menu_metrics.h:actionType)
+// LINT.ThenChange(/ios/chrome/browser/popup_menu/overflow_menu/ui/overflow_menu_metrics.h:actionType)
 
 // Ingests `destination` string representation and returns corresponding
 // overflow_menu::Destination enum.

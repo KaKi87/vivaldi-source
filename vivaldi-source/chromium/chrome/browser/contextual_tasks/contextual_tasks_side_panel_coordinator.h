@@ -147,9 +147,14 @@ class ContextualTasksSidePanelCoordinator
  private:
   friend class ContextualTasksSidePanelCoordinatorInteractiveUiTest;
   friend class ContextualTasksSidePanelCoordinatorTest;
+  friend class ContextualTasksInteractiveUiTest;
 
   void SetPanelSuppressedForTesting(bool suppressed) {
     contextual_tasks_panel_host_->SetPanelSuppressedForTesting(suppressed);
+  }
+
+  void SetSuppressHideOnContextualTasksUrlForTesting(bool suppress) {
+    suppress_hide_on_contextual_tasks_url_for_testing_ = suppress;
   }
 
   // Hide or show panel base on open state of the current task.
@@ -208,6 +213,16 @@ class ContextualTasksSidePanelCoordinator
 
   void OnEligibilityChange(bool is_eligible);
 
+  // ContextualTasksUiService is a ProfileKeyedService whose lifetime is bound
+  // to the Profile. In contrast, ContextualTasksSidePanelCoordinator is a
+  // window-scoped object whose teardown occurs asynchronously via the message
+  // loop during window closure. Because of this mismatched lifetime, the UI
+  // service can be destroyed before the coordinator, leading to use-after-free
+  // dangling raw pointer crashes if a raw pointer is cached. To prevent this,
+  // the coordinator must fetch the service dynamically via GetUiService() and
+  // check for null.
+  ContextualTasksUiService* GetUiService() const;
+
   // Browser window of the current panel.
   const raw_ptr<BrowserWindowInterface> browser_window_ = nullptr;
 
@@ -220,8 +235,6 @@ class ContextualTasksSidePanelCoordinator
 
   const raw_ptr<contextual_search::ContextualSearchService>
       contextual_search_service_;
-
-  const raw_ptr<ContextualTasksUiService> ui_service_;
 
   // Pref service for the current profile.
   const raw_ptr<PrefService> pref_service_;
@@ -240,6 +253,11 @@ class ContextualTasksSidePanelCoordinator
       scoped_unowned_user_data_;
 
   bool in_cobrowsing_session_ = false;
+
+  // When true, PrimaryPageChanged() will not auto-hide the panel on a
+  // contextual tasks URL navigation. Set only by interactive tests that drive
+  // in-panel webview navigation.
+  bool suppress_hide_on_contextual_tasks_url_for_testing_ = false;
 
   base::ObserverList<ContextualTasksPanelController::Observer> observers_;
 

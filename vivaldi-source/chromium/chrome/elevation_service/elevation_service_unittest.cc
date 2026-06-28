@@ -22,6 +22,7 @@
 #include "base/test/multiprocess_test.h"
 #include "base/types/expected.h"
 #include "base/uuid.h"
+#include "base/win/access_token.h"
 #include "base/win/com_init_util.h"
 #include "base/win/elevation_util.h"
 #include "base/win/scoped_bstr.h"
@@ -37,6 +38,12 @@
 #include "testing/multiprocess_func_list.h"
 
 namespace {
+
+base::FilePath TestFile(const std::string& file) {
+  base::FilePath path;
+  base::PathService::Get(base::DIR_MODULE, &path);
+  return path.AppendASCII("elevated_recovery_unittest").AppendASCII(file);
+}
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
 inline constexpr bool kExpectFullIsolation = true;
@@ -63,7 +70,7 @@ base::expected<Microsoft::WRL::ComPtr<IElevator2>, HRESULT> GetElevator() {
                          CLSCTX_LOCAL_SERVER, IID_PPV_ARGS(&elevator));
 
   if (FAILED(hr)) {
-    PLOG(ERROR) << "Failed to create IElevator2 instance.";
+    LOG(ERROR) << "Failed to create IElevator2 instance: " << hr;
     return base::unexpected(hr);
   }
 
@@ -91,9 +98,10 @@ class ElevationServiceTest : public ::testing::Test {
     }
     service_environment_ = new ServiceEnvironment(
         L"Test Elevation Service", FILE_PATH_LITERAL("elevation_service.exe"),
-        std::array<std::string_view, 2>{
+        std::array<std::string_view, 3>{
             elevation_service::switches::kAllowUntrustedPathForTesting,
-            elevation_service::switches::kElevatorClsIdForTestingSwitch},
+            elevation_service::switches::kElevatorClsIdForTestingSwitch,
+            elevation_service::switches::kAllowUntrustedRecoveryHashForTesting},
         elevation_service::kTestElevatorClsid, __uuidof(IElevator2));
     ASSERT_TRUE(service_environment_->is_valid());
   }
@@ -207,6 +215,15 @@ MULTIPROCESS_TEST_MAIN(RunIsolatedChromeInChild) {
     const auto read_only_process = base::Process::OpenWithAccess(
         pid, PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION);
     EXPECT_TRUE(read_only_process.IsValid());
+    // Interop DCOM requires the ability to read the process token, so verify
+    // that here.
+    const auto token =
+        base::win::AccessToken::FromProcess(read_only_process.Handle());
+    EXPECT_TRUE(token.has_value());
+    if (token.has_value()) {
+      const auto default_dacl = token->DefaultDacl();
+      EXPECT_TRUE(default_dacl);
+    }
   }
   // Any attempt to open isolated process above PROCESS_TERMINATE, SYNCHRONIZE,
   // PROCESS_QUERY_LIMITED_INFORMATION will fail.
@@ -259,4 +276,25 @@ TEST_F(ElevationServiceTest, Failure) {
       &last_error);
   EXPECT_HRESULT_FAILED(res);
   EXPECT_EQ(DWORD{ERROR_FILE_NOT_FOUND}, last_error);
+}
+
+TEST_F(ElevationServiceTest, RunRecoveryCRXElevated) {
+  base::win::ScopedCOMInitializer com_initializer;
+  ASSERT_TRUE(com_initializer.Succeeded());
+
+  auto elevator = GetElevator();
+  ASSERT_TRUE(elevator.has_value());
+
+  ULONG_PTR proc_handle = 0;
+  EXPECT_EQ(E_ACCESSDENIED,
+            elevator.value()->RunRecoveryCRXElevated(
+                TestFile("ChromeRecovery.crx3").value().c_str(),
+                L"{c49ab053-2387-4809-b188-1902648802e1}", L"57.8.0.1",
+                L"{c49ab053-2387-4809-b188-1902648802e1}",
+                ::GetCurrentProcessId(), &proc_handle));
+  EXPECT_EQ(S_OK, elevator.value()->RunRecoveryCRXElevated(
+                      TestFile("ChromeRecovery.crx3").value().c_str(),
+                      L"{c49ab053-2387-4809-b188-1902648802e1}", L"1.0.0.0",
+                      L"{c49ab053-2387-4809-b188-1902648802e1}",
+                      ::GetCurrentProcessId(), &proc_handle));
 }

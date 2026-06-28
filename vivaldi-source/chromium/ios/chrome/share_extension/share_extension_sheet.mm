@@ -406,7 +406,11 @@ NSString* const kAccountCellIdentifier = @"kAccountCellIdentifier";
 
   _accountTableView = [self createSelectedAccountTableView];
   UIStackView* mainContentStackView = [[UIStackView alloc]
+  #if defined(VIVALDI_BUILD)
+      initWithArrangedSubviews:@[ mainView ]];
+  #else
       initWithArrangedSubviews:@[ mainView, _accountTableView ]];
+  #endif
   mainContentStackView.axis = UILayoutConstraintAxisVertical;
   mainContentStackView.spacing = kContentStackSpacing;
   mainContentStackView.translatesAutoresizingMaskIntoConstraints = NO;

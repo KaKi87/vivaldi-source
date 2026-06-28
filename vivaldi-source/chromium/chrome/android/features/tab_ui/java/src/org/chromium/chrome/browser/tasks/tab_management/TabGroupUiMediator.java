@@ -48,8 +48,7 @@ import org.chromium.chrome.browser.tab_group_sync.TabGroupSyncFeatures;
 import org.chromium.chrome.browser.tab_group_sync.TabGroupSyncServiceFactory;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilterObserver;
+import org.chromium.chrome.browser.tabmodel.TabGroupObserver;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelObserver;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
@@ -138,7 +137,10 @@ public class TabGroupUiMediator implements BackPressHandler {
             this::onGroupSharedStateChanged;
     private final Callback<@Nullable List<GroupMember>> mOnGroupMembersChanged =
             this::onGroupMembersChanged;
-    private final Callback mOnTokenComponentChange = this::onTokenComponentChange;
+
+    private final Callback<Object> mOnChildTokenChange = this::onTokenComponentChange;
+    private final Callback<Integer> mOnWidthChange = this::onTokenComponentChange;
+
     private final SettableNonNullObservableSupplier<Integer> mWidthPxSupplier =
             ObservableSuppliers.createNonNull(0);
     private final ThemeColorObserver mThemeColorObserver = this::onThemeColorChanged;
@@ -165,7 +167,7 @@ public class TabGroupUiMediator implements BackPressHandler {
     private final @Nullable TransitiveSharedGroupObserver mTransitiveSharedGroupObserver;
 
     private final LayoutStateObserver mLayoutStateObserver;
-    private final TabGroupModelFilterObserver mTabGroupModelFilterObserver;
+    private final TabGroupObserver mTabGroupObserver;
     private final Callback<Boolean> mOmniboxFocusObserver;
 
     private CallbackController mCallbackController = new CallbackController();
@@ -173,6 +175,7 @@ public class TabGroupUiMediator implements BackPressHandler {
     private @Nullable TabModelSelectorTabObserver mTabModelSelectorTabObserver;
     private @Nullable Token mCurrentTabGroupId;
     private boolean mIsShowingHub;
+    private boolean mIsToolbarSwipeActive;
 
     // Vivaldi
     private final @Nullable ChromeActivity mChromeActivity;
@@ -211,8 +214,8 @@ public class TabGroupUiMediator implements BackPressHandler {
         mThemeColorProvider.addTintObserver(mTintObserver);
         mOnSnapshotTokenChange = onSnapshotTokenChange;
         mChildTokenSupplier = childTokenSupplier;
-        mChildTokenSupplier.addSyncObserverAndPostIfNonNull(mOnTokenComponentChange);
-        mWidthPxSupplier.addSyncObserverAndPostIfNonNull(mOnTokenComponentChange);
+        mChildTokenSupplier.addSyncObserverAndPostIfNonNull(mOnChildTokenChange);
+        mWidthPxSupplier.addSyncObserverAndPostIfNonNull(mOnWidthChange);
 
         // Vivaldi
         mChromeActivity = activity;
@@ -246,9 +249,13 @@ public class TabGroupUiMediator implements BackPressHandler {
         }
 
         var layoutStateProvider = layoutStateProviderSupplier.get();
-        if (layoutStateProvider != null
-                && layoutStateProvider.isLayoutVisible(LayoutType.TAB_SWITCHER)) {
-            mIsShowingHub = true;
+        if (layoutStateProvider != null) {
+            if (layoutStateProvider.isLayoutVisible(LayoutType.TAB_SWITCHER)) {
+                mIsShowingHub = true;
+            }
+            if (layoutStateProvider.isLayoutVisible(LayoutType.TOOLBAR_SWIPE)) {
+                mIsToolbarSwipeActive = true;
+            }
         }
 
         // Register for tab model.
@@ -292,6 +299,10 @@ public class TabGroupUiMediator implements BackPressHandler {
                             mIsShowingHub = true;
                             hideTabGridDialog();
                             resetTabStrip();
+                        } else if (layoutType == LayoutType.TOOLBAR_SWIPE) {
+                            mIsToolbarSwipeActive = true;
+                            hideTabGridDialog();
+                            resetTabStrip();
                         }
                     }
 
@@ -299,6 +310,9 @@ public class TabGroupUiMediator implements BackPressHandler {
                     public void onFinishedHiding(@LayoutType int layoutType) {
                         if (layoutType == LayoutType.TAB_SWITCHER) {
                             mIsShowingHub = false;
+                            resetTabStrip();
+                        } else if (layoutType == LayoutType.TOOLBAR_SWIPE) {
+                            mIsToolbarSwipeActive = false;
                             resetTabStrip();
                         }
                     }
@@ -314,9 +328,9 @@ public class TabGroupUiMediator implements BackPressHandler {
                         if (mTabModelSelector.getTabById(tab.getId()) == null) return;
 
                         int numTabs = 0;
-                        TabGroupModelFilter filter = getCurrentTabGroupModelFilter();
-                        if (mCurrentTabGroupId != null && filter.isTabInTabGroup(tab)) {
-                            numTabs = filter.getTabCountForGroup(tab.getTabGroupId());
+                        TabModel tabModel = getCurrentModel();
+                        if (mCurrentTabGroupId != null && tabModel.isTabInTabGroup(tab)) {
+                            numTabs = tabModel.getTabCountForGroup(tab.getTabGroupId());
                         }
 
                         RecordHistogram.recordCount1MHistogram(
@@ -337,8 +351,8 @@ public class TabGroupUiMediator implements BackPressHandler {
 
         mCurrentTabModelObserver = (tabModel) -> resetTabStrip();
 
-        mTabGroupModelFilterObserver =
-                new TabGroupModelFilterObserver() {
+        mTabGroupObserver =
+                new TabGroupObserver() {
                     @Override
                     public void didMoveTabOutOfGroup(Tab movedTab, int prevFilterIndex) {
                         resetTabStrip();
@@ -350,13 +364,13 @@ public class TabGroupUiMediator implements BackPressHandler {
                     }
                 };
 
-        tabModelSelector.getModel(false).addTabGroupObserver(mTabGroupModelFilterObserver);
-        tabModelSelector.getModel(true).addTabGroupObserver(mTabGroupModelFilterObserver);
+        tabModelSelector.getModel(false).addTabGroupObserver(mTabGroupObserver);
+        tabModelSelector.getModel(true).addTabGroupObserver(mTabGroupObserver);
 
         mOmniboxFocusObserver = isFocus -> resetTabStrip();
         mOmniboxFocusStateSupplier.addSyncObserverAndPostIfNonNull(mOmniboxFocusObserver);
 
-        tabModelSelector.addTabGroupModelFilterObserver(mTabModelObserver);
+        tabModelSelector.addObserverToAllModels(mTabModelObserver);
         mTabModelSelector
                 .getCurrentTabModelSupplier()
                 .addSyncObserverAndPostIfNonNull(mCurrentTabModelObserver);
@@ -447,7 +461,9 @@ public class TabGroupUiMediator implements BackPressHandler {
                                     TabLaunchType.FROM_TAB_GROUP_UI,
                                     parentTabToAttach);
                     RecordUserAction.record(
-                            "MobileNewTabOpened." + TabGroupUiCoordinator.COMPONENT_NAME);
+                            "MobileNewTabOpened."
+                                    + TabUiMetricsHelper.getComponentNameForMetrics(
+                                            TabComponentId.TAB_STRIP));
                 };
         mModel.set(NEW_TAB_BUTTON_ON_CLICK_LISTENER, newTabButtonOnClickListener);
     }
@@ -495,13 +511,13 @@ public class TabGroupUiMediator implements BackPressHandler {
     private void resetTabStrip() {
         if (!mTabModelSelector.isTabStateInitialized()) return;
 
-        if (mIsShowingHub || mOmniboxFocusStateSupplier.get()) {
+        if (mIsShowingHub || mIsToolbarSwipeActive || mOmniboxFocusStateSupplier.get()) {
             hideTabStrip();
             return;
         }
 
         Tab tab = mTabModelSelector.getCurrentTab();
-        if (tab == null || !getCurrentTabGroupModelFilter().isTabInTabGroup(tab)) {
+        if (tab == null || !getCurrentModel().isTabInTabGroup(tab)) {
             hideTabStrip();
         } else {
             showTabStrip(tab);
@@ -513,7 +529,7 @@ public class TabGroupUiMediator implements BackPressHandler {
         if (mChromeActivity.getToolbarManager() != null) {
             ((VivaldiTopToolbarCoordinator) mChromeActivity.getToolbarManager().getToolbar())
                     .setIsTabGroupUiVisible(tab != null
-                            && getCurrentTabGroupModelFilter().isTabInTabGroup(tab));
+                            && getCurrentModel().isTabInTabGroup(tab));
         }
     }
 
@@ -558,11 +574,11 @@ public class TabGroupUiMediator implements BackPressHandler {
      * @param id The ID of the tab that will be used to decide the list of tabs to show.
      */
     private List<Tab> getTabsToShowForId(int id) {
-        return getCurrentTabGroupModelFilter().getRelatedTabList(id);
+        return getCurrentModel().getRelatedTabList(id);
     }
 
-    private TabGroupModelFilter getCurrentTabGroupModelFilter() {
-        return assumeNonNull(mTabModelSelector.getCurrentTabGroupModelFilter());
+    private TabModel getCurrentModel() {
+        return mTabModelSelector.getCurrentModel();
     }
 
     private void onTokenComponentChange(Object ignored) {
@@ -592,15 +608,11 @@ public class TabGroupUiMediator implements BackPressHandler {
     @SuppressWarnings("NullAway")
     public void destroy() {
         if (mTabModelSelector != null) {
-            mTabModelSelector.removeTabGroupModelFilterObserver(mTabModelObserver);
+            mTabModelSelector.removeObserverFromAllModels(mTabModelObserver);
             mTabModelSelector.getCurrentTabModelSupplier().removeObserver(mCurrentTabModelObserver);
-            if (mTabGroupModelFilterObserver != null) {
-                mTabModelSelector
-                        .getModel(false)
-                        .removeTabGroupObserver(mTabGroupModelFilterObserver);
-                mTabModelSelector
-                        .getModel(true)
-                        .removeTabGroupObserver(mTabGroupModelFilterObserver);
+            if (mTabGroupObserver != null) {
+                mTabModelSelector.getModel(false).removeTabGroupObserver(mTabGroupObserver);
+                mTabModelSelector.getModel(true).removeTabGroupObserver(mTabGroupObserver);
             }
         }
 
@@ -626,8 +638,8 @@ public class TabGroupUiMediator implements BackPressHandler {
                     .removeObserver(mOnGroupMembersChanged);
             mTransitiveSharedGroupObserver.destroy();
         }
-        mChildTokenSupplier.removeObserver(mOnTokenComponentChange);
-        mWidthPxSupplier.removeObserver(mOnTokenComponentChange);
+        mChildTokenSupplier.removeObserver(mOnChildTokenChange);
+        mWidthPxSupplier.removeObserver(mOnWidthChange);
         mThemeColorProvider.removeThemeColorObserver(mThemeColorObserver);
         mThemeColorProvider.removeTintObserver(mTintObserver);
     }

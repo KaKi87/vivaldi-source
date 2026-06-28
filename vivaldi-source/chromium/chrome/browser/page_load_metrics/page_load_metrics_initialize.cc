@@ -35,7 +35,6 @@
 #include "chrome/browser/page_load_metrics/observers/optimization_guide_page_load_metrics_observer.h"
 #include "chrome/browser/page_load_metrics/observers/page_anchors_metrics_observer.h"
 #include "chrome/browser/page_load_metrics/observers/prefetch_page_load_metrics_observer.h"
-#include "chrome/browser/page_load_metrics/observers/preload_serving_metrics_page_load_metrics_observer.h"
 #include "chrome/browser/page_load_metrics/observers/protocol_page_load_metrics_observer.h"
 #include "chrome/browser/page_load_metrics/observers/scheme_page_load_metrics_observer.h"
 #include "chrome/browser/page_load_metrics/observers/security_state_page_load_metrics_observer.h"
@@ -52,6 +51,7 @@
 #include "components/page_load_metrics/browser/metrics_web_contents_observer.h"
 #include "components/page_load_metrics/browser/observers/ad_metrics/ads_page_load_metrics_observer.h"
 #include "components/page_load_metrics/browser/observers/paid_content_page_load_metrics_observer.h"
+#include "components/page_load_metrics/browser/observers/preload_serving_metrics_page_load_metrics_observer.h"
 #include "components/page_load_metrics/browser/observers/third_party_metrics_observer.h"
 #include "components/page_load_metrics/browser/observers/zstd_page_load_metrics_observer.h"
 #include "components/page_load_metrics/browser/page_load_metrics_embedder_base.h"
@@ -93,7 +93,7 @@
 #include "chrome/browser/page_load_metrics/observers/ash_session_restore_page_load_metrics_observer.h"
 #endif
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "chrome/browser/page_load_metrics/observers/serp_page_load_metrics_observer.h"
 #include "extensions/common/constants.h"
 #endif
@@ -180,14 +180,6 @@ void PageLoadMetricsEmbedder::RegisterObservers(
     tracker->AddObserver(std::make_unique<NonTabPageLoadMetricsObserver>(
         std::string(GetNonTabWebUIName(web_contents()->GetBrowserContext(),
                                        navigation_handle->GetURL()))));
-    if (waap::IsForInitialWebUI(navigation_handle->GetURL())) {
-      // For initial WebUIs, record PageLoad UKMs.
-      std::unique_ptr<page_load_metrics::PageLoadMetricsObserver> ukm_observer =
-          UkmPageLoadMetricsObserver::CreateIfNeeded();
-      if (ukm_observer) {
-        tracker->AddObserver(std::move(ukm_observer));
-      }
-    }
     if (navigation_handle->GetURL().host() ==
         chrome::kChromeUIOmniboxPopupHost) {
       tracker->AddObserver(std::make_unique<TopChromeWebUIMetricsObserver>(
@@ -291,7 +283,7 @@ void PageLoadMetricsEmbedder::RegisterObservers(
   tracker->AddObserver(
       SecurityStatePageLoadMetricsObserver::MaybeCreateForProfile(
           web_contents()->GetBrowserContext()));
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   tracker->AddObserver(std::make_unique<SerpPageLoadMetricsObserver>());
 #endif
   tracker->AddObserver(
@@ -339,7 +331,7 @@ bool PageLoadMetricsEmbedder::IsNoStatePrefetch(
 }
 
 bool PageLoadMetricsEmbedder::IsExtensionUrl(const GURL& url) {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   return url.SchemeIs(extensions::kExtensionScheme);
 #else
   return false;

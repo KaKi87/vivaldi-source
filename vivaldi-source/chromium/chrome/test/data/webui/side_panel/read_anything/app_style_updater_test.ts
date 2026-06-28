@@ -4,7 +4,6 @@
 import {AppStyleUpdater, BrowserProxy, LineFocusType} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import type {AppElement} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 import {assertEquals, assertGT, assertNotEquals, assertStringContains} from 'chrome-untrusted://webui-test/chai_assert.js';
-import {microtasksFinished} from 'chrome-untrusted://webui-test/test_util.js';
 
 import {createApp} from './common.js';
 import {FakeReadingMode} from './fake_reading_mode.js';
@@ -139,62 +138,90 @@ suite('AppStyleUpdater', () => {
         assertNotEquals(windowBg, lineBg);
       });
 
+  test(
+      'setLineFocusStyle does not update toolbar colors if line focus is ' +
+          'disabled',
+      () => {
+        chrome.readingMode.isLineFocusEnabled = false;
+        updater.setLineFocusStyle(LineFocusType.WINDOW);
+        assertEquals('', app.style.getPropertyValue('--toolbar-icon-color'));
+        assertEquals(
+            '', app.style.getPropertyValue('--legacy-toolbar-icon-color'));
+        assertEquals(
+            '', app.style.getPropertyValue('--legacy-audio-player-icon-color'));
+      });
+
+  test(
+      'setLineFocusStyle sets dark toolbar icon color in immersive mode for ' +
+          'window line focus',
+      () => {
+        chrome.readingMode.isLineFocusEnabled = true;
+        chrome.readingMode.isImmersiveEnabled = true;
+        updater.setLineFocusStyle(LineFocusType.WINDOW);
+        assertEquals(
+            'var(--color-read-anything-toolbar-icon-dark)',
+            app.style.getPropertyValue('--toolbar-icon-color'));
+      });
+
+  test(
+      'setLineFocusStyle sets themed toolbar icon color in immersive mode ' +
+          'for non-window line focus',
+      () => {
+        chrome.readingMode.isLineFocusEnabled = true;
+        chrome.readingMode.isImmersiveEnabled = true;
+        chrome.readingMode.colorTheme = chrome.readingMode.yellowTheme;
+        updater.setLineFocusStyle(LineFocusType.LINE);
+        assertEquals(
+            'var(--color-read-anything-toolbar-icon-yellow)',
+            app.style.getPropertyValue('--toolbar-icon-color'));
+      });
+
+  test(
+      'setLineFocusStyle sets dark legacy toolbar icon colors for window ' +
+          'line focus',
+      () => {
+        chrome.readingMode.isLineFocusEnabled = true;
+        chrome.readingMode.isImmersiveEnabled = false;
+        updater.setLineFocusStyle(LineFocusType.WINDOW);
+        assertEquals(
+            'var(--color-read-anything-toolbar-icon-dark)',
+            app.style.getPropertyValue('--legacy-toolbar-icon-color'));
+        assertEquals(
+            'var(--color-read-anything-line-focus-dark)',
+            app.style.getPropertyValue('--legacy-audio-player-icon-color'));
+      });
+
+  test(
+      'setLineFocusStyle sets default legacy toolbar icon colors for ' +
+          'non-window line focus',
+      () => {
+        chrome.readingMode.isLineFocusEnabled = true;
+        chrome.readingMode.isImmersiveEnabled = false;
+        updater.setLineFocusStyle(LineFocusType.LINE);
+        assertEquals(
+            'var(--color-sys-on-surface-subtle)',
+            app.style.getPropertyValue('--legacy-toolbar-icon-color'));
+        assertEquals(
+            'var(--color-sys-primary)',
+            app.style.getPropertyValue('--legacy-audio-player-icon-color'));
+      });
+
   test('setLineFocusPos sets y position', () => {
     const pos = 123;
 
-    updater.setLineFocusPos(pos, null, app.$.containerParent);
+    updater.setLineFocusPos(pos, 0);
 
     assertEquals(`${pos}px`, app.style.getPropertyValue('--line-focus-y'));
-    assertEquals(
-        `-${pos}px`, app.style.getPropertyValue('--line-focus-clip-top'));
     assertEquals('', app.style.getPropertyValue('--line-focus-height'));
-    assertEquals('', app.style.getPropertyValue('--line-focus-clip-bottom'));
-  });
-
-  test('setLineFocusPos offsets top', async () => {
-    const pos = 123;
-    // Ensure there's content so there is an offset.
-    app.updateContent();
-    await microtasksFinished();
-
-    updater.setLineFocusPos(pos, null, app.$.containerParent);
-
-    assertEquals(`${pos}px`, app.style.getPropertyValue('--line-focus-y'));
-    assertEquals(
-        `-${pos - app.$.containerParent.offsetTop}px`,
-        app.style.getPropertyValue('--line-focus-clip-top'));
-    assertEquals('', app.style.getPropertyValue('--line-focus-height'));
-    assertEquals('', app.style.getPropertyValue('--line-focus-clip-bottom'));
   });
 
   test('setLineFocusPos sets height', () => {
     const height = 456;
 
-    updater.setLineFocusPos(0, height, app.$.containerParent);
+    updater.setLineFocusPos(0, height);
 
     assertEquals(
         `${height}px`, app.style.getPropertyValue('--line-focus-height'));
-    assertEquals(
-        `${height}px`, app.style.getPropertyValue('--line-focus-clip-bottom'));
-  });
-
-  test('setLineFocusPos offsets bottom when height given', async () => {
-    const pos = 123;
-    // Ensure there's content so there is an offset.
-    app.updateContent();
-    await microtasksFinished();
-    const containerHeight = app.$.containerParent.offsetHeight;
-    const containerTop = app.$.containerParent.offsetTop;
-    const windowHeight = containerHeight / 10;
-    console.error('height', app.$.containerParent.offsetHeight);
-
-    updater.setLineFocusPos(pos, windowHeight, app.$.containerParent);
-
-    assertEquals(
-        `${windowHeight}px`, app.style.getPropertyValue('--line-focus-height'));
-    assertEquals(
-        `-${containerHeight - pos - windowHeight + containerTop}px`,
-        app.style.getPropertyValue('--line-focus-clip-bottom'));
   });
 
   test('line spacing depends on font size', () => {
@@ -832,6 +859,65 @@ suite('AppStyleUpdater', () => {
         expectedLowContrastDarkToolbarIcon,
         computeStyle('--toolbar-icon-color'));
   });
+
+  test(
+      'setTheme does not update toolbar icon color if line focus is enabled ' +
+          'and a visible window',
+      () => {
+        chrome.readingMode.isLineFocusEnabled = true;
+        app.style.setProperty('--line-focus-display', 'block');
+        app.style.setProperty('--line-focus-bg', 'none');
+        const initialColor = 'rgb(255, 0, 0)';
+        app.style.setProperty('--toolbar-icon-color', initialColor);
+
+        chrome.readingMode.colorTheme = chrome.readingMode.darkTheme;
+        updater.setTheme();
+
+        assertEquals(initialColor, computeStyle('--toolbar-icon-color'));
+      });
+
+  test(
+      'setTheme updates toolbar icon color if line focus is enabled but ' +
+          'display is none',
+      () => {
+        chrome.readingMode.isLineFocusEnabled = true;
+        app.style.setProperty('--line-focus-display', 'none');
+        app.style.setProperty('--line-focus-bg', 'none');
+        const initialColor = 'rgb(255, 0, 0)';
+        app.style.setProperty('--toolbar-icon-color', initialColor);
+        const expectedDarkToolbarIcon = 'rgb(3, 3, 3)';
+        updateStyles({
+          '--color-read-anything-toolbar-icon-dark': expectedDarkToolbarIcon,
+        });
+
+        chrome.readingMode.colorTheme = chrome.readingMode.darkTheme;
+        updater.setTheme();
+
+        assertEquals(
+            expectedDarkToolbarIcon, computeStyle('--toolbar-icon-color'));
+      });
+
+  test(
+      'setTheme updates toolbar icon color if line focus is enabled and a ' +
+          'a visible line',
+      () => {
+        chrome.readingMode.isLineFocusEnabled = true;
+        app.style.setProperty('--line-focus-display', 'none');
+        app.style.setProperty(
+            '--line-focus-bg', 'var(--color-read-anything-line-focus-dark)');
+        const initialColor = 'rgb(255, 0, 0)';
+        app.style.setProperty('--toolbar-icon-color', initialColor);
+        const expectedDarkToolbarIcon = 'rgb(3, 3, 3)';
+        updateStyles({
+          '--color-read-anything-toolbar-icon-dark': expectedDarkToolbarIcon,
+        });
+
+        chrome.readingMode.colorTheme = chrome.readingMode.darkTheme;
+        updater.setTheme();
+
+        assertEquals(
+            expectedDarkToolbarIcon, computeStyle('--toolbar-icon-color'));
+      });
 
   test('on player focus outline colors change with theme', () => {
     const expectedDefault = 'rgb(1, 1, 1)';

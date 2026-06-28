@@ -6,6 +6,10 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
+
+#ifndef EIGEN_TEST_SVD_FILL_H
+#define EIGEN_TEST_SVD_FILL_H
 
 template <typename T>
 Array<T, 4, 1> four_denorms();
@@ -33,7 +37,7 @@ struct maybe_set_imag_part<Scalar, false> {
 };
 
 template <typename MatrixType>
-void svd_fill_random(MatrixType &m, int Option = 0) {
+void svd_fill_random(MatrixType& m, int Option = 0) {
   using std::pow;
   typedef typename MatrixType::Scalar Scalar;
   typedef typename MatrixType::RealScalar RealScalar;
@@ -132,3 +136,5 @@ void svd_fill_random(MatrixType &m, int Option = 0) {
     }
   }
 }
+
+#endif  // EIGEN_TEST_SVD_FILL_H

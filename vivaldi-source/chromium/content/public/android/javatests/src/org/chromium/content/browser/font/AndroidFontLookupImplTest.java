@@ -43,6 +43,7 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.stubbing.OngoingStubbing;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.AdvancedMockContext;
 import org.chromium.base.test.util.CriteriaHelper;
@@ -161,15 +162,15 @@ public final class AndroidFontLookupImplTest {
         whenFetchFontsWith(FONT_QUERY_2).thenReturn(result);
         whenFetchFontsWith(FONT_QUERY_3).thenReturn(result);
 
-        HistogramWatcher watcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        AndroidFontLookupImpl.FETCH_ALL_FONT_FILES_HISTOGRAM);
         mAndroidFontLookup.fetchAllFontFiles(mFetchAllFontFilesCallback);
-        watcher.pollInstrumentationThreadUntilSatisfied();
 
         mMojoTestRule.runLoop(RUN_LOOP_TIMEOUT_MS);
-        verify(mFetchAllFontFilesCallback, timeout(CriteriaHelper.DEFAULT_MAX_TIME_TO_POLL))
-                .call(mFontMapCaptor.capture());
+        ThreadUtils.runOnUiThreadBlocking(
+                () ->
+                        verify(
+                                        mFetchAllFontFilesCallback,
+                                        timeout(CriteriaHelper.DEFAULT_MAX_TIME_TO_POLL))
+                                .call(mFontMapCaptor.capture()));
 
         Map<String, ReadOnlyFile> response = mFontMapCaptor.getValue();
         assertEquals(3, response.size());
@@ -192,15 +193,15 @@ public final class AndroidFontLookupImplTest {
                         new FontFamilyResult(
                                 FontFamilyResult.STATUS_UNEXPECTED_DATA_PROVIDED, null));
 
-        HistogramWatcher watcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        AndroidFontLookupImpl.FETCH_ALL_FONT_FILES_HISTOGRAM);
         mAndroidFontLookup.fetchAllFontFiles(mFetchAllFontFilesCallback);
-        watcher.pollInstrumentationThreadUntilSatisfied();
 
         mMojoTestRule.runLoop(RUN_LOOP_TIMEOUT_MS);
-        verify(mFetchAllFontFilesCallback, timeout(CriteriaHelper.DEFAULT_MAX_TIME_TO_POLL))
-                .call(mFontMapCaptor.capture());
+        ThreadUtils.runOnUiThreadBlocking(
+                () ->
+                        verify(
+                                        mFetchAllFontFilesCallback,
+                                        timeout(CriteriaHelper.DEFAULT_MAX_TIME_TO_POLL))
+                                .call(mFontMapCaptor.capture()));
 
         Map<String, ReadOnlyFile> response = mFontMapCaptor.getValue();
         assertEquals(2, response.size());
@@ -221,15 +222,15 @@ public final class AndroidFontLookupImplTest {
                 new AndroidFontLookupImpl(
                         mMockContext, mMockFontsContractWrapper, ImmutableMap.of());
 
-        HistogramWatcher watcher =
-                HistogramWatcher.newSingleRecordWatcher(
-                        AndroidFontLookupImpl.FETCH_ALL_FONT_FILES_HISTOGRAM);
         mAndroidFontLookup.fetchAllFontFiles(mFetchAllFontFilesCallback);
-        watcher.pollInstrumentationThreadUntilSatisfied();
 
         mMojoTestRule.runLoop(RUN_LOOP_TIMEOUT_MS);
-        verify(mFetchAllFontFilesCallback, timeout(CriteriaHelper.DEFAULT_MAX_TIME_TO_POLL))
-                .call(mFontMapCaptor.capture());
+        ThreadUtils.runOnUiThreadBlocking(
+                () ->
+                        verify(
+                                        mFetchAllFontFilesCallback,
+                                        timeout(CriteriaHelper.DEFAULT_MAX_TIME_TO_POLL))
+                                .call(mFontMapCaptor.capture()));
 
         Map<String, ReadOnlyFile> response = mFontMapCaptor.getValue();
         assertTrue(response.isEmpty());

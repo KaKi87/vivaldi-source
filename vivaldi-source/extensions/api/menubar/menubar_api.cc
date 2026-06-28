@@ -4,12 +4,12 @@
 
 #include "extensions/api/menubar/menubar_api.h"
 
+#include "base/logging.h"
 #include "base/no_destructor.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/command_updater.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "extensions/browser/app_window/app_window.h"
 #include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom.h"

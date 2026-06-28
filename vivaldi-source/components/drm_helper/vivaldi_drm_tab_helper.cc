@@ -1,11 +1,14 @@
 // Copyright (c) 2025 Vivaldi Technologies AS. All rights reserved
 
 #include "components/drm_helper/vivaldi_drm_tab_helper.h"
+
+#include "base/logging.h"
 #include "chrome/browser/browser_process.h"
+#include "components/update_client/crx_update_item.h"
+
 #ifndef VIVALDI_SPARKLE_DISABLED
 #include "extensions/api/auto_update/auto_update_api.h"
 #endif
-#include "components/update_client/crx_update_item.h"
 
 #if !BUILDFLAG(IS_LINUX)
 #include "app/vivaldi_resources.h"

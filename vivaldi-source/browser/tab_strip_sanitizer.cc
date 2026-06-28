@@ -14,7 +14,7 @@ struct GroupRun {
   int start = 0;
   int length = 0;
 };
-} // namespace
+}  // namespace
 
 namespace vivaldi {
 
@@ -66,14 +66,14 @@ void SanitizeGroupSplit(TabStripModel* tab_strip) {
     }
 
     int longest_run = 0;
-    for (auto &run: group_runs) {
+    for (auto& run : group_runs) {
       if (run.length > longest_run) {
         longest_run = run.length;
       }
     }
 
     bool kept_longest_run = false;
-    for (auto &run: group_runs) {
+    for (auto& run : group_runs) {
       if (run.length == longest_run && !kept_longest_run) {
         kept_longest_run = true;
         continue;
@@ -81,8 +81,7 @@ void SanitizeGroupSplit(TabStripModel* tab_strip) {
 
       for (int i = 0; i < run.length; ++i) {
         tabs::TabInterface* tab = tab_strip->GetTabAtIndex(run.start + i);
-        TabExtData::Get(tab->GetContents())
-            ->Remove(::vivaldi::TabExtKey::kGroupId);
+        TabExtData::Get(tab->GetContents())->Ungroup();
       }
     }
   }
@@ -105,7 +104,7 @@ void SanitizeGroups(TabStripModel* tab_strip) {
     std::optional<std::string> group_id = ext->GetGroupId();
     if (!group_id || counts[*group_id] > 1)
       continue;
-    ext->Remove(::vivaldi::TabExtKey::kGroupId);
+    ext->Ungroup();
   }
 }
 
@@ -120,4 +119,4 @@ void SanitizeAllTabs() {
   }
 }
 
-} // namespace vivaldi
+}  // namespace vivaldi

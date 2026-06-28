@@ -28,7 +28,6 @@
 #include "components/language_detection/content/common/language_detection.mojom.h"
 #include "components/language_detection/core/browser/language_detection_model_provider.h"
 #include "content/browser/ai/echo_ai_manager_impl.h"
-#include "content/browser/cpu_performance/cpu_performance.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
 #include "content/browser/webauth/default_authenticator_request_client_delegate.h"
 #include "content/public/browser/anchor_element_preconnect_delegate.h"
@@ -234,14 +233,14 @@ bool ContentBrowserClient::DoesWebUIUrlRequireProcessLock(const GURL& url) {
   return true;
 }
 
-bool ContentBrowserClient::ShouldTreatURLSchemeAsFirstPartyWhenTopLevel(
-    std::string_view scheme,
+bool ContentBrowserClient::ShouldTreatAsFirstPartyWhenTopLevel(
+    const url::Origin& top_frame_origin,
     bool is_embedded_origin_secure) {
   return false;
 }
 
 bool ContentBrowserClient::ShouldIgnoreSameSiteCookieRestrictionsWhenTopLevel(
-    std::string_view scheme,
+    const url::Origin& top_frame_origin,
     bool is_embedded_origin_secure) {
   return false;
 }
@@ -332,6 +331,12 @@ ContentBrowserClient::GetBaselinePermissionsPolicyForIsolatedApp(
     const url::Origin& app_origin) {
   return {};
 }
+
+void ContentBrowserClient::EnsureRequiredHeadersForIsolatedApp(
+    BrowserContext* browser_context,
+    const GURL& url,
+    network::mojom::URLResponseHead* response_head,
+    const std::optional<FrameTreeNodeId>& frame_tree_node) {}
 
 bool ContentBrowserClient::ShouldTryToUseExistingProcessHost(
     BrowserContext* browser_context,
@@ -433,15 +438,15 @@ bool ContentBrowserClient::IsTopChromeWebUIURL(const GURL& url) {
   return false;
 }
 
-bool ContentBrowserClient::IsIsolatedContextAllowedForUrl(
-    BrowserContext* browser_context,
-    const GURL& lock_url) {
-  return false;
-}
-
 bool ContentBrowserClient::IsMultiCaptureAllowed(
     content::RenderFrameHost* render_frame_host) {
   return false;
+}
+
+content::WebContents*
+ContentBrowserClient::GetWebContentsFromWindowIfCaptureHandleAllowed(
+    gfx::NativeWindow window) {
+  return nullptr;
 }
 
 size_t ContentBrowserClient::GetMaxRendererProcessCountOverride() {
@@ -551,6 +556,12 @@ bool ContentBrowserClient::AllowSharedWorkerBlobURLFix(
   return true;
 }
 
+bool ContentBrowserClient::IsDataUrlInWebWorkerOpaqueOriginEnabled(
+    BrowserContext* context) {
+  return base::FeatureList::IsEnabled(
+      blink::features::kDataUrlWorkerOpaqueOrigin);
+}
+
 bool ContentBrowserClient::AllowSharedWorkerExtendedLifetime(
     BrowserContext* context) {
   return true;
@@ -572,6 +583,11 @@ bool ContentBrowserClient::WebPreferencesNeedUpdateForColorRelatedStateChanges(
 bool ContentBrowserClient::IsDataSaverEnabled(BrowserContext* context) {
   DCHECK(context);
   return false;
+}
+
+bool ContentBrowserClient::IsPinchToZoomAllowed(BrowserContext* context) {
+  DCHECK(context);
+  return true;
 }
 
 void ContentBrowserClient::UpdateRendererPreferencesForWorker(
@@ -723,7 +739,7 @@ bool ContentBrowserClient::IsFullCookieAccessAllowed(
     const GURL& url,
     const blink::StorageKey& storage_key,
     net::CookieSettingOverrides overrides) {
-  return true;
+  return !storage_key.ForbidsUnpartitionedStorageAccess();
 }
 
 bool ContentBrowserClient::IsPrefetchWithServiceWorkerAllowed(
@@ -883,7 +899,8 @@ ContentBrowserClient::CreateModelBrokerClient(BrowserContext* browser_context) {
 media::mojom::AvailabilityStatus
 ContentBrowserClient::GetOnDeviceSpeechRecognitionAvailabilityStatus(
     BrowserContext* context,
-    const std::string& language) {
+    const std::string& language,
+    media::mojom::SpeechRecognitionQuality quality) {
   return media::mojom::AvailabilityStatus::kUnavailable;
 }
 
@@ -1110,6 +1127,8 @@ ContentBrowserClient::CreateNonNetworkNavigationURLLoaderFactory(
 void ContentBrowserClient::
     RegisterNonNetworkWorkerMainResourceURLLoaderFactories(
         BrowserContext* browser_context,
+        const std::optional<url::Origin>& request_initiator,
+        network::mojom::RequestDestination request_destination,
         NonNetworkURLLoaderFactoryMap* factories) {}
 
 void ContentBrowserClient::
@@ -1452,13 +1471,14 @@ bool ContentBrowserClient::IsBuiltinComponent(BrowserContext* browser_context,
 void ContentBrowserClient::StartRtcDiagnosticLogging(
     RenderFrameHost& frame_host,
     bool should_upload_on_stop,
-    base::flat_map<std::string, std::string> metadata,
+    const base::flat_map<std::string, std::string>& metadata,
     base::OnceCallback<void(const std::string&)> callback) {
   std::move(callback).Run(base::Uuid::GenerateRandomV4().AsLowercaseString());
 }
 
 void ContentBrowserClient::FinishRtcDiagnosticLogging(
     RenderFrameHost& frame_host,
+    const base::flat_map<std::string, std::string>& metadata,
     base::OnceClosure callback) {
   std::move(callback).Run();
 }
@@ -1784,6 +1804,31 @@ bool ContentBrowserClient::ShouldUseFirstPartyStorageKey(
   return false;
 }
 
+RenderFrameHost* ContentBrowserClient::GetEffectiveTopFrameForPartitioning(
+    RenderFrameHost* render_frame_host) {
+  return nullptr;
+}
+
+RenderFrameHost* ContentBrowserClient::GetPostMessageTargetOverride(
+    RenderFrameHost* target_rfh,
+    const std::optional<blink::LocalFrameToken>& source_frame_token,
+    const url::Origin& source_origin,
+    const std::optional<url::Origin>& target_origin) {
+  return nullptr;
+}
+
+bool ContentBrowserClient::IsCrossOriginSubframeAllowedToShowFilePicker(
+    RenderFrameHost* render_frame_host,
+    const url::Origin& requesting_origin) {
+  return false;
+}
+
+std::optional<network::ParsedPermissionsPolicy>
+ContentBrowserClient::GetContainerPolicyOverrideForCommit(
+    NavigationHandle& navigation_handle) {
+  return std::nullopt;
+}
+
 bool ContentBrowserClient::ShouldSkipBeforeUnloadDialog(
     content::RenderFrameHost* rfh) {
   return false;
@@ -2006,8 +2051,9 @@ bool ContentBrowserClient::ShouldAnimateBackForwardTransitions() {
 #endif
 }
 
-blink::mojom::PerformanceTier ContentBrowserClient::GetCpuPerformanceTier() {
-  return content::cpu_performance::GetTier();
+std::optional<int> ContentBrowserClient::GetCpuPerformanceTierOverride(
+    BrowserContext* browser_context) {
+  return std::nullopt;
 }
 
 void ContentBrowserClient::RecordAssistedLogin(AssistedLoginType login_type) {}

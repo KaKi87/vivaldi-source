@@ -7,12 +7,14 @@
 
 #include "base/environment.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr.h"
 
 #include "chrome/common/channel_info.h"
 
 #if defined(USE_GIO)
 #include <gio/gio.h>
+
+#include "ui/base/glib/gsettings.h"
+#include "ui/base/glib/scoped_gobject.h"
 #endif  // defined(USE_GIO)
 
 namespace dock {
@@ -27,33 +29,26 @@ const char kFavoriteApps[] = "favorite-apps";
 class GnomeSettings {
  public:
   GnomeSettings();
-  ~GnomeSettings();
+  ~GnomeSettings() = default;
 
   bool ReadPinnedApps(std::vector<std::string>* favorite_apps);
   bool WritePinnedApps(const std::vector<std::string>& favorite_apps);
 
 #if defined(USE_GIO)
  private:
-  raw_ptr<GSettings> settings_;
+  ScopedGObject<GSettings> settings_;
 #endif  // defined(USE_GIO)
 };
 
 GnomeSettings::GnomeSettings() {
 #if defined(USE_GIO)
-  settings_ = g_settings_new(kOrgGnomeShell);
+  settings_ = ui::GSettingsNew(kOrgGnomeShell);
 
   if (!settings_) {
     LOG(ERROR)
         << "Could not initialize gsettings instance. Pinning won't be possible";
   }
 #endif  //  defined(USE_GIO)
-}
-
-GnomeSettings ::~GnomeSettings() {
-#if defined(USE_GIO)
-  g_object_unref(settings_.ExtractAsDangling());
-  settings_ = nullptr;
-#endif
 }
 
 bool GnomeSettings::ReadPinnedApps(std::vector<std::string>* favorite_apps) {

@@ -6,11 +6,12 @@
 #include <memory>
 #include <string>
 
+#include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/time/time.h"
 #include "components/keyed_service/core/keyed_service.h"
-#include "components/sync/service/sync_token_status.h"
+#include "components/os_crypt/async/browser/os_crypt_async.h"
 #include "vivaldi_account/vivaldi_account_password_handler.h"
 
 namespace network {
@@ -82,6 +83,7 @@ class VivaldiAccountManager : public KeyedService,
   explicit VivaldiAccountManager(
       PrefService* prefs,
       PrefService* local_state,
+      os_crypt_async::OSCryptAsync* os_crypt_async,
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
       scoped_refptr<password_manager::PasswordStoreInterface> password_store);
   ~VivaldiAccountManager() override;
@@ -143,6 +145,9 @@ class VivaldiAccountManager : public KeyedService,
   void OnAccountPasswordStateChanged() override;
 
  private:
+  void ReceiveEncryptorInstance(
+      bool should_decrypt_refresh_token,
+      scoped_refptr<os_crypt_async::Encryptor> encryptor);
   void OnTokenRequestDone(bool using_password,
                           std::unique_ptr<network::SimpleURLLoader> url_loader,
                           std::optional<std::string> response_body);
@@ -163,6 +168,7 @@ class VivaldiAccountManager : public KeyedService,
 
   const raw_ptr<PrefService> prefs_;
   const raw_ptr<PrefService> local_state_;
+  scoped_refptr<os_crypt_async::Encryptor> encryptor_;
   scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
 
   base::ObserverList<Observer> observers_;

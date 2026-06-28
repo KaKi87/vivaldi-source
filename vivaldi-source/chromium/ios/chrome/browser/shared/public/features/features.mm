@@ -10,14 +10,19 @@
 
 #import "base/metrics/field_trial_params.h"
 #import "base/strings/string_split.h"
+#import "base/strings/string_util.h"
 #import "components/country_codes/country_codes.h"
 #import "components/segmentation_platform/public/features.h"
 #import "components/sync/base/features.h"
 #import "components/sync_preferences/features.h"
+#import "components/tab_groups/features.h"
+#import "components/variations/service/variations_service.h"
+#import "components/variations/service/variations_service_utils.h"
 #import "components/version_info/channel.h"
 #import "crypto/features.h"
 #import "ios/chrome/app/background_mode_buildflags.h"
 #import "ios/chrome/browser/ntp/shared/metrics/feed_metrics_constants.h"
+#import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/common/channel_info.h"
 #import "ui/base/device_form_factor.h"
 
@@ -32,6 +37,29 @@ BASE_FEATURE(kSafetyCheckAutorunByManagerKillswitch,
 
 BASE_FEATURE(kSafetyCheckModuleHiddenIfNoIssuesKillswitch,
              base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kTabGridSetupMode, base::FEATURE_DISABLED_BY_DEFAULT);
+
+const char kTabGridSetupModeParamName[] = "tab_grid_setup_mode";
+
+const base::FeatureParam<std::string> kTabGridSetupModeParam(
+    &kTabGridSetupMode,
+    kTabGridSetupModeParamName,
+    "immediate");
+
+TabGridSetupMode GetTabGridSetupMode() {
+  if (!base::FeatureList::IsEnabled(kTabGridSetupMode)) {
+    return TabGridSetupMode::kImmediate;
+  }
+  std::string value = kTabGridSetupModeParam.Get();
+  if (value == "deferred") {
+    return TabGridSetupMode::kDeferred;
+  }
+  if (value == "lazy_for_testing") {
+    return TabGridSetupMode::kLazy_ForTesting;
+  }
+  return TabGridSetupMode::kImmediate;
+}
 
 BASE_FEATURE(kOmahaServiceRefactor, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -59,6 +87,12 @@ bool IsDockingPromoV2Enabled() {
   return base::FeatureList::IsEnabled(kIOSDockingPromoV2);
 }
 
+BASE_FEATURE(kIOSLevelUp, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsLevelUpEnabled() {
+  return base::FeatureList::IsEnabled(kIOSLevelUp);
+}
+
 BASE_FEATURE(kEnableLensInOmniboxCopiedImage,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -74,8 +108,6 @@ BASE_FEATURE(kLensOverlayCustomBottomSheet, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kLensSearchHeadersCheckEnabled, base::FEATURE_ENABLED_BY_DEFAULT);
 
-// Used to gate the immersive SRP in the Composebox.
-BASE_FEATURE(kComposeboxImmersiveSRP, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kOmniboxDRSPrototype, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -88,8 +120,7 @@ BASE_FEATURE(kTCRexKillSwitch,
              "kTCRexKillSwitch",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-
-BASE_FEATURE(kTabGridNewTransitions, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kTabGridNewTransitions, base::FEATURE_ENABLED_BY_DEFAULT);
 
 bool IsNewTabGridTransitionsEnabled() {
   if (IsChromeNextIaEnabled()) {
@@ -98,13 +129,7 @@ bool IsNewTabGridTransitionsEnabled() {
   return base::FeatureList::IsEnabled(kTabGridNewTransitions);
 }
 
-BASE_FEATURE(kTabGroupInOverflowMenu, base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kTabGroupInTabIconContextMenu, base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kTabRecallNewTabGroupButton, base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kTabSwitcherOverflowMenu, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kTabSwitcherOverflowMenu, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kContextualPanelForceShowEntrypoint,
              base::FEATURE_DISABLED_BY_DEFAULT);
@@ -144,8 +169,6 @@ BASE_FEATURE(kIOSDateToCalendarSignedOut, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kIOSDownloadNoUIUpdateInBackground,
              base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kIOSSaveToDriveClientFolder, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kIOSSaveToDriveSignedOut, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -364,7 +387,7 @@ bool IsIOSKeyboardAccessoryDefaultViewEnabled() {
   return base::FeatureList::IsEnabled(kIOSKeyboardAccessoryDefaultView);
 }
 
-BASE_FEATURE(kIOSKeyboardAccessoryTwoBubble, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kIOSKeyboardAccessoryTwoBubble, base::FEATURE_ENABLED_BY_DEFAULT);
 
 bool IsIOSKeyboardAccessoryTwoBubbleEnabled() {
   return base::FeatureList::IsEnabled(kIOSKeyboardAccessoryTwoBubble);
@@ -375,7 +398,7 @@ BASE_FEATURE_PARAM(bool,
                    kIOSKeyboardAccessoryTwoBubbleKeyboardIconParam,
                    &kIOSKeyboardAccessoryTwoBubble,
                    kIOSKeyboardAccessoryTwoBubbleKeyboardIconParamName,
-                   false);
+                   true);
 
 BASE_FEATURE(kInactiveNavigationAfterAppLaunchKillSwitch,
              "kInactiveNavigationAfterAppLaunchKillSwitch",
@@ -394,6 +417,10 @@ BASE_FEATURE(kSegmentationPlatformIosModuleRankerCaching,
 BASE_FEATURE(kEnableAppBackgroundRefresh, base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool IsAppBackgroundRefreshEnabled() {
+  if (!base::FeatureList::IsEnabled(
+          crypto::features::kMigrateIOSKeychainAccessibility)) {
+    return false;
+  }
   return base::FeatureList::IsEnabled(kEnableAppBackgroundRefresh);
 }
 
@@ -402,6 +429,9 @@ BASE_FEATURE(kEnableTraitCollectionRegistration,
 
 BASE_FEATURE(kSeparateProfilesForManagedAccounts,
              base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kAuthenticationFlowReauthFirstKillswitch,
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 // Feature parameter for kSeparateProfilesForManagedAccountsForceMigration.
 constexpr base::FeatureParam<base::TimeDelta> kMultiProfileMigrationGracePeriod{
@@ -450,7 +480,7 @@ bool IsIOSExpandedTipsEnabled() {
   return base::FeatureList::IsEnabled(kIOSExpandedTips);
 }
 
-BASE_FEATURE(kProvisionalNotificationAlert, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kProvisionalNotificationAlert, base::FEATURE_ENABLED_BY_DEFAULT);
 
 bool IsProvisionalNotificationAlertEnabled() {
   return base::FeatureList::IsEnabled(kProvisionalNotificationAlert);
@@ -462,12 +492,12 @@ BASE_FEATURE(kIOSOneTimeDefaultBrowserNotification,
 constexpr base::FeatureParam<std::string> kFRESignInHeaderTextUpdateParam{
     &kFRESignInHeaderTextUpdate,
     /*name=*/"FRESignInHeaderTextUpdateParam",
-    /*default_value=*/""};
+    /*default_value=*/"Arm1"};
 
 const std::string_view kFRESignInHeaderTextUpdateParamArm0 = "Arm0";
 const std::string_view kFRESignInHeaderTextUpdateParamArm1 = "Arm1";
 
-BASE_FEATURE(kFRESignInHeaderTextUpdate, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kFRESignInHeaderTextUpdate, base::FEATURE_ENABLED_BY_DEFAULT);
 
 bool FRESignInHeaderTextUpdate() {
   return base::FeatureList::IsEnabled(kFRESignInHeaderTextUpdate);
@@ -624,6 +654,13 @@ constexpr base::FeatureParam<double>
         /*name=*/kIOSOneTapMiniMapRestrictionMinAlphanumProportionParamName,
         /*default_value=*/0.8};
 
+BASE_FEATURE(kIOSMiniMapUniversalLink, base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kIOSMiniMapUniversalLinkCounterfactual,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kIOSMiniMapLinkifiedAddress, base::FEATURE_DISABLED_BY_DEFAULT);
+
 bool IsNotificationCollisionManagementEnabled() {
   return base::FeatureList::IsEnabled(kNotificationCollisionManagement);
 }
@@ -655,6 +692,9 @@ BASE_FEATURE(kNTPBackgroundColorSlider, base::FEATURE_ENABLED_BY_DEFAULT);
 bool IsNTPBackgroundColorSliderEnabled() {
   return base::FeatureList::IsEnabled(kNTPBackgroundColorSlider);
 }
+
+BASE_FEATURE(kNTPBackgroundDownsampleImage,
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kRunDefaultStatusCheck, base::FEATURE_ENABLED_BY_DEFAULT);
 
@@ -693,6 +733,11 @@ bool IsBestOfAppLensInteractivePromoEnabled() {
 bool IsBestOfAppLensAnimatedPromoEnabled() {
   return IsBestOfAppFREEnabled() &&
          std::ranges::contains(GetBestOfAppFREActiveVariants(), "2");
+}
+
+bool IsBestOfAppBestFeaturesEnabled() {
+  return IsBestOfAppFREEnabled() &&
+         std::ranges::contains(GetBestOfAppFREActiveVariants(), "3");
 }
 
 bool IsDefaultBrowserPromoPropensityModelEnabled() {
@@ -807,6 +852,12 @@ const char kDisableKeyboardAccessoryCompletely[] =
 BASE_FEATURE(kEnableFuseboxKeyboardAccessory,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
+BASE_FEATURE(kAIOmniboxAskPlaceholder, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsAIOmniboxAskPlaceholderEnabled() {
+  return base::FeatureList::IsEnabled(kAIOmniboxAskPlaceholder);
+}
+
 const char kEnableFuseboxKeyboardAccessoryParam[] =
     "kEnableFuseboxKeyboardAccessoryParam";
 const char kEnableFuseboxKeyboardAccessoryOnlySymbols[] =
@@ -817,7 +868,7 @@ const char kEnableFuseboxKeyboardAccessoryBoth[] =
     "kEnableFuseboxKeyboardAccessoryBoth";
 
 bool ShouldShowKeyboardAccessory() {
-  if (!base::FeatureList::IsEnabled(kComposeboxIOS)) {
+  if (!IsComposeboxIOSEnabled()) {
     // Keyboard accessory is enabled by default.
     if (!base::FeatureList::IsEnabled(kDisableKeyboardAccessory)) {
       return true;
@@ -833,7 +884,7 @@ bool ShouldShowKeyboardAccessory() {
 }
 
 bool ShouldShowKeyboardAccessorySymbols() {
-  if (base::FeatureList::IsEnabled(kComposeboxIOS)) {
+  if (IsComposeboxIOSEnabled()) {
     if (base::FeatureList::IsEnabled(kEnableFuseboxKeyboardAccessory)) {
       std::string feature_param = base::GetFieldTrialParamValueByFeature(
           kEnableFuseboxKeyboardAccessory,
@@ -852,7 +903,7 @@ bool ShouldShowKeyboardAccessorySymbols() {
 }
 
 bool ShouldShowKeyboardAccessoryFeatures() {
-  if (base::FeatureList::IsEnabled(kComposeboxIOS)) {
+  if (IsComposeboxIOSEnabled()) {
     if (base::FeatureList::IsEnabled(kEnableFuseboxKeyboardAccessory)) {
       std::string feature_param = base::GetFieldTrialParamValueByFeature(
           kEnableFuseboxKeyboardAccessory,
@@ -873,15 +924,16 @@ bool ShouldShowKeyboardAccessoryFeatures() {
 BASE_FEATURE(kLocationBarBadgeMigration, base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool IsLocationBarBadgeMigrationEnabled() {
-  if (IsChromeNextIaEnabled()) {
-    return true;
-  }
   return base::FeatureList::IsEnabled(kLocationBarBadgeMigration);
 }
 
-BASE_FEATURE(kComposeboxIOS, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kComposeboxIOS, base::FEATURE_ENABLED_BY_DEFAULT);
 
 bool IsComposeboxIOSEnabled() {
+
+  if (vivaldi::IsVivaldiRunning()) // Vivaldi uses traditional omnibox.
+    return false; // End Vivaldi
+
   if (!base::FeatureList::IsEnabled(kComposeboxIOS)) {
     return false;
   }
@@ -891,9 +943,15 @@ bool IsComposeboxIOSEnabled() {
   return true;
 }
 
+BASE_FEATURE(kContextMenuPreviewDownsampleImage,
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
 BASE_FEATURE(kTabGroupColorOnSurface, base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool IsTabGroupColorOnSurfaceEnabled() {
+  if (IsUpdateTabGroupColorsEnabled()) {
+    return true;
+  }
   return base::FeatureList::IsEnabled(kTabGroupColorOnSurface);
 }
 
@@ -943,13 +1001,13 @@ bool IsAssistantContainerEnabled() {
   return base::FeatureList::IsEnabled(kAssistantContainer);
 }
 
-bool ShouldShowAssistantContainerDebugElements() {
+bool IsAssistantContainerDebugEnabled() {
   if (!base::FeatureList::IsEnabled(kAssistantContainer)) {
     return false;
   }
   std::string feature_param = base::GetFieldTrialParamValueByFeature(
       kAssistantContainer, kAssistantContainerParam);
-  return feature_param == kAssistantContainerParamDebug;
+  return !feature_param.empty();
 }
 
 NSInteger GetAssistantMediumDetentPercentage() {
@@ -966,23 +1024,65 @@ bool IsComposeboxIpadEnabled() {
   return base::FeatureList::IsEnabled(kComposeboxIpad);
 }
 
+BASE_FEATURE(kComposeboxPlusButtonBottomSheet,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsComposeboxPlusButtonBottomSheet() {
+  return base::FeatureList::IsEnabled(kComposeboxPlusButtonBottomSheet);
+}
+
 BASE_FEATURE(kChromeNextIa, base::FEATURE_DISABLED_BY_DEFAULT);
+
+constexpr base::FeatureParam<bool> kChromeNextIaLensIconVisible{
+    &kChromeNextIa, "chrome_next_ia_lens_icon_visible", false};
+
+constexpr base::FeatureParam<bool> kChromeNextIaShareIconVisible{
+    &kChromeNextIa, "chrome_next_ia_share_icon_visible", false};
 
 bool IsChromeNextIaEnabled() {
 
   if (vivaldi::IsVivaldiRunning())
     return false; // End Vivaldi
 
+  if (!IsComposeboxIOSEnabled()) {
+    return false;
+  }
   return base::FeatureList::IsEnabled(kChromeNextIa);
 }
 
-BASE_FEATURE(kComposeboxAIMDisabled, base::FEATURE_DISABLED_BY_DEFAULT);
+bool IsChromeNextIaLensIconVisible() {
+  return IsChromeNextIaEnabled() && kChromeNextIaLensIconVisible.Get();
+}
+
+bool IsChromeNextIaShareIconVisible() {
+  return IsChromeNextIaEnabled() && kChromeNextIaShareIconVisible.Get();
+}
+
+BASE_FEATURE(kComposeboxAIMDisabled, base::FEATURE_ENABLED_BY_DEFAULT);
+
+bool IsAIOmniboxLaunchedCountry() {
+  variations::VariationsService* variations_service =
+      GetApplicationContext()->GetVariationsService();
+  bool is_launched_country =
+      variations_service &&
+      base::ToLowerASCII(GetCurrentCountryCode(variations_service)) == "us";
+  return is_launched_country;
+}
 
 bool IsComposeboxAIMDisabled() {
   if (vivaldi::IsVivaldiRunning())
     return true; // End Vivaldi
 
-  return base::FeatureList::IsEnabled(kComposeboxAIMDisabled);
+  auto* feature_list = base::FeatureList::GetInstance();
+  if (feature_list &&
+      feature_list->IsFeatureOverridden(kComposeboxAIMDisabled.name)) {
+    // Important: If a server-side config applies to this client (i.e. after
+    // accounting for its filters), but the client gets assigned to the default
+    // group, they will still take this code path and receive the state
+    // specified via BASE_FEATURE() above.
+    return base::FeatureList::IsEnabled(kComposeboxAIMDisabled);
+  }
+  return !IsAIOmniboxLaunchedCountry();
 }
 
 NSString* const kNewStartupFlowKey = @"IsEnableNewStartupFlowEnabled";
@@ -1038,7 +1138,13 @@ bool IsUseSceneViewControllerEnabled() {
   return base::FeatureList::IsEnabled(kUseSceneViewController);
 }
 
-BASE_FEATURE(kDisableComposeboxFromAIMNTP, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kDisplayTracing, base::FEATURE_ENABLED_BY_DEFAULT);
+
+bool IsDisplayTracingEnabled() {
+  return base::FeatureList::IsEnabled(kDisplayTracing);
+}
+
+BASE_FEATURE(kDisableComposeboxFromAIMNTP, base::FEATURE_ENABLED_BY_DEFAULT);
 
 bool IsDisableComposeboxFromAIMNTPEnabled() {
   return base::FeatureList::IsEnabled(kDisableComposeboxFromAIMNTP);
@@ -1049,6 +1155,14 @@ BASE_FEATURE(kAIMCobrowseDebugEntrypoint, base::FEATURE_DISABLED_BY_DEFAULT);
 bool IsAIMCobrowseDebugEntrypointEnabled() {
   return base::FeatureList::IsEnabled(kAIMCobrowseDebugEntrypoint);
 }
+
+const char kAIMCobrowseHeaderParam[] = "kNTPMIAEntrypointParam";
+const char kAIMCobrowseHeaderParamOptionA[] = "kAIMCobrowseHeaderParamOptionA";
+const char kAIMCobrowseHeaderParamOptionB[] = "kAIMCobrowseHeaderParamOptionB";
+const char kAIMCobrowseHeaderParamOptionC[] = "kAIMCobrowseHeaderParamOptionC";
+
+// Feature flag to change the cobrowse header design.
+BASE_FEATURE(kAIMCobrowseHeader, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kRecordRecentActiveDays, base::FEATURE_ENABLED_BY_DEFAULT);
 
@@ -1075,10 +1189,19 @@ bool IsAimCobrowseEnabled() {
          base::FeatureList::IsEnabled(kAimCobrowse);
 }
 
-BASE_FEATURE(kDisableU18FeedbackIos, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kFeedbackEntryPointsRequireCanSubmitFeedbackCapability,
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
-bool IsDisableU18FeedbackIosEnabled() {
-  return base::FeatureList::IsEnabled(kDisableU18FeedbackIos);
+bool IsFeedbackEntryPointsRequireCanSubmitFeedbackCapabilityEnabled() {
+  return base::FeatureList::IsEnabled(
+      kFeedbackEntryPointsRequireCanSubmitFeedbackCapability);
+}
+
+BASE_FEATURE(kDisableFeedbackForIneligibleUsers,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsDisableFeedbackForIneligibleUsersEnabled() {
+  return base::FeatureList::IsEnabled(kDisableFeedbackForIneligibleUsers);
 }
 
 BASE_FEATURE(kFullscreenRefactoring, base::FEATURE_DISABLED_BY_DEFAULT);
@@ -1102,7 +1225,7 @@ bool IsAskAboutThisPageEnabled() {
 }
 
 BASE_FEATURE(kGridMediatorSnapshotUpdateBatchGuard,
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 bool IsGridMediatorSnapshotUpdateBatchGuardEnabled() {
   return base::FeatureList::IsEnabled(kGridMediatorSnapshotUpdateBatchGuard);
@@ -1120,6 +1243,31 @@ bool IsYourSavedInfoSettingsPageIosEnabled() {
   return base::FeatureList::IsEnabled(kYourSavedInfoSettingsPageIos);
 }
 
+BASE_FEATURE(kBackgroundRefreshRegressionTest,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+namespace {
+const base::FeatureParam<BackgroundRefreshRegressionTestArm>::Option
+    kBackgroundRefreshRegressionTestArmOptions[] = {
+        {BackgroundRefreshRegressionTestArm::kControl, "control"},
+        {BackgroundRefreshRegressionTestArm::kBaseline, "baseline"},
+        {BackgroundRefreshRegressionTestArm::kShortPersistenceDelay,
+         "short-persistence-delay"},
+        {BackgroundRefreshRegressionTestArm::kLongRefreshInterval,
+         "long-refresh-interval"},
+        {BackgroundRefreshRegressionTestArm::kNoBeacon, "no-beacon"}};
+}  // namespace
+
+const base::FeatureParam<BackgroundRefreshRegressionTestArm>
+    kBackgroundRefreshRegressionTestArmParam{
+        &kBackgroundRefreshRegressionTest, "regression_test_arm",
+        BackgroundRefreshRegressionTestArm::kControl,
+        &kBackgroundRefreshRegressionTestArmOptions};
+
+BackgroundRefreshRegressionTestArm GetBackgroundRefreshRegressionTestArm() {
+  return kBackgroundRefreshRegressionTestArmParam.Get();
+}
+
 BASE_FEATURE(kOpenEditGroupViewByTappingTitle,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -1127,5 +1275,52 @@ bool IsOpenEditGroupViewByTappingTitleEnabled() {
   return base::FeatureList::IsEnabled(kOpenEditGroupViewByTappingTitle);
 }
 
+bool IsUpdateTabGroupColorsEnabled() {
+  return base::FeatureList::IsEnabled(tab_groups::kUpdateTabGroupColors);
+}
+
+// Enables the plus button in NTP fakebox.
+BASE_FEATURE(kPlusButtonInFakebox, base::FEATURE_DISABLED_BY_DEFAULT);
+
+// Returns true if the plus button in NTP fakebox is enabled.
+bool IsPlusButtonInFakeboxEnabled() {
+  if (IsComposeboxAIMDisabled() || !IsComposeboxIOSEnabled()) {
+    return false;
+  }
+
+  return base::FeatureList::IsEnabled(kPlusButtonInFakebox);
+}
+
+BASE_FEATURE(kCobrowseAimHistory, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsCobrowseAimHistoryEnabled() {
+  return base::FeatureList::IsEnabled(kCobrowseAimHistory);
+}
+
+BASE_FEATURE(kAssistantAimMinimizedState, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsAssistantAimMinimizedStateEnabled() {
+  return base::FeatureList::IsEnabled(kAssistantAimMinimizedState);
+}
+
+BASE_FEATURE(kIOSBackendPromoServiceIntegration,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsIOSBackendPromoServiceIntegrationEnabled() {
+  return base::FeatureList::IsEnabled(kIOSBackendPromoServiceIntegration);
+}
+
 BASE_FEATURE(kUseUIGraphicsImageRendererForFallbackIcons,
              base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kIOSDarkModeDetection, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsIOSDarkModeDetectionEnabled() {
+  return base::FeatureList::IsEnabled(kIOSDarkModeDetection);
+}
+
+BASE_FEATURE(kIdentityAwareness, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool IsIdentityAwarenessEnabled() {
+  return base::FeatureList::IsEnabled(kIdentityAwareness);
+}

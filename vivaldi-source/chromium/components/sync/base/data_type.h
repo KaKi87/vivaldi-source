@@ -198,8 +198,9 @@ enum DataType {
   // A theme object specifically for iOS devices.
   THEMES_IOS,
 
-  // An accessibility annotation.
-  ACCESSIBILITY_ANNOTATION,
+
+  // A theme object specifically for Android devices.
+  THEMES_ANDROID,
 
   // Notes items
   NOTES,
@@ -312,7 +313,8 @@ enum class DataTypeForHistograms {
   kSkill = 76,
   kGeminiThread = 77,
   kThemesIos = 78,
-  kAccessibilityAnnotation = 79,
+  // kDeprecatedAccessibilityAnnotation = 79,
+  kThemesAndroid = 80,
 
   // Vivaldi
   kNotes = 300,

@@ -144,7 +144,6 @@ enum class SettingSource {
   kAllowList,
   kSupervised,
   kInstalledWebApp,
-  kTpcdGrant,
   kOsJavascriptOptimizer,
   kTest,
 };

@@ -79,6 +79,9 @@ class VivaldiFaviconLoader;
 /// Sets the image used in image search.
 - (void)setThumbnailImage:(UIImage*)image;
 
+/// Disconnects the mediator.
+- (void)disconnect;
+
 // Vivaldi
 @property(nonatomic, assign) ios::VivaldiFaviconLoader* vivaldiFaviconLoader;
 // End Vivaldi

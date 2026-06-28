@@ -25,19 +25,20 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include "dawn/tests/white_box/VulkanImageWrappingTests.h"
+#include "src/dawn/tests/white_box/VulkanImageWrappingTests.h"
 
 #include <utility>
 
-#include "dawn/common/Math.h"
-#include "dawn/native/Adapter.h"
-#include "dawn/native/vulkan/DeviceVk.h"
-#include "dawn/tests/DawnTest.h"
-#include "dawn/tests/white_box/VulkanImageWrappingTests_DmaBuf.h"
-#include "dawn/tests/white_box/VulkanImageWrappingTests_OpaqueFD.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/WGPUHelpers.h"
 #include "partition_alloc/pointers/raw_ptr.h"
+#include "src/dawn/common/Math.h"
+#include "src/dawn/native/Adapter.h"
+#include "src/dawn/native/vulkan/DeviceVk.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/tests/white_box/VulkanImageWrappingTests_DmaBuf.h"
+#include "src/dawn/tests/white_box/VulkanImageWrappingTests_OpaqueFD.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/compiler.h"
 
 namespace dawn::native::vulkan {
 
@@ -906,8 +907,8 @@ TEST_P(VulkanImageWrappingUsageTests, LargerImage) {
     }
 
     // Check the image is not corrupted on |device|
-    EXPECT_BUFFER_U32_RANGE_EQ(reinterpret_cast<uint32_t*>(data.data()), copyDstBuffer, 0,
-                               data.size() / 4);
+    DAWN_UNSAFE_TODO(EXPECT_BUFFER_U32_RANGE_EQ(reinterpret_cast<uint32_t*>(data.data()),
+                                                copyDstBuffer, 0, data.size() / 4));
 
     IgnoreSignalSemaphore(nextWrappedTexture);
 }

@@ -24,35 +24,24 @@
 
 namespace ui {
 
-AXPlatformNodeTextProviderWin::AXPlatformNodeTextProviderWin() {}
+AXPlatformNodeTextProviderWin::AXPlatformNodeTextProviderWin(
+    AXPlatformNodeWin* owner)
+    : owner_(owner) {}
 
 AXPlatformNodeTextProviderWin::~AXPlatformNodeTextProviderWin() {}
 
 // static
-Microsoft::WRL::ComPtr<AXPlatformNodeTextProviderWin>
-AXPlatformNodeTextProviderWin::Create(AXPlatformNodeWin* owner) {
-  CComObject<AXPlatformNodeTextProviderWin>* text_provider = nullptr;
-  if (SUCCEEDED(CComObject<AXPlatformNodeTextProviderWin>::CreateInstance(
-          &text_provider))) {
-    DCHECK(text_provider);
-    text_provider->owner_ = owner;
-    return text_provider;
-  }
-
-  return nullptr;
+Microsoft::WRL::ComPtr<ITextEditProvider> AXPlatformNodeTextProviderWin::Create(
+    AXPlatformNodeWin* owner) {
+  return Microsoft::WRL::Make<AXPlatformNodeTextProviderWin>(owner);
 }
 
 // static
 void AXPlatformNodeTextProviderWin::CreateIUnknown(AXPlatformNodeWin* owner,
                                                    IUnknown** unknown) {
-  Microsoft::WRL::ComPtr<AXPlatformNodeTextProviderWin> text_provider(
-      Create(owner));
-  if (!text_provider) {
-    *unknown = nullptr;
-    return;
-  }
-  ITextEditProvider* provider_ptr = text_provider.Detach();
-  *unknown = provider_ptr;
+  Microsoft::WRL::ComPtr<ITextEditProvider> text_provider(Create(owner));
+  if (text_provider)
+    *unknown = text_provider.Detach();
 }
 
 //

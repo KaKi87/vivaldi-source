@@ -4,6 +4,9 @@
 
 #include "chrome/browser/glic/service/glic_instance_helper.h"
 
+#include "chrome/browser/glic/service/metrics/glic_instance_helper_metrics.h"
+#include "components/tabs/public/tab_interface.h"
+
 namespace glic {
 
 DEFINE_USER_DATA(GlicInstanceHelper);
@@ -17,7 +20,12 @@ GlicInstanceHelper* GlicInstanceHelper::From(tabs::TabInterface* tab) {
 
 GlicInstanceHelper::GlicInstanceHelper(tabs::TabInterface* tab)
     : tab_(tab),
-      scoped_unowned_user_data_(tab->GetUnownedUserDataHost(), *this) {}
+      metrics_(std::make_unique<GlicInstanceHelperMetrics>()),
+      scoped_unowned_user_data_(tab->GetUnownedUserDataHost(), *this) {
+#if BUILDFLAG(IS_ANDROID)
+  InitJavaObject();
+#endif
+}
 
 GlicInstanceHelper::~GlicInstanceHelper() {
   CHECK(tab_);
@@ -34,9 +42,18 @@ std::optional<InstanceId> GlicInstanceHelper::GetInstanceId() const {
 void GlicInstanceHelper::SetBoundInstance(Instance* instance) {
   bound_instance_ = instance;
   if (bound_instance_) {
-    metrics_.OnBoundToInstance(bound_instance_->id());
+    metrics_->OnBoundToInstance(bound_instance_->id());
   }
+#if BUILDFLAG(IS_ANDROID)
+  NotifyJavaInstanceTitleChanged();
+#endif
 }
+
+#if BUILDFLAG(IS_ANDROID)
+void GlicInstanceHelper::OnConversationTitleChanged() {
+  NotifyJavaInstanceTitleChanged();
+}
+#endif
 
 std::optional<std::string> GlicInstanceHelper::GetConversationId() const {
   if (bound_instance_) {
@@ -45,10 +62,17 @@ std::optional<std::string> GlicInstanceHelper::GetConversationId() const {
   return std::nullopt;
 }
 
+std::string GlicInstanceHelper::GetConversationTitle() const {
+  if (bound_instance_) {
+    return bound_instance_->conversation_title();
+  }
+  return "";
+}
+
 void GlicInstanceHelper::OnPinnedByInstance(Instance* instance) {
   CHECK(instance);
   pinned_instances_.insert(instance);
-  metrics_.OnPinnedByInstance(instance->id());
+  metrics_->OnPinnedByInstance(instance->id());
 }
 
 void GlicInstanceHelper::OnUnpinnedByInstance(Instance* instance) {
@@ -63,11 +87,11 @@ GlicInstanceHelper::GetPinnedInstances() const {
 }
 
 void GlicInstanceHelper::SetIsDaisyChained(DaisyChainSource source) {
-  metrics_.SetIsDaisyChained(source);
+  metrics_->SetIsDaisyChained(source);
 }
 
 void GlicInstanceHelper::OnDaisyChainAction(DaisyChainFirstAction action) {
-  metrics_.OnDaisyChainAction(action);
+  metrics_->OnDaisyChainAction(action);
 }
 
 base::CallbackListSubscription GlicInstanceHelper::SubscribeToDestruction(

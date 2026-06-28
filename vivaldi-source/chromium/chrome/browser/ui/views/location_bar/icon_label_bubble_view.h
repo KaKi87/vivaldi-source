@@ -22,6 +22,7 @@
 #include "ui/views/animation/ink_drop_host.h"
 #include "ui/views/animation/ink_drop_observer.h"
 #include "ui/views/controls/button/label_button.h"
+#include "ui/views/controls/button/single_animated_image_container.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/flex_layout_types.h"
 #include "ui/views/widget/widget_observer.h"
@@ -133,6 +134,12 @@ class IconLabelBubbleView : public views::InkDropObserver,
   }
   views::View* GetImageContainerView() { return image_container_view(); }
 
+  views::SingleAnimatedImageContainer& animated_image_container() {
+    CHECK(image_container());
+    return *static_cast<views::SingleAnimatedImageContainer*>(
+        image_container());
+  }
+
   // Exposed for testing.
   views::View* separator_view() const { return separator_view_; }
 
@@ -227,7 +234,7 @@ class IconLabelBubbleView : public views::InkDropObserver,
 
   // Animates the view in and disables highlighting for hover and focus. If a
   // |string_id| is provided it also sets/changes the label to that string.
-  // TODO(bruthig): See https://crbug.com/669253. Since the ink drop highlight
+  // TODO(bruthig): See https://crbug.com/41288467. Since the ink drop highlight
   // currently cannot handle host resizes, the highlight needs to be disabled
   // when the animation is running.
   void AnimateIn(std::optional<int> string_id);

@@ -21,22 +21,37 @@ namespace features {
 
 BASE_DECLARE_FEATURE(kAllowEyeDropperWGCScreenCapture);
 
-BASE_DECLARE_FEATURE(kBrowserWidgetCacheThemeService);
+// Enables a compositor-driven rotation animation for the tab load throbber.
+BASE_DECLARE_FEATURE(kCompositorLoadingThrobber);
 
 BASE_DECLARE_FEATURE(kCreateNewTabGroupAppMenuTopLevel);
+
+BASE_DECLARE_FEATURE(kCtrlTabMru);
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 BASE_DECLARE_FEATURE(kDseIntegrity);
 BASE_DECLARE_FEATURE(kFewerUpdateConfirmations);
 #endif
 
-BASE_DECLARE_FEATURE(kTabStripDeclutter);
-BASE_DECLARE_FEATURE(kGlassToolbar);
+BASE_DECLARE_FEATURE(kEnableExtensionsMenuTeardownFix);
 
 BASE_DECLARE_FEATURE(kImportExportFlags);
 
-BASE_DECLARE_FEATURE(kToolbarGlowUp);
+BASE_DECLARE_FEATURE(kInfoBarInlineLinks);
 
+// All feature flags associated with Glow Up, apart from those in
+// ui_base_features.h
+BASE_DECLARE_FEATURE(kTabStripDeclutter);
+BASE_DECLARE_FEATURE(kToolbarGlowUp);
+BASE_DECLARE_FEATURE(kMenuSimplification);
+BASE_DECLARE_FEATURE(kTabGroupColorRefresh);
+BASE_DECLARE_FEATURE(kWebuiRefresh2026);
+
+bool IsTabStripDeclutterEnabled();
+bool IsToolbarGlowUpEnabled();
+bool IsMenuSimplificationEnabled();
+bool IsTabGroupColorRefreshEnabled();
+bool IsWebuiRefresh2026Enabled();
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 
@@ -47,16 +62,7 @@ BASE_DECLARE_FEATURE(kExtensionsCollapseMainMenu);
 
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
-// Controls whether the refreshed infobar is enabled.
-BASE_DECLARE_FEATURE(kInfobarRefresh);
-
-#if BUILDFLAG(IS_WIN)
-BASE_DECLARE_FEATURE(kOfferPinToTaskbarInFirstRunExperience);
-BASE_DECLARE_FEATURE(kOfferPinToTaskbarInSettings);
-#endif
-
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
-BASE_DECLARE_FEATURE(kOfferPinToTaskbarInfoBar);
 BASE_DECLARE_FEATURE(kPdfInfoBar);
 BASE_DECLARE_FEATURE(kSeparateDefaultAndPinPrompt);
 BASE_DECLARE_FEATURE_PARAM(int, kSeparateDefaultAndPinPromptRandSeed);
@@ -214,6 +220,8 @@ inline constexpr char kTabHoverCardImagesCrossfadePreviewAtParameterName[] =
 inline constexpr char kTabHoverCardAdditionalMaxWidthDelay[] =
     "additional_max_width_delay";
 
+BASE_DECLARE_FEATURE(kTabStripSkipSelectionEventOnActivation);
+
 // If enabled, use desktop widget to show tab modal dialogs.
 BASE_DECLARE_FEATURE(kTabModalUsesDesktopWidget);
 
@@ -223,13 +231,10 @@ BASE_DECLARE_FEATURE(kTearOffWebAppTabOpensWebAppWindow);
 // Enables a three-button password save dialog variant (essentially adding a
 // "not now" button alongside "never").
 BASE_DECLARE_FEATURE(kThreeButtonPasswordSaveDialog);
-#endif
 
-// Enables a side panel that occupies the vertical space from the top of the
-// toolbar to the bottom of the browser. This is taller than the default side
-// panel, which occupies the space from the top of the WebContents to the bottom
-// of the browser.
-BASE_DECLARE_FEATURE(kToolbarHeightSidePanel);
+// Enables a split button for the "Cancel" action in the Password Save bubble.
+BASE_DECLARE_FEATURE(kPasswordSaveUpdateDropdownMenuExperiment);
+#endif
 
 // Feature which uses a flyover animation for animating side panels (and
 // expansion/contraction of the Vertical Tab Strip).
@@ -239,18 +244,16 @@ BASE_DECLARE_FEATURE(kToolbarHeightSidePanel);
 BASE_DECLARE_FEATURE(kSidePanelFlyoverAnimation);
 bool UseSidePanelFlyoverAnimation();
 
+BASE_DECLARE_FEATURE_PARAM(int, kSidePanelFlyoverDurationMs);
+
+BASE_DECLARE_FEATURE(kUseDefaultDeadlineWhenAnimatingBounds);
+
 // TODO(crbug.com/460764864): Cleanup all the enterprise badging feature flags.
 BASE_DECLARE_FEATURE(kEnterpriseProfileBadgingForMenu);
 BASE_DECLARE_FEATURE(kNTPFooterBadgingPolicies);
 
 BASE_DECLARE_FEATURE(kEnterpriseManagementDisclaimerUsesCustomLabel);
 BASE_DECLARE_FEATURE(kManagedProfileRequiredInterstitial);
-
-BASE_DECLARE_FEATURE(kWebUITabStrip);
-
-// Controls whether the context menu is shown on a touch press or a touch
-// tap gesture on the WebUI Tab Strip.
-BASE_DECLARE_FEATURE(kWebUITabStripContextMenuAfterTap);
 
 // Cocoa to views migration.
 #if BUILDFLAG(IS_MAC)
@@ -268,10 +271,6 @@ BASE_DECLARE_FEATURE(kPageSpecificDataDialogRelatedInstalledAppsSection);
 // Feature for the promotion banner on the top of chrome://management page
 BASE_DECLARE_FEATURE(kEnableManagementPromotionBanner);
 
-// Controls whether a performance improvement in browser feature support
-// checking is enabled.
-BASE_DECLARE_FEATURE(kInlineFullscreenPerfExperiment);
-
 // Controls whether the new page actions framework should be displaying page
 // actions.
 BASE_DECLARE_FEATURE(kPageActionsMigration);
@@ -283,8 +282,6 @@ BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationEnableAll);
 // have their page actions controlled using the new framework.
 BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationIntentPicker);
 BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationZoom);
-BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationFileSystemAccess);
-BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationManagePasswords);
 BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationCookieControls);
 BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationAutofillMandatoryReauth);
 BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationSharingHub);
@@ -296,6 +293,8 @@ BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationSavePayments);
 BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationLensOverlayHomework);
 BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationBookmarkStar);
 
+BASE_DECLARE_FEATURE(kPageActionsPrioritySelector);
+
 // Determines whether the "save password" page action displays different UI if
 // the user has said to never save passwords for that site.
 BASE_DECLARE_FEATURE(kSavePasswordsContextualUi);
@@ -303,6 +302,7 @@ BASE_DECLARE_FEATURE(kSavePasswordsContextualUi);
 #if BUILDFLAG(IS_MAC)
 // Add tab group colours when viewing tab groups using the top mac OS menu bar.
 BASE_DECLARE_FEATURE(kShowTabGroupsMacSystemMenu);
+bool IsShowTabGroupsMacSystemMenuEnabled();
 #endif  // BUILDFLAG(IS_MAC)
 
 // If enabled, the by date history will show in the side panel.
@@ -311,8 +311,13 @@ BASE_DECLARE_FEATURE(kByDateHistoryInSidePanel);
 // If enabled, the "Tabs from other devices" side panel will be available.
 BASE_DECLARE_FEATURE(kTabsFromOtherDevicesSidePanel);
 
-// Controls whether to use the TabStrip browser api's controller.
-BASE_DECLARE_FEATURE(kTabStripBrowserApi);
+// If enabled, Stable-channel instances of Chrome will be hidden from the "Tabs
+// from other devices" side panel.
+BASE_DECLARE_FEATURE(kTabsFromOtherDevicesSidePanelExcludeStableChannel);
+
+// If enabled, the "Tabs from other devices" toolbar button will be pinned by
+// default.
+BASE_DECLARE_FEATURE(kTabsFromOtherDevicesSidePanelPinnedByDefault);
 
 #if !BUILDFLAG(IS_ANDROID)
 // Controls whether to add new tabs to active tab group or to the end of the
@@ -325,15 +330,23 @@ bool IsWebUIReloadButtonEnabled();
 
 bool IsWebUIHomeButtonEnabled();
 
+bool IsWebUIBatterySaverButtonEnabled();
+
 bool IsWebUIBackForwardButtonEnabled();
 
 bool IsWebUIPinnedToolbarActionsEnabled();
+
+bool IsWebUIExtensionsContainerEnabled();
 
 bool IsWebUISplitTabsButtonEnabled();
 
 // Controls whether the WebUI version of the Avatar Button is used.
 BASE_DECLARE_FEATURE(kWebUIAvatarButton);
 bool IsWebUIAvatarButtonEnabled();
+
+bool IsWebUIPerformanceInterventionButtonEnabled();
+
+bool IsWebUIAppMenuButtonEnabled();
 
 bool IsWebUILocationBarEnabled();
 
@@ -362,6 +375,20 @@ BASE_DECLARE_FEATURE(kTabGroupsFocusing);
 BASE_DECLARE_FEATURE_PARAM(bool, kTabGroupsFocusingPinnedTabs);
 BASE_DECLARE_FEATURE_PARAM(bool, kTabGroupsFocusingAutoClose);
 BASE_DECLARE_FEATURE_PARAM(bool, kTabGroupsFocusingDefaultToFocused);
+
+BASE_DECLARE_FEATURE(kVerticalTabsGrabHandleRemoval);
+BASE_DECLARE_FEATURE_PARAM(bool, kVerticalTabsGrabHandleRemovalAlways);
+
+BASE_DECLARE_FEATURE(kOmniboxResizingPrioritization);
+
+BASE_DECLARE_FEATURE(kToolbarAppMenuLabelResizing);
+
+BASE_DECLARE_FEATURE(kToolbarProfileChipResizing);
+
+BASE_DECLARE_FEATURE(kToolbarGlicButtonResizing);
+
+// Whether or not OSCryptAsyncAvailabilityInfoBarDelegate is enabled.
+BASE_DECLARE_FEATURE(kOSCryptAsyncAvailabilityInfoBar);
 
 }  // namespace features
 

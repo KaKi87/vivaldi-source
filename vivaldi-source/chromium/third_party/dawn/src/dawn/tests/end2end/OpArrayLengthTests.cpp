@@ -29,11 +29,11 @@
 #include <string>
 #include <vector>
 
-#include "dawn/common/Assert.h"
-#include "dawn/common/Math.h"
-#include "dawn/tests/DawnTest.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/common/Assert.h"
+#include "src/dawn/common/Math.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/WGPUHelpers.h"
 
 namespace dawn {
 namespace {
@@ -303,6 +303,93 @@ DAWN_INSTANTIATE_TEST(OpArrayLengthTest,
                       VulkanBackend(),
                       WebGPUBackend());
 
+// Regression test for stage-visibility filtering in
+// GenerateArrayLengthFromuniformData (ShaderModuleGL.cpp). A storage
+// buffer in the layout that is *not* visible to the stage being
+// compiled should not be given an entry in Tint's
+// bindpoint_to_size_index nor in the remapper_data. Otherwise,
+// ArrayLengthFromUniform loads the wrong UBO slot for arrayLength(),
+// defeating Robustness clamping.
+class OpArrayLengthVisibilityCollisionTest : public DawnTest {
+  protected:
+    void GetRequiredLimits(const dawn::utils::ComboLimits& supported,
+                           dawn::utils::ComboLimits& required) override {
+        supported.UnlinkedCopyTo(&required);
+    }
+};
+
+TEST_P(OpArrayLengthVisibilityCollisionTest, ComputeWithFragmentOnlyBufferInLayout) {
+    DAWN_TEST_UNSUPPORTED_IF(GetSupportedLimits().maxStorageBuffersInFragmentStage < 1);
+
+    // Buffer A: large, bound at full size to a FRAGMENT-only storage slot.
+    constexpr uint32_t kBufASize = 1u << 20;  // 1 MiB → arrayLength<u32> = 262144
+    wgpu::BufferDescriptor descA;
+    descA.size = kBufASize;
+    descA.usage = wgpu::BufferUsage::Storage;
+    wgpu::Buffer bufA = device.CreateBuffer(&descA);
+
+    // Buffer B: large allocation, but only a 64-byte sub-range will be bound to
+    // the COMPUTE-visible storage slot. With the collision the shader receives
+    // A's bound size as B's arrayLength, so the Robustness clamp on B[idx]
+    // permits writes far past the 64-byte bound range.
+    constexpr uint32_t kBufBSize = 16384;  // 16 KiB underlying allocation
+    constexpr uint32_t kBufBBound = 64;    // 64 bytes bound → arrayLength = 16
+    constexpr uint32_t kOobIndex = 1000;   // Target B[1000] (byte 4000) – OOB
+    constexpr uint32_t kOobMarker = 0xDEAD4A11u;
+    std::vector<uint32_t> initialData(kBufBSize / 4, 0u);
+    wgpu::Buffer bufB = utils::CreateBufferFromData(
+        device, initialData.data(), initialData.size() * sizeof(uint32_t),
+        wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc | wgpu::BufferUsage::CopyDst);
+
+    // PipelineLayoutGL assigns ssboIndex by iterating groups in order, so:
+    //   group 0 (A, FRAGMENT-only) → ssboIndex 0
+    //   group 1 (B, COMPUTE)       → ssboIndex 1  → glIndex_B = 1
+    // Choose A's WGSL @binding == glIndex_B (= 1) so that A's pre-remap key
+    // {0,1} equals B's post-remap key {0, glIndex_B}.
+    wgpu::BindGroupLayout bglA = utils::MakeBindGroupLayout(
+        device, {{1, wgpu::ShaderStage::Fragment, wgpu::BufferBindingType::ReadOnlyStorage}});
+    wgpu::BindGroupLayout bglB = utils::MakeBindGroupLayout(
+        device, {{0, wgpu::ShaderStage::Compute, wgpu::BufferBindingType::Storage}});
+
+    std::string shaderSource = R"(
+        @group(1) @binding(0) var<storage, read_write> B : array<u32>;
+        @compute @workgroup_size(1) fn main() {
+            B[0] = arrayLength(&B);
+            // Robustness wraps this as B[min(idx, arrayLength(&B)-1)].
+            // With the bug arrayLength(&B) is huge, so the write lands at
+            // index 1000 – past the 64-byte bound range.
+            B[)" + std::to_string(kOobIndex) +
+                               R"(u] = )" + std::to_string(kOobMarker) + R"(u;
+        })";
+
+    wgpu::ComputePipelineDescriptor pipelineDesc;
+    pipelineDesc.layout = utils::MakePipelineLayout(device, {bglA, bglB});
+    pipelineDesc.compute.module = utils::CreateShaderModule(device, shaderSource);
+    pipelineDesc.compute.entryPoint = "main";
+    wgpu::ComputePipeline pipeline = device.CreateComputePipeline(&pipelineDesc);
+
+    wgpu::BindGroup bgA = utils::MakeBindGroup(device, bglA, {{1, bufA, 0, kBufASize}});
+    wgpu::BindGroup bgB = utils::MakeBindGroup(device, bglB, {{0, bufB, 0, kBufBBound}});
+
+    wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+    wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+    pass.SetPipeline(pipeline);
+    pass.SetBindGroup(0, bgA);
+    pass.SetBindGroup(1, bgB);
+    pass.DispatchWorkgroups(1);
+    pass.End();
+    wgpu::CommandBuffer commands = encoder.Finish();
+    queue.Submit(1, &commands);
+
+    EXPECT_BUFFER_U32_EQ(kBufBBound / 4, bufB, 0);
+    EXPECT_BUFFER_U32_EQ(0u, bufB, kOobIndex * sizeof(uint32_t));
+}
+
+DAWN_INSTANTIATE_TEST(OpArrayLengthVisibilityCollisionTest,
+                      OpenGLESBackend(),
+                      OpenGLESBackend({"gl_use_array_length_from_uniform"}),
+                      VulkanBackend());
+
 enum class TieredLimits {
     No,
     Yes,
@@ -431,6 +518,127 @@ DAWN_INSTANTIATE_TEST_P(MaxArrayLengthTest,
                          OpenGLESBackend(), OpenGLESBackend({"gl_use_array_length_from_uniform"}),
                          VulkanBackend(), WebGPUBackend()},
                         {TieredLimits::No, TieredLimits::Yes});
+
+class GLArrayLengthOverflowTest : public DawnTest {
+  protected:
+    void GetRequiredLimits(const dawn::utils::ComboLimits& supported,
+                           dawn::utils::ComboLimits& required) override {
+        supported.UnlinkedCopyTo(&required);
+    }
+};
+
+// Test that using more than 96 ShaderStage::None bind group entries
+// (which don't count against Dawn's validation limit) don't cause GL
+// errors and failed buffer transfers.
+TEST_P(GLArrayLengthOverflowTest, VisibilityNoneOverflowsArrayLengthBuffer) {
+    DAWN_TEST_UNSUPPORTED_IF(GetSupportedLimits().maxBindGroups < 4);
+
+    constexpr uint32_t kLargeSize = 512u;
+    constexpr uint32_t kSmallSize = 256u;
+    constexpr uint32_t kPadPerGroup = 33;
+
+    wgpu::BufferDescriptor bd;
+    bd.size = kLargeSize;
+    bd.usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc;
+    wgpu::Buffer largeBuf = device.CreateBuffer(&bd);
+
+    // Get the arrayLength() of the passed-in storage buffer, and store it into
+    // the first element of the array.
+    wgpu::ComputePipelineDescriptor primeDesc;
+    primeDesc.compute.module = utils::CreateShaderModule(device, R"(
+        @group(0) @binding(0) var<storage, read_write> a : array<u32>;
+        @compute @workgroup_size(1) fn main() {
+            a[0] = arrayLength(&a);
+        })");
+    wgpu::ComputePipeline primePipeline = device.CreateComputePipeline(&primeDesc);
+    wgpu::BindGroupLayout primeBGL = primePipeline.GetBindGroupLayout(0);
+    wgpu::BindGroup primeBG = utils::MakeBindGroup(device, primeBGL, {{0, largeBuf}});
+
+    {
+        wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+        wgpu::ComputePassEncoder pass = enc.BeginComputePass();
+        pass.SetPipeline(primePipeline);
+        pass.SetBindGroup(0, primeBG);
+        pass.DispatchWorkgroups(1);
+        pass.End();
+        wgpu::CommandBuffer cb = enc.Finish();
+        queue.Submit(1, &cb);
+    }
+
+    bd.size = kSmallSize;
+    bd.usage = wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopySrc;
+    wgpu::Buffer smallBuf = device.CreateBuffer(&bd);
+
+    bd.size = 4;
+    bd.usage = wgpu::BufferUsage::Storage;
+    wgpu::Buffer tinyBuffer = device.CreateBuffer(&bd);
+
+    wgpu::BindGroupLayout bgl0 = utils::MakeBindGroupLayout(
+        device, {{0, wgpu::ShaderStage::Compute, wgpu::BufferBindingType::Storage}});
+
+    std::vector<wgpu::BindGroupLayoutEntry> padEntries(kPadPerGroup);
+    for (uint32_t i = 0; i < kPadPerGroup; i++) {
+        padEntries[i].binding = i;
+        padEntries[i].visibility = wgpu::ShaderStage::None;
+        padEntries[i].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+    }
+    wgpu::BindGroupLayoutDescriptor padDesc;
+    padDesc.entryCount = padEntries.size();
+    padDesc.entries = padEntries.data();
+    wgpu::BindGroupLayout bglPad = device.CreateBindGroupLayout(&padDesc);
+
+    wgpu::BindGroupLayout bgls[] = {bgl0, bglPad, bglPad, bglPad};
+    wgpu::PipelineLayoutDescriptor plDesc;
+    plDesc.bindGroupLayoutCount = 4;
+    plDesc.bindGroupLayouts = bgls;
+    wgpu::PipelineLayout manyBindingsPL = device.CreatePipelineLayout(&plDesc);
+
+    wgpu::ComputePipelineDescriptor manyBindingsDesc;
+    manyBindingsDesc.layout = manyBindingsPL;
+    manyBindingsDesc.compute.module = primeDesc.compute.module;
+    wgpu::ComputePipeline manyBindingsPipeline = device.CreateComputePipeline(&manyBindingsDesc);
+
+    wgpu::BindGroup bg0 = utils::MakeBindGroup(device, bgl0, {{0, smallBuf}});
+
+    std::vector<wgpu::BindGroupEntry> padBinds(kPadPerGroup);
+    for (uint32_t i = 0; i < kPadPerGroup; i++) {
+        padBinds[i].binding = i;
+        padBinds[i].buffer = tinyBuffer;
+    }
+    wgpu::BindGroupDescriptor bgPadDesc;
+    bgPadDesc.layout = bglPad;
+    bgPadDesc.entryCount = padBinds.size();
+    bgPadDesc.entries = padBinds.data();
+    wgpu::BindGroup bgPad = device.CreateBindGroup(&bgPadDesc);
+
+    {
+        wgpu::CommandEncoder enc = device.CreateCommandEncoder();
+        wgpu::ComputePassEncoder pass = enc.BeginComputePass();
+        pass.SetPipeline(manyBindingsPipeline);
+        pass.SetBindGroup(0, bg0);
+        pass.SetBindGroup(1, bgPad);
+        pass.SetBindGroup(2, bgPad);
+        pass.SetBindGroup(3, bgPad);
+        pass.DispatchWorkgroups(1);
+        pass.End();
+        wgpu::CommandBuffer cb = enc.Finish();
+        queue.Submit(1, &cb);
+    }
+
+    // Check that the stored arrayLength is the (new) small buffer length
+    // and not the (stale) large buffer length.
+    EXPECT_BUFFER_U32_EQ(kSmallSize / 4u, smallBuf, 0);
+}
+
+DAWN_INSTANTIATE_TEST(GLArrayLengthOverflowTest,
+                      D3D11Backend(),
+                      D3D12Backend(),
+                      MetalBackend(),
+                      OpenGLBackend(),
+                      OpenGLESBackend(),
+                      OpenGLESBackend({"gl_use_array_length_from_uniform"}),
+                      VulkanBackend(),
+                      WebGPUBackend());
 
 }  // anonymous namespace
 }  // namespace dawn

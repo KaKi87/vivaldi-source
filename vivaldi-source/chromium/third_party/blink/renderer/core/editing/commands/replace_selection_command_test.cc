@@ -19,6 +19,7 @@
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/frame/settings.h"
+#include "third_party/blink/renderer/core/html/forms/text_control_element.h"
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
 #include "third_party/blink/renderer/core/testing/dummy_page_holder.h"
@@ -88,54 +89,6 @@ TEST_F(ReplaceSelectionCommandTest, pasteSpanInText) {
       << "'bar' should have been inserted";
 }
 
-// Helper function to set autosizing multipliers on a document.
-bool SetTextAutosizingMultiplier(Document* document, float multiplier) {
-  bool multiplier_set = false;
-  for (LayoutObject* layout_object = document->GetLayoutView(); layout_object;
-       layout_object = layout_object->NextInPreOrder()) {
-    if (layout_object->Style()) {
-      ComputedStyleBuilder builder(layout_object->StyleRef());
-      builder.SetTextAutosizingMultiplier(multiplier);
-      layout_object->SetStyle(builder.TakeStyle(),
-                              LayoutObject::ApplyStyleChanges::kNo);
-      multiplier_set = true;
-    }
-  }
-  return multiplier_set;
-}
-
-// This is a regression test for https://crbug.com/768261
-TEST_F(ReplaceSelectionCommandTest, TextAutosizingDoesntInflateText) {
-  GetDocument().GetSettings()->SetTextAutosizingEnabled(true);
-  GetDocument().setDesignMode("on");
-  SetBodyContent("<div><span style='font-size: 12px;'>foo bar</span></div>");
-  SetTextAutosizingMultiplier(&GetDocument(), 2.0);
-
-  Element* div = QuerySelector("div");
-  Element* span = QuerySelector("span");
-
-  // Select "bar".
-  GetDocument().GetFrame()->Selection().SetSelection(
-      SelectionInDOMTree::Builder()
-          .Collapse(Position(span->firstChild(), 4))
-          .Extend(Position(span->firstChild(), 7))
-          .Build(),
-      SetSelectionOptions());
-
-  DocumentFragment* fragment = GetDocument().createDocumentFragment();
-  fragment->ParseHTML("baz", span, /*registry*/ nullptr);
-
-  ReplaceSelectionCommand::CommandOptions options =
-      ReplaceSelectionCommand::kMatchStyle;
-
-  auto* command = MakeGarbageCollected<ReplaceSelectionCommand>(
-      GetDocument(), fragment, options,
-      EditCommand::PasswordEchoBehavior::kDoNotEcho);
-
-  EXPECT_TRUE(command->Apply()) << "the replace command should have succeeded";
-  // The span element should not have been split to increase the font size.
-  EXPECT_EQ(1u, div->CountChildren());
-}
 
 // This is a regression test for https://crbug.com/781282
 TEST_F(ReplaceSelectionCommandTest, TrailingNonVisibleTextCrash) {
@@ -653,7 +606,7 @@ TEST_F(ReplaceSelectionCommandTest, NormalizeNbspCrossNodeBoundaries) {
       GetSelectionTextFromBody());
 }
 
-TEST_F(ReplaceSelectionCommandTest, NormalizeNbspInPlaintextOnly) {
+TEST_F(ReplaceSelectionCommandTest, NormalizeNbspSkippedForPlaintextOnly) {
   Selection().SetSelection(
       SetSelectionTextToBody("<div contenteditable=\"plaintext-only\">|</div>"),
       SetSelectionOptions());
@@ -667,11 +620,12 @@ TEST_F(ReplaceSelectionCommandTest, NormalizeNbspInPlaintextOnly) {
       InputEvent::InputType::kInsertFromPaste);
 
   EXPECT_TRUE(command.Apply());
-  EXPECT_EQ("<div contenteditable=\"plaintext-only\">Hello World|</div>",
+  EXPECT_EQ("<div contenteditable=\"plaintext-only\">Hello\u00A0World|</div>",
             GetSelectionTextFromBody());
 }
 
-TEST_F(ReplaceSelectionCommandTest, NormalizeNbspInPlaintextOnlyFromHTML) {
+TEST_F(ReplaceSelectionCommandTest,
+       NormalizeNbspSkippedForPlaintextOnlyFromHTML) {
   Selection().SetSelection(
       SetSelectionTextToBody("<div contenteditable=\"plaintext-only\">|</div>"),
       SetSelectionOptions());
@@ -687,8 +641,42 @@ TEST_F(ReplaceSelectionCommandTest, NormalizeNbspInPlaintextOnlyFromHTML) {
       InputEvent::InputType::kInsertFromPaste);
 
   EXPECT_TRUE(command.Apply());
-  EXPECT_EQ("<div contenteditable=\"plaintext-only\">Hello World|</div>",
+  EXPECT_EQ("<div contenteditable=\"plaintext-only\">Hello\u00A0World|</div>",
             GetSelectionTextFromBody());
+}
+
+TEST_F(ReplaceSelectionCommandTest, NormalizeNbspSkippedForInput) {
+  SetBodyContent("<input>");
+  auto* input = ToTextControl(QuerySelector("input"));
+  input->Focus();
+
+  DocumentFragment& fragment = *GetDocument().createDocumentFragment();
+  fragment.appendChild(Text::Create(GetDocument(), u"Hello\u00A0World"));
+
+  auto& command = *MakeGarbageCollected<ReplaceSelectionCommand>(
+      GetDocument(), &fragment, /* options */ 0,
+      EditCommand::PasswordEchoBehavior::kDoNotEcho,
+      InputEvent::InputType::kInsertFromPaste);
+
+  EXPECT_TRUE(command.Apply());
+  EXPECT_EQ(String(u"Hello\u00A0World"), input->InnerEditorValue());
+}
+
+TEST_F(ReplaceSelectionCommandTest, NormalizeNbspSkippedForTextarea) {
+  SetBodyContent("<textarea></textarea>");
+  auto* textarea = ToTextControl(QuerySelector("textarea"));
+  textarea->Focus();
+
+  DocumentFragment& fragment = *GetDocument().createDocumentFragment();
+  fragment.appendChild(Text::Create(GetDocument(), u"Hello\u00A0World"));
+
+  auto& command = *MakeGarbageCollected<ReplaceSelectionCommand>(
+      GetDocument(), &fragment, /* options */ 0,
+      EditCommand::PasswordEchoBehavior::kDoNotEcho,
+      InputEvent::InputType::kInsertFromPaste);
+
+  EXPECT_TRUE(command.Apply());
+  EXPECT_EQ(String(u"Hello\u00A0World"), textarea->InnerEditorValue());
 }
 
 }  // namespace blink

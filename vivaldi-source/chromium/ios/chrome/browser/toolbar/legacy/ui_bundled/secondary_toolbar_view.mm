@@ -278,6 +278,9 @@ UIView* SecondaryToolbarLocationBarContainerView(
 
   if (IsBottomOmniboxAvailable()) {
     self.collapsedToolbarButton = SecondaryToolbarCollapsedToolbarButton();
+    self.collapsedToolbarButton.accessibilityLabel =
+        [self.buttonFactory.toolbarConfiguration
+                accessibilityLabelForCollapsedSecondaryToolbarButton];
     self.locationBarContainer =
         SecondaryToolbarLocationBarContainerView(self.buttonFactory);
     locationBarContainer = self.locationBarContainer;

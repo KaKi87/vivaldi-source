@@ -9,7 +9,6 @@
 #include "ash/webui/projector_app/projector_app_client.h"
 #include "ash/webui/projector_app/public/cpp/projector_app_constants.h"
 #include "ash/webui/projector_app/public/mojom/projector_types.mojom.h"
-#include "ash/webui/system_apps/public/system_web_app_type.h"
 #include "ash/webui/web_applications/test/sandboxed_web_ui_test_base.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -28,12 +27,13 @@
 #include "chrome/browser/notifications/notification_display_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/ash/projector/projector_utils.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/web_applications/test/profile_test_helper.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chromeos/ash/components/drivefs/fake_drivefs.h"
 #include "chromeos/ash/components/drivefs/mojom/drivefs.mojom.h"
+#include "chromeos/ash/components/system_web_apps/system_web_app_type.h"
 #include "components/drive/file_errors.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -365,17 +365,19 @@ IN_PROC_BROWSER_TEST_P(ScreencastManagerTestWithDriveFs,
   // Launch the app for the first time.
   content::WebContents* app = LaunchApp(SystemWebAppType::PROJECTOR);
   EXPECT_TRUE(WaitForLoadStop(app));
-  Browser* first_browser = chrome::FindBrowserWithActiveWindow();
+  BrowserWindowInterface* first_browser =
+      GlobalBrowserCollection::GetInstance()->GetActiveBrowser();
   // Verify that Projector App is opened.
   ASSERT_TRUE(first_browser);
-  EXPECT_EQ(first_browser->tab_strip_model()->GetActiveWebContents(), app);
+  EXPECT_EQ(first_browser->GetTabStripModel()->GetActiveWebContents(), app);
 
   base::FilePath fake_path(kVideoFileId);
   base::FilePath absolute_path =
       GetTestFile(kVideoFileName, /*relative=*/false);
   SendFilesToProjectorApp({fake_path, absolute_path});
 
-  Browser* second_browser = chrome::FindBrowserWithActiveWindow();
+  BrowserWindowInterface* second_browser =
+      GlobalBrowserCollection::GetInstance()->GetActiveBrowser();
   // Launching the app with files should not open a new window.
   EXPECT_EQ(first_browser, second_browser);
 

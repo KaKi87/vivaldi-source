@@ -35,6 +35,7 @@ import org.chromium.chrome.browser.sync.SyncServiceFactory;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.signin.BottomSheetSigninAndHistorySyncConfig.NoAccountSigninMode;
 import org.chromium.chrome.browser.ui.signin.BottomSheetSigninAndHistorySyncConfig.WithAccountSigninMode;
+import org.chromium.chrome.browser.ui.signin.SigninAndHistorySyncCoordinator.SigninFlow;
 import org.chromium.chrome.browser.ui.signin.account_picker.AccountPickerLaunchMode;
 import org.chromium.chrome.browser.ui.signin.account_picker.PostSigninOperationResult;
 import org.chromium.chrome.browser.ui.signin.history_sync.HistorySyncConfig;
@@ -49,7 +50,6 @@ import org.chromium.components.signin.SigninFeatureMap;
 import org.chromium.components.signin.SigninFeatures;
 import org.chromium.components.signin.base.AccountInfo;
 import org.chromium.components.signin.base.CoreAccountInfo;
-import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
 import org.chromium.components.sync.SyncService;
@@ -215,7 +215,7 @@ public class BottomSheetSigninAndHistorySyncCoordinator extends SigninAndHistory
             OneshotSupplier<Profile> profileSupplier,
             Supplier<BottomSheetController> bottomSheetController,
             ModalDialogManager modalDialogManager,
-            SnackbarManager snackbarManager,
+            @Nullable SnackbarManager snackbarManager,
             @SigninAccessPoint int signinAccessPoint) {
         assert SigninFeatureMap.isEnabled(SigninFeatures.ENABLE_SEAMLESS_SIGNIN);
         return new BottomSheetSigninAndHistorySyncCoordinator(
@@ -240,7 +240,7 @@ public class BottomSheetSigninAndHistorySyncCoordinator extends SigninAndHistory
             OneshotSupplier<Profile> profileSupplier,
             Supplier<BottomSheetController> bottomSheetController,
             ModalDialogManager modalDialogManager,
-            SnackbarManager snackbarManager,
+            @Nullable SnackbarManager snackbarManager,
             @SigninAccessPoint int signinAccessPoint) {
         mWindowAndroid = windowAndroid;
         mActivity = activity;
@@ -368,7 +368,9 @@ public class BottomSheetSigninAndHistorySyncCoordinator extends SigninAndHistory
                                     mActivity,
                                     profile,
                                     config.historyOptInMode,
-                                    mSigninAccessPoint)) {
+                                    mSigninAccessPoint,
+                                    /* selectedEmail= */ null,
+                                    SigninFlow.DEFAULT_SIGNIN)) {
                                 onProfileAvailable(profile, this::finishLoadingAndSelectSigninFlow);
                             }
                         });
@@ -616,7 +618,7 @@ public class BottomSheetSigninAndHistorySyncCoordinator extends SigninAndHistory
         IdentityManager identityManager =
                 IdentityServicesProvider.get().getIdentityManager(assertNonNull(mProfile));
         assumeNonNull(identityManager);
-        if (identityManager.hasPrimaryAccount(ConsentLevel.SIGNIN)) {
+        if (identityManager.hasPrimaryAccount()) {
             maybeShowHistoryOptInDialog();
             return;
         }

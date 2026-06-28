@@ -20,6 +20,7 @@ import org.junit.runner.RunWith;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.Restriction;
@@ -64,6 +65,7 @@ public class SidePanelDevFeatureIntegrationTest {
 
     @Test
     @MediumTest
+    @EnableFeatures(ChromeFeatureList.ENABLE_ANDROID_SIDE_PANEL + ":disable_animations/true")
     public void toggle_toggleDevContent() {
         // Arrange.
         var sidePanelDevFeature = getSidePanelDevFeature();
@@ -84,7 +86,12 @@ public class SidePanelDevFeatureIntegrationTest {
                 ThreadUtils.runOnUiThreadBlocking(
                         () -> sidePanelContainerCoordinator.isShowing(sidePanelContent)));
 
-        // Act: Toggle the dev feature.
+        // Wait for the SidePanelContent's View to be laid out before calling toggle() again.
+        CriteriaHelper.pollUiThread(
+                () -> sidePanelContent.mView.getWidth() > 0,
+                "The SidePanelContent View should have been laid out.");
+
+        // Act: Toggle the dev feature again.
         ThreadUtils.runOnUiThreadBlocking(sidePanelDevFeature::toggle);
 
         // Assert: The dev feature is hidden.

@@ -47,6 +47,7 @@
 #import "ios/chrome/browser/search_engines/model/template_url_service_factory.h"
 #import "ios/chrome/browser/segmentation_platform/model/segmentation_platform_service_factory.h"
 #import "ios/chrome/browser/sessions/model/ios_chrome_tab_restore_service_factory.h"
+#import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_scene_agent.h"
 #import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_util.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
 #import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
@@ -78,7 +79,7 @@
 #import "ios/chrome/browser/tabs/model/tab_helper_util.h"
 #import "ios/chrome/browser/tabs/ui_bundled/foreground_tab_animation_view.h"
 #import "ios/chrome/browser/tips_manager/model/tips_manager_ios_factory.h"
-#import "ios/chrome/browser/toolbar/coordinator/toolbar_coordinator.h"
+#import "ios/chrome/browser/toolbar/coordinator/main_toolbar_coordinator.h"
 #import "ios/chrome/browser/toolbar/legacy/ui_bundled/fullscreen/toolbars_size_browser_agent.h"
 #import "ios/chrome/browser/url_loading/model/new_tab_animation_tab_helper.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_notifier_browser_agent.h"
@@ -120,6 +121,9 @@ class BrowserViewControllerTest : public BlockCleanupTest {
     BlockCleanupTest::SetUp();
 
     scene_state_ = [[SceneState alloc] initWithAppState:nil];
+    LayoutGuideSceneAgent* layout_guide_scene_agent =
+        [[LayoutGuideSceneAgent alloc] init];
+    [scene_state_ addAgent:layout_guide_scene_agent];
 
     // Set up a TestProfileIOS instance.
     TestProfileIOS::Builder test_profile_builder;
@@ -292,7 +296,7 @@ class BrowserViewControllerTest : public BlockCleanupTest {
     [popup_menu_coordinator_ start];
 
     toolbar_coordinator_ =
-        [[ToolbarCoordinator alloc] initWithBrowser:browser_.get()];
+        [[MainToolbarCoordinator alloc] initWithBrowser:browser_.get()];
     [toolbar_coordinator_ start];
 
     fullscreen_controller_ = FullscreenController::FromBrowser(browser_.get());
@@ -456,7 +460,7 @@ class BrowserViewControllerTest : public BlockCleanupTest {
   SceneState* scene_state_;
   raw_ptr<commerce::MockShoppingService> shopping_service_;
   PopupMenuCoordinator* popup_menu_coordinator_;
-  ToolbarCoordinator* toolbar_coordinator_;
+  MainToolbarCoordinator* toolbar_coordinator_;
   SideSwipeCoordinator* side_swipe_coordinator_;
   BookmarksCoordinator* bookmarks_coordinator_;
   raw_ptr<FullscreenController> fullscreen_controller_;

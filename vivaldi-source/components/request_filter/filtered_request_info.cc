@@ -8,8 +8,7 @@ namespace vivaldi {
 
 FilteredRequestInfo::FilteredRequestInfo(
     uint64_t request_id,
-    int render_process_id,
-    int render_frame_id,
+    content::GlobalRenderFrameHostId global_id,
     const network::ResourceRequest& request,
     content::ContentBrowserClient::URLLoaderFactoryType loader_factory_type,
     bool is_async,
@@ -17,8 +16,7 @@ FilteredRequestInfo::FilteredRequestInfo(
     std::optional<int64_t> navigation_id)
     : id(request_id),
       request(request),
-      render_process_id(render_process_id),
-      render_frame_id(render_frame_id),
+      global_id(global_id),
       loader_factory_type(loader_factory_type),
       is_async(is_async),
       is_webtransport(is_webtransport),

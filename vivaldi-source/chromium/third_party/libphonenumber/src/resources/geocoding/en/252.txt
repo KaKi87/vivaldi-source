@@ -16,6 +16,6 @@
 # http://www.itu.int/oth/T02020000C0/en [2009-04-14]
 # http://en.wikipedia.org/wiki/+252 [446581236]
 
-2521|Hargeisa
-25251|Mangauno
-25261|Mogadishu
+2521|Mogadishu
+2523|Hargeisa
+2524|Garowe

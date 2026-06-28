@@ -96,6 +96,13 @@ public class AutofillClientProviderUtils {
     @CalledByNative
     public static int getAndroidAutofillFrameworkAvailability(
             @JniType("PrefService*") PrefService prefs) {
+        return getAndroidAutofillFrameworkAvailability(prefs, /* forWebauthn= */ false); // Vivaldi
+    }
+
+    // Vivaldi VAB-11691: |forWebauthn| skips the platform-autofill gate so passkeys use the
+    // Android default credential provider regardless of the form-autofill setting.
+    public static int getAndroidAutofillFrameworkAvailability(
+            PrefService prefs, boolean forWebauthn) {
         if (sAndroidAutofillFrameworkAvailabilityForTesting != null) {
             return sAndroidAutofillFrameworkAvailabilityForTesting;
         }
@@ -110,8 +117,11 @@ public class AutofillClientProviderUtils {
         if (!AutofillManagerWrapper.isAutofillSupported(manager)) {
             return AndroidAutofillAvailabilityStatus.ANDROID_AUTOFILL_NOT_SUPPORTED;
         }
-        // Vivaldi VAB-12755: if platform autofill is disabled, return early (service may be "None")
-        if (BuildConfig.IS_VIVALDI && !prefs.getBoolean(Pref.AUTOFILL_USING_PLATFORM_AUTOFILL)) {
+        // Vivaldi VAB-12755: skip platform autofill when the setting is off (service may be
+        // "None"). VAB-11691: passkeys (forWebauthn) skip this gate.
+        if (BuildConfig.IS_VIVALDI
+                && !forWebauthn
+                && !prefs.getBoolean(Pref.AUTOFILL_USING_PLATFORM_AUTOFILL)) {
             return AndroidAutofillAvailabilityStatus.SETTING_TURNED_OFF;
         }
         // End Vivaldi

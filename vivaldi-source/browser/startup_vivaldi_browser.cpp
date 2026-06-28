@@ -29,7 +29,6 @@
 #include "base/vivaldi_switches.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #if BUILDFLAG(ENABLE_SESSION_SERVICE)
@@ -91,7 +90,7 @@ bool LaunchVivaldi(const base::CommandLine& command_line,
   // If |vivaldi::kVivaldiAppId| is a disabled platform app we handle it
   // specially here, otherwise it will be handled below.
   if (extension) {
-    RecordCmdLineAppHistogram(extensions::Manifest::TYPE_PLATFORM_APP);
+    RecordCmdLineAppHistogram(extensions::Manifest::Type::kPlatformApp);
   }
 #endif
   LaunchUpdateNotifier(profile_info.profile);

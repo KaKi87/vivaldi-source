@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {InputState} from 'chrome://resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
-import {ToolMode as ComposeboxToolMode} from 'chrome://resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
-import {assertEquals} from 'chrome://webui-test/chai_assert.js';
+import type {InputState} from '//resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
+import {ToolMode as ComposeboxToolMode} from '//resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
+import {assertEquals} from '//webui-test/chai_assert.js';
 
 export type {InputState};
 
@@ -51,6 +51,10 @@ export function waitForAttributeChange(
   });
 }
 
+// TODO(crbug.com/452983498): This class is mirrored in composebox_test_utils.ts
+// to allow composebox tests to build on Android without depending on the
+// Desktop New Tab Page bundle.
+// LINT.IfChange
 export class MockInputState implements InputState {
   allowedTools: number[] = [];
   disabledTools: number[] = [];
@@ -63,6 +67,7 @@ export class MockInputState implements InputState {
       chipLabel: '',
       disableActiveModelSelection: false,
       aimUrlParams: [],
+      menuTooltip: '',
     },
     {
       tool: ComposeboxToolMode.kImageGen,
@@ -71,6 +76,7 @@ export class MockInputState implements InputState {
       chipLabel: '',
       disableActiveModelSelection: false,
       aimUrlParams: [],
+      menuTooltip: '',
     },
     {
       tool: ComposeboxToolMode.kCanvas,
@@ -79,6 +85,7 @@ export class MockInputState implements InputState {
       chipLabel: '',
       disableActiveModelSelection: false,
       aimUrlParams: [],
+      menuTooltip: '',
     },
   ];
   toolsSectionConfig: any|null = null;
@@ -94,6 +101,7 @@ export class MockInputState implements InputState {
   inputTypeConfigs: any[] = [];
   maxInputsByType: {[key: number]: number} = {};
   maxTotalInputs: number = 0;
+  isCanvasQuerySubmitted: boolean = false;
 
   hintText: string = '';
 
@@ -101,3 +109,4 @@ export class MockInputState implements InputState {
     Object.assign(this, overrides);
   }
 }
+// LINT.ThenChange(//chrome/test/data/webui/cr_components/composebox/composebox_test_utils.ts)

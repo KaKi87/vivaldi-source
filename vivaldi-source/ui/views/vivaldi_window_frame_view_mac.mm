@@ -13,6 +13,7 @@
 #include "ui/views/window/native_frame_view.h"
 #include "ui/views/window/non_client_view.h"
 
+#include "base/logging.h"
 #include "ui/vivaldi_browser_window.h"
 
 namespace {

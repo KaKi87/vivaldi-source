@@ -2,45 +2,40 @@
 
 update_target("//chrome/renderer:renderer") {
   sources += [
+    "//vivaldi/renderer/blink/vivaldi_spatial_navigation_controller.cc",
+    "//vivaldi/renderer/blink/vivaldi_spatial_navigation_controller.h",
+    "//vivaldi/renderer/blink/vivaldi_spatnav_quad.cc",
+    "//vivaldi/renderer/blink/vivaldi_spatnav_quad.h",
     "//vivaldi/renderer/vivaldi_frame_service_impl.cc",
     "//vivaldi/renderer/vivaldi_frame_service_impl.h",
     "//vivaldi/renderer/vivaldi_net_error_helper.cc",
     "//vivaldi/renderer/vivaldi_render_frame_blink_proxy_impl.cc",
     "//vivaldi/renderer/vivaldi_render_frame_blink_proxy_impl.h",
-    "//vivaldi/renderer/blink/vivaldi_spatnav_quad.cc",
-    "//vivaldi/renderer/blink/vivaldi_spatnav_quad.h",
-    "//vivaldi/renderer/blink/vivaldi_spatial_navigation_controller.cc",
-    "//vivaldi/renderer/blink/vivaldi_spatial_navigation_controller.h",
   ]
-  cflags = [
-    "-Wno-implicit-const-int-float-conversion",
-  ]
+  cflags = [ "-Wno-implicit-const-int-float-conversion" ]
 }
 
 update_template_instance("//third_party/blink/renderer/core:core") {
   sources += [
+    "//vivaldi/renderer/blink/vivaldi_autoplay_policy.cc",
     "//vivaldi/renderer/blink/vivaldi_render_frame_blink_proxy.cc",
     "//vivaldi/renderer/blink/vivaldi_render_frame_blink_proxy.h",
     "//vivaldi/renderer/blink/vivaldi_snapshot_page.cc",
     "//vivaldi/renderer/blink/vivaldi_snapshot_page.h",
     "//vivaldi/renderer/blink/vivaldi_spatial_navigation.cc",
     "//vivaldi/renderer/blink/vivaldi_spatial_navigation.h",
-    "//vivaldi/renderer/blink/vivaldi_autoplay_policy.cc",
   ]
   public_deps += [
-    "//vivaldi/renderer/mojo:frame_host_service_blink",
-    "//vivaldi/renderer/mojo:encrypted_media_access_blink",
     "//vivaldi/components/ad_blocker/public/content/mojom:mojom_blink",
+    "//vivaldi/renderer/mojo:encrypted_media_access_blink",
+    "//vivaldi/renderer/mojo:frame_host_service_blink",
   ]
-  cflags = [
-    "-Wno-implicit-const-int-float-conversion",
-  ]
+  cflags = [ "-Wno-implicit-const-int-float-conversion" ]
 }
 
-update_template_instance("//third_party/blink/renderer/modules/mediastream:mediastream") {
-  sources += [
-    "//vivaldi/renderer/blink/vivaldi_web_media_player_ms.cc",
-  ]
+update_template_instance(
+    "//third_party/blink/renderer/modules/mediastream:mediastream") {
+  sources += [ "//vivaldi/renderer/blink/vivaldi_web_media_player_ms.cc" ]
 }
 
 if (!is_android) {
@@ -49,8 +44,6 @@ if (!is_android) {
       "//vivaldi/renderer/blink/vivaldi_encrypted_media_access.cc",
       "//vivaldi/renderer/blink/vivaldi_encrypted_media_access.h",
     ]
-    public_deps += [
-      "//vivaldi/renderer/mojo:encrypted_media_access",
-    ]
+    public_deps += [ "//vivaldi/renderer/mojo:encrypted_media_access" ]
   }
 }

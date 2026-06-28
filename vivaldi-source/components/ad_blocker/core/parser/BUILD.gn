@@ -63,8 +63,8 @@ source_set("unit_tests") {
   testonly = true
 
   sources = [
-    "adblock_rule_parser_unittest.cc",
     "adblock_domain_constraints_tree_unittest.cc",
+    "adblock_rule_parser_unittest.cc",
     "ddg_rules_parser_unittest.cc",
   ]
 

@@ -14,20 +14,21 @@
 #include "base/strings/string_split.h"
 #include "base/strings/to_string.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
-#include "chrome/browser/actor/aggregated_journal.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/enterprise/browser_management/browser_management_service.h"
 #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/glic_user_status_code.h"
 #include "chrome/browser/glic/glic_user_status_fetcher.h"
+#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/subscription_eligibility/subscription_eligibility_service_factory.h"
-#include "chrome/common/actor/journal_details_builder.h"
-#include "chrome/common/actor/task_id.h"
 #include "chrome/common/buildflags.h"
 #include "chrome/common/chrome_features.h"
+#include "components/actor/core/aggregated_journal.h"
+#include "components/actor/core/journal_details_builder.h"
+#include "components/actor/core/task_id.h"
 #include "components/enterprise/buildflags/buildflags.h"
 #include "components/enterprise/connectors/core/features.h"
 #include "components/prefs/pref_service.h"
@@ -38,8 +39,9 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 
-#if BUILDFLAG(ENTERPRISE_CONTENT_ANALYSIS)
-#include "chrome/browser/enterprise/connectors/analysis/content_analysis_delegate.h"
+#if BUILDFLAG(ENTERPRISE_CONTENT_ANALYSIS) || \
+    BUILDFLAG(ENTERPRISE_DATA_CONTROLS)
+#include "chrome/browser/enterprise/data_protection/data_protection_clipboard_utils.h"
 #endif
 
 // Traits for base::ToString(). They need to be in the corresponding namespace
@@ -108,20 +110,6 @@ std::ostream& operator<<(
 
 namespace {
 
-bool IsLikelyDogfoodClient() {
-  variations::VariationsService* variations_service =
-      g_browser_process->variations_service();
-  return variations_service && variations_service->IsLikelyDogfoodClient();
-}
-
-bool IsBrowserManaged(Profile& profile) {
-  auto* management_service_factory =
-      policy::ManagementServiceFactory::GetInstance();
-  auto* browser_management_service =
-      management_service_factory->GetForProfile(&profile);
-  return browser_management_service && browser_management_service->IsManaged();
-}
-
 bool ActuationEnabledForManagedUser(Profile& profile,
                                     actor::AggregatedJournal& journal) {
   features::GlicActorEnterprisePrefDefault default_pref =
@@ -167,52 +155,6 @@ bool HasUrlAllowlist(Profile& profile) {
   }
   const base::ListValue& allowlist = pref_service->GetList(allowlist_pref_path);
   return !allowlist.empty();
-}
-
-bool IsEnterpriseAccount(Profile& profile, actor::AggregatedJournal& journal) {
-  // Note: both `is_enterprise_account_data_protected` and
-  // `AccountInfo::IsManaged()` check for Workspace accounts. They are backed
-  // by two different Google API endpoints. Both are checked for completeness.
-
-  bool is_enterprise_account_data_protected = false;
-  // Ensure that assumptions about when we do or do not update the cached user
-  // status are not broken.
-  // LINT.IfChange(GlicCachedUserStatusScope)
-  if (base::FeatureList::IsEnabled(features::kGlicUserStatusCheck)) {
-    std::optional<glic::CachedUserStatus> cached_user_status =
-        glic::GlicUserStatusFetcher::GetCachedUserStatus(&profile);
-    if (cached_user_status.has_value()) {
-      is_enterprise_account_data_protected =
-          cached_user_status->is_enterprise_account_data_protected;
-    } else {
-      // NOTE: Do not return false as a fail-closed here. CachedUserStatus is
-      // only fetched when `is_managed` of
-      // GlicUserStatusFetcher::UpdateUserStatus is true. Returning false means
-      // gating all the non-enterprise accounts from actuation.
-    }
-  }
-  // LINT.ThenChange(//chrome/browser/glic/glic_user_status_fetcher.cc:GlicCachedUserStatusScope)
-
-  signin::IdentityManager* identity_manager =
-      IdentityManagerFactory::GetForProfile(&profile);
-  CHECK(identity_manager);
-  // `account_info` is empty if the user has not signed in.
-  const CoreAccountInfo account_info =
-      identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin);
-  const AccountInfo extended_account_info =
-      identity_manager->FindExtendedAccountInfoByAccountId(
-          account_info.account_id);
-  auto is_managed = extended_account_info.IsManaged();
-
-  journal.Log(GURL(), actor::TaskId(), "IsEnterpriseAccount",
-              actor::JournalDetailsBuilder()
-                  .Add("is_enterprise_account_data_protected",
-                       base::ToString(is_enterprise_account_data_protected))
-                  .Add("is_managed", signin::TriboolToString(is_managed))
-                  .Build());
-
-  return is_enterprise_account_data_protected ||
-         (is_managed == signin::Tribool::kTrue);
 }
 
 // TODO(crbug.com/471065012): This is a consumer check so it should be moved to
@@ -340,6 +282,66 @@ void GlicActorPolicyChecker::OnAiSubscriptionTierUpdated(
   OnPrefOrAccountChanged();
 }
 
+// static
+bool GlicActorPolicyChecker::IsEnterpriseAccount(
+    Profile& profile,
+    actor::AggregatedJournal& journal) {
+  // Note: both `is_enterprise_account_data_protected` and
+  // `AccountInfo::IsManaged()` check for Workspace accounts. They are backed
+  // by two different Google API endpoints. Both are checked for completeness.
+
+  bool is_enterprise_account_data_protected = false;
+  // Ensure that assumptions about when we do or do not update the cached user
+  // status are not broken.
+  // LINT.IfChange(GlicCachedUserStatusScope)
+  if (base::FeatureList::IsEnabled(features::kGlicUserStatusCheck)) {
+    std::optional<glic::CachedUserStatus> cached_user_status =
+        glic::GlicUserStatusFetcher::GetCachedUserStatus(&profile);
+    if (cached_user_status.has_value()) {
+      is_enterprise_account_data_protected =
+          cached_user_status->is_enterprise_account_data_protected;
+    } else {
+      // NOTE: Do not return false as a fail-closed here. CachedUserStatus is
+      // only fetched when `is_managed` of
+      // GlicUserStatusFetcher::UpdateUserStatus is true. Returning false means
+      // gating all the non-enterprise accounts from actuation.
+    }
+  }
+  // LINT.ThenChange(//chrome/browser/glic/glic_user_status_fetcher.cc:GlicCachedUserStatusScope)
+
+  signin::IdentityManager* identity_manager =
+      IdentityManagerFactory::GetForProfile(&profile);
+  if (!identity_manager) {
+    return false;
+  }
+  // `account_info` is empty if the user has not signed in.
+  const CoreAccountInfo account_info =
+      identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin);
+  const AccountInfo extended_account_info =
+      identity_manager->FindExtendedAccountInfoByAccountId(
+          account_info.account_id);
+  signin::Tribool is_managed = extended_account_info.IsManaged();
+
+  journal.Log(GURL(), actor::TaskId(), "IsEnterpriseAccount",
+              actor::JournalDetailsBuilder()
+                  .Add("is_enterprise_account_data_protected",
+                       base::ToString(is_enterprise_account_data_protected))
+                  .Add("is_managed", signin::TriboolToString(is_managed))
+                  .Build());
+
+  return is_enterprise_account_data_protected ||
+         (is_managed == signin::Tribool::kTrue);
+}
+
+// static
+bool GlicActorPolicyChecker::IsBrowserManaged(Profile& profile) {
+  auto* management_service_factory =
+      policy::ManagementServiceFactory::GetInstance();
+  auto* browser_management_service =
+      management_service_factory->GetForProfile(&profile);
+  return browser_management_service && browser_management_service->IsManaged();
+}
+
 bool GlicActorPolicyChecker::CanActOnWeb() const {
   return can_act_on_web_ != CanActOutcome::kNo;
 }
@@ -403,7 +405,7 @@ GlicActorPolicyChecker::ComputeActOnWebCapability() {
                           CannotActReason::kAccountCapabilityIneligible);
   }
 
-  bool is_likely_dogfood_client = IsLikelyDogfoodClient();
+  bool is_likely_dogfood_client = GlicEnabling::IsLikelyDogfoodClient();
   if (is_likely_dogfood_client) {
     return log_and_return(CanActOutcome::kYes, "is likely dogfood client");
   }
@@ -467,24 +469,24 @@ GlicActorPolicyChecker::ComputeActOnWebCapability() {
   return log_and_return(CanActOutcome::kNo, CannotActReason::kDisabledByPolicy);
 }
 
-actor::EnterprisePolicyBlockReason GlicActorPolicyChecker::Evaluate(
+GlicActorPolicyChecker::UrlBlockReason GlicActorPolicyChecker::Evaluate(
     const GURL& url) const {
   const policy::URLBlocklist::URLBlocklistState state =
       url_blocklist_manager_.GetURLBlocklistState(url);
   if (state == policy::URLBlocklist::URLBlocklistState::URL_IN_BLOCKLIST) {
-    return actor::EnterprisePolicyBlockReason::kExplicitlyBlocked;
+    return UrlBlockReason::kExplicitlyBlocked;
   }
   if (state == policy::URLBlocklist::URLBlocklistState::URL_IN_ALLOWLIST) {
-    return actor::EnterprisePolicyBlockReason::kExplicitlyAllowed;
+    return UrlBlockReason::kExplicitlyAllowed;
   }
 
   // If the general policy is set to disable acting, then if the url is not in
   // the allow list, we block.
   if (can_act_on_web_ == CanActOutcome::kByAllowlistOnly) {
-    return actor::EnterprisePolicyBlockReason::kExplicitlyBlocked;
+    return UrlBlockReason::kExplicitlyBlocked;
   }
 
-  return actor::EnterprisePolicyBlockReason::kNotBlocked;
+  return UrlBlockReason::kNotBlocked;
 }
 
 base::CallbackListSubscription
@@ -496,46 +498,27 @@ GlicActorPolicyChecker::AddUrlListsUpdateObserverForTesting(
 void GlicActorPolicyChecker::ValidateContentSentToRenderer(
     content::RenderFrameHost* frame,
     const std::string& content,
-    actor::EnterprisePolicyContentChecker::ValidationCallback callback) {
+    ContentValidationCallback callback) const {
   content::WebContents* web_contents =
       frame ? content::WebContents::FromRenderFrameHost(frame) : nullptr;
   if (!web_contents || !profile_) {
-    std::move(callback).Run(ValidationReason::kAllowed);
+    std::move(callback).Run(ContentValidationReason::kAllowed);
     return;
   }
 
-#if BUILDFLAG(ENTERPRISE_CONTENT_ANALYSIS)
-  if (base::FeatureList::IsEnabled(
-          enterprise_connectors::kGlicBulkDataEntrySupport)) {
-    enterprise_connectors::ContentAnalysisDelegate::Data data;
-    // TODO(crbug.com/473047343): Add support when glic is targeting an element
-    // inside a cross-origin iframe.
-    if (enterprise_connectors::ContentAnalysisDelegate::IsEnabled(
-            profile_, frame->GetLastCommittedURL(), &data,
-            enterprise_connectors::AnalysisConnector::BULK_DATA_ENTRY)) {
-      data.text.push_back(content);
-      enterprise_connectors::ContentAnalysisDelegate::CreateForWebContents(
-          web_contents, std::move(data),
-          base::BindOnce(
-              [](actor::EnterprisePolicyContentChecker::ValidationCallback cb,
-                 const enterprise_connectors::ContentAnalysisDelegate::Data&,
-                 enterprise_connectors::ContentAnalysisDelegate::Result&
-                     result) {
-                // TODO(crbug.com/473047343): Not exposed currently, but we
-                // would want to return `kWarned` verdicts at some point.
-                bool allowed =
-                    result.text_results.empty() || result.text_results[0];
-                std::move(cb).Run(allowed ? ValidationReason::kAllowed
-                                          : ValidationReason::kBlocked);
-              },
-              std::move(callback)),
-          enterprise_connectors::DeepScanAccessPoint::PASTE);
-      return;
-    }
-  }
+#if BUILDFLAG(ENTERPRISE_CONTENT_ANALYSIS) || \
+    BUILDFLAG(ENTERPRISE_DATA_CONTROLS)
+  enterprise_data_protection::PasteFromGeminiIfAllowedByPolicy(
+      frame, content,
+      base::BindOnce(
+          [](ContentValidationCallback cb, bool allowed) {
+            std::move(cb).Run(allowed ? ContentValidationReason::kAllowed
+                                      : ContentValidationReason::kBlocked);
+          },
+          std::move(callback)));
+#else
+  std::move(callback).Run(ContentValidationReason::kAllowed);
 #endif
-
-  std::move(callback).Run(ValidationReason::kAllowed);
 }
 
 }  // namespace glic

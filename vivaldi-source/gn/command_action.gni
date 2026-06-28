@@ -42,12 +42,15 @@ template("system_command") {
       ]
     }
     if (defined(command_stamp)) {
-       args += [ "--stamp", rebase_path(command_stamp, root_build_dir) ]
+      args += [
+        "--stamp",
+        rebase_path(command_stamp, root_build_dir),
+      ]
     }
     if (defined(command_output_from_stdout)) {
       args += [
         "--capture-output",
-        rebase_path(command_output_from_stdout, root_build_dir)
+        rebase_path(command_output_from_stdout, root_build_dir),
       ]
     }
 
@@ -98,7 +101,7 @@ template("system_command_foreach") {
     if (defined(command_output_from_stdout)) {
       args += [
         "--capture-output",
-        rebase_path(command_output_from_stdout, root_build_dir)
+        rebase_path(command_output_from_stdout, root_build_dir),
       ]
     }
 

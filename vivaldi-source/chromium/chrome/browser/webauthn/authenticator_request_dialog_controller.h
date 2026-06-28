@@ -21,7 +21,6 @@
 #include "chrome/browser/webauthn/authenticator_reference.h"
 #include "chrome/browser/webauthn/authenticator_request_dialog_model.h"
 #include "chrome/browser/webauthn/authenticator_transport.h"
-#include "chrome/browser/webauthn/observable_authenticator_list.h"
 #include "chrome/browser/webauthn/password_credential_fetcher.h"
 #include "components/webauthn/core/browser/passkey_model.h"
 #include "components/webauthn/core/browser/passkey_model_change.h"
@@ -31,7 +30,6 @@
 #include "third_party/blink/public/mojom/credentialmanagement/credential_type_flags.mojom.h"
 #include "url/gurl.h"
 
-class ChallengeUrlFetcher;
 class PasskeyUpgradeRequestController;
 class Profile;
 
@@ -229,9 +227,6 @@ class AuthenticatorRequestDialogController
   // request should never have been sent to iCloud Keychain in the first place.
   bool OnNoPasskeys();
 
-  // To be called when fetching a challenge from a provided URL failed.
-  void OnChallengeUrlFailure();
-
   // To be called when the Bluetooth adapter status changes.
   void BluetoothAdapterStatusChanged(
       device::FidoRequestHandlerBase::BleStatus ble_status);
@@ -289,8 +284,7 @@ class AuthenticatorRequestDialogController
   transport_availability_for_testing() {
     return transport_availability_;
   }
-
-  ObservableAuthenticatorList& saved_authenticators() {
+  std::vector<AuthenticatorReference>& saved_authenticators() {
     return ephemeral_state_.saved_authenticators_;
   }
 
@@ -318,7 +312,6 @@ class AuthenticatorRequestDialogController
   }
 
   void set_cable_transport_info(
-      std::optional<bool> extension_is_v2,
       const std::optional<std::string>& cable_qr_string);
 
   bool win_native_api_enabled() const {
@@ -343,11 +336,6 @@ class AuthenticatorRequestDialogController
   void SetUIPresentation(
       content::AuthenticatorRequestClientDelegate::UIPresentation modality);
 
-  void ProvideChallengeUrl(
-      const GURL& url,
-      base::OnceCallback<void(std::optional<base::span<const uint8_t>>)>
-          callback);
-
   void InitializeEnclaveRequestCallback(
       device::FidoDiscoveryFactory* discovery_factory);
 
@@ -369,7 +357,7 @@ class AuthenticatorRequestDialogController
     // be dispatched dispatched after some UI interaction. This is useful for
     // platform authenticators (and Windows) where dispatch to the authenticator
     // immediately results in modal UI to appear.
-    ObservableAuthenticatorList saved_authenticators_;
+    std::vector<AuthenticatorReference> saved_authenticators_;
 
     // responses_ contains possible responses to select between after an
     // authenticator has responded to a request.
@@ -444,12 +432,6 @@ class AuthenticatorRequestDialogController
   // Returns the render frame host associated with this request. The render
   // frame host indirectly owns the controller, and so it should outlive it.
   content::RenderFrameHost* GetRenderFrameHost() const;
-
-  // Lazy creation accessor.
-  ChallengeUrlFetcher* GetChallengeUrlFetcher();
-
-  void MaybeStartChallengeFetch();
-  void OnChallengeFetched();
 
   void PopulatePasswords();
 
@@ -551,14 +533,6 @@ class AuthenticatorRequestDialogController
   // The credential types that are being asked for.
   int credential_types_ =
       static_cast<int>(blink::mojom::CredentialTypeFlags::kNone);
-
-  // ChallengeUrl support. The URL is the destination to fetch the challenge
-  // and the callback is invoked when the challenge is received.
-  GURL challenge_url_;
-  base::OnceCallback<void(std::optional<base::span<const uint8_t>>)>
-      challenge_callback_;
-
-  std::unique_ptr<ChallengeUrlFetcher> challenge_url_fetcher_;
 
   const content::GlobalRenderFrameHostId frame_host_id_;
 

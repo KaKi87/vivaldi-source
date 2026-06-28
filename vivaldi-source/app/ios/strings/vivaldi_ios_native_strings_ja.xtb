@@ -90,7 +90,7 @@
 <translation id="1994506778397655062">新しいバックグラウンドタブで開く</translation>
 <translation id="1996915956617647318">編集を非表示にする</translation>
 <translation id="2030706494969937066">認証情報の取得に失敗しました。再度ログインしてください。</translation>
-<translation id="2034405583989639424">スピードダイヤルを編集</translation>
+<translation id="2034405583989639424">編集</translation>
 <translation id="2048247880942380698">アラビア語 (<ph name="ORIGIN" />)</translation>
 <translation id="2079545284768500474">元に戻す</translation>
 <translation id="2138901399878617625">検索しながら木を植えよう</translation>
@@ -107,23 +107,23 @@
 <translation id="2324160330092901720">有効化コードを<ph name="EMAIL_ID" />に送信しました</translation>
 <translation id="2326657631721795616">プライバシーを重視した独立系検索エンジンを選ぶことで、Vivaldi をサポートすることができます：</translation>
 <translation id="2330644510603114741">タブのアクション</translation>
-<translation id="233493642829799329">この設定を変更するといくつかのタブにおいて再読み込みが発生する場合があります</translation>
+<translation id="233493642829799329">この設定を変更するといくつかのタブにおいて再読み込みが発生する場合があります。</translation>
 <translation id="2336309953058658733">ごみ箱を空にする</translation>
-<translation id="2336679896177818431">アドレスバーを上または下にスワイプすると、タブスイッチャーが開きます</translation>
+<translation id="2336679896177818431">アドレスバーを上または下にスワイプすると、タブスイッチャーが開きます。</translation>
 <translation id="2359808026110333948">続ける</translation>
 <translation id="2386793615875593361">1 件のアイテムを選択中</translation>
 <translation id="2387049655823108978">別のデバイスで開かれているタブを同期する</translation>
-<translation id="2388224692799337242">ブラウジングを開始すると、履歴がここに表示されます</translation>
+<translation id="2388224692799337242">ブラウジングを開始すると、履歴がここに表示されます。</translation>
 <translation id="2391028308389203648">トルコ語 (<ph name="ORIGIN" />)</translation>
 <translation id="2392369802118427583">有効化</translation>
 <translation id="2414886740292270097">ダーク</translation>
 <translation id="2434910957904013691">すべてを同期</translation>
-<translation id="2448144008809286557"><ph name="BEGIN_LINK" />ユーザーネーム<ph name="END_LINK" /> か <ph name="BEGIN_LINK" />パスワード<ph name="END_LINK" />をお忘れですか？</translation>
+<translation id="2448144008809286557"><ph name="BEGIN_LINK" />ユーザーネーム<ph name="END_LINK" />、または <ph name="BEGIN_LINK" />パスワード<ph name="END_LINK" />をお忘れですか？</translation>
 <translation id="2478478121390627077">選択中のカラー</translation>
 <translation id="2496616243169085015">写真</translation>
 <translation id="2536780277491102902">個別設定</translation>
 <translation id="2558801801411970131">トラッカーをブロック</translation>
-<translation id="2562040727226360285">Remove annoyances, can break sites (<ph name="ORIGIN" />)</translation>
+<translation id="2562040727226360285">迷惑要素を除去（サイトが正常に動作しない場合があります） (<ph name="ORIGIN" />)</translation>
 <translation id="2563886993995570961">最大列数</translation>
 <translation id="257674075312929031">グループ</translation>
 <translation id="2577446409661931381">新しいメモ</translation>
@@ -166,7 +166,7 @@
 <translation id="2961573414320947355">すべてのリンクを Vivaldi で開きたい場合は、必ずデフォルトに設定してください。</translation>
 <translation id="3006429105107822794">このパスワードを覚えておく必要はありません。Vivaldi パスワードマネージャーに保存されます。</translation>
 <translation id="3018244467214569202">ギリシャ語 (<ph name="ORIGIN" />)</translation>
-<translation id="3029426144711327484">スピードダイヤルを表示</translation>
+<translation id="3029426144711327484">スピードダイヤルを表示する</translation>
 <translation id="3039671569659952257">フォルダーを削除</translation>
 <translation id="3073196329485613487">アカウントへログイン</translation>
 <translation id="3086746722712840547">メモ</translation>
@@ -196,7 +196,7 @@
 <translation id="3368960138304620657">リトアニア語 (<ph name="ORIGIN" />)</translation>
 <translation id="3377025655491224618">プライベートタブ</translation>
 <translation id="3394474617110693560">カテゴリー</translation>
-<translation id="3405080914346191957">ここにタブスタックが表示されます</translation>
+<translation id="3405080914346191957">ここにタブスタックが表示されます。</translation>
 <translation id="3435896845095436175">有効にする</translation>
 <translation id="3438160227308459316">ルーマニア語 (<ph name="ORIGIN" />)</translation>
 <translation id="3451109402849920193">Lingvanex 社提供、Vivaldi がホストしています。</translation>
@@ -218,7 +218,7 @@
           other {{count} ブックマークは "{title}" へ移動されました}}</translation>
 <translation id="3638687955382971136">テキストズーム</translation>
 <translation id="3646647753063635401">すべてのデータを同期し、新しいデータ項目も自動で同期する</translation>
-<translation id="3682791711395736890">デスクトップ用サイトを表示</translation>
+<translation id="3682791711395736890">デスクトップサイトを表示</translation>
 <translation id="3689125468279190285">ホームボタンを表示する</translation>
 <translation id="3694122362646626770">ウェブサイト</translation>
 <translation id="3699026013955941879">コードの有効期限が切れているようです。コードの発行を再リクエストしてください。</translation>
@@ -267,7 +267,7 @@
 <translation id="4141861385728508836">北欧 (<ph name="ORIGIN" />)</translation>
 <translation id="4145489350420416595">予期せぬエラーが発生しました。</translation>
 <translation id="4151468644762710975">検索エンジンを初期状態に復元する</translation>
-<translation id="4152011295694446843">ブックマークはここに表示されます</translation>
+<translation id="4152011295694446843">ブックマークはここに表示されます。</translation>
 <translation id="4152623049003960417">トラッカーリスト</translation>
 <translation id="4176463684765177261">無効</translation>
 <translation id="4181792832006033883">Vivaldi は、大手テック企業や投資家ではなく、ユーザーの力で支えられています。いただいた支援はすべて、オープンでプライベートなインターネットを目指す私たちの取り組みに直接活かされます。</translation>
@@ -276,7 +276,7 @@
 <translation id="4209092469652827314">大</translation>
 <translation id="4219175188138757774">チェコとスロバキア (<ph name="ORIGIN" />)</translation>
 <translation id="4222285809803895512">作成日</translation>
-<translation id="4274598629843497594">表示スピードダイヤルを有効にして、このグループをスタートページに表示します。ブックマークパネルからもグループにアクセスできます。</translation>
+<translation id="4274598629843497594">スピードダイヤルを有効にして、このグループをスタートページに表示します。ブックマークパネルからもグループにアクセスできます。</translation>
 <translation id="4276839458685471670">作成日順</translation>
 <translation id="4277085371281330061">トラッカー
 ブロック数</translation>
@@ -354,10 +354,11 @@
 <translation id="495421405224926623">利用規約とプライバシーポリシーを読んだ上で、同意します。</translation>
 <translation id="497942794017668482">トラッカーと広告をブロックしています</translation>
 <translation id="4983968022327077496">あなたの組織ではプライベートブラウジングが必須です。 <ph name="BEGIN_LINK" />詳細はこちら<ph name="END_LINK" /></translation>
+<translation id="4991261712398289852">二段型</translation>
 <translation id="4993477362660748586">同期</translation>
 <translation id="500392125908657603">アドレスフィールドのオプション</translation>
 <translation id="5037761343305489956">メモへコピーしました</translation>
-<translation id="504986598654589766">プライベートウィンドウでブラウジングを行うと、検索行為、訪問したサイト、Cookie や一時的なファイルが Vivaldi に保存されません。通信は暗号化あるいは改変されません。</translation>
+<translation id="504986598654589766">プライベートタブでブラウジングを行うと、検索行為、訪問したサイト、Cookie や一時的なファイルが Vivaldi に保存されません。通信は暗号化あるいは改変されません。</translation>
 <translation id="5052190740258132773">ブックマークを優先する</translation>
 <translation id="505774819758747674">アクセントカラーを選択したツールバーのプレビュー</translation>
 <translation id="5094183365876568934">ウェブサイトによっては、ユーザーの好みに応じて配色をカスタマイズするものもあります。これらのサイトで使用したい配色を選択してください。</translation>
@@ -371,7 +372,7 @@
 <translation id="5191012692655103305">タブと履歴をフェッチしています...</translation>
 <translation id="5195305454041437917">X を表示して候補を削除できるようにする</translation>
 <translation id="5238642303473095117">データを消去する</translation>
-<translation id="5245732982828228444">メモはここに表示されます</translation>
+<translation id="5245732982828228444">メモはここに表示されます。</translation>
 <translation id="5271549068863921519">パスワードを保存</translation>
 <translation id="5290452628447338707">メモがありません</translation>
 <translation id="5317780077021120954">保存</translation>
@@ -403,7 +404,7 @@
 <translation id="5684277895745049190">リスト</translation>
 <translation id="5710478562694930157">昇順</translation>
 <translation id="574392208103952083">中</translation>
-<translation id="5756451123057329358">スタートページを開く：</translation>
+<translation id="5756451123057329358">スタートページ</translation>
 <translation id="5787420647064736989">デバイス名</translation>
 <translation id="5801825598531634872">インアクティブ日数</translation>
 <translation id="5822336771053074270">メモを追加</translation>
@@ -436,7 +437,7 @@
 <translation id="6077943432358741146">スピードダイヤル</translation>
 <translation id="6079696972035130497">無制限</translation>
 <translation id="6093557041367452381">スタートページでアドレスフィールドにフォーカスがあるときに、入力履歴を表示します。</translation>
-<translation id="6110857187283700804">検索候補を取得するために入力内容は検索プロバイダーへ送信されます。プライベートウィンドウではオフです。</translation>
+<translation id="6110857187283700804">検索候補を取得するために入力内容は検索プロバイダーへ送信されます。プライベートタブでは無効です。</translation>
 <translation id="6119047040189002834">監視から離れ、あなたの価値観に合った検索エンジンを選びましょう：</translation>
 <translation id="614539368862754027"><ph name="NUMBER_OF_SELECTED_NOTES" /> 件のアイテムを移動しました</translation>
 <translation id="6147094071357011481">最近閉じたタブがありません</translation>
@@ -521,7 +522,7 @@
 <translation id="711946737922560234">リンクを追加</translation>
 <translation id="7120229714826964836">ページを共有</translation>
 <translation id="713792263829536729">ストリーミングがうまく機能しない</translation>
-<translation id="7142332680286898952">入力履歴を表示</translation>
+<translation id="7142332680286898952">入力履歴を表示する</translation>
 <translation id="7158507293261405349">新しいグループを追加</translation>
 <translation id="7173114856073700355">設定を開く</translation>
 <translation id="718052827125696482">スクリーンの向きが正常に機能しない</translation>
@@ -560,14 +561,14 @@
 <translation id="7541018845757104937">Vivaldi 使用時のバッテリー消費が激しい</translation>
 <translation id="755410338177348055">音声または動画がバッファリングやフリーズを繰り返している</translation>
 <translation id="7562758693157424472">Vivaldi に関しての考えを共有していただけませんか？</translation>
-<translation id="7573518470897278603">モバイル用サイトを表示</translation>
+<translation id="7573518470897278603">モバイルサイトを表示</translation>
 <translation id="7574321014880720413">新しいドメインを追加</translation>
 <translation id="7587132259180664054">メールの送信に成功しました</translation>
 <translation id="7587287726969638956">ウェブサイトの外観</translation>
 <translation id="7593546601395782810">メモを非表示にする</translation>
 <translation id="7600840048521751013">翻訳履歴</translation>
 <translation id="7602336701644200880">メールの送信に失敗しました。再度お試しください。</translation>
-<translation id="7606108789437688910">メモの URL をプライベートウィンドウで開く</translation>
+<translation id="7606108789437688910">メモの URL をプライベートタブで開く</translation>
 <translation id="7616284412875773842">がっかり</translation>
 <translation id="7622661618259256505">12 文字以上のパスワードにしてください。</translation>
 <translation id="7658239707568436148">キャンセル</translation>
@@ -672,7 +673,7 @@
 <translation id="8819841443522803117">デフォルトブラウザの切り替えをお考えですか？Vivaldi をデフォルトにしてみてください。</translation>
 <translation id="8820817407110198400">ブックマーク</translation>
 <translation id="8828442094222036738">ヨーロッパ製のプライベートな Google 検索結果</translation>
-<translation id="8855707633300847215">タブバーを表示</translation>
+<translation id="8855707633300847215">タブバーを表示する</translation>
 <translation id="8861211142470908937">最低パスワード長は 12 文字が必要です</translation>
 <translation id="8885321570279617421">名前が未入力です。</translation>
 <translation id="8892354889971902600">最近閉じたタブがここに表示されます。</translation>
@@ -700,7 +701,6 @@
 <translation id="9157459516617966251">リンクを編集</translation>
 <translation id="9157539936604258187">リンクを開く</translation>
 <translation id="9165758833825521812">リーダービュー</translation>
-<translation id="9171713938468458286">二段型</translation>
 <translation id="9195659219948942754">Vivaldi アカウントで同期されたデータを引き続き使用する</translation>
 <translation id="9195802773917252923">ブックマークニックネームを有効にする</translation>
 <translation id="9212737146310746733">ペルシャ語 (<ph name="ORIGIN" />)</translation>
@@ -711,10 +711,10 @@
 <translation id="932327136139879170">ホーム</translation>
 <translation id="937440209447114831">どの広告・トラッカーもブロックしていません。</translation>
 <translation id="941088499334202542">リンクを編集することも、削除することも、新しいタブで開くこともできます。</translation>
-<translation id="958688202859970851">直近で開かれたタブがここに表示されます</translation>
+<translation id="958688202859970851">直近で開かれたタブがここに表示されます。</translation>
 <translation id="984650419570014454">有効化コードは 6 桁です。</translation>
 <translation id="987264212798334818">一般</translation>
-<translation id="992440609313570947">アカウントをまだお持ちでないですか？
+<translation id="992440609313570947">アカウントをお持ち出ない場合
 <ph name="BEGIN_LINK" /> アカウントを作成する ➔ <ph name="END_LINK" /></translation>
 <translation id="994333983174240900">どちらもコピー</translation>
 <translation id="998988732385109770">ブックマークが使いにくい</translation>

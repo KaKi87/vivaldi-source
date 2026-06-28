@@ -8,7 +8,7 @@
 
 @class VivaldiATBSettingsViewController;
 
-@protocol VivaldiATBSettingsViewControllerDelegate<NSObject>
+@protocol VivaldiATBSettingsViewControllerDelegate <NSObject>
 - (void)vivaldiATBSettingsViewControllerDidTapDone:
     (VivaldiATBSettingsViewController*)controller;
 @end
@@ -19,7 +19,8 @@
 // INITIALIZER
 - (instancetype)initWithBrowser:(Browser*)browser title:(NSString*)title;
 
-@property(nonatomic, weak) id<VivaldiATBSettingsViewControllerDelegate> delegate;
+@property(nonatomic, weak) id<VivaldiATBSettingsViewControllerDelegate>
+    delegate;
 
 @end
 

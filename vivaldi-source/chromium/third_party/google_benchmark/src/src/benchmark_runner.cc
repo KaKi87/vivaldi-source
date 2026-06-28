@@ -14,12 +14,17 @@
 
 #include "benchmark_runner.h"
 
-#include "benchmark/benchmark.h"
+#include "benchmark/benchmark_api.h"
+#include "benchmark/managers.h"
+#include "benchmark/reporter.h"
+#include "benchmark/state.h"
+#include "benchmark/types.h"
 #include "benchmark_api_internal.h"
 #include "internal_macros.h"
 
 #ifndef BENCHMARK_OS_WINDOWS
-#if !defined(BENCHMARK_OS_FUCHSIA) && !defined(BENCHMARK_OS_QURT)
+#if !defined(BENCHMARK_OS_FUCHSIA) && !defined(BENCHMARK_OS_QURT) && \
+    !defined(BENCHMARK_OS_WASI)
 #include <sys/resource.h>
 #endif
 #include <sys/time.h>
@@ -123,7 +128,12 @@ BenchmarkReporter::Run CreateRunReport(
               : 0;
     }
 
-    internal::Finish(&report.counters, results.iterations, seconds,
+    // The CPU time is the total time taken by all thread. If we used that as
+    // the denominator, we'd be calculating the rate per thread here. This is
+    // why we have to divide the total cpu_time by the number of threads for
+    // global counters to get a global rate.
+    const double thread_seconds = seconds / b.threads();
+    internal::Finish(&report.counters, results.iterations, thread_seconds,
                      b.threads());
   }
   return report;
@@ -212,7 +222,8 @@ class ThreadRunnerDefault : public ThreadRunnerBase {
 };
 
 std::unique_ptr<ThreadRunnerBase> GetThreadRunner(
-    const threadrunner_factory& userThreadRunnerFactory, int num_threads) {
+    const benchmark::threadrunner_factory& userThreadRunnerFactory,
+    int num_threads) {
   return userThreadRunnerFactory
              ? userThreadRunnerFactory(num_threads)
              : std::make_unique<ThreadRunnerDefault>(num_threads);

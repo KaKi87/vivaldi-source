@@ -21,6 +21,7 @@
 #import "ios/chrome/browser/shared/public/commands/qr_generation_commands.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/sharing/ui_bundled/activity_services/activities/bookmark_activity.h"
+#import "ios/chrome/browser/sharing/ui_bundled/activity_services/activities/chrome_activity.h"
 #import "ios/chrome/browser/sharing/ui_bundled/activity_services/activities/copy_activity.h"
 #import "ios/chrome/browser/sharing/ui_bundled/activity_services/activities/find_in_page_activity.h"
 #import "ios/chrome/browser/sharing/ui_bundled/activity_services/activities/generate_qr_code_activity.h"
@@ -42,9 +43,14 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
+#import "browser/features/vivaldi_features.h"
+#import "ios/ui/activity_services/copy_sanitized_link_activity.h"
 #import "ios/ui/activity_services/share_text_data.h"
 
-@interface ActivityServiceMediator ()
+@interface ActivityServiceMediator () {
+  // The custom activities created by the mediator.
+  NSMutableArray<ChromeActivity*>* _activities;
+}
 
 @property(nonatomic, weak) id<BrowserCoordinatorCommands, FindInPageCommands>
     handler;
@@ -93,6 +99,7 @@
     _baseViewController = baseViewController;
     _navigationAgent = navigationAgent;
     _readingListBrowserAgent = readingListBrowserAgent;
+    _activities = [[NSMutableArray alloc] init];
   }
   return self;
 }
@@ -127,6 +134,13 @@
 
   [applicationActivities
       addObject:[[CopyActivity alloc] initWithDataItems:dataItems]];
+
+  if (vivaldi::IsVivaldiRunning() &&
+      vivaldi_features::IsVivaldiIOSCopySanitizedLinkEnabled()) {
+    [applicationActivities
+        addObject:[[CopySanitizedLinkActivity alloc]
+                    initWithDataItems:dataItems]];
+  } // End Vivaldi
 
   if (dataItems.count != 1) {
     return applicationActivities;
@@ -185,6 +199,7 @@
     [applicationActivities addObject:printActivity];
   }
 
+  [_activities addObjectsFromArray:applicationActivities];
   return applicationActivities;
 }
 
@@ -207,6 +222,7 @@
                                        handler:self.handler
                             baseViewController:self.baseViewController];
 
+  [_activities addObject:printActivity];
   return @[ printActivity ];
 }
 
@@ -249,6 +265,14 @@
     RecordCancelledScenario(scenario);
   }
 }
+
+- (void)disconnect {
+  for (ChromeActivity* activity in _activities) {
+    [activity disconnect];
+  }
+  [_activities removeAllObjects];
+}
+
 
 // Vivaldi
 - (NSArray<ChromeActivityTextSource*>*)activityItemsForTextData:

@@ -29,16 +29,15 @@
 #include <memory>
 #include <vector>
 
-#include "dawn/common/Platform.h"
-#include "dawn/tests/MockCallback.h"
-#include "dawn/tests/unittests/validation/ValidationTest.h"
 #include "gmock/gmock.h"
+#include "src/dawn/tests/MockCallback.h"
+#include "src/dawn/tests/unittests/validation/ValidationTest.h"
+#include "src/utils/platform.h"
 
 using testing::_;
 using testing::HasSubstr;
 using testing::MockCppCallback;
 using testing::TestParamInfo;
-using testing::Values;
 using testing::WithParamInterface;
 
 using MockMapAsyncCallback = MockCppCallback<void (*)(wgpu::MapAsyncStatus, wgpu::StringView)>;

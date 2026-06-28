@@ -31,7 +31,6 @@
 #include "chrome/browser/ui/tab_modal_confirm_dialog.h"
 #include "chrome/browser/ui/tab_modal_confirm_dialog_delegate.h"
 #include "chrome/common/url_constants.h"
-#include "chrome/grit/generated_resources.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/google/core/common/google_util.h"
 #include "components/navigation_metrics/navigation_metrics.h"
@@ -103,7 +102,7 @@ void RecordNewTabLoadTime(content::WebContents* contents) {
 void RecordConcreteNtp(content::NavigationHandle* navigation_handle) {
   NewTabPageConcretePage concrete_page = NewTabPageConcretePage::kOther;
   if (navigation_handle->GetURL().DeprecatedGetOriginAsURL() ==
-      GURL(chrome::kChromeUINewTabPageURL).DeprecatedGetOriginAsURL()) {
+      chrome::ChromeUINewTabPageURLAsGURL().DeprecatedGetOriginAsURL()) {
     concrete_page = NewTabPageConcretePage::k1PWebUiNtp;
   } else if (navigation_handle->GetURL().DeprecatedGetOriginAsURL() ==
              GURL(chrome::kChromeUINewTabPageThirdPartyURL)
@@ -118,7 +117,7 @@ void RecordConcreteNtp(content::NavigationHandle* navigation_handle) {
                  navigation_handle->GetWebContents()->GetBrowserContext())
                  ->IsOffTheRecord() &&
              navigation_handle->GetURL().DeprecatedGetOriginAsURL() ==
-                 GURL(chrome::kChromeUINewTabURL).DeprecatedGetOriginAsURL()) {
+                 chrome::ChromeUINewTabURLAsGURL().DeprecatedGetOriginAsURL()) {
     concrete_page = NewTabPageConcretePage::kOffTheRecordNtp;
   }
   base::UmaHistogramEnumeration("NewTabPage.ConcretePage", concrete_page);
@@ -191,7 +190,7 @@ void SearchTabHelper::DidStartNavigation(
   }
 
   if (web_contents()->GetVisibleURL().DeprecatedGetOriginAsURL() ==
-      GURL(chrome::kChromeUINewTabURL).DeprecatedGetOriginAsURL()) {
+      chrome::ChromeUINewTabURLAsGURL().DeprecatedGetOriginAsURL()) {
     RecordConcreteNtp(navigation_handle);
   }
 

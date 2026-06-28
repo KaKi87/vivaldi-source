@@ -34,22 +34,24 @@ const int kVerticalMargin = 8;
 // extensions bubble max height (448) and the downloads bubble max height (450).
 const int kMaxBubbleHeight = 448;
 
-int GetPriorityForTaskState(actor::ActorTask::State task_state,
-                            bool requires_processing) {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+int GetPriorityForTaskState(actor::ActorTask::State task_state,
+                            bool requires_processing,
+                            glic::mojom::FeatureMode feature_mode) {
   // Tasks should be prioritized in the following order:
   // 1. Unprocessed tasks needing attention
   // 2. Processed tasks needing attention
   // 3. Remaining tasks that need processing
   // 4. All other tasks
-  return tabs::GlicActorTaskIconManager::RequiresAttention(task_state)
+  return glic::GlicActorTaskIconManager::RequiresAttention(task_state)
              ? (requires_processing ? 1 : 2)
-         : tabs::GlicActorTaskIconManager::RequiresTaskProcessing(task_state)
+         : glic::GlicActorTaskIconManager::RequiresTaskProcessing(task_state,
+                                                                  feature_mode)
              ? 3
              : 4;
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   return 4;
 }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
 
 }  // namespace
 
@@ -92,7 +94,8 @@ views::Widget* ActorTaskListBubble::ShowBubble(
       views::DISTANCE_BUBBLE_PREFERRED_WIDTH));
   bubble->set_margins(gfx::Insets::VH(kVerticalMargin, 0));
 
-  auto* widget = views::BubbleDialogDelegate::CreateBubble(std::move(bubble));
+  auto* widget = views::BubbleDialogDelegate::CreateBubbleDeprecated(
+      std::move(bubble), views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET);
   // Bubble can always show activated as it will only show in the active window.
   widget->Show();
 
@@ -103,14 +106,17 @@ std::unique_ptr<views::View> ActorTaskListBubble::CreateContentsView(
     Profile* profile,
     const absl::flat_hash_map<actor::TaskId, bool>& task_list,
     base::RepeatingCallback<void(actor::TaskId)> on_row_clicked) {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   std::unique_ptr<views::View> contents_view =
       views::Builder<views::FlexLayoutView>()
           .SetOrientation(views::LayoutOrientation::kVertical)
           .SetProperty(views::kElementIdentifierKey, kActorTaskListBubbleView)
           .Build();
 
+  auto* actor_service = actor::ActorKeyedService::Get(profile);
+  CHECK(actor_service);
   actor::ui::ActorUiStateManagerInterface* actor_ui_state_manager =
-      actor::ActorKeyedService::Get(profile)->GetActorUiStateManager();
+      actor_service->GetActorUiStateManager();
 
   // Keep track of tasks in each state for ordering tasks in the list bubble.
   std::vector<std::pair</*priority=*/int, actor::TaskId>> row_priority_list;
@@ -123,9 +129,10 @@ std::unique_ptr<views::View> ActorTaskListBubble::CreateContentsView(
           actor::ui::ActorUiTaskIconError::kBubbleTaskDoesntExist);
       continue;
     }
-
     row_priority_list.emplace_back(
-        GetPriorityForTaskState(task_state.value(), requires_processing),
+        GetPriorityForTaskState(
+            task_state.value(), requires_processing,
+            actor_ui_state_manager->GetFeatureMode(task_id)),
         task_id);
   }
 
@@ -139,14 +146,26 @@ std::unique_ptr<views::View> ActorTaskListBubble::CreateContentsView(
     bool requires_processing = task_list.at(task_id);
     CHECK(task_state.has_value() && task_title.has_value() &&
           task_tab.has_value());
+    bool has_tab = task_tab.value() != nullptr;
+
+    if (!has_tab && glic::GlicActorTaskIconManager::IsActiveExperimentalTask(
+                        task_state.value(),
+                        actor_ui_state_manager->GetFeatureMode(task_id))) {
+      // Treat experimental triggering tasks as having a tab even if they don't
+      // have one associated yet. This ensures they are clickable and can bring
+      // the window/tab to the foreground.
+      has_tab = true;
+    }
 
     std::unique_ptr<ActorTaskListBubbleRowButton> row =
         std::make_unique<ActorTaskListBubbleRowButton>(
             base::BindRepeating(on_row_clicked, task_id), task_state.value(),
             base::UTF8ToUTF16(task_title.value()), requires_processing,
-            task_tab.value() != nullptr);
+            has_tab);
 
     contents_view->AddChildView(std::move(row));
   }
   return contents_view;
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  return nullptr;
 }

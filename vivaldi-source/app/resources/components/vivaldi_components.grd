@@ -2,20 +2,20 @@
 <grit base_dir="." latest_public_release="0" current_release="1"
       source_lang_id="en" enc_check="möl">
   <outputs>
-    <if expr="not vivaldi_chromium_file">
-      <output filename="components_google_chrome_strings_ca-valencia.pak" type="data_package" lang="ca@valencia" />
-      <output filename="components_google_chrome_strings_de-CH.pak" type="data_package" lang="de-CH" />
-      <output filename="components_google_chrome_strings_eo.pak" type="data_package" lang="eo" />
-      <output filename="components_google_chrome_strings_es-PE.pak" type="data_package" lang="es-PE" />
-      <output filename="components_google_chrome_strings_fy.pak" type="data_package" lang="fy" />
-      <output filename="components_google_chrome_strings_gd.pak" type="data_package" lang="gd" />
-      <output filename="components_google_chrome_strings_io.pak" type="data_package" lang="io" />
-      <output filename="components_google_chrome_strings_ja-KS.pak" type="data_package" lang="ja-KS" />
-      <output filename="components_google_chrome_strings_jbo.pak" type="data_package" lang="jbo" />
-      <output filename="components_google_chrome_strings_kab.pak" type="data_package" lang="kab" />
-      <output filename="components_google_chrome_strings_kmr.pak" type="data_package" lang="kmr" />
-      <output filename="components_google_chrome_strings_sc.pak" type="data_package" lang="sc" />
-      <output filename="components_google_chrome_strings_nn.pak" type="data_package" lang="nn" />
+    <if expr="not vivaldi_chromium_file and not is_ios">
+      <output filename="components_branded_strings_ca-valencia.pak" type="data_package" lang="ca@valencia" />
+      <output filename="components_branded_strings_de-CH.pak" type="data_package" lang="de-CH" />
+      <output filename="components_branded_strings_eo.pak" type="data_package" lang="eo" />
+      <output filename="components_branded_strings_es-PE.pak" type="data_package" lang="es-PE" />
+      <output filename="components_branded_strings_fy.pak" type="data_package" lang="fy" />
+      <output filename="components_branded_strings_gd.pak" type="data_package" lang="gd" />
+      <output filename="components_branded_strings_io.pak" type="data_package" lang="io" />
+      <output filename="components_branded_strings_ja-KS.pak" type="data_package" lang="ja-KS" />
+      <output filename="components_branded_strings_jbo.pak" type="data_package" lang="jbo" />
+      <output filename="components_branded_strings_kab.pak" type="data_package" lang="kab" />
+      <output filename="components_branded_strings_kmr.pak" type="data_package" lang="kmr" />
+      <output filename="components_branded_strings_sc.pak" type="data_package" lang="sc" />
+      <output filename="components_branded_strings_nn.pak" type="data_package" lang="nn" />
       <if expr="not is_android">
       </if>
     </if>

@@ -204,6 +204,7 @@ enum class TabGridTransitionType {
 // Prepares items for the Tab Grid to Browser transition.
 - (void)prepareTabGridToBrowserTransition {
   UIViewController* tabGrid = _params->tab_grid_view_controller;
+  UIViewController* parentViewController = _params->parent_view_controller;
   UIViewController* browserLayout = _params->browser_layout_view_controller;
   UIView* appContentGuide = _params->app_content_view;
 
@@ -236,24 +237,38 @@ enum class TabGridTransitionType {
     sourceView = appContentGuide;
   }
   UIViewController* rootViewController = tabGrid.view.window.rootViewController;
+  if (IsFullscreenRefactoringEnabled()) {
+    // Temporarily re-enable autoresizing so that the frame can be manually set
+    // for the snapshot.
+    browserLayout.view.translatesAutoresizingMaskIntoConstraints = YES;
+  }
   browserLayout.view.frame = [sourceView convertRect:browserLayoutOriginalFrame
                                               toView:rootViewController.view];
   [rootViewController addChildViewController:browserLayout];
   [rootViewController.view insertSubview:browserLayout.view atIndex:0];
+  if (IsFullscreenRefactoringEnabled()) {
+    // Running a layout here ensures that the toolbar frames are correct for
+    // the snapshots.
+    [browserLayout.view layoutIfNeeded];
+  }
   [self takeToolbarSnapshots];
   browserLayout.view.frame = browserLayoutOriginalFrame;
 
   if (IsChromeNextIaEnabled()) {
-    [tabGrid addChildViewController:browserLayout];
+    [parentViewController addChildViewController:browserLayout];
     [appContentGuide addSubview:browserLayout.view];
     if (IsFullscreenRefactoringEnabled()) {
+      browserLayout.view.translatesAutoresizingMaskIntoConstraints = NO;
       AddSameConstraints(browserLayout.view, appContentGuide);
+      [parentViewController.view layoutIfNeeded];
     }
   } else {
     [tabGrid addChildViewController:browserLayout];
     [tabGrid.view addSubview:browserLayout.view];
     if (IsFullscreenRefactoringEnabled()) {
+      browserLayout.view.translatesAutoresizingMaskIntoConstraints = NO;
       AddSameConstraints(browserLayout.view, tabGrid.view);
+      [tabGrid.view layoutIfNeeded];
     }
   }
 
@@ -274,9 +289,9 @@ enum class TabGridTransitionType {
 
 // Takes all necessary actions to finish TabGrid to Browser transition.
 - (void)finalizeTabGridToBrowserTransition {
-  UIViewController* tabGrid = _params->tab_grid_view_controller;
   UIViewController* browserLayout = _params->browser_layout_view_controller;
-  [browserLayout didMoveToParentViewController:tabGrid];
+  UIViewController* parentViewController = _params->parent_view_controller;
+  [browserLayout didMoveToParentViewController:parentViewController];
 
   [browserLayout setNeedsStatusBarAppearanceUpdate];
 }

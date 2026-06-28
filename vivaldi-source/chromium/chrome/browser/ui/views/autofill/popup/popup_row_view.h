@@ -14,6 +14,7 @@
 #include "base/scoped_observation.h"
 #include "chrome/browser/ui/autofill/next_idle_barrier.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_view_utils.h"
+#include "components/autofill/core/browser/metrics/autofill_metrics.h"
 #include "components/input/native_web_keyboard_event.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/events/event_handler.h"
@@ -118,6 +119,9 @@ class PopupRowView : public views::View, public views::ViewObserver {
   // Returns if the popup row is available for selection.
   bool IsSelectable() const;
 
+  // Accepts the suggestion that corresponds to this view's line number.
+  bool Accept(AutofillMetrics::SuggestionAcceptedMethod method) const;
+
   // Returns the view representing the content area of the row.
   PopupRowContentView& GetContentView() { return *content_view_; }
 
@@ -186,11 +190,11 @@ class PopupRowView : public views::View, public views::ViewObserver {
   // has been moved into the item's screen bounds. For example, if the item is
   // hovered by the mouse at the time it's first shown, we want to ignore clicks
   // until the mouse has left and re-entered the bounds of the item
-  // (crbug.com/1240472, crbug.com/1241585, crbug.com/1287364).
+  // (crbug.com/40056900, crbug.com/40056936, crbug.com/40058496).
   // This is particularly relevant because mouse click interactions may be
   // processed with a delay, making it seem as if the two click interactions of
   // a double click were executed at intervals larger than the threshold (500ms)
-  // checked in the controller (crbug.com/1418837).
+  // checked in the controller (crbug.com/40063230).
   bool mouse_observed_outside_item_bounds_ = false;
 
   // Whether the `mouse_observed_outside_item_bounds_` will be ignored or not.

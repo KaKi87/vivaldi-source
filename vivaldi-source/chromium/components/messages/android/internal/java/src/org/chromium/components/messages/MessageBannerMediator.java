@@ -210,7 +210,7 @@ class MessageBannerMediator implements SwipeHandler {
     // ---------------------------------------------------------------------------------------------
 
     @Override
-    public void onSwipeStarted(@ScrollDirection int direction, MotionEvent ev) {
+    public void onSwipeStarted(@ScrollDirection int direction, MotionEvent triggerEvent) {
         mCurrentState = State.GESTURE;
         mSwipeDirection = direction;
         mSwipeStartTranslation =
@@ -325,7 +325,7 @@ class MessageBannerMediator implements SwipeHandler {
     }
 
     @Override
-    public boolean isSwipeEnabled(@ScrollDirection int direction) {
+    public boolean isSwipeEnabled(@ScrollDirection int direction, MotionEvent triggerEvent) {
         return direction != ScrollDirection.UNKNOWN
                 && mCurrentState == State.IDLE
                 && mSwipeAnimationHandler.isSwipeEnabled();

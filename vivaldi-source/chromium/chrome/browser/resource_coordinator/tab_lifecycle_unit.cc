@@ -32,7 +32,6 @@
 #include "chrome/browser/resource_coordinator/utils.h"
 #include "chrome/browser/tab_contents/form_interaction_tab_helper.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/web_applications/web_app_tab_helper.h"
 #include "components/device_event_log/device_event_log.h"
@@ -48,6 +47,7 @@
 #include "url/gurl.h"
 
 #include "app/vivaldi_apptools.h"
+#include "components/ext_data/tab_ext_data_impl.h"
 #include "content/browser/renderer_host/render_widget_host_view_base.h"
 #include "content/browser/web_contents/web_contents_impl.h"
 
@@ -291,6 +291,11 @@ void TabLifecycleUnitSource::TabLifecycleUnit::FinishDiscard(
   // tail of tests that don't add these helpers. This ensures that the various
   // DCHECKs in the state transition machinery don't fail.
   ResourceCoordinatorTabHelper::CreateForWebContents(raw_null_contents);
+
+  // VB-126984: AboutToBeDiscarded can synchronously reach CreateTabObject
+  // for null_contents via IsAutoDiscardable change, hitting the
+  // TabExtData::Get() CHECK before WillAddWebContents runs.
+  vivaldi::TabExtDataImpl::CreateForWebContents(raw_null_contents);
 
   // Send the notification to WebContentsObservers that the old content is about
   // to be discarded and replaced with `null_contents`.

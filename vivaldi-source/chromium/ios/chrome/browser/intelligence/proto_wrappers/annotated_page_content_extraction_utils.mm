@@ -5,11 +5,14 @@
 #import "ios/chrome/browser/intelligence/proto_wrappers/annotated_page_content_extraction_utils.h"
 
 #import "base/check.h"
+#import "base/functional/bind.h"
 #import "base/functional/callback.h"
+#import "base/strings/string_number_conversions.h"
 #import "components/autofill/core/browser/data_manager/personal_data_manager.h"
 #import "components/autofill/core/browser/payments/payments_autofill_client.h"
 #import "components/autofill/core/common/unique_ids.h"
 #import "components/autofill/ios/browser/autofill_client_ios.h"
+#import "components/autofill/ios/form_util/child_frame_registrar.h"
 #import "components/optimization_guide/core/page_content_proto_serializer.h"
 #import "components/optimization_guide/proto/features/common_quality_data.pb.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
@@ -47,7 +50,8 @@ constexpr char kAriaRoleKey[] = "ariaRole";
 constexpr char kLayoutSizeKey[] = "layoutSize";
 constexpr char kWidthKey[] = "width";
 constexpr char kHeightKey[] = "height";
-constexpr char kFrameTokenKey[] = "frameToken";
+constexpr char kRemoteFrameTokenKey[] = "remoteFrameToken";
+constexpr char kLocalFrameTokenKey[] = "localFrameToken";
 constexpr char kTokenValueKey[] = "value";
 constexpr char kContentKey[] = "content";
 constexpr char kLocalFrameDataKey[] = "localFrameData";
@@ -56,6 +60,7 @@ constexpr char kTitleKey[] = "title";
 constexpr char kContainsPaidContentKey[] = "containsPaidContent";
 constexpr char kChildrenNodesKey[] = "childrenNodes";
 constexpr char kDomNodeIdKey[] = "domNodeId";
+constexpr char kAutofillNodeIdKey[] = "autofillNodeId";
 constexpr char kLabelForDomNodeIdKey[] = "labelForDomNodeId";
 constexpr char kFrameInteractionInfoKey[] = "frameInteractionInfo";
 constexpr char kSelectionKey[] = "selection";
@@ -95,6 +100,7 @@ constexpr char kIsFocusableKey[] = "isFocusable";
 constexpr char kClickabilityReasonsKey[] = "clickabilityReasons";
 constexpr char kInteractionDisabledReasonsKey[] = "interactionDisabledReasons";
 constexpr char kIsDisabledInteractionKey[] = "isDisabled";
+constexpr char kDocumentScopedZOrderKey[] = "documentScopedZOrder";
 constexpr char kMediaDataKey[] = "mediaData";
 constexpr char kMediaDataTypeKey[] = "mediaDataType";
 constexpr char kDurationMillisecondsKey[] = "durationMilliseconds";
@@ -102,6 +108,12 @@ constexpr char kCurrentPositionMillisecondsKey[] =
     "currentPositionMilliseconds";
 constexpr char kIsPlayingKey[] = "isPlaying";
 constexpr char kLabelKey[] = "label";
+constexpr char kGeometryKey[] = "geometry";
+constexpr char kOuterBoundingBoxKey[] = "outerBoundingBox";
+constexpr char kVisibleBoundingBoxKey[] = "visibleBoundingBox";
+constexpr char kFragmentVisibleBoundingBoxesKey[] =
+    "fragmentVisibleBoundingBoxes";
+constexpr char kIsFocusedDocumentKey[] = "isFocusedDocument";
 
 // Reads a JS number (double) from a `dict` stored under `key`.
 std::optional<int> ReadJsNumber(const base::DictValue& dict, const char* key) {
@@ -115,6 +127,21 @@ std::optional<int> ReadJsNumber(const base::DictValue& dict, const char* key) {
 std::optional<int> ReadJsNumber(const base::Value& value) {
   if (std::optional<double> double_value = value.GetIfDouble()) {
     return static_cast<int>(*double_value);
+  }
+  return std::nullopt;
+}
+
+// Reads a token value from the `iframe_data` dictionary under the specified
+// `key`. Returns an optional string that is only set if the token is found and
+// is not empty.
+std::optional<std::string> GetTokenValueFromIframeData(
+    const base::DictValue& iframe_data,
+    std::string_view key) {
+  if (const base::DictValue* token_dict = iframe_data.FindDict(key)) {
+    if (const std::string* token_string =
+            token_dict->FindString(kTokenValueKey)) {
+      return *token_string;
+    }
   }
   return std::nullopt;
 }
@@ -148,11 +175,14 @@ void PopulateTextData(
               static_cast<optimization_guide::proto::TextSize>(*text_size));
     }
 
-    if (std::optional<int> color = ReadJsNumber(*text_style, kColorKey)) {
-      destination_node->mutable_content_attributes()
-          ->mutable_text_data()
-          ->mutable_text_style()
-          ->set_color(static_cast<uint32_t>(*color));
+    if (const std::string* color_str = text_style->FindString(kColorKey)) {
+      uint32_t color_val = 0;
+      if (base::StringToUint(*color_str, &color_val)) {
+        destination_node->mutable_content_attributes()
+            ->mutable_text_data()
+            ->mutable_text_style()
+            ->set_color(color_val);
+      }
     }
   }
 }
@@ -256,8 +286,10 @@ void PopulateMediaData(
       media_data.FindBool(kIsPlayingKey).value_or(false));
 }
 
-// Populates `destination_frame_data` from the `local_frame_data` content.
-void PopulateFrameData(
+// Populates the given `destination_frame_data` from the `local_frame_data`
+// JSON dictionary content representing the frame data extracted from the
+// renderer. Returns a FrameDataNodeResult containing the focus state.
+FrameDataNodeResult PopulateFrameData(
     const base::DictValue& local_frame_data,
     optimization_guide::proto::FrameData* destination_frame_data,
     const url::Origin& origin) {
@@ -288,6 +320,12 @@ void PopulateFrameData(
   const base::DictValue* interaction_info_dict =
       local_frame_data.FindDict(kFrameInteractionInfoKey);
   if (interaction_info_dict) {
+    if (std::optional<int> focused_dom_node_id =
+            ReadJsNumber(*interaction_info_dict, kFocusedDomNodeIdKey)) {
+      destination_frame_data->mutable_frame_interaction_info()
+          ->set_focused_node_id(*focused_dom_node_id);
+    }
+
     const base::DictValue* selection_dict =
         interaction_info_dict->FindDict(kSelectionKey);
     if (selection_dict) {
@@ -333,14 +371,20 @@ void PopulateFrameData(
           local_frame_data.FindDict(kMediaDataKey)) {
     PopulateMediaData(*media_data, destination_frame_data);
   }
+
+  return {.is_focused =
+              local_frame_data.FindBool(kIsFocusedDocumentKey).value_or(false)};
 }
 
 // Populates the iframe data of the `destination_node` from the
-// `iframe_data` content.
+// `iframe_data` content. Calls `on_frame_extracted` with the extracted frame.
 void PopulateIframeData(
     const base::DictValue& iframe_data,
     optimization_guide::proto::ContentNode* destination_node,
-    const url::Origin& origin) {
+    const url::Origin& origin,
+    const base::RepeatingCallback<void(bool is_focused,
+                                       const std::string& document_id)>&
+        on_frame_extracted) {
   if (const base::DictValue* content = iframe_data.FindDict(kContentKey)) {
     if (const base::DictValue* local_frame_data =
             content->FindDict(kLocalFrameDataKey)) {
@@ -348,7 +392,13 @@ void PopulateIframeData(
           destination_node->mutable_content_attributes()
               ->mutable_iframe_data()
               ->mutable_frame_data();
-      PopulateFrameData(*local_frame_data, node_frame_data, origin);
+      FrameDataNodeResult result =
+          PopulateFrameData(*local_frame_data, node_frame_data, origin);
+      if (on_frame_extracted) {
+        on_frame_extracted.Run(
+            result.is_focused,
+            node_frame_data->document_identifier().serialized_token());
+      }
     }
   }
 }
@@ -380,10 +430,65 @@ void PopulateTableRowData(
   }
 }
 
+// Populates the Autofill data associated with the `form_control_data`.
+void PopulateAutofillData(
+    const base::DictValue& form_control_data,
+    AutofillExtractionContext* autofill_context,
+    optimization_guide::proto::FormControlData* proto_form_control_data) {
+  if (!autofill_context) {
+    return;
+  }
+
+  std::optional<int> autofill_node_id =
+      ReadJsNumber(form_control_data, kAutofillNodeIdKey);
+  if (!autofill_node_id) {
+    return;
+  }
+
+  std::optional<AutofillFieldMetadata> autofill_metadata =
+      GetAutofillFieldData(*autofill_node_id, *autofill_context);
+  if (!autofill_metadata) {
+    return;
+  }
+
+  proto_form_control_data->set_autofill_section_id(
+      autofill_metadata->section_id);
+  proto_form_control_data->add_coarse_autofill_field_type(
+      autofill_metadata->coarse_field_type);
+
+  if (!autofill_context->extract_autofill_credit_card_redactions) {
+    return;
+  }
+
+  // Prioritize existing redaction decisions (e.g., from JS) over Autofill.
+  if (proto_form_control_data->redaction_decision() !=
+      optimization_guide::proto::REDACTION_DECISION_NO_REDACTION_NECESSARY) {
+    return;
+  }
+
+  optimization_guide::proto::RedactionDecision autofill_redaction_decision =
+      ConvertAutofillFieldRedactionReason(*proto_form_control_data,
+                                          autofill_metadata->redaction_reason);
+
+  if (autofill_redaction_decision ==
+      optimization_guide::proto::REDACTION_DECISION_NO_REDACTION_NECESSARY) {
+    return;
+  }
+
+  proto_form_control_data->set_redaction_decision(autofill_redaction_decision);
+
+  if (ShouldRedactContent(proto_form_control_data->redaction_decision(),
+                          *autofill_context)) {
+    proto_form_control_data->clear_field_value();
+  }
+}
+
 // Populates the form control data of the `destination_node` from the
-// `form_control_data` content.
+// `form_control_data` content. `autofill_context` is optional and, if provided,
+// used to populate Autofill form data and apply redaction.
 void PopulateFormControlData(
     const base::DictValue& form_control_data,
+    AutofillExtractionContext* autofill_context,
     optimization_guide::proto::ContentNode* destination_node) {
   optimization_guide::proto::FormControlData* proto_form_control_data =
       destination_node->mutable_content_attributes()
@@ -461,6 +566,9 @@ void PopulateFormControlData(
       }
     }
   }
+
+  PopulateAutofillData(form_control_data, autofill_context,
+                       proto_form_control_data);
 }
 
 // Populates the form data of the `destination_node` from the `form_data`
@@ -557,6 +665,75 @@ void PopulateNodeInteractionInfo(
       }
     }
   }
+
+  // Document Scoped Z-Order.
+  if (std::optional<int> z_order =
+          ReadJsNumber(node_interaction_data, kDocumentScopedZOrderKey)) {
+    info_proto->set_document_scoped_z_order(*z_order);
+  }
+}
+
+// Extracts and returns a BoundingRect proto from the given dictionary.
+// Returns std::nullopt if any required dimension is missing or invalid,
+// ensuring we do not set potentially misleading 0 values.
+std::optional<optimization_guide::proto::BoundingRect> ExtractBoundingRect(
+    const base::DictValue& dict) {
+  std::optional<int> x = ReadJsNumber(dict, kXKey);
+  std::optional<int> y = ReadJsNumber(dict, kYKey);
+  std::optional<int> width = ReadJsNumber(dict, kWidthKey);
+  std::optional<int> height = ReadJsNumber(dict, kHeightKey);
+
+  if (!x || !y || !width || !height) {
+    // Do not create the rectangle if one part is missing.
+    return std::nullopt;
+  }
+
+  optimization_guide::proto::BoundingRect proto;
+  proto.set_x(*x);
+  proto.set_y(*y);
+  proto.set_width(*width);
+  proto.set_height(*height);
+  return proto;
+}
+
+// Populates the geometry data of the `node` from the `geometry_dict` content.
+// Extracts outer bounding box, visible bounding box, and any fragments if
+// applicable.
+void PopulateGeometry(const base::DictValue& geometry_dict,
+                      optimization_guide::proto::ContentNode* node) {
+  auto mutable_geometry = [node]() {
+    return node->mutable_content_attributes()->mutable_geometry();
+  };
+
+  if (const base::DictValue* outer_box =
+          geometry_dict.FindDict(kOuterBoundingBoxKey)) {
+    if (std::optional<optimization_guide::proto::BoundingRect> box =
+            ExtractBoundingRect(*outer_box)) {
+      *mutable_geometry()->mutable_outer_bounding_box() = std::move(*box);
+    }
+  }
+
+  if (const base::DictValue* visible_box =
+          geometry_dict.FindDict(kVisibleBoundingBoxKey)) {
+    if (std::optional<optimization_guide::proto::BoundingRect> box =
+            ExtractBoundingRect(*visible_box)) {
+      *mutable_geometry()->mutable_visible_bounding_box() = std::move(*box);
+    }
+  }
+
+  if (const base::ListValue* fragments =
+          geometry_dict.FindList(kFragmentVisibleBoundingBoxesKey)) {
+    for (const auto& fragment : *fragments) {
+      if (const base::DictValue* fragment_dict = fragment.GetIfDict()) {
+        // Add the fragment to the list of fragments.
+        if (std::optional<optimization_guide::proto::BoundingRect> box =
+                ExtractBoundingRect(*fragment_dict)) {
+          *mutable_geometry()->add_fragment_visible_bounding_boxes() =
+              std::move(*box);
+        }
+      }
+    }
+  }
 }
 }  // namespace
 
@@ -564,10 +741,16 @@ void PopulateAPCNodeFromContentTree(
     const base::DictValue& node_content,
     const url::Origin& origin,
     FrameGrafter& grafter,
-    optimization_guide::proto::ContentNode* destination_node) {
+    AutofillExtractionContext* autofill_context,
+    optimization_guide::proto::ContentNode* destination_node,
+    const base::RepeatingCallback<void(bool is_focused,
+                                       const std::string& document_id)>&
+        on_frame_extracted) {
   if (!destination_node) {
     return;
   }
+
+  std::optional<AutofillExtractionContext> child_autofill_context;
 
   const base::DictValue* content_attributes =
       node_content.FindDict(kContentAttributesKey);
@@ -652,23 +835,41 @@ void PopulateAPCNodeFromContentTree(
         // and children for an iframe node (which has content attribute of type
         // iframe and a number of children nodes > 0); those 2 should be
         // mutally exclusive.
-        if (const base::DictValue* frame_token =
-                iframe_data->FindDict(kFrameTokenKey)) {
-          if (const std::string* token_string =
-                  frame_token->FindString(kTokenValueKey)) {
-            // If we have a remote token, it means the content is in another
-            // frame (likely cross-origin) and we should register a placeholder.
-            // We do not populate children or other data in this case.
-            if (!token_string->empty()) {
-              if (std::optional<autofill::RemoteFrameToken> remote =
-                      DeserializeFrameIdAsRemoteFrameToken(*token_string)) {
-                grafter.RegisterPlaceholder(*remote, destination_node);
-              }
-              return;
+        if (std::optional<std::string> token_string =
+                GetTokenValueFromIframeData(*iframe_data,
+                                            kRemoteFrameTokenKey)) {
+          // If we have a remote token, it means the content is in another
+          // frame (likely cross-origin) and we should register a placeholder.
+          // We do not populate children or other data in this case which will
+          // be populated later on via the frame grafter.
+          if (std::optional<autofill::RemoteFrameToken> remote =
+                  DeserializeFrameIdAsRemoteFrameToken(*token_string)) {
+            grafter.RegisterPlaceholder(*remote, destination_node);
+            return;
+          }
+        }
+
+        if (autofill_context) {
+          if (std::optional<std::string> token_string =
+                  GetTokenValueFromIframeData(*iframe_data,
+                                              kLocalFrameTokenKey)) {
+            if (std::optional<autofill::LocalFrameToken> local_token =
+                    DeserializeFrameIdAsLocalFrameToken(*token_string)) {
+              child_autofill_context.emplace(
+                  autofill_context->web_state, local_token,
+                  autofill_context->extract_autofill_credit_card_redactions,
+                  autofill_context->section_numbers);
             }
           }
         }
-        PopulateIframeData(*iframe_data, destination_node, origin);
+
+        // We do not skip populating the proto data for the frame even if we
+        // failed to extract the child context (e.g. missing local token).
+        // This matches Blink's behavior where availability of content is
+        // prioritized over strict guarantee of redaction when Autofill data
+        // is missing while required.
+        PopulateIframeData(*iframe_data, destination_node, origin,
+                           on_frame_extracted);
       }
       break;
     }
@@ -700,7 +901,8 @@ void PopulateAPCNodeFromContentTree(
       const base::DictValue* form_control_data =
           content_attributes->FindDict(kFormControlDataKey);
       if (form_control_data) {
-        PopulateFormControlData(*form_control_data, destination_node);
+        PopulateFormControlData(*form_control_data, autofill_context,
+                                destination_node);
       }
       break;
     }
@@ -718,6 +920,12 @@ void PopulateAPCNodeFromContentTree(
   // Handle ARIA Label.
   if (const std::string* label = content_attributes->FindString(kLabelKey)) {
     destination_node->mutable_content_attributes()->set_label(*label);
+  }
+
+  // Handle Geometry.
+  if (const base::DictValue* geometry =
+          content_attributes->FindDict(kGeometryKey)) {
+    PopulateGeometry(*geometry, destination_node);
   }
 
   // Handle Annotated Role.
@@ -747,21 +955,23 @@ void PopulateAPCNodeFromContentTree(
           node_content.FindList(kChildrenNodesKey)) {
     for (const base::Value& child_value : *children_nodes) {
       if (child_value.is_dict()) {
-        PopulateAPCNodeFromContentTree(child_value.GetDict(), origin, grafter,
-                                       destination_node->add_children_nodes());
+        PopulateAPCNodeFromContentTree(
+            child_value.GetDict(), origin, grafter,
+            child_autofill_context ? &*child_autofill_context
+                                   : autofill_context,
+            destination_node->add_children_nodes(), on_frame_extracted);
       }
     }
   }
-
-  return;
 }
 
-void PopulateFrameDataNode(
+FrameDataNodeResult PopulateFrameDataNode(
     const base::DictValue& frame_data_content,
     const url::Origin& origin,
     optimization_guide::proto::FrameData* destination_frame_data_node) {
   CHECK(destination_frame_data_node);
-  PopulateFrameData(frame_data_content, destination_frame_data_node, origin);
+  return PopulateFrameData(frame_data_content, destination_frame_data_node,
+                           origin);
 }
 
 // Populates `page_interaction_info_node` from the
@@ -830,5 +1040,55 @@ void PopulateAutofillInformation(
     autofill_information->add_fillable_data(
         optimization_guide::proto::
             AutofillInformation_FillableData_CREDIT_CARD);
+  }
+}
+
+void ResolveCrossSiteFrameContent(
+    FrameGrafter& grafter,
+    autofill::ChildFrameRegistrar* registrar,
+    optimization_guide::proto::AnnotatedPageContent* apc) {
+  CHECK(registrar);
+  auto mapping_lookup = base::BindRepeating(
+      [](autofill::ChildFrameRegistrar* registrar,
+         autofill::RemoteFrameToken remote) {
+        return registrar->LookupChildFrame(remote);
+      },
+      registrar);
+
+  auto placer = base::BindRepeating(
+      [](optimization_guide::proto::ContentNode* parentNode,
+         FrameGrafter::FrameContent unregistered) {
+        *parentNode->add_children_nodes() = std::move(unregistered.content);
+      },
+      apc->mutable_root_node());
+  grafter.ResolveUnregisteredContent(mapping_lookup, placer);
+}
+
+void ResolveFocusedFrame(
+    std::vector<FrameFocusInfo>& focused_frame_infos,
+    const std::vector<autofill::RemoteFrameToken>& remote_frames,
+    autofill::ChildFrameRegistrar* registrar,
+    optimization_guide::proto::AnnotatedPageContent* apc) {
+  CHECK(registrar);
+  for (const autofill::RemoteFrameToken& remote_token : remote_frames) {
+    if (std::optional<autofill::LocalFrameToken> local_token =
+            registrar->LookupChildFrame(remote_token)) {
+      for (auto& info : focused_frame_infos) {
+        if (info.local_token && *info.local_token == *local_token) {
+          info.document_id = remote_token.ToString();
+        }
+      }
+    }
+  }
+
+  // Pick the first frame that is focused and has a document id as the
+  // focused_frame.
+  for (const auto& info : focused_frame_infos) {
+    if (!info.document_id.empty()) {
+      apc->mutable_page_interaction_info()
+          ->mutable_focused_frame()
+          ->set_serialized_token(info.document_id);
+      break;
+    }
   }
 }

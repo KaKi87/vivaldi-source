@@ -10,13 +10,13 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import android.accounts.Account;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.os.Bundle;
@@ -44,6 +44,7 @@ import org.chromium.base.test.RobolectricUtil;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
+import org.chromium.components.signin.AccountUtils;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.test.util.TestAccounts;
 
@@ -277,9 +278,7 @@ public class ChromeFeedbackCollectorUnitTest {
         IdentityServicesProvider.setInstanceForTests(mock(IdentityServicesProvider.class));
         when(IdentityServicesProvider.get().getIdentityManager(any()))
                 .thenReturn(mock(IdentityManager.class));
-        when(IdentityServicesProvider.get()
-                        .getIdentityManager(any())
-                        .getPrimaryAccountInfo(anyInt()))
+        when(IdentityServicesProvider.get().getIdentityManager(any()).getPrimaryAccountInfo())
                 .thenReturn(TestAccounts.ACCOUNT1);
     }
 
@@ -379,7 +378,11 @@ public class ChromeFeedbackCollectorUnitTest {
                     assertEquals(CATEGORY_TAG, collector.getCategoryTag());
                     assertEquals(DESCRIPTION, collector.getDescription());
                     assertNull(collector.getScreenshot());
-                    assertEquals(TestAccounts.ACCOUNT1.getEmail(), collector.getAccountInUse());
+                    assertEquals(
+                            TestAccounts.ACCOUNT1.getEmail(), collector.getAccountEmailInUse());
+                    Account expectedAccount =
+                            AccountUtils.createAccountFromEmail(TestAccounts.ACCOUNT1.getEmail());
+                    assertEquals(expectedAccount, collector.getAccountInUse());
                 });
     }
 
@@ -415,7 +418,8 @@ public class ChromeFeedbackCollectorUnitTest {
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    assertEquals(null, collector.getAccountInUse());
+                    assertNull(collector.getAccountEmailInUse());
+                    assertNull(collector.getAccountInUse());
                 });
     }
 

@@ -130,7 +130,9 @@ CGPoint RectCenter(CGRect rect) {
   return CGPointMake(CGRectGetMidX(rect), CGRectGetMidY(rect));
 }
 
-// Returns an UIImageView for the given `symbol_name` and `selected` state.
+// Returns the symbol image for the given `page` and `selected` state.
+
+#if defined(VIVALDI_BUILD)
 UIImageView* ImageViewForSymbol(NSString* symbol_name,
                                 bool selected,
                                 bool is_system_symbol = false) {
@@ -140,6 +142,51 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
                        : CustomSymbolTemplateWithPointSize(symbol_name, size);
   return [[UIImageView alloc] initWithImage:image];
 }
+#else
+UIImage* SymbolForTabGridPage(TabGridPage page, bool selected) {
+  NSString* symbol_name;
+  bool is_system_symbol = false;
+  switch (page) {
+    case TabGridPageRegularTabs:
+      symbol_name = kSquareNumberSymbol;
+      break;
+    case TabGridPageIncognitoTabs:
+      symbol_name = kIncognitoSymbol;
+      break;
+    case TabGridPageTabGroups:
+      symbol_name = kTabGroupsSymbol;
+      is_system_symbol = true;
+      break;
+  }
+  CGFloat size = selected ? kSelectedSymbolSize : kUnselectedSymbolSize;
+  return is_system_symbol
+             ? DefaultSymbolTemplateWithPointSize(symbol_name, size)
+             : CustomSymbolTemplateWithPointSize(symbol_name, size);
+}
+
+// Returns the view for an unselected icon with the given `image`.
+UIView* UnselectedIconForImage(UIImage* image) {
+  if (@available(iOS 26, *)) {
+    // Use a UIButton with plain configuration to enable automatic contrast
+    // adjustment over variable background content that shows through the
+    // LiquidGlass container.
+    UIButtonConfiguration* config =
+        [UIButtonConfiguration plainButtonConfiguration];
+    config.image = image;
+    config.contentInsets = NSDirectionalEdgeInsetsZero;
+    UIButton* button = [UIButton buttonWithConfiguration:config
+                                           primaryAction:nil];
+    button.userInteractionEnabled = NO;
+    button.isAccessibilityElement = NO;
+    button.frame = CGRectMake(0, 0, kSegmentWidth, kSegmentHeight);
+    return button;
+  } else {
+    UIImageView* imageView = [[UIImageView alloc] initWithImage:image];
+    imageView.tintColor = [UIColor colorNamed:kStaticGrey300Color];
+    return imageView;
+  }
+}
+#endif // End Vivaldi
 
 }  // namespace
 
@@ -239,6 +286,9 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
   UIView* _highlightView;
   UIView* _highlightedIcon;
 
+  // The layout guide center for this element.
+  LayoutGuideCenter* _layoutGuideCenter;
+
   // Vivaldi
   UIAccessibilityElement* _remoteTabsAccessibilityElement;
   UIAccessibilityElement* _closedAccessibilityElement;
@@ -247,11 +297,8 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
 
 }
 
-+ (instancetype)pageControl {
-  return [[TabGridPageControl alloc] init];
-}
-
-- (instancetype)init {
+- (instancetype)initWithLayoutGuideCenter:
+    (LayoutGuideCenter*)layoutGuideCenter {
   CGRect frame = CGRectMake(0, 0, kOverallWidth, kOverallHeight);
 
   if (IsVivaldiRunning()) {
@@ -259,6 +306,7 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
   } // End Vivaldi
 
   if ((self = [super initWithFrame:frame])) {
+    _layoutGuideCenter = layoutGuideCenter;
     // Default to the regular tab page as the selected page.
     _selectedPage = TabGridPageRegularTabs;
 
@@ -772,104 +820,99 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
 
 // Configures and Adds icon to the tab grid page control for the given tab.
 - (void)addTabsIcon:(TabGridPage)tab {
-  UIImageView* iconSelected;
-  UIImageView* iconNotSelected;
-  switch (tab) {
-    case TabGridPageRegularTabs: {
-      if (IsVivaldiRunning()) {
+#if defined(VIVALDI_BUILD)
+    UIImageView* iconSelected;
+    UIImageView* iconNotSelected;
+
+    switch (tab) {
+      case TabGridPageRegularTabs:
+          iconSelected =
+              ImageViewForSymbol(kImagePageControlRegular, true);
+          iconNotSelected =
+              ImageViewForSymbol(kImagePageControlRegular, false);
+
+        self.regularSelectedIcon = iconSelected;
+        self.regularNotSelectedIcon = iconNotSelected;
+        break;
+      case TabGridPageIncognitoTabs:
+          iconSelected =
+              ImageViewForSymbol(kImagePageControlIncognito, true);
+          iconNotSelected =
+              ImageViewForSymbol(kImagePageControlIncognito, false);
+
+        self.incognitoSelectedIcon = iconSelected;
+        self.incognitoNotSelectedIcon = iconNotSelected;
+        break;
+      case TabGridPageTabGroups:
+          // Use same style as not selected.
+          iconSelected = ImageViewForSymbol(kTabGroupsSymbol, /*selected=*/false,
+                                            /*is_system_symbol=*/true);
+          iconNotSelected = ImageViewForSymbol(kTabGroupsSymbol, /*selected=*/false,
+                                               /*is_system_symbol=*/true);
+
+        self.tabGroupsSelectedIcon = iconSelected;
+        self.tabGroupsNotSelectedIcon = iconNotSelected;
+        break;
+
+      case  TabGridPageRemoteTabs: {
+        NSString* imageSymbol =
+            self.syncEnabled ?
+                kImagePageControlRemoteSynced : kImagePageControlRemote;
         iconSelected =
-            ImageViewForSymbol(kImagePageControlRegular, true);
+            ImageViewForSymbol(imageSymbol, true);
         iconNotSelected =
-            ImageViewForSymbol(kImagePageControlRegular, false);
-      } else {
-      iconSelected = ImageViewForSymbol(kSquareNumberSymbol, /*selected=*/true);
-      iconNotSelected =
-          ImageViewForSymbol(kSquareNumberSymbol, /*selected=*/false);
-      } // End Vivaldi
-
-      self.regularSelectedIcon = iconSelected;
-      self.regularNotSelectedIcon = iconNotSelected;
-      break;
-    }
-    case TabGridPageIncognitoTabs: {
-      if (IsVivaldiRunning()) {
+            ImageViewForSymbol(imageSymbol, false);
+        self.remoteTabsSelectedIcon = iconSelected;
+        self.remoteTabsNotSelectedIcon = iconNotSelected;
+        break;
+        }
+      case TabGridPageClosedTabs: {
         iconSelected =
-            ImageViewForSymbol(kImagePageControlIncognito, true);
+            ImageViewForSymbol(kImagePageControlClosed, true);
         iconNotSelected =
-            ImageViewForSymbol(kImagePageControlIncognito, false);
-      } else {
-      iconSelected = ImageViewForSymbol(kIncognitoSymbol, /*selected=*/true);
-      iconNotSelected =
-          ImageViewForSymbol(kIncognitoSymbol, /*selected=*/false);
-      } // End Vivaldi
-
-      self.incognitoSelectedIcon = iconSelected;
-      self.incognitoNotSelectedIcon = iconNotSelected;
-      break;
-    }
-    case TabGridPageTabGroups: {
-      if (IsVivaldiRunning()) {
-        // Use same style as not selected.
-        iconSelected = ImageViewForSymbol(kTabGroupsSymbol, /*selected=*/false,
-                                          /*is_system_symbol=*/true);
-      } else {
-      iconSelected = ImageViewForSymbol(kTabGroupsSymbol, /*selected=*/true,
-                                        /*is_system_symbol=*/true);
-      } // End Vivaldi
-
-      iconNotSelected = ImageViewForSymbol(kTabGroupsSymbol, /*selected=*/false,
-                                           /*is_system_symbol=*/true);
-      self.tabGroupsSelectedIcon = iconSelected;
-      self.tabGroupsNotSelectedIcon = iconNotSelected;
-      break;
-    }
-
-    // Vivaldi
-    case  TabGridPageRemoteTabs: {
-      NSString* imageSymbol =
-          self.syncEnabled ?
-              kImagePageControlRemoteSynced : kImagePageControlRemote;
-      iconSelected =
-          ImageViewForSymbol(imageSymbol, true);
-      iconNotSelected =
-          ImageViewForSymbol(imageSymbol, false);
-      self.remoteTabsSelectedIcon = iconSelected;
-      self.remoteTabsNotSelectedIcon = iconNotSelected;
-      break;
+            ImageViewForSymbol(kImagePageControlClosed, false);
+        self.closedSelectedIcon = iconSelected;
+        self.closedNotSelectedIcon = iconNotSelected;
+        break;
       }
-    case TabGridPageClosedTabs: {
-      iconSelected =
-          ImageViewForSymbol(kImagePageControlClosed, true);
-      iconNotSelected =
-          ImageViewForSymbol(kImagePageControlClosed, false);
-      self.closedSelectedIcon = iconSelected;
-      self.closedNotSelectedIcon = iconNotSelected;
-      break;
     }
-    // End Vivaldi
 
-  }
-
-  if (@available(iOS 26, *)) {
-    iconNotSelected.tintColor = UIColor.whiteColor;
-  } else {
-    iconNotSelected.tintColor = [UIColor colorNamed:kStaticGrey300Color];
-  }
-
-  iconSelected.tintColor = UIColor.blackColor;
-
-  if (IsVivaldiRunning()) {
     if (@available(iOS 26, *)) {
       // Use same color as not selected. Contrast depends on the
       // slider background instead.
       iconSelected.tintColor = [UIColor colorNamed: vNotSelectedColor];
+    } else {
+      iconSelected.tintColor = UIColor.blackColor;
     }
-
     iconNotSelected.tintColor = [UIColor colorNamed: vNotSelectedColor];
-  } // End Vivaldi
 
-  [self.contentView insertSubview:iconNotSelected belowSubview:self.sliderView];
+    [self.contentView insertSubview:iconNotSelected belowSubview:self.sliderView];
+    [self.selectedImageView addSubview:iconSelected];
+#else
+  UIImage* imageSelected = SymbolForTabGridPage(tab, /*selected=*/true);
+  UIImageView* iconSelected = [[UIImageView alloc] initWithImage:imageSelected];
+  iconSelected.tintColor = UIColor.blackColor;
   [self.selectedImageView addSubview:iconSelected];
+
+  UIImage* imageNotSelected = SymbolForTabGridPage(tab, /*selected=*/false);
+  UIView* iconNotSelected = UnselectedIconForImage(imageNotSelected);
+  switch (tab) {
+    case TabGridPageRegularTabs:
+      self.regularSelectedIcon = iconSelected;
+      self.regularNotSelectedIcon = iconNotSelected;
+      break;
+    case TabGridPageIncognitoTabs:
+      self.incognitoSelectedIcon = iconSelected;
+      self.incognitoNotSelectedIcon = iconNotSelected;
+      break;
+    case TabGridPageTabGroups:
+      self.tabGroupsSelectedIcon = iconSelected;
+      self.tabGroupsNotSelectedIcon = iconNotSelected;
+      break;
+  }
+  [self.contentView insertSubview:iconNotSelected belowSubview:self.sliderView];
+#endif // End Vivaldi
+
 }
 
 // Sets up all of the subviews for this control, as well as the layout guides
@@ -1102,13 +1145,12 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
 
   self.incognitoHoverView = [self configureHoverView];
 
-  LayoutGuideCenter* center = LayoutGuideCenterForBrowser(nil);
-  [center referenceView:self.incognitoHoverView
-              underName:kTabGridPageControlIncognitoGuide];
+  [_layoutGuideCenter referenceView:self.incognitoHoverView
+                          underName:kTabGridPageControlIncognitoGuide];
   self.regularHoverView = [self configureHoverView];
   self.tabGroupsHoverView = [self configureHoverView];
-  [center referenceView:self.tabGroupsHoverView
-              underName:kTabGridPageControlTabGroupsGuide];
+  [_layoutGuideCenter referenceView:self.tabGroupsHoverView
+                          underName:kTabGridPageControlTabGroupsGuide];
 
   // Vivaldi
   self.remoteTabsHoverView = [self configureHoverView];;

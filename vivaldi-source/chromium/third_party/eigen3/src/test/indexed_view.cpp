@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include <vector>
 
@@ -37,7 +38,7 @@ bool match(const T& xpr, std::string ref, std::string str_xpr = "") {
 #define MATCH(X, R) match(X, R, #X)
 
 template <typename T1, typename T2>
-std::enable_if_t<internal::is_same<T1, T2>::value, bool> is_same_eq(const T1& a, const T2& b) {
+std::enable_if_t<std::is_same<T1, T2>::value, bool> is_same_eq(const T1& a, const T2& b) {
   return (a == b).all();
 }
 
@@ -53,13 +54,12 @@ bool is_same_seq(const T1& a, const T2& b) {
 }
 
 template <typename T1, typename T2>
-std::enable_if_t<internal::is_same<T1, T2>::value, bool> is_same_seq_type(const T1& a, const T2& b) {
+std::enable_if_t<std::is_same<T1, T2>::value, bool> is_same_seq_type(const T1& a, const T2& b) {
   return is_same_seq(a, b);
 }
 
 #define VERIFY_EQ_INT(A, B) VERIFY_IS_APPROX(int(A), int(B))
 
-// C++03 does not allow local or unnamed enums as index
 enum DummyEnum { XX = 0, YY = 1 };
 
 void check_indexed_view() {
@@ -411,7 +411,6 @@ void check_indexed_view() {
   // Check compilation of enums as index type:
   a(XX) = 1;
   A(XX, YY) = 1;
-  // Anonymous enums only work with C++11
   enum { X = 0, Y = 1 };
   a(X) = 1;
   A(X, Y) = 1;

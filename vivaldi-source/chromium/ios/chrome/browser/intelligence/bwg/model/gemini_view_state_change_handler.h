@@ -5,18 +5,48 @@
 #ifndef IOS_CHROME_BROWSER_INTELLIGENCE_BWG_MODEL_GEMINI_VIEW_STATE_CHANGE_HANDLER_H_
 #define IOS_CHROME_BROWSER_INTELLIGENCE_BWG_MODEL_GEMINI_VIEW_STATE_CHANGE_HANDLER_H_
 
-#import "base/memory/weak_ptr.h"
 #import "ios/chrome/browser/intelligence/bwg/model/gemini_view_state_delegate.h"
+#import "ios/public/provider/chrome/browser/bwg/gemini_api.h"
 
-class GeminiBrowserAgent;
+// Target interface to handle changes in the Gemini view state.
+class GeminiViewStateChangeHandlerTarget {
+ public:
+  virtual ~GeminiViewStateChangeHandlerTarget() = default;
+
+  // Called when the Gemini view state changes.
+  virtual void OnViewStateChanged(
+      ios::provider::GeminiViewState view_state) = 0;
+
+  // Called when the Gemini processing status updates.
+  virtual void OnProcessingStatusChanged(
+      ios::provider::GeminiClientMode processing_status) = 0;
+
+  // Collapses floaty if invoked.
+  virtual void CollapseFloatyIfInvoked() = 0;
+
+  // Records the most recently presented state of the Gemini view to inform
+  // future interactions.
+  virtual void SetLastShownViewState(
+      ios::provider::GeminiViewState view_state) = 0;
+
+  // Called when the user taps the Live button.
+  virtual void OnLiveButtonTapped() = 0;
+
+  // Called when the user barges in during Gemini Live session.
+  virtual void OnGeminiLiveUserDidBargeIn() = 0;
+};
 
 // Handler for the Gemini view state changes.
 @interface GeminiViewStateChangeHandler : NSObject <GeminiViewStateDelegate>
 
-- (instancetype)initWithBrowserAgent:(base::WeakPtr<GeminiBrowserAgent>)agent
+// Initializes the handler with the given target.
+- (instancetype)initWithTarget:(GeminiViewStateChangeHandlerTarget*)target
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;
+
+// Call this before destroying the target to prevent dangling pointer access.
+- (void)disconnect;
 
 @end
 

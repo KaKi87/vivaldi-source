@@ -15,6 +15,7 @@
 #import "base/strings/sys_string_conversions.h"
 #import "base/time/default_clock.h"
 #import "components/desktop_to_mobile_promos/features.h"
+#import "components/signin/public/base/consent_level.h"
 #import "components/signin/public/base/device_id_helper.h"
 #import "components/signin/public/identity_manager/identity_manager.h"
 #import "components/sync/invalidations/sync_invalidations_service.h"
@@ -37,10 +38,6 @@
 #import "ios/chrome/common/channel_info.h"
 #import "ios/web/public/thread/web_task_traits.h"
 #import "ios/web/public/thread/web_thread.h"
-
-// Vivaldi
-#import "sync/vivaldi_device_info_utils.h"
-// End Vivaldi
 
 // Vivaldi
 #import "sync/vivaldi_device_info_utils.h"
@@ -160,6 +157,19 @@ class DeviceInfoSyncClient : public syncer::DeviceInfoSyncClient {
     }
     return enabled_types;
   }
+
+#if defined(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  // syncer::DeviceInfoSyncClient:
+  syncer::DeviceInfo::GlicExperimentalTriggeringState
+  GetGlicExperimentalTriggeringState() const override {
+    return syncer::DeviceInfo::GlicExperimentalTriggeringState::kUnavailable;
+  }
+
+  // syncer::DeviceInfoSyncClient:
+  std::optional<int> GetGlicExperimentalTriggeringVersion() const override {
+    return std::nullopt;
+  }
+#endif // End Vivaldi
 
  private:
   const raw_ptr<PrefService> prefs_;

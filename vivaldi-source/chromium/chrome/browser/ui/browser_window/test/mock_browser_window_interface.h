@@ -53,7 +53,6 @@ class MockBrowserWindowInterface : public BrowserWindowInterface {
   MOCK_METHOD(TabStripModel*, GetTabStripModel, (), (override));
   MOCK_METHOD(const TabStripModel*, GetTabStripModel, (), (const, override));
   MOCK_METHOD(bool, IsTabStripVisible, (), (override));
-  MOCK_METHOD(bool, ShouldHideUIForFullscreen, (), (const, override));
   MOCK_METHOD(base::CallbackListSubscription,
               RegisterBrowserCloseCancelled,
               (BrowserCloseCancelledCallback callback),
@@ -81,10 +80,6 @@ class MockBrowserWindowInterface : public BrowserWindowInterface {
   MOCK_METHOD(base::CallbackListSubscription,
               RegisterDidBecomeInactive,
               (DidBecomeInactiveCallback callback),
-              (override));
-  MOCK_METHOD(ExclusiveAccessManager*,
-              GetExclusiveAccessManager,
-              (),
               (override));
   MOCK_METHOD(BrowserActions*, GetActions, (), (override));
   MOCK_METHOD(std::vector<tabs::TabInterface*>,

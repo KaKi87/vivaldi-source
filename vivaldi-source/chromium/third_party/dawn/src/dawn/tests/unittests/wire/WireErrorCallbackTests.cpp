@@ -28,32 +28,28 @@
 #include <memory>
 #include <utility>
 
-#include "dawn/common/FutureUtils.h"
-#include "dawn/common/StringViewUtils.h"
-#include "dawn/tests/StringViewMatchers.h"
-#include "dawn/tests/unittests/wire/WireFutureTest.h"
-#include "dawn/tests/unittests/wire/WireTest.h"
 #include "dawn/wire/WireClient.h"
+#include "src/dawn/common/FutureUtils.h"
+#include "src/dawn/common/StringViewUtils.h"
+#include "src/dawn/tests/StringViewMatchers.h"
+#include "src/dawn/tests/unittests/wire/WireFutureTest.h"
+#include "src/dawn/tests/unittests/wire/WireTest.h"
 
 namespace dawn::wire {
 namespace {
 
 using testing::_;
-using testing::DoAll;
 using testing::EmptySizedString;
 using testing::InvokeWithoutArgs;
-using testing::Mock;
-using testing::Return;
-using testing::SaveArg;
 using testing::SizedString;
-using testing::StrictMock;
 
 class WireErrorCallbackTests : public WireTest {};
 
 // Test the return wire for device user warning callbacks
 TEST_F(WireErrorCallbackTests, DeviceLoggingCallback) {
     testing::MockCppCallback<wgpu::LoggingCallback<void>*> mockCallback;
-    device.SetLoggingCallback(mockCallback.Callback());
+    device.SetLoggingCallback(mockCallback.TemplatedCallback(),
+                              mockCallback.TemplatedCallbackUserdata());
 
     // Setting the injected warning callback should stay on the client side and do nothing
     FlushClient();

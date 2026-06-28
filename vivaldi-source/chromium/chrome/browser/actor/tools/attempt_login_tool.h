@@ -13,12 +13,13 @@
 #include "base/functional/callback_forward.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/cancelable_task_tracker.h"
-#include "chrome/browser/actor/shared_types.h"
 #include "chrome/browser/actor/tools/tool.h"
 #include "chrome/browser/actor/tools/tool_callbacks.h"
 #include "chrome/browser/password_manager/actor_login/actor_login_quality_logger.h"
 #include "chrome/browser/password_manager/actor_login/actor_login_service.h"
 #include "chrome/common/actor_webui.mojom-forward.h"
+#include "components/actor/core/shared_types.h"
+#include "components/actor/public/mojom/actor_types.mojom-forward.h"
 #include "components/tabs/public/tab_interface.h"
 
 class GURL;
@@ -64,11 +65,15 @@ class AttemptLoginTool : public Tool {
                      GURL origin,
                      const favicon_base::FaviconImageResult& result);
   void OnAllIconsFetched();
+  void OnAffiliationsUpdated();
   void OnCredentialCachingDone(
       actor_login::Credential selected_credential,
       webui::mojom::UserGrantedPermissionDuration permission_duration);
   void OnCredentialSelected(
       webui::mojom::SelectCredentialDialogResponsePtr response);
+  void SetUserSelectedCredential(
+      actor_login::Credential selected_credential,
+      webui::mojom::UserGrantedPermissionDuration permission_duration);
   void OnAttemptLogin(actor_login::Credential selected_credential,
                       bool should_store_permission,
                       actor_login::LoginStatusResultOrError login_status);
@@ -128,6 +133,11 @@ class AttemptLoginTool : public Tool {
   content::GlobalRenderFrameHostToken main_rfh_token_;
 
   ToolCallback invoke_callback_;
+
+  // Track if the affiliations update has finished. This is only relevant on
+  // Android. On other platforms, the update happens on startup.
+  bool affiliations_updated_ = !BUILDFLAG(IS_ANDROID);
+  base::OnceClosure on_affiliations_updated_callback_;
 
   base::WeakPtrFactory<AttemptLoginTool> weak_ptr_factory_{this};
 };

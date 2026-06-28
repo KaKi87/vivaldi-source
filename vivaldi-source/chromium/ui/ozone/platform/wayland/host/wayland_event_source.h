@@ -237,7 +237,8 @@ class WaylandEventSource : public PlatformEventSource,
   gfx::Vector2dF ComputeFlingVelocity();
 
   // Wrap up method to support async pointer down/up event processing.
-  void OnPointerButtonEventInternal(WaylandWindow* window, EventType type);
+  void OnPointerButtonEventInternal(base::WeakPtr<WaylandWindow> window,
+                                    EventType type);
 
   // Wrap up method to support async touch release processing.
   void OnTouchReleaseInternal(PointerId id);
@@ -290,6 +291,11 @@ class WaylandEventSource : public PlatformEventSource,
   // Order set of pointer events to be dispatching on the next
   // wl_pointer::frame event.
   std::deque<std::unique_ptr<FrameData>> pointer_frames_;
+
+  // Set when pointer focus is lost and pressed buttons should be released at
+  // the next frame event, unless focus is regained (e.g. moving between Chrome
+  // surfaces like a window and its context menu popup).
+  bool pending_focus_loss_release_ = false;
 
   // Status of fling.
   bool is_fling_active_ = false;

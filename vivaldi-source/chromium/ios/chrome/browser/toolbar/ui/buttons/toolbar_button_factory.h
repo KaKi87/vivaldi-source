@@ -8,9 +8,14 @@
 #import <UIKit/UIKit.h>
 
 @class ToolbarButton;
+@class ToolbarTabGridBadgeButton;
 
 // Factory for creating toolbar buttons.
 @interface ToolbarButtonFactory : NSObject
+
+// Initializer for this factory in `incognito`.
+- (instancetype)initWithIncognito:(BOOL)incognito NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
 
 // Creates a back button.
 - (ToolbarButton*)makeBackButton;
@@ -32,7 +37,7 @@
 - (ToolbarButton*)makeShareButton;
 
 // Creates a tab grid button.
-- (ToolbarButton*)makeTabGridButton;
+- (ToolbarTabGridBadgeButton*)makeTabGridButton;
 
 // Creates an assistant button.
 - (ToolbarButton*)makeAssistantButton;

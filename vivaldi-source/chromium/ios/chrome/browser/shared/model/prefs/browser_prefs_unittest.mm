@@ -14,7 +14,6 @@
 #import "components/safety_check/safety_check_pref_names.h"
 #import "components/signin/public/identity_manager/identity_manager.h"
 #import "components/sync_preferences/testing_pref_service_syncable.h"
-#import "ios/chrome/browser/content_suggestions/safety_check/model/safety_check_prefs.h"
 #import "ios/chrome/browser/ntp_tiles/model/tab_resumption/tab_resumption_prefs.h"
 #import "ios/chrome/browser/safety_check/model/ios_chrome_safety_check_manager_constants.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
@@ -235,22 +234,12 @@ TEST_F(BrowserPrefsTest, CleanupObsoleteLocalStatePrefs) {
   local_state()->SetInteger(
       prefs::kIosMagicStackSegmentationParcelTrackingImpressionsSinceFreshness,
       4);
-  local_state()->SetInteger(prefs::kNTPLensEntryPointNewBadgeShownCount, 3);
-  local_state()->SetInteger(prefs::kNTPHomeCustomizationNewBadgeImpressionCount,
-                            99);
 
   ASSERT_FALSE(
       local_state()
           ->FindPreference(
               prefs::
                   kIosMagicStackSegmentationParcelTrackingImpressionsSinceFreshness)
-          ->IsDefaultValue());
-  ASSERT_FALSE(local_state()
-                   ->FindPreference(prefs::kNTPLensEntryPointNewBadgeShownCount)
-                   ->IsDefaultValue());
-  ASSERT_FALSE(
-      local_state()
-          ->FindPreference(prefs::kNTPHomeCustomizationNewBadgeImpressionCount)
           ->IsDefaultValue());
 
   MigrateObsoleteLocalStatePrefs(local_state());
@@ -260,12 +249,5 @@ TEST_F(BrowserPrefsTest, CleanupObsoleteLocalStatePrefs) {
           ->FindPreference(
               prefs::
                   kIosMagicStackSegmentationParcelTrackingImpressionsSinceFreshness)
-          ->IsDefaultValue());
-  EXPECT_TRUE(local_state()
-                  ->FindPreference(prefs::kNTPLensEntryPointNewBadgeShownCount)
-                  ->IsDefaultValue());
-  EXPECT_TRUE(
-      local_state()
-          ->FindPreference(prefs::kNTPHomeCustomizationNewBadgeImpressionCount)
           ->IsDefaultValue());
 }

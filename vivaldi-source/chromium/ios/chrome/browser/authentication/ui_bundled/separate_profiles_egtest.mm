@@ -15,7 +15,7 @@
 #import "ios/chrome/browser/authentication/test/signin_matchers.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_constants.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
-#import "ios/chrome/browser/settings/google_services/manage_accounts/public/manage_accounts_table_view_controller_constants.h"
+#import "ios/chrome/browser/settings/manage_accounts/public/manage_accounts_table_view_controller_constants.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/signin/model/fake_system_identity.h"
 #import "ios/chrome/grit/ios_branded_strings.h"
@@ -1024,6 +1024,64 @@ id<GREYMatcher> ManagedProfileCreationDataMigrationDisabledSubtitleMatcher() {
   NSString* managedProfileName = [ChromeEarlGrey currentProfileName];
   GREYAssert(![personalProfileName isEqualToString:managedProfileName],
              @"Profile should have been switched to a managed profile");
+}
+
+// Regression test for bug crbug.com/505930598.
+// Verifies that when signing in with a managed account and choosing to merge
+// existing browsing data (so the current profile is converted to a managed
+// profile without a profile switch / scene disconnection), trying to present
+// the History Sync screen does not trigger a DCHECK crash.
+- (void)testRegressionCrashWhenDataIsMerged {
+  // Setup: There's 1 managed account. No account is signed in.
+  FakeSystemIdentity* const managedIdentity =
+      [FakeSystemIdentity fakeManagedIdentity];
+  [SigninEarlGrey addFakeIdentity:managedIdentity];
+
+  // Switch to the managed account, and sign in.
+  TapIdentityDisc();
+  [[EarlGrey selectElementWithMatcher:ContinueButtonWithIdentityMatcher(
+                                          managedIdentity)]
+      performAction:grey_tap()];
+
+  // Wait for the enterprise onboarding screen.
+  WaitForEnterpriseOnboardingScreen();
+
+  // Open the browsing data management screen.
+  [[EarlGrey selectElementWithMatcher:
+                 ManagedProfileCreationBrowsingDataButtonMatcher()]
+      performAction:grey_tap()];
+
+  [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:
+                      BrowsingDataManagementScreenMatcher()];
+
+  // Select merging browsing data to convert the current profile.
+  [[EarlGrey selectElementWithMatcher:MergeBrowsingDataCellMatcher()]
+      performAction:grey_tap()];
+
+  [[EarlGrey
+      selectElementWithMatcher:
+          chrome_test_util::ManagedProfileCreationNavigationBarBackButton()]
+      performAction:grey_tap()];
+
+  // Wait for the enterprise onboarding screen to appear again.
+  WaitForEnterpriseOnboardingScreen();
+
+  // Confirm the enterprise onboarding screen.
+  [[EarlGrey
+      selectElementWithMatcher:chrome_test_util::ButtonStackPrimaryButton()]
+      performAction:grey_tap()];
+
+  // The History Sync screen should be presented next. If the bug is present,
+  // this will crash due to a DCHECK in SceneCoordinator.
+  [ChromeEarlGrey waitForMatcher:HistoryScreenMatcher()];
+  // Dismiss signed in snackbar.
+  [SigninEarlGreyUI dismissSigninConfirmationSnackbarForIdentity:managedIdentity
+                                                   assertVisible:YES];
+  [[EarlGrey
+      selectElementWithMatcher:chrome_test_util::ButtonStackSecondaryButton()]
+      performAction:grey_tap()];
+
+  [SigninEarlGrey verifySignedInWithFakeIdentity:managedIdentity];
 }
 
 @end

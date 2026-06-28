@@ -35,7 +35,9 @@ public final class ShareMetricsUtils {
         ShareCustomAction.PAGE_INFO,
         ShareCustomAction.REMOVE_PAGE_INFO,
         ShareCustomAction.SHARE_AS_TAB_GROUP,
-        ShareCustomAction.NUM_ENTRIES
+        ShareCustomAction.NUM_ENTRIES,
+        // Vivaldi
+        ShareCustomAction.COPY_LINK_NO_PARAMETERS,
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface ShareCustomAction {
@@ -58,7 +60,9 @@ public final class ShareMetricsUtils {
 
         // Add new types here
 
-        int NUM_ENTRIES = 13;
+        // Vivaldi
+        int COPY_LINK_NO_PARAMETERS = 1337;
+        int NUM_ENTRIES = 14;
     }
 
     /**

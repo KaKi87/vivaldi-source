@@ -31,7 +31,6 @@
 #include "chrome/browser/web_applications/jobs/manifest_to_web_app_install_info_job.h"
 #include "chrome/browser/web_applications/locks/app_lock.h"
 #include "chrome/browser/web_applications/locks/with_app_resources.h"
-#include "chrome/browser/web_applications/manifest_update_utils.h"
 #include "chrome/browser/web_applications/proto/web_app.equal.h"
 #include "chrome/browser/web_applications/proto/web_app.pb.h"
 #include "chrome/browser/web_applications/web_app.h"
@@ -505,7 +504,7 @@ void ManifestUpdateJob::FinalizeUpdateIfSilentChangesExist() {
 
   apps::IconInfo::Purpose purpose = new_install_info_->trusted_icons[0].purpose;
   SkBitmap new_trusted_icon = [&]() {
-    const std::map<SquareSizePx, SkBitmap>& icons =
+    const OrderedSizeToBitmap& icons =
         new_install_info_->trusted_icon_bitmaps.GetBitmapsForPurpose(
             ConvertIconPurposeToManifestImagePurpose(purpose));
     auto icon_it = icons.lower_bound(kLogoSizeInDialog);

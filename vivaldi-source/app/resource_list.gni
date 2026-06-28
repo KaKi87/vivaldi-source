@@ -1,12 +1,7 @@
-
 # Keep translatable entries in sync with:
 #   FILE list in vivapp/bin/gettext/update-chromium.sh
 #   filemap in app/resources/po2xtb_batch.py
 import("//services/screen_ai/buildflags/features.gni")
-
-if (is_ios) {
-  import("//ios/build/chrome_build.gni")
-}
 
 CHROMIUM_VIVALDI_RESOURCE_LIST = [
   [
@@ -14,10 +9,10 @@ CHROMIUM_VIVALDI_RESOURCE_LIST = [
     "//vivaldi/app/resources/ui_strings/vivaldi_ui_strings.grd",
     {
       translation_dir_setting = "translations"
-      pak_file_prefix="ui_strings_"
+      pak_file_prefix = "ui_strings_"
       source = "ui_strings.grd"
       vivaldi_translation_dir_setting = "strings"
-      vivaldi_file_prefix="vivaldi_ui_strings_"
+      vivaldi_file_prefix = "vivaldi_ui_strings_"
     },
   ],
   [
@@ -25,7 +20,10 @@ CHROMIUM_VIVALDI_RESOURCE_LIST = [
     "//vivaldi/app/resources/components_resources/vivaldi_components.grd",
     {
       have_strings_flag = false
-      merge_extra_grit_defines = ["-D", "vivaldi_chromium_file=false"]
+      merge_extra_grit_defines = [
+        "-D",
+        "vivaldi_chromium_file=false",
+      ]
     },
   ],
   [
@@ -33,7 +31,10 @@ CHROMIUM_VIVALDI_RESOURCE_LIST = [
     "//vivaldi/app/resources/components_resources/vivaldi_about.grd",
     {
       have_strings_flag = false
-      merge_extra_grit_defines = ["-D", "vivaldi_chromium_file=false"]
+      merge_extra_grit_defines = [
+        "-D",
+        "vivaldi_chromium_file=false",
+      ]
     },
   ],
   [
@@ -41,9 +42,14 @@ CHROMIUM_VIVALDI_RESOURCE_LIST = [
     "//vivaldi/app/resources/components_strings/vivaldi_components_strings.grd",
     {
       translation_dir_setting = "strings"
-      # Need enable_screen_ai_service her because it was removed from the default list
-      merge_extra_grit_defines = ["-D", "enable_screen_ai_service=$enable_screen_ai_service"]
-      pak_file_prefix="components_strings_"
+
+      # Need enable_screen_ai_service her because it was removed from the
+      # default list
+      merge_extra_grit_defines = [
+        "-D",
+        "enable_screen_ai_service=$enable_screen_ai_service",
+      ]
+      pak_file_prefix = "components_strings_"
       source = "../components_strings.grd"
     },
   ],
@@ -52,10 +58,13 @@ CHROMIUM_VIVALDI_RESOURCE_LIST = [
     "//vivaldi/app/resources/components/vivaldi_components.grd",
     {
       translation_dir_setting = "strings"
-      merge_extra_grit_defines = ["-D", "vivaldi_chromium_file=false"]
-      pak_file_prefix="components_google_chrome_strings_"
+      merge_extra_grit_defines = [
+        "-D",
+        "vivaldi_chromium_file=false",
+      ]
+      pak_file_prefix = "components_branded_strings_"
       source = "../components_google_chrome_strings.grd"
-      vivaldi_file_prefix="vivaldi_components_"
+      vivaldi_file_prefix = "vivaldi_components_"
     },
   ],
   [
@@ -63,9 +72,9 @@ CHROMIUM_VIVALDI_RESOURCE_LIST = [
     "//vivaldi/app/resources/components_locale_settings/vivaldi_components_locale_settings.grd",
     {
       translation_dir_setting = "strings"
-      pak_file_prefix="components_locale_settings_"
+      pak_file_prefix = "components_locale_settings_"
       source = "../components_locale_settings.grd"
-      no_override_locales=true
+      no_override_locales = true
     },
   ],
   [
@@ -77,13 +86,13 @@ CHROMIUM_VIVALDI_RESOURCE_LIST = [
   ],
 ]
 
-if(!is_ios) {
+if (!is_ios) {
   CHROMIUM_VIVALDI_RESOURCE_LIST += [
     [
       "//chrome/app:generated_resources",
       "//vivaldi/app/resources/generated/vivaldi_generated_resources.grd",
       {
-        pak_file_prefix="generated_resources_"
+        pak_file_prefix = "generated_resources_"
         source = "generated_resources.grd"
         translation_dir_setting = "resources"
         vivaldi_translation_dir_setting = "strings"
@@ -93,12 +102,15 @@ if(!is_ios) {
       "//chrome/app:branded_strings",
       "//vivaldi/app/resources/strings/vivaldi_strings.grd",
       {
-        merge_extra_grit_defines = ["-D", "vivaldi_chromium_file=false"]
+        merge_extra_grit_defines = [
+          "-D",
+          "vivaldi_chromium_file=false",
+        ]
         translation_dir_setting = "resources"
-        pak_file_prefix="google_chrome_strings_"
+        pak_file_prefix = "google_chrome_strings_"
         source = "google_chrome_strings.grd"
         vivaldi_translation_dir_setting = "strings"
-        vivaldi_file_prefix="vivaldi_strings_"
+        vivaldi_file_prefix = "vivaldi_strings_"
       },
     ],
     [
@@ -113,10 +125,10 @@ if(!is_ios) {
       "//chrome/app/resources:platform_locale_settings",
       "//vivaldi/app/resources/platform_locale_settings/vivaldi_platform_locale_settings.grd",
       {
-        have_strings_flag = false
+        translation_dir_setting = "platform_locale_settings"
         use_strings_target = true
-        pak_file_prefix="platform_locale_settings_"
-        add_mobile_locales = true
+        pak_file_prefix = "platform_locale_settings_"
+        vivaldi_translation_dir_setting = "strings"
       },
     ],
     [
@@ -129,6 +141,13 @@ if(!is_ios) {
     [
       "//chrome/app/theme:theme_resources",
       "//vivaldi/app/resources/theme/vivaldi_theme.grd",
+      {
+        have_strings_flag = false
+      },
+    ],
+    [
+      "//chrome/browser:resources",
+      "//vivaldi/app/resources/browser_resources/vivaldi_browser_resources.grd",
       {
         have_strings_flag = false
       },
@@ -159,15 +178,15 @@ if(!is_ios) {
       "//vivaldi/app/resources/content/vivaldi_content_strings.grd",
       {
         translation_dir_setting = "translations"
-        pak_file_prefix="blink_strings_"
+        pak_file_prefix = "blink_strings_"
         source = "blink_strings.grd"
         vivaldi_translation_dir_setting = "strings"
-        vivaldi_file_prefix="vivaldi_content_strings_"
+        vivaldi_file_prefix = "vivaldi_content_strings_"
       },
     ],
   ]
 
-  if(!is_android) {
+  if (!is_android) {
     CHROMIUM_VIVALDI_RESOURCE_LIST += [
       [
         "//chrome/browser/resources/signin/profile_picker:resources",
@@ -194,12 +213,12 @@ ANDROID_VIVALDI_RESOURCE_LIST = [
     {
       have_strings_flag = true
       translation_dir_setting = "translations"
-      pak_file_locale_prefix="values-"
-      pak_file_prefix="android_chrome_strings"
+      pak_file_locale_prefix = "values-"
+      pak_file_prefix = "android_chrome_strings"
       pak_file_extension = "xml"
       source = "android_chrome_strings.grd"
       vivaldi_translation_dir_setting = "strings"
-      string_file_prefix="android_chrome_strings_"
+      string_file_prefix = "android_chrome_strings_"
       java_grd_name = true
     },
   ],
@@ -209,12 +228,12 @@ ANDROID_VIVALDI_RESOURCE_LIST = [
     {
       have_strings_flag = true
       translation_dir_setting = "translations"
-      pak_file_locale_prefix="values-"
-      pak_file_prefix="browser_ui_strings"
+      pak_file_locale_prefix = "values-"
+      pak_file_prefix = "browser_ui_strings"
       pak_file_extension = "xml"
       source = "browser_ui_strings.grd"
       vivaldi_translation_dir_setting = "strings"
-      string_file_prefix="browser_ui_strings_"
+      string_file_prefix = "browser_ui_strings_"
       java_grd_name = true
     },
   ],
@@ -224,12 +243,12 @@ ANDROID_VIVALDI_RESOURCE_LIST = [
     {
       have_strings_flag = true
       translation_dir_setting = "translations"
-      pak_file_locale_prefix="values-"
-      pak_file_prefix="permissions_android_strings"
+      pak_file_locale_prefix = "values-"
+      pak_file_prefix = "permissions_android_strings"
       pak_file_extension = "xml"
       source = "permissions_android_strings.grd"
       vivaldi_translation_dir_setting = "strings"
-      string_file_prefix="permissions_android_strings_"
+      string_file_prefix = "permissions_android_strings_"
       java_grd_name = true
     },
   ],
@@ -239,12 +258,12 @@ ANDROID_VIVALDI_RESOURCE_LIST = [
     {
       have_strings_flag = true
       translation_dir_setting = "java/strings/translations"
-      pak_file_locale_prefix="values-"
-      pak_file_prefix="android_chrome_tab_ui_strings"
+      pak_file_locale_prefix = "values-"
+      pak_file_prefix = "android_chrome_tab_ui_strings"
       pak_file_extension = "xml"
       source = "java/strings/android_chrome_tab_ui_strings.grd"
       vivaldi_translation_dir_setting = "strings"
-      string_file_prefix="android_chrome_tab_ui_strings_"
+      string_file_prefix = "android_chrome_tab_ui_strings_"
       java_grd_name = true
     },
   ],
@@ -254,12 +273,12 @@ ANDROID_VIVALDI_RESOURCE_LIST = [
     {
       have_strings_flag = true
       translation_dir_setting = "java/strings/translations"
-      pak_file_locale_prefix="values-"
-      pak_file_prefix="android_webapps_strings"
+      pak_file_locale_prefix = "values-"
+      pak_file_prefix = "android_webapps_strings"
       pak_file_extension = "xml"
       source = "android_webapps_strings.grd"
       vivaldi_translation_dir_setting = "strings"
-      string_file_prefix="android_webapps_strings_"
+      string_file_prefix = "android_webapps_strings_"
       java_grd_name = true
     },
   ],
@@ -269,12 +288,12 @@ ANDROID_VIVALDI_RESOURCE_LIST = [
     {
       have_strings_flag = true
       translation_dir_setting = "java/strings/translations"
-      pak_file_locale_prefix="values-"
-      pak_file_prefix="android_content_strings"
+      pak_file_locale_prefix = "values-"
+      pak_file_prefix = "android_content_strings"
       pak_file_extension = "xml"
       source = "java/strings/android_content_strings.grd"
       vivaldi_translation_dir_setting = "strings"
-      string_file_prefix="android_content_strings_"
+      string_file_prefix = "android_content_strings_"
       java_grd_name = true
     },
   ],
@@ -284,12 +303,12 @@ ANDROID_VIVALDI_RESOURCE_LIST = [
     {
       have_strings_flag = true
       translation_dir_setting = "java/strings/translations"
-      pak_file_locale_prefix="values-"
-      pak_file_prefix="android_ui_strings"
+      pak_file_locale_prefix = "values-"
+      pak_file_prefix = "android_ui_strings"
       pak_file_extension = "xml"
       source = "java/strings/android_ui_strings.grd"
       vivaldi_translation_dir_setting = "strings"
-      string_file_prefix="android_ui_strings_"
+      string_file_prefix = "android_ui_strings_"
       java_grd_name = true
     },
   ],
@@ -301,10 +320,10 @@ IOS_VIVALDI_RESOURCE_LIST = [
     "//vivaldi/app/resources/ios_branding_strings/vivaldi_ios_branding_strings.grd",
     {
       translation_dir_setting = "resources"
-      pak_file_prefix="ios_google_chrome_strings_"
+      pak_file_prefix = "ios_branded_strings_"
       source = "ios_google_chrome_strings.grd"
       vivaldi_translation_dir_setting = "strings"
-      vivaldi_file_prefix="vivaldi_ios_branding_strings_"
+      vivaldi_file_prefix = "vivaldi_ios_branding_strings_"
     },
   ],
   [
@@ -312,11 +331,10 @@ IOS_VIVALDI_RESOURCE_LIST = [
     "//vivaldi/app/resources/ios_strings/vivaldi_ios_strings.grd",
     {
       translation_dir_setting = "resources"
-      pak_file_prefix="ios_strings_"
+      pak_file_prefix = "ios_strings_"
       source = "ios_strings.grd"
       vivaldi_translation_dir_setting = "strings"
-      vivaldi_file_prefix="vivaldi_ios_strings_"
-      add_mobile_locales = true
+      vivaldi_file_prefix = "vivaldi_ios_strings_"
     },
   ],
   [
@@ -324,10 +342,10 @@ IOS_VIVALDI_RESOURCE_LIST = [
     "//vivaldi/app/resources/ios_widget_kit_extension_strings/vivaldi_ios_widget_kit_extension_strings.grd",
     {
       translation_dir_setting = "resources"
-      pak_file_prefix="ios_widget_kit_extension_strings_"
+      pak_file_prefix = "ios_widget_kit_extension_strings_"
       source = "ios_widget_kit_extension_strings.grd"
       vivaldi_translation_dir_setting = "strings"
-      vivaldi_file_prefix="vivaldi_ios_widget_kit_extension_strings_"
+      vivaldi_file_prefix = "vivaldi_ios_widget_kit_extension_strings_"
     },
   ],
   [
@@ -335,10 +353,10 @@ IOS_VIVALDI_RESOURCE_LIST = [
     "//vivaldi/app/resources/ios_share_extension_strings/vivaldi_ios_share_extension_strings.grd",
     {
       translation_dir_setting = "resources"
-      pak_file_prefix="ios_share_extension_strings_"
+      pak_file_prefix = "ios_share_extension_strings_"
       source = "ios_share_extension_strings.grd"
       vivaldi_translation_dir_setting = "strings"
-      vivaldi_file_prefix="vivaldi_ios_share_extension_strings_"
+      vivaldi_file_prefix = "vivaldi_ios_share_extension_strings_"
     },
   ],
   [
@@ -346,10 +364,10 @@ IOS_VIVALDI_RESOURCE_LIST = [
     "//vivaldi/app/resources/ios_share_extension_strings/vivaldi_ios_share_extension_branded_strings.grd",
     {
       translation_dir_setting = "resources"
-      pak_file_prefix="ios_share_extension_branded_strings_"
+      pak_file_prefix = "ios_share_extension_branded_strings_"
       source = "ios_share_extension_google_chrome_strings.grd"
       vivaldi_translation_dir_setting = "strings"
-      vivaldi_file_prefix="vivaldi_ios_share_extension_branded_strings_"
+      vivaldi_file_prefix = "vivaldi_ios_share_extension_branded_strings_"
     },
   ],
   [
@@ -357,10 +375,10 @@ IOS_VIVALDI_RESOURCE_LIST = [
     "//vivaldi/app/resources/ios_credential_extension_strings/vivaldi_ios_credential_provider_extension_strings.grd",
     {
       translation_dir_setting = "resources"
-      pak_file_prefix="ios_credential_provider_extension_strings_"
+      pak_file_prefix = "ios_credential_provider_extension_strings_"
       source = "ios_credential_provider_extension_strings.grd"
       vivaldi_translation_dir_setting = "strings"
-      vivaldi_file_prefix="vivaldi_ios_credential_provider_extension_strings_"
+      vivaldi_file_prefix = "vivaldi_ios_credential_provider_extension_strings_"
     },
   ],
   [
@@ -368,18 +386,18 @@ IOS_VIVALDI_RESOURCE_LIST = [
     "//vivaldi/app/resources/ios_open_extension_google_chrome_strings/vivaldi_ios_open_extension_google_chrome_strings.grd",
     {
       translation_dir_setting = "resources"
-      pak_file_prefix="ios_open_extension_google_chrome_strings_"
+      pak_file_prefix = "ios_open_extension_google_chrome_strings_"
       source = "ios_open_extension_google_chrome_strings.grd"
       vivaldi_translation_dir_setting = "strings"
-      vivaldi_file_prefix="vivaldi_ios_open_extension_google_chrome_strings_"
+      vivaldi_file_prefix = "vivaldi_ios_open_extension_google_chrome_strings_"
     },
   ],
 ]
 
 if (is_android) {
   CHROMIUM_VIVALDI_RESOURCE_LIST += ANDROID_VIVALDI_RESOURCE_LIST
-  ANDROID_VIVALDI_RESOURCE_LIST = [] # to avoid duplication when extracting
+  ANDROID_VIVALDI_RESOURCE_LIST = []  # to avoid duplication when extracting
 } else if (is_ios) {
   CHROMIUM_VIVALDI_RESOURCE_LIST += IOS_VIVALDI_RESOURCE_LIST
-  IOS_VIVALDI_RESOURCE_LIST = [] # to avoid duplication when extracting
+  IOS_VIVALDI_RESOURCE_LIST = []  # to avoid duplication when extracting
 }

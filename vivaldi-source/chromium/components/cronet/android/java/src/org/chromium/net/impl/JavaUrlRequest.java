@@ -1039,11 +1039,11 @@ final class JavaUrlRequest extends ExperimentalUrlRequest {
                     /* isBidiStream= */ false,
                     mFinalUserCallbackThrew,
                     Process.myUid(),
-                    /* networkInternalErrorCode */ 0,
-                    /* quicErrorCode */ 0,
-                    /* connectionCloseSource */ ConnectionCloseSource.UNKNOWN,
-                    /* failureReason */ CronetTrafficInfo.RequestFailureReason.UNKNOWN,
-                    /* socketReused */ false,
+                    /* networkInternalErrorCode= */ 0,
+                    /* quicErrorCode= */ 0,
+                    /* connectionCloseSource= */ ConnectionCloseSource.UNKNOWN,
+                    /* failureReason= */ CronetTrafficInfo.RequestFailureReason.UNKNOWN,
+                    /* socketReused= */ false,
                     ImplVersion.getCronetVersion(),
                     CronetSource.CRONET_SOURCE_FALLBACK,
                     /* timeToEstablishDnsMicros= */ -1,
@@ -1051,7 +1051,8 @@ final class JavaUrlRequest extends ExperimentalUrlRequest {
                     /* timeToConnectMicros= */ -1,
                     /* timeToSendFirstByteMicros= */ -1,
                     /* timeToReceiveHeaderLastByteMicros= */ -1,
-                    /* isProxied= */ null);
+                    /* isProxied= */ null,
+                    /* isAdaptiveNetworkStream= */ false);
         }
 
         // Maybe report metrics. This method should only be called on Callback's executor thread and

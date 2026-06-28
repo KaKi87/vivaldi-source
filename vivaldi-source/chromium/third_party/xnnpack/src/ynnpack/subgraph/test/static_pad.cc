@@ -74,10 +74,16 @@ void TestImpl(T, size_t rank) {
 
   for (auto _ : FuzzTest(std::chrono::milliseconds(250))) {
     std::vector<int32_t> axes = iota(rank);
+    std::vector<size_t> input_shape = random_shape(rng, rank, 0, 9);
     std::vector<int64_t> pre_padding = random_padding(rng, rank, -3, 3);
     std::vector<int64_t> post_padding = random_padding(rng, rank, -3, 3);
 
     for (int i = static_cast<int>(rank) - 1; i >= 0; --i) {
+      if (input_shape[i] == 1) {
+        // TODO: b/510492094 - Avoid weird edge case where if the extent is 1,
+        // it becomes a broadcast dimension, which doesn't get padding.
+        input_shape[i] = 0;
+      }
       if (bool_dist(rng)) {
         // Randomly remove dimensions from the padding op. To implement the
         // reference result, just set the padding to 0.
@@ -87,15 +93,13 @@ void TestImpl(T, size_t rank) {
       }
     }
 
-    float pad_value = 1.0f;
-
-    quantization_params quantization = random_quantization(type_of<T>(), rng);
+    T pad_value = 7;
 
     // Define subgraph
     SubgraphBuilder subgraph(2);
-    uint32_t padding_id = subgraph.DefineScalar<T>(pad_value, quantization);
-    subgraph.AddInput(type_of<T>(), rank, 0, quantization)
-        .AddOutput(type_of<T>(), rank, 1, quantization)
+    uint32_t padding_id = subgraph.DefineScalar<T>(pad_value);
+    subgraph.AddInput(type_of<T>(), input_shape, 0)
+        .AddOutput(type_of<T>(), rank, 1)
         .AddPad(axes, gather(axes, pre_padding), gather(axes, post_padding), 0,
                 padding_id, 1);
 
@@ -103,10 +107,10 @@ void TestImpl(T, size_t rank) {
     ASSERT_EQ(runtime.Status(), ynn_status_success);
 
     for (int reshape = 0; reshape < 2; ++reshape) {
-      std::vector<size_t> shape = random_shape(rng, rank);
+      std::vector<size_t> shape = random_shape(rng, input_shape);
 
       Tensor<T> input(shape);
-      fill_random(input.data(), input.size(), rng, quantization);
+      fill_random(input.data(), input.size(), rng);
 
       std::vector<size_t> output_shape(shape);
       for (size_t i = 0; i < rank; ++i) {
@@ -125,7 +129,7 @@ void TestImpl(T, size_t rank) {
       // Make the expected output: fill a buffer with padding, and then copy
       // the unpadded area from the input with the negative padding cropped off.
       Tensor<T> expected(output_shape);
-      expected.fill(quantize<T>(pad_value, quantization));
+      expected.fill(pad_value);
       expected.crop_padding(max0(pre_padding), max0(post_padding))
           .assign(input.crop_padding(max0(negate(pre_padding)),
                                      max0(negate(post_padding))));

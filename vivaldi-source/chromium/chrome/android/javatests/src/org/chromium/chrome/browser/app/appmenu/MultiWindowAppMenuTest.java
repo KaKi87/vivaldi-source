@@ -54,6 +54,7 @@ public class MultiWindowAppMenuTest {
     @Test
     @LargeTest
     @DisableFeatures(ChromeFeatureList.ROBUST_WINDOW_MANAGEMENT_EXPERIMENTAL)
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288091
     public void testOpenNewWindow_fromWebPage() {
         doTestOpenNewWindow();
     }
@@ -78,6 +79,7 @@ public class MultiWindowAppMenuTest {
     @Test
     @LargeTest
     @DisableFeatures(ChromeFeatureList.ROBUST_WINDOW_MANAGEMENT_EXPERIMENTAL)
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // https://crbug.com/500749408
     public void testOpenNewWindow_fromIncognitoNtp() {
         doTestOpenNewWindow_fromIncognitoNtp();
     }
@@ -95,6 +97,7 @@ public class MultiWindowAppMenuTest {
     @Test
     @LargeTest
     @EnableFeatures(OPEN_WINDOW_ON_TOP)
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288091
     public void testOpenAndCloseNewWindow_robustWindowManagementExperimentalEnabled() {
         doTestOpenAndCloseNewWindow();
     }
@@ -148,6 +151,7 @@ public class MultiWindowAppMenuTest {
     @LargeTest
     @EnableFeatures(OPEN_WINDOW_ON_TOP)
     @DisableFeatures(ChromeFeatureList.SETTINGS_MULTI_COLUMN)
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288091
     public void testInteractWithBothWindows_robustWindowManagementExperimentalEnabled() {
         doTestInteractWithBothWindows();
     }
@@ -158,6 +162,7 @@ public class MultiWindowAppMenuTest {
         ChromeFeatureList.ROBUST_WINDOW_MANAGEMENT_EXPERIMENTAL,
         ChromeFeatureList.SETTINGS_MULTI_COLUMN
     })
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288091
     public void testInteractWithBothWindows() {
         doTestInteractWithBothWindows();
     }

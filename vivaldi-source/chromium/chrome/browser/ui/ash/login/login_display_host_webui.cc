@@ -11,6 +11,7 @@
 #include "ash/accessibility/ui/focus_ring_controller.h"
 #include "ash/booting/booting_animation_controller.h"
 #include "ash/constants/ash_features.h"
+#include "ash/constants/ash_login_pref_names.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/constants/ash_switches.h"
 #include "ash/public/cpp/locale_update_controller.h"
@@ -44,7 +45,6 @@
 #include "chrome/browser/ash/first_run/first_run.h"
 #include "chrome/browser/ash/login/existing_user_controller.h"
 #include "chrome/browser/ash/login/helper.h"
-#include "chrome/browser/ash/login/login_pref_names.h"
 #include "chrome/browser/ash/login/login_wizard.h"
 #include "chrome/browser/ash/login/oobe_screen.h"
 #include "chrome/browser/ash/login/startup_utils.h"
@@ -57,7 +57,6 @@
 #include "chrome/browser/ash/system/device_disabling_manager.h"
 #include "chrome/browser/ash/system/input_device_settings.h"
 #include "chrome/browser/ash/system/timezone_resolver_manager.h"
-#include "chrome/browser/ash/system/timezone_util.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part.h"
 #include "chrome/browser/global_features.h"
@@ -80,7 +79,6 @@
 #include "chrome/browser/ui/webui/ash/login/welcome_screen_handler.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/chrome_switches.h"
-#include "chromeos/ash/components/audio/public/cpp/sounds/sounds_manager.h"
 #include "chromeos/ash/components/audio/sounds.h"
 #include "chromeos/ash/components/dbus/session_manager/session_manager_client.h"
 #include "chromeos/ash/components/install_attributes/install_attributes.h"
@@ -92,6 +90,7 @@
 #include "chromeos/ash/components/settings/cros_settings_provider.h"
 #include "chromeos/ash/components/settings/timezone_settings.h"
 #include "chromeos/ash/components/timezone/timezone_resolver.h"
+#include "chromeos/ash/components/timezone/timezone_util.h"
 #include "chromeos/ash/grit/ash_resources.h"
 #include "components/account_id/account_id.h"
 #include "components/keep_alive_registry/keep_alive_registry.h"
@@ -104,13 +103,14 @@
 #include "components/user_manager/user_manager.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
+#include "services/audio/public/cpp/sounds/global_sounds_manager.h"
+#include "services/audio/public/cpp/sounds/sounds_manager.h"
 #include "third_party/perfetto/include/perfetto/tracing/track.h"
 #include "ui/aura/window.h"
 #include "ui/base/ime/ash/extension_ime_util.h"
 #include "ui/base/ime/ash/input_method_manager.h"
 #include "ui/base/ime/ash/input_method_util.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
-#include "ui/base/resource/resource_bundle.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_observer.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
@@ -332,7 +332,7 @@ void ShowLoginWizardFinish(
 
   // Restore system timezone.
   std::string timezone;
-  if (system::PerUserTimezoneEnabled()) {
+  if (switches::IsPerUserTimezoneEnabled()) {
     timezone = local_state->GetString(ash::prefs::kSigninScreenTimezone);
   }
 
@@ -353,7 +353,8 @@ void ShowLoginWizardFinish(
     }
   }
   if (!timezone.empty()) {
-    system::SetSystemAndSigninScreenTimezone(timezone);
+    system::SetSystemAndSigninScreenTimezone(CHECK_DEREF(local_state),
+                                             timezone);
   }
 
   // This step requires the session manager to have been initialized and login
@@ -537,11 +538,9 @@ LoginDisplayHostWebUI::LoginDisplayHostWebUI(
   // shown or the login or lock screen to be shown.
   session_observation_.Observe(session_manager::SessionManager::Get());
 
-  audio::SoundsManager* manager = audio::SoundsManager::Get();
-  ui::ResourceBundle& bundle = ui::ResourceBundle::GetSharedInstance();
-  manager->Initialize(std::to_underlying(Sound::kStartup),
-                      bundle.GetRawDataResource(IDR_SOUND_STARTUP_WAV),
-                      media::AudioCodec::kPCM);
+  audio::SoundsManager& manager = audio::GlobalSoundsManager::Get();
+  manager.Initialize(std::to_underlying(Sound::kStartup), IDR_SOUND_STARTUP_WAV,
+                     media::AudioCodec::kPCM, /*loop=*/false);
 }
 
 LoginDisplayHostWebUI::~LoginDisplayHostWebUI() {
@@ -659,8 +658,9 @@ void LoginDisplayHostWebUI::StartWizard(OobeScreenId first_screen) {
   } else {
     // TODO(crbug.com/404133029): Avoid using g_browser_process.
     wizard_controller_ = std::make_unique<WizardController>(
-        &local_state_.get(), &application_locale_storage_.get(),
-        g_browser_process->shared_url_loader_factory(),
+        &local_state_.get(), g_browser_process->metrics_service(),
+        &application_locale_storage_.get(), shared_url_loader_factory_.get(),
+        &browser_policy_connector_ash_.get(),
         g_browser_process->platform_part()->component_manager_ash(),
         GetWizardContext());
     NotifyWizardCreated();
@@ -731,8 +731,9 @@ void LoginDisplayHostWebUI::OnStartAppLaunch() {
   if (!wizard_controller_) {
     // TODO(crbug.com/404133029): Avoid using g_browser_process.
     wizard_controller_ = std::make_unique<WizardController>(
-        &local_state_.get(), &application_locale_storage_.get(),
-        g_browser_process->shared_url_loader_factory(),
+        &local_state_.get(), g_browser_process->metrics_service(),
+        &application_locale_storage_.get(), shared_url_loader_factory_.get(),
+        &browser_policy_connector_ash_.get(),
         g_browser_process->platform_part()->component_manager_ash(),
         GetWizardContext());
     NotifyWizardCreated();
@@ -996,7 +997,8 @@ void LoginDisplayHostWebUI::InitLoginWindowAndView() {
     return;
   }
 
-  if (system::InputDeviceSettings::ForceKeyboardDrivenUINavigation()) {
+  if (system::InputDeviceSettings::ForceKeyboardDrivenUINavigation(
+          local_state_.get())) {
     arrow_key_traversal_enabler_.emplace();
     focus_ring_controller_ = std::make_unique<FocusRingController>();
     focus_ring_controller_->SetVisible(true);
@@ -1096,7 +1098,7 @@ void LoginDisplayHostWebUI::OnLoginPromptVisible() {
 void LoginDisplayHostWebUI::CreateExistingUserController() {
   existing_user_controller_ = std::make_unique<ExistingUserController>(
       &local_state_.get(), &application_locale_storage_.get(),
-      shared_url_loader_factory_);
+      shared_url_loader_factory_, &browser_policy_connector_ash_.get());
 }
 
 void LoginDisplayHostWebUI::ShowGaiaDialog(const AccountId& prefilled_account) {
@@ -1285,7 +1287,7 @@ void ShowLoginWizard(OobeScreenId first_screen) {
         browser_policy_connector_ash);
     // Shows networks screen instead of enrollment screen to resume the
     // interrupted auto start enrollment flow because enrollment screen does
-    // not handle flaky network. See http://crbug.com/332572
+    // not handle flaky network. See http://crbug.com/41082635
     display_host->StartWizard(WelcomeView::kScreenId);
     // Make sure we load an initial wallpaper here. If the boot animation
     // might be played it will be covered by the StartWizard call.

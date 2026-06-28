@@ -1,5 +1,5 @@
-import("//vivaldi/gn/config/version.gni")
 import("//vivaldi/gn/config/product.gni")
+import("//vivaldi/gn/config/version.gni")
 import("//vivaldi/testing/testing.gni")
 
 import("//vivaldi/app/source_updates_all.gni")
@@ -18,11 +18,11 @@ if (!is_ios) {
   }
   import("//vivaldi/extraparts/source_updates.gni")
   import("//vivaldi/importer/source_updates.gni")
+  import("//vivaldi/platform_media/source_updates.gni")
   import("//vivaldi/prefs/source_updates.gni")
   import("//vivaldi/renderer/source_updates.gni")
   import("//vivaldi/ui/source_updates.gni")
   import("//vivaldi/vivapp/source_updates.gni")
-  import("//vivaldi/platform_media/source_updates.gni")
 
   import("//vivaldi/gn/disable_ai/source_updates.gni")
 
@@ -36,7 +36,7 @@ if (!is_ios) {
   ]
 
   if (is_linux && !is_component_build) {
-    _targets += ["//chrome/installer/linux:save_build_info"]
+    _targets += [ "//chrome/installer/linux:save_build_info" ]
   }
 
   if (is_win) {
@@ -46,7 +46,7 @@ if (!is_ios) {
     ]
   }
 
-  foreach (_target, _targets) {
+  foreach(_target, _targets) {
     update_template_instance(_target) {
       sources += [ vivaldi_version_path ]
       if (!defined(extra_args)) {
@@ -63,21 +63,23 @@ if (!is_ios) {
   if (is_win) {
     update_target("//rlz:rlz_lib") {
       sources -= [
-          "lib/financial_ping.cc",
-          "lib/rlz_lib.cc",
+        "lib/financial_ping.cc",
+        "lib/rlz_lib.cc",
       ]
     }
 
-    update_template_instance("//chrome/app/version_assembly:chrome_exe_version_manifest") {
-      template_file = "//vivaldi/app/version_assembly/vivaldi_exe_manifest.template"
+    update_template_instance(
+        "//chrome/app/version_assembly:chrome_exe_version_manifest") {
+      template_file =
+          "//vivaldi/app/version_assembly/vivaldi_exe_manifest.template"
     }
 
-    update_template_instance("//chrome/app/version_assembly:version_assembly_manifest") {
+    update_template_instance(
+        "//chrome/app/version_assembly:version_assembly_manifest") {
       template_file = "//vivaldi/app/version_assembly/vivaldi_version_assembly_manifest.template"
     }
   }
-
-} # !is_ios
+}  # !is_ios
 
 if (is_ios) {
   import("//vivaldi/ios/source_updates.gni")
@@ -93,12 +95,12 @@ if (is_ios) {
       "--vivaldi",
     ]
   }
-
 }
 
 if (vivaldi_build_tests) {
   update_template_instance("//chrome/test/data/webui/settings:build") {
     files -= [
+      "ai_suggestions_page_test.ts",
       "all_sites_test.ts",
       "collapsible_autofill_settings_card_test.ts",
       "default_browser_test.ts",
@@ -124,18 +126,20 @@ if (vivaldi_build_tests) {
       "search_engine_edit_dialog_test.ts",
       "search_engine_entry_test.ts",
       "search_engine_icon_test.ts",
+      "search_engine_list_dialog_test.ts",
       "search_engines_page_test.ts",
       "search_page_index_test.ts",
       "search_page_test.ts",
       "search_settings_test.ts",
       "searchable_view_container_mixin_test.ts",
-      "security_page_feature_row_test.ts",
-      "security_page_v2_test.ts",
-      "secure_dns_test.ts",
-      "secure_dns_v2_test.ts",
+      "security/security_page_feature_row_test.ts",
+      "security/security_page_v2_test.ts",
+      "security/secure_dns_test.ts",
+      "security/secure_dns_v2_test.ts",
       "settings_main_plugins_test.ts",
       "settings_main_test.ts",
       "settings_view_mixin_test.ts",
+      "shopping_page_test.ts",
       "site_shortcuts_page_test.ts",
       "test_privacy_guide_browser_proxy.ts",
       "test_search_engines_browser_proxy.ts",

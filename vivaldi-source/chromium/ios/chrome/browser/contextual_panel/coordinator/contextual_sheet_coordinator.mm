@@ -72,6 +72,7 @@
   }
 
   _fullscreenDisabler = nullptr;
+  _legacyAnimatedFullscreenDisabler = nullptr;
   _observerBridge = nullptr;
 }
 
@@ -176,7 +177,7 @@
 #pragma mark - Boolean Observer
 
 - (void)omniboxPositionBrowserAgent:(OmniboxPositionBrowserAgent*)browser_agent
-       isCurrentLayoutBottomOmnibox:(BOOL)isCurrentLayoutBottomOmnibox {
+                  didUpdatePosition:(BOOL)isCurrentLayoutBottomOmnibox {
   if (isCurrentLayoutBottomOmnibox) {
     [self disableFullscreen];
   } else {

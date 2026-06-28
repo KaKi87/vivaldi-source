@@ -4,10 +4,12 @@
 
 package org.chromium.chrome.browser.toolbar.optional_button;
 
+import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.view.View;
 import android.view.View.OnLongClickListener;
 
+import androidx.annotation.AttrRes;
 import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 
@@ -25,6 +27,9 @@ import java.util.Objects;
  */
 @NullMarked
 public interface ButtonData {
+    /** Default delay for collapsing the action chip. */
+    int DEFAULT_ACTION_CHIP_DELAY_MS = 3000;
+
     /** Returns {@code true} when the {@link ButtonDataProvider} wants to show a button. */
     boolean canShow();
 
@@ -48,6 +53,7 @@ public interface ButtonData {
     final class ButtonSpec {
         public static final int INVALID_TOOLTIP_TEXT_ID = 0;
         private final @Nullable Drawable mDrawable;
+        private final @Nullable Drawable mCollapsedDrawable;
         // TODO(crbug.com/40753109): make mOnClickListener
         private final @Nullable View.OnClickListener mOnClickListener;
         private final @Nullable OnLongClickListener mOnLongClickListener;
@@ -60,9 +66,15 @@ public interface ButtonData {
         private final @StringRes int mTooltipTextResId;
         private final boolean mHasErrorBadge;
         private final boolean mIsChecked;
+        private final boolean mIsSelected;
+        private final boolean mShouldSuppressCpa;
+        private final int mActionChipCollapseDelayMs;
+        private final @AttrRes int mActionChipBackgroundColorResId;
+        private final @AttrRes int mActionChipTextColorResId;
 
         private ButtonSpec(
                 @Nullable Drawable drawable,
+                @Nullable Drawable collapsedDrawable,
                 @Nullable View.OnClickListener onClickListener,
                 @Nullable OnLongClickListener onLongClickListener,
                 String contentDescription,
@@ -72,8 +84,14 @@ public interface ButtonData {
                 int actionChipLabelResId,
                 int tooltipTextResId,
                 boolean hasErrorBadge,
-                boolean isChecked) {
+                boolean isChecked,
+                boolean isSelected,
+                boolean shouldSuppressCpa,
+                int actionChipCollapseDelayMs,
+                @AttrRes int actionChipBackgroundColorResId,
+                @AttrRes int actionChipTextColorResId) {
             mDrawable = drawable;
+            mCollapsedDrawable = collapsedDrawable;
             mOnClickListener = onClickListener;
             mOnLongClickListener = onLongClickListener;
             mContentDescription = contentDescription;
@@ -85,11 +103,17 @@ public interface ButtonData {
             mTooltipTextResId = tooltipTextResId;
             mHasErrorBadge = hasErrorBadge;
             mIsChecked = isChecked;
+            mIsSelected = isSelected;
+            mShouldSuppressCpa = shouldSuppressCpa;
+            mActionChipCollapseDelayMs = actionChipCollapseDelayMs;
+            mActionChipBackgroundColorResId = actionChipBackgroundColorResId;
+            mActionChipTextColorResId = actionChipTextColorResId;
         }
 
         /** Builder for {@link ButtonSpec}. */
         public static class Builder {
             private @Nullable Drawable mDrawable;
+            private @Nullable Drawable mCollapsedDrawable;
             private @Nullable View.OnClickListener mOnClickListener;
             private @Nullable OnLongClickListener mOnLongClickListener;
             private String mContentDescription;
@@ -101,6 +125,11 @@ public interface ButtonData {
             private @StringRes int mTooltipTextResId = INVALID_TOOLTIP_TEXT_ID;
             private boolean mHasErrorBadge;
             private boolean mIsChecked;
+            private boolean mIsSelected;
+            private boolean mShouldSuppressCpa;
+            private int mActionChipCollapseDelayMs = DEFAULT_ACTION_CHIP_DELAY_MS;
+            private @AttrRes int mActionChipBackgroundColorResId = Resources.ID_NULL;
+            private @AttrRes int mActionChipTextColorResId = Resources.ID_NULL;
 
             /**
              * Creates a new {@link Builder} with the required properties.
@@ -125,6 +154,7 @@ public interface ButtonData {
              */
             public Builder(ButtonSpec buttonSpec) {
                 mDrawable = buttonSpec.mDrawable;
+                mCollapsedDrawable = buttonSpec.mCollapsedDrawable;
                 mOnClickListener = buttonSpec.mOnClickListener;
                 mOnLongClickListener = buttonSpec.mOnLongClickListener;
                 mContentDescription = buttonSpec.mContentDescription;
@@ -135,10 +165,20 @@ public interface ButtonData {
                 mTooltipTextResId = buttonSpec.mTooltipTextResId;
                 mHasErrorBadge = buttonSpec.mHasErrorBadge;
                 mIsChecked = buttonSpec.mIsChecked;
+                mIsSelected = buttonSpec.mIsSelected;
+                mShouldSuppressCpa = buttonSpec.mShouldSuppressCpa;
+                mActionChipCollapseDelayMs = buttonSpec.mActionChipCollapseDelayMs;
+                mActionChipBackgroundColorResId = buttonSpec.mActionChipBackgroundColorResId;
+                mActionChipTextColorResId = buttonSpec.mActionChipTextColorResId;
             }
 
             public Builder setDrawable(@Nullable Drawable drawable) {
                 mDrawable = drawable;
+                return this;
+            }
+
+            public Builder setCollapsedDrawable(@Nullable Drawable collapsedDrawable) {
+                mCollapsedDrawable = collapsedDrawable;
                 return this;
             }
 
@@ -193,9 +233,36 @@ public interface ButtonData {
                 return this;
             }
 
+            public Builder setIsSelected(boolean isSelected) {
+                mIsSelected = isSelected;
+                return this;
+            }
+
+            public Builder setShouldSuppressCpa(boolean shouldSuppressCpa) {
+                mShouldSuppressCpa = shouldSuppressCpa;
+                return this;
+            }
+
+            public Builder setActionChipCollapseDelayMs(int actionChipCollapseDelayMs) {
+                mActionChipCollapseDelayMs = actionChipCollapseDelayMs;
+                return this;
+            }
+
+            public Builder setActionChipBackgroundColorResId(
+                    @AttrRes int actionChipBackgroundColorResId) {
+                mActionChipBackgroundColorResId = actionChipBackgroundColorResId;
+                return this;
+            }
+
+            public Builder setActionChipTextColorResId(@AttrRes int actionChipTextColorResId) {
+                mActionChipTextColorResId = actionChipTextColorResId;
+                return this;
+            }
+
             public ButtonSpec build() {
                 return new ButtonSpec(
                         mDrawable,
+                        mCollapsedDrawable,
                         mOnClickListener,
                         mOnLongClickListener,
                         mContentDescription,
@@ -205,13 +272,28 @@ public interface ButtonData {
                         mActionChipLabelResId,
                         mTooltipTextResId,
                         mHasErrorBadge,
-                        mIsChecked);
+                        mIsChecked,
+                        mIsSelected,
+                        mShouldSuppressCpa,
+                        mActionChipCollapseDelayMs,
+                        mActionChipBackgroundColorResId,
+                        mActionChipTextColorResId);
             }
         }
 
         /** Returns the {@link Drawable} for the button icon. */
         public @Nullable Drawable getDrawable() {
             return mDrawable;
+        }
+
+        /**
+         * Returns the {@link Drawable} for the button icon when collapsed (e.g., after an action
+         * chip collapses), as opposed to the regular drawable which is used when the button is
+         * first shown or expanded. If this is null then the regular drawable is used for all
+         * states.
+         */
+        public @Nullable Drawable getCollapsedDrawable() {
+            return mCollapsedDrawable;
         }
 
         /** Returns the {@link View.OnClickListener} used on the button. */
@@ -283,6 +365,42 @@ public interface ButtonData {
             return mIsChecked;
         }
 
+        /** Returns true if the button should be in a "selected" state. */
+        public boolean isSelected() {
+            return mIsSelected;
+        }
+
+        /** Returns {@code true} if the button should suppress Contextual Page Actions. */
+        public boolean shouldSuppressCpa() {
+            return mShouldSuppressCpa;
+        }
+
+        /**
+         * Returns the delay for collapsing the action chip in milliseconds. The default value is
+         * 3000ms.
+         */
+        public int getActionChipCollapseDelayMs() {
+            return mActionChipCollapseDelayMs;
+        }
+
+        /**
+         * Returns the resource ID of the attribute for the action chip background color. This is
+         * only applied when the action chip is on the expanding and expanded states. It will use
+         * the default colors otherwise.
+         */
+        public @AttrRes int getActionChipBackgroundColorResId() {
+            return mActionChipBackgroundColorResId;
+        }
+
+        /**
+         * Returns the resource ID of the attribute for the action chip text color. This is only
+         * applied when the action chip is on the expanding and expanded states. It will use the
+         * default colors otherwise.
+         */
+        public @AttrRes int getActionChipTextColorResId() {
+            return mActionChipTextColorResId;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -296,7 +414,14 @@ public interface ButtonData {
                     && mButtonVariant == that.mButtonVariant
                     && mIsDynamicAction == that.mIsDynamicAction
                     && mActionChipLabelResId == that.mActionChipLabelResId
+                    && mTooltipTextResId == that.mTooltipTextResId
+                    && mHasErrorBadge == that.mHasErrorBadge
                     && mIsChecked == that.mIsChecked
+                    && mIsSelected == that.mIsSelected
+                    && mShouldSuppressCpa == that.mShouldSuppressCpa
+                    && mActionChipCollapseDelayMs == that.mActionChipCollapseDelayMs
+                    && mActionChipBackgroundColorResId == that.mActionChipBackgroundColorResId
+                    && mActionChipTextColorResId == that.mActionChipTextColorResId
                     && Objects.equals(mDrawable, that.mDrawable)
                     && Objects.equals(mOnClickListener, that.mOnClickListener)
                     && Objects.equals(mOnLongClickListener, that.mOnLongClickListener)
@@ -315,7 +440,15 @@ public interface ButtonData {
                     mIphCommandBuilder,
                     mButtonVariant,
                     mIsDynamicAction,
-                    mActionChipLabelResId);
+                    mActionChipLabelResId,
+                    mTooltipTextResId,
+                    mHasErrorBadge,
+                    mIsChecked,
+                    mIsSelected,
+                    mShouldSuppressCpa,
+                    mActionChipCollapseDelayMs,
+                    mActionChipBackgroundColorResId,
+                    mActionChipTextColorResId);
         }
     }
 }

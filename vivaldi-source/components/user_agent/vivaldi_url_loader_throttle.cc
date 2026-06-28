@@ -7,6 +7,7 @@
 #include "content/browser/renderer_host/frame_tree_node.h"
 #include "content/browser/renderer_host/navigation_request.h"
 #include "content/public/browser/web_contents.h"
+#include "net/http/http_request_headers.h"
 #include "services/network/public/cpp/resource_request.h"
 
 namespace vivaldi {
@@ -41,6 +42,13 @@ void VivaldiURLLoaderThrottle::WillStartRequest(
         navigation_request->is_overriding_user_agent()) {
       return;
     }
+  }
+
+  // Without a FrameTreeNode we cannot consult the per-WebContents UA
+  // override, so honor any User-Agent the renderer has already set.
+  // Ref. VAB-12975.
+  if (request->headers.HasHeader(net::HttpRequestHeaders::kUserAgent)) {
+    return;
   }
 
   vivaldi_user_agent::ScopedVivaldiThreadURL vivaldi_ua(request->url);

@@ -1,10 +1,10 @@
-import ("//vivaldi/testing/testing.gni")
+import("//vivaldi/testing/testing.gni")
 
 update_target("//components/bookmarks/browser:browser") {
   sources += [
+    "//vivaldi/components/bookmarks/vivaldi_bookmark_kit.cc",
     "//vivaldi/components/bookmarks/vivaldi_bookmark_model.cc",
     "//vivaldi/components/bookmarks/vivaldi_bookmark_node.cc",
-    "//vivaldi/components/bookmarks/vivaldi_bookmark_kit.cc",
     "//vivaldi/components/bookmarks/vivaldi_partners.cc",
     "//vivaldi/components/bookmarks/vivaldi_partners.h",
     "//vivaldi/components/bookmarks/vivaldi_titled_url_index.cc",
@@ -17,7 +17,7 @@ update_target("//components/bookmarks/browser:browser") {
   ]
   deps += [ "//vivaldi/components/datasource:resource_reader" ]
   if (is_vivaldi_automotive) {
-    deps += [ "//chrome/android:chrome_jni_headers", ]
+    deps += [ "//chrome/android:chrome_jni_headers" ]
   }
 }
 
@@ -32,33 +32,29 @@ update_target("//components/history/core/browser:browser") {
   sources += [
     "//vivaldi/components/history/vivaldi_history_backend.cc",
     "//vivaldi/components/history/vivaldi_history_service.cc",
+    "//vivaldi/components/history/vivaldi_top_sites_impl.cc",
     "//vivaldi/components/history/vivaldi_url_database.cc",
     "//vivaldi/components/history/vivaldi_visit_database.cc",
-    "//vivaldi/components/history/vivaldi_top_sites_impl.cc",
   ]
 }
 
 update_target("//components/omnibox/browser:browser") {
   sources += [
-    "//vivaldi/components/omnibox/bookmark_nickname_match_utils.h",
     "//vivaldi/components/omnibox/bookmark_nickname_match_utils.cc",
-    "//vivaldi/components/omnibox/bookmark_nickname_provider.h",
+    "//vivaldi/components/omnibox/bookmark_nickname_match_utils.h",
     "//vivaldi/components/omnibox/bookmark_nickname_provider.cc",
-    "//vivaldi/components/omnibox/direct_match_provider.h",
+    "//vivaldi/components/omnibox/bookmark_nickname_provider.h",
     "//vivaldi/components/omnibox/direct_match_provider.cc",
-    "//vivaldi/components/omnibox/recent_typed_history_provider.h",
+    "//vivaldi/components/omnibox/direct_match_provider.h",
     "//vivaldi/components/omnibox/recent_typed_history_provider.cc",
+    "//vivaldi/components/omnibox/recent_typed_history_provider.h",
     "//vivaldi/components/omnibox/vivaldi_autocomplete_controller.cc",
   ]
 
-  deps += [
-    "//vivaldi/components/direct_match",
-  ]
+  deps += [ "//vivaldi/components/direct_match" ]
 
   if (is_ios) {
-    deps += [
-      "//vivaldi/ios/direct_match",
-    ]
+    deps += [ "//vivaldi/ios/direct_match" ]
   }
 }
 
@@ -74,51 +70,53 @@ update_target("//components/sync_sessions:sync_sessions") {
 update_target("//components/sessions:shared") {
   sources += [
     "//vivaldi/components/sessions/vivaldi_live_tab_context.cc",
-    "//vivaldi/components/sessions/vivaldi_tab_restore_service_client.cc",
     "//vivaldi/components/sessions/vivaldi_session_service_commands.cc",
     "//vivaldi/components/sessions/vivaldi_session_service_commands.h",
+    "//vivaldi/components/sessions/vivaldi_tab_restore_service_client.cc",
   ]
 
   if (!is_ios) {
     deps += [
       "//content/public/browser",
       "//third_party/blink/public/mojom:mojom_core__parser_action",
-      "//vivaldi/components/ext_data:ext_data",
+      "//vivaldi/components/ext_data",
     ]
   }
 }
 
-update_target("//components/os_crypt/sync:sync") {
-  visibility += [
-    "//vivaldi/browser:browser",
-    "//vivaldi/vivaldi_account:vivaldi_account",
-    "//vivaldi/importer:importer",
-  ]
-}
+#update_target("//components/os_crypt/sync:sync") {
+#  visibility += [
+#    "//vivaldi/browser:browser",
+#    "//vivaldi/vivaldi_account:vivaldi_account",
+#    "//vivaldi/importer:importer",
+#  ]
+#}
 
-if (is_mac || is_ios) {
-  update_target("//components/os_crypt/sync:sync") {
-    sources += [
-      "//vivaldi/components/os_crypt/viv_keychain_password_mac.mm",
-      "//vivaldi/components/os_crypt/viv_os_crypt_mac.mm",
-    ]
-  }
+if (is_apple) {
+ update_target("//components/os_crypt/async/browser:keychain_key_provider") {
+   sources += [
+     "//vivaldi/components/os_crypt/vivaldi_import_keychain_key_provider.h",
+     "//vivaldi/components/os_crypt/vivaldi_import_keychain_key_provider.mm",
+   ]
+ }
 }
 
 if (is_linux && use_dbus) {
-  update_target("//components/os_crypt/sync:sync") {
-    sources += [
-      "//vivaldi/components/os_crypt/xdg_desktop_portal_dbus.cc",
-      "//vivaldi/components/os_crypt/xdg_desktop_portal_dbus.h",
-      "//vivaldi/components/os_crypt/key_storage_xdg_desktop_portal.cc",
-      "//vivaldi/components/os_crypt/key_storage_xdg_desktop_portal.h",
-    ]
+  #  update_target("//components/os_crypt/sync:sync") {
+  #    sources += [
+  #      "//vivaldi/components/os_crypt/xdg_desktop_portal_dbus.cc",
+  #      "//vivaldi/components/os_crypt/xdg_desktop_portal_dbus.h",
+  #      "//vivaldi/components/os_crypt/key_storage_xdg_desktop_portal.cc",
+  #      "//vivaldi/components/os_crypt/key_storage_xdg_desktop_portal.h",
+  #    ]
+  #
+  #    defines += [ "USE_XDG_DESKTOP_PORTAL" ]
+  #  }
 
-    defines += [ "USE_XDG_DESKTOP_PORTAL" ]
-  }
-
-  # Vivaldi: Async version of secret portal provider with raw secret compatibility.
-  update_target("//components/os_crypt/async/browser:secret_portal_key_provider") {
+  # Vivaldi: Async version of secret portal provider with raw secret
+  # compatibility.
+  update_target(
+      "//components/os_crypt/async/browser:secret_portal_key_provider") {
     sources += [
       "//vivaldi/components/os_crypt/async_secret_portal_key_provider_vivaldi.cc",
       "//vivaldi/components/os_crypt/async_secret_portal_key_provider_vivaldi.h",
@@ -126,27 +124,32 @@ if (is_linux && use_dbus) {
   }
 }
 
-update_template_instance("//third_party/search_engines_data:prepopulated_engines") {
+update_template_instance(
+    "//third_party/search_engines_data:prepopulated_engines") {
   source = "//vivaldi/components/search_engines/search_engines.json"
   deps += [ "//vivaldi/components:prepopulated_copy" ]
 }
 
-update_target("//third_party/search_engines_data:prepopulated_engines_file") {
-  sources -= [ "resources/definitions/prepopulated_engines.json" ]
-  sources += [ "//vivaldi/components/search_engines/search_engines.json" ]
-}
+#update_target("//third_party/search_engines_data:prepopulated_engines_file") {
+#  sources -= [ "resources/definitions/prepopulated_engines.json" ]
+#  sources += [ "//vivaldi/components/search_engines/search_engines.json" ]
+#}
 
-if (is_mac) {
-  update_target("//third_party/search_engines_data:prepopulated_engines_bundle_data") {
-    sources -= [ "resources/definitions/prepopulated_engines.json" ]
-    sources += [ "//vivaldi/components/search_engines/search_engines.json" ]
-  }
-}
+#if (is_mac) {
+#  update_target("//third_party/search_engines_data:prepopulated_engines_bundle_data") {
+#    sources -= [ "resources/definitions/prepopulated_engines.json" ]
+#    sources += [ "//vivaldi/components/search_engines/search_engines.json" ]
+#  }
+#}
 
 update_target("//third_party/search_engines_data:prepopulated_engines_action") {
   # change the actual output folder from gen/vivaldi/components/search_engines
   # to gen/components/search_engines
-  args += ["-b", rebase_path("$root_gen_dir/third_party/search_engines_data/", root_build_dir)]
+  args += [
+    "-b",
+    rebase_path("$root_gen_dir/third_party/search_engines_data/",
+                root_build_dir),
+  ]
 
   # updates the path of the resulting files to be compiled to match the new
   # output folder
@@ -157,7 +160,8 @@ update_target("//third_party/search_engines_data:prepopulated_engines_action") {
   ]
 }
 
-update_template_instance("//third_party/search_engines_data:regional_settings") {
+update_template_instance(
+    "//third_party/search_engines_data:regional_settings") {
   source = "//vivaldi/components/search_engines/regional_settings.json"
   deps += [ "//vivaldi/components:prepopulated_copy" ]
 }
@@ -165,7 +169,11 @@ update_template_instance("//third_party/search_engines_data:regional_settings") 
 update_target("//third_party/search_engines_data:regional_settings_action") {
   # change the actual output folder from gen/vivaldi/components/search_engines
   # to gen/components/search_engines
-  args += ["-b", rebase_path("$root_gen_dir/third_party/search_engines_data/", root_build_dir)]
+  args += [
+    "-b",
+    rebase_path("$root_gen_dir/third_party/search_engines_data/",
+                root_build_dir),
+  ]
 
   # updates the path of the resulting files to be compiled to match the new
   # output folder
@@ -175,61 +183,57 @@ update_target("//third_party/search_engines_data:regional_settings_action") {
     "$root_gen_dir/third_party/search_engines_data/regional_settings.h",
   ]
 
-  visibility+=[ "//components/search_engines:search_engine_utils" ]
+  visibility += [ "//components/search_engines:search_engine_utils" ]
 }
 
 update_target("//components/search_engines:search_engines") {
   if (!is_android) {
-    sources += [
-      "//vivaldi/components/search_engines/vivaldi_marketting_snippets_and_engine_resource_ids.cc"
-    ]
+    sources += [ "//vivaldi/components/search_engines/vivaldi_marketting_snippets_and_engine_resource_ids.cc" ]
   }
   if (is_android) {
-    sources += [
-      "//vivaldi/components/search_engines/vivaldi_template_url_service_android.cc",
-    ]
+    sources += [ "//vivaldi/components/search_engines/vivaldi_template_url_service_android.cc" ]
   }
 
   sources += [
-    "//vivaldi/components/search_engines/vivaldi_pref_names.h",
     "//vivaldi/components/search_engines/vivaldi_keyword_table.cc",
-    "//vivaldi/components/search_engines/vivaldi_template_url_service.cc",
-    "//vivaldi/components/search_engines/vivaldi_template_url_service.h",
+    "//vivaldi/components/search_engines/vivaldi_pref_names.h",
     "//vivaldi/components/search_engines/vivaldi_template_url_helper.cc",
     "//vivaldi/components/search_engines/vivaldi_template_url_helper.h",
+    "//vivaldi/components/search_engines/vivaldi_template_url_service.cc",
+    "//vivaldi/components/search_engines/vivaldi_template_url_service.h",
   ]
 }
 
 update_target("//components/search_engines:search_engine_utils") {
   sources += [
-    "//vivaldi/components/search_engines/default_search_engine_observer.h",
     "//vivaldi/components/search_engines/default_search_engine_observer.cc",
-    "//vivaldi/components/search_engines/parsed_search_engines.h",
+    "//vivaldi/components/search_engines/default_search_engine_observer.h",
     "//vivaldi/components/search_engines/parsed_search_engines.cc",
-    "//vivaldi/components/search_engines/search_engines_manager.h",
-    "//vivaldi/components/search_engines/search_engines_manager.cc",
-    "//vivaldi/components/search_engines/search_engines_managers_factory.h",
-    "//vivaldi/components/search_engines/search_engines_managers_factory.cc",
-    "//vivaldi/components/search_engines/search_engines_helper.h",
-    "//vivaldi/components/search_engines/search_engines_helper.cc",
-    "//vivaldi/components/search_engines/prepopulated_engines.h",
-    "//vivaldi/components/search_engines/parsed_search_engines_prompt.h",
+    "//vivaldi/components/search_engines/parsed_search_engines.h",
     "//vivaldi/components/search_engines/parsed_search_engines_prompt.cc",
+    "//vivaldi/components/search_engines/parsed_search_engines_prompt.h",
+    "//vivaldi/components/search_engines/prepopulated_engines.h",
+    "//vivaldi/components/search_engines/search_engines_helper.cc",
+    "//vivaldi/components/search_engines/search_engines_helper.h",
+    "//vivaldi/components/search_engines/search_engines_manager.cc",
+    "//vivaldi/components/search_engines/search_engines_manager.h",
+    "//vivaldi/components/search_engines/search_engines_managers_factory.cc",
+    "//vivaldi/components/search_engines/search_engines_managers_factory.h",
+    "//vivaldi/components/search_engines/search_engines_prompt_manager.cc",
     "//vivaldi/components/search_engines/search_engines_prompt_manager.h",
-    "//vivaldi/components/search_engines/search_engines_prompt_manager.cc"
   ]
 
   if (is_ios) {
     sources += [
-      "//vivaldi/browser/search_engines/vivaldi_search_engines_updater.h",
       "//vivaldi/browser/search_engines/vivaldi_search_engines_updater.cc",
+      "//vivaldi/browser/search_engines/vivaldi_search_engines_updater.h",
     ]
   }
 
   public_deps += [
-  "//vivaldi/components:search_engines_inc",
-  "//vivaldi/components:search_engines_prompt_inc",
-  "//vivaldi/components/signature:signature"
+    "//vivaldi/components:search_engines_inc",
+    "//vivaldi/components:search_engines_prompt_inc",
+    "//vivaldi/components/signature",
   ]
 
   deps += [
@@ -241,9 +245,9 @@ update_target("//components/search_engines:search_engine_utils") {
     "//third_party/omnibox_proto",
     "//third_party/search_engines_data:regional_settings_action",
     "//third_party/widevine/cdm:buildflags",
-    "//vivaldi/prefs:prefs_files_generated",
+    "//vivaldi/components:version_utils",
     "//vivaldi/components/ad_blocker/public/core",
-    "//vivaldi/components:version_utils"
+    "//vivaldi/prefs:prefs_files_generated",
   ]
 }
 
@@ -253,9 +257,7 @@ if (!is_ios) {
       "search_engine_utils.cc",
       "search_engine_utils.h",
     ]
-      deps -= [
-      "//components/search_engines:search_engine_utils"
-      ]
+    deps -= [ "//components/search_engines:search_engine_utils" ]
   }
 }
 
@@ -273,71 +275,55 @@ if (vivaldi_build_tests) {
     ]
   }
   update_target("//chrome/test:unit_tests") {
-    sources -= [
-      "../browser/search_engines/template_url_service_sync_unittest.cc",
-    ]
+    sources -=
+        [ "../browser/search_engines/template_url_service_sync_unittest.cc" ]
   }
 
   update_target("//components/page_info/core:unit_tests") {
-    sources -= [
-      "about_this_site_service_unittest.cc",
-    ]
+    sources -= [ "about_this_site_service_unittest.cc" ]
   }
 
   update_target("//chrome/test:interactive_ui_tests") {
     sources -= [
-      "../browser/ui/views/profiles/first_run_interactive_uitest.cc",
       "../browser/ui/views/frame/horizontal_tab_strip_region_view_interactive_uitest.cc",
+      "../browser/ui/views/profiles/first_run_interactive_uitest.cc",
     ]
   }
   update_target("//chrome/browser/ui/views/toolbar:interactive_ui_tests") {
-    sources -= [
-      "tab_search_toolbar_button_interactive_uitest.cc",
-    ]
+    sources -= [ "tab_search_toolbar_button_interactive_uitest.cc" ]
   }
 
   update_target("//components/shared_highlighting/core/common:unit_tests") {
-    sources -= [
-      "shared_highlighting_metrics_unittest.cc"
-    ]
+    sources -= [ "shared_highlighting_metrics_unittest.cc" ]
   }
 
   update_target("//chrome/test:unit_tests") {
-    sources -= [
-      "../browser/ui/webui/settings/search_engines_handler_unittest.cc",
-    ]
+    sources -=
+        [ "../browser/ui/webui/settings/search_engines_handler_unittest.cc" ]
   }
 
   update_target("//chrome/browser/search_engine_choice:unit_tests") {
-    sources -= [
-      "search_engine_choice_dialog_service_unittest.cc",
-    ]
+    sources -= [ "search_engine_choice_dialog_service_unittest.cc" ]
   }
 
   update_target("//components/search_engines:unit_tests") {
-    sources -= [
-      "search_engine_choice/search_engine_choice_eligibility_unittest.cc",
-    ]
+    sources -=
+        [ "search_engine_choice/search_engine_choice_eligibility_unittest.cc" ]
   }
 
   if (!is_chrome_for_testing) {
     update_target("//chrome/browser/search_engine_choice:browser_tests") {
-      sources -= [
-        "search_engine_choice_dialog_browsertest.cc",
-      ]
+      sources -= [ "search_engine_choice_dialog_browsertest.cc" ]
     }
   }
 
   update_template_instance("//chrome/test:browser_tests") {
     if (is_win || is_linux) {
-      sources -= [
-        "../browser/ui/webui/search_engine_choice/search_engine_choice_ui_browsertest.cc",
-      ]
+      sources -= [ "../browser/ui/webui/search_engine_choice/search_engine_choice_ui_browsertest.cc" ]
     }
     if (is_win || is_linux || is_mac) {
-      sources -= [
-        "../browser/search_engines/template_url_service_browsertest.cc",
-      ]
+      sources -=
+          [ "../browser/search_engines/template_url_service_browsertest.cc" ]
     }
   }
 }

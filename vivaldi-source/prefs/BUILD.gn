@@ -1,7 +1,5 @@
-
-
 config("prefs_include_dirs") {
-  include_dirs=["$root_gen_dir/vivaldi"]
+  include_dirs = [ "$root_gen_dir/vivaldi" ]
 }
 
 action("prefs_files_generator") {
@@ -11,9 +9,7 @@ action("prefs_files_generator") {
   vivaldi_gen_prefs_h = "$target_gen_dir/vivaldi_gen_prefs.h"
   vivaldi_gen_pref_enums_h = "$target_gen_dir/vivaldi_gen_pref_enums.h"
 
-  sources = [
-    prefs_definitions_json,
-  ]
+  sources = [ prefs_definitions_json ]
 
   outputs = [
     vivaldi_gen_prefs_cc,
@@ -24,70 +20,59 @@ action("prefs_files_generator") {
   script = "//vivaldi/tools/prefs_files_generator/prefs_files_generator.py"
 
   args = [
-    "--prefs-definitions=" + rebase_path(prefs_definitions_json, root_build_dir),
+    "--prefs-definitions=" +
+        rebase_path(prefs_definitions_json, root_build_dir),
     "--prefs-names-h=" + rebase_path(vivaldi_gen_prefs_h, root_build_dir),
     "--prefs-names-cc=" + rebase_path(vivaldi_gen_prefs_cc, root_build_dir),
     "--prefs-enums-h=" + rebase_path(vivaldi_gen_pref_enums_h, root_build_dir),
-    "--root="+rebase_path(root_gen_dir, root_build_dir),
-    "--target-os="+target_os,
+    "--root=" + rebase_path(root_gen_dir, root_build_dir),
+    "--target-os=" + target_os,
   ]
 
-  all_dependent_configs = [":prefs_include_dirs"]
+  all_dependent_configs = [ ":prefs_include_dirs" ]
 }
 
 static_library("prefs_files_generated") {
   sources = get_target_outputs(":prefs_files_generator")
-  public_deps = [
-    ":prefs_files_generator",
-  ]
-  deps = [
-    "//base",
-  ]
+  public_deps = [ ":prefs_files_generator" ]
+  deps = [ "//base" ]
 }
 
 static_library("prefs") {
   sources = [
-    "vivaldi_prefs_definitions.h",
     "vivaldi_prefs_definitions.cc",
+    "vivaldi_prefs_definitions.h",
   ]
   if (is_mac) {
-    sources += [
-      "vivaldi_prefs_definitions_mac.mm",
-    ]
+    sources += [ "vivaldi_prefs_definitions_mac.mm" ]
   } else if (is_win) {
-    sources += [
-      "vivaldi_prefs_definitions_win.cc",
-    ]
+    sources += [ "vivaldi_prefs_definitions_win.cc" ]
   } else {
-    sources += [
-      "vivaldi_prefs_definitions_common.cc",
-    ]
+    sources += [ "vivaldi_prefs_definitions_common.cc" ]
   }
-  public_deps = [
-    ":prefs_files_generated",
-  ]
+  public_deps = [ ":prefs_files_generated" ]
   deps = [
+    ":prefs_strings",
     "//base",
     "//components/pref_registry",
     "//components/prefs",
-    "//components/version_info",
     "//components/safe_browsing:buildflags",
     "//components/search_engines",
-    "//vivaldi/components/datasource:resource_reader",
+    "//components/version_info",
     "//skia",
-    ":prefs_strings",
+    "//vivaldi/components/datasource:resource_reader",
   ]
-  if(!is_android && !is_ios) {
+  if (!is_android && !is_ios) {
     #deps += [ "//apps:apps" ]
   }
-  if(!is_ios) {
+  if (!is_ios) {
     deps += [
       "//chrome/common:constants",
       "//content/public/browser",
     ]
   }
   if (is_ios) {
-    deps += ["ios:ios_prefs"]
+    deps += [ "ios:ios_prefs" ]
   }
 }
 
@@ -113,34 +98,32 @@ static_library("browser_prefs") {
   }
   if (is_mac) {
     sources += [
-      "native_settings_observer_mac.h",
-      "native_settings_observer_mac.mm",
       "native_settings_helper_mac.h",
       "native_settings_helper_mac.mm",
+      "native_settings_observer_mac.h",
+      "native_settings_observer_mac.mm",
     ]
   }
   if (is_win) {
     sources += [
+      "native_settings_helper_win.cc",
+      "native_settings_helper_win.h",
       "native_settings_observer_win.cc",
       "native_settings_observer_win.h",
-      "native_settings_helper_win.h",
-      "native_settings_helper_win.cc",
     ]
   }
   public_deps = [
-    ":prefs_strings",
     ":prefs_files_generator",
+    ":prefs_strings",
   ]
   deps = [
     "//components/prefs",
     "//skia",
   ]
   if (!is_android && !is_ios) {
-    deps += [
-      "//vivaldi/extensions/schema",
-    ]
+    deps += [ "//vivaldi/extensions/schema" ]
   }
-  if(!is_ios) {
+  if (!is_ios) {
     deps += [
       "//chrome/common:buildflags",
       "//content/public/browser",

@@ -21,6 +21,12 @@ import {eventToPromise, microtasksFinished} from 'chrome://webui-test/test_util.
 
 import {installMock} from '../test_support.js';
 
+type ActionChipClickEvent = CustomEvent<{
+  text: string,
+  files: TabUpload[],
+  mode?: ToolMode,
+}>;
+
 suite('NewTabPageActionChipsTest', () => {
   let chips: ActionChipsElement;
   let handler: TestMock<ActionChipsHandlerRemote>;
@@ -155,8 +161,8 @@ suite('NewTabPageActionChipsTest', () => {
     const recentTabChip =
         chips.shadowRoot.querySelector<HTMLDivElement>('.icon-type-favicon');
     assertTrue(!!recentTabChip);
-    const whenActionChipClicked =
-        eventToPromise('action-chip-click', document.body);
+    const whenActionChipClicked = eventToPromise<ActionChipClickEvent>(
+        'action-chip-click', document.body);
     recentTabChip.click();
     const event = await whenActionChipClicked;
     const expectedTab: TabUpload = {
@@ -238,8 +244,8 @@ suite('NewTabPageActionChipsTest', () => {
       const nanoBananaChip =
           chips.shadowRoot.querySelector<HTMLDivElement>('.icon-type-banana');
       assertTrue(!!nanoBananaChip);
-      const whenActionChipClicked =
-          eventToPromise('action-chip-click', document.body);
+      const whenActionChipClicked = eventToPromise<ActionChipClickEvent>(
+          'action-chip-click', document.body);
       nanoBananaChip.click();
 
       // Assert.
@@ -256,8 +262,8 @@ suite('NewTabPageActionChipsTest', () => {
       const deepSearchChip = chips.shadowRoot.querySelector<HTMLDivElement>(
           '.icon-type-globe-with-search-loop');
       assertTrue(!!deepSearchChip);
-      const whenActionChipClicked =
-          eventToPromise('action-chip-click', document.body);
+      const whenActionChipClicked = eventToPromise<ActionChipClickEvent>(
+          'action-chip-click', document.body);
       deepSearchChip.click();
 
       // Assert.
@@ -276,8 +282,8 @@ suite('NewTabPageActionChipsTest', () => {
       const recentTabChip =
           chips.shadowRoot.querySelector<HTMLDivElement>('.icon-type-favicon');
       assertTrue(!!recentTabChip);
-      const whenActionChipClicked =
-          eventToPromise('action-chip-click', document.body);
+      const whenActionChipClicked = eventToPromise<ActionChipClickEvent>(
+          'action-chip-click', document.body);
       recentTabChip.click();
 
       // Assert.
@@ -312,8 +318,8 @@ suite('NewTabPageActionChipsTest', () => {
           '.icon-type-sub-arrow-right');
       assertTrue(!!deepDiveChip);
 
-      const whenActionChipClicked =
-          eventToPromise('action-chip-click', document.body);
+      const whenActionChipClicked = eventToPromise<ActionChipClickEvent>(
+          'action-chip-click', document.body);
 
       // Act.
       deepDiveChip.click();
@@ -347,8 +353,8 @@ suite('NewTabPageActionChipsTest', () => {
           '.icon-type-draft-spark');
       assertTrue(!!canvasChip);
 
-      const whenActionChipClicked =
-          eventToPromise('action-chip-click', document.body);
+      const whenActionChipClicked = eventToPromise<ActionChipClickEvent>(
+          'action-chip-click', document.body);
 
       // Act.
       canvasChip.click();
@@ -409,8 +415,9 @@ suite('NewTabPageActionChipsTest', () => {
         'Handler is called on load and its completion fires an event',
         async () => {
           const events: ActionChipsRetrievalState[] = [];
-          const eventCollector = (e: any) => {
-            events.push(e.detail.state);
+          const eventCollector = (e: Event) => {
+            events.push((e as CustomEvent<{state: ActionChipsRetrievalState}>)
+                            .detail.state);
           };
           document.body.addEventListener(
               'action-chips-retrieval-state-changed', eventCollector);
@@ -649,7 +656,8 @@ suite('NewTabPageActionChipsTest', () => {
           assertTrue(!!disableButton);
 
           const whenActionChipsDisabled =
-              eventToPromise('action-chips-disabled', chips);
+              eventToPromise<CustomEvent<{message: string, undo: () => void}>>(
+                  'action-chips-disabled', chips);
 
           disableButton.click();
           await microtasksFinished();

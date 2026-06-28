@@ -11,6 +11,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
@@ -24,9 +25,11 @@ import static org.mockito.Mockito.when;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.IBinder;
+import android.util.Size;
 import android.view.ContextThemeWrapper;
 import android.view.InputDevice;
 import android.view.MotionEvent;
@@ -72,6 +75,7 @@ import org.chromium.chrome.browser.compositor.layouts.LayoutManagerImpl;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
 import org.chromium.chrome.browser.layouts.EventFilter.EventType;
+import org.chromium.chrome.browser.layouts.components.VirtualView;
 import org.chromium.chrome.browser.multiwindow.MultiWindowModeStateDispatcher;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.MockTab;
@@ -79,7 +83,7 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tab.TabSelectionType;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorTabObserver;
-import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
+import org.chromium.chrome.browser.theme.ToolbarThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.top.ToolbarControlContainer;
 import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.SideUiSpecs;
 import org.chromium.chrome.browser.ui.side_ui.SideUiStateProvider;
@@ -166,9 +170,11 @@ public class CompositorViewHolderUnitTest {
                         0);
     }
 
-    enum EventSource {
-        IN_MOTION,
-        TOUCH_EVENT_OBSERVER;
+    private static final class EventSource {
+        static final int IN_MOTION = 0;
+        static final int TOUCH_EVENT_OBSERVER = 1;
+
+        private EventSource() {}
     }
 
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -177,7 +183,7 @@ public class CompositorViewHolderUnitTest {
     @Mock private Profile mIncognitoProfile;
     @Mock private ToolbarControlContainer mControlContainer;
     @Mock private View mContainerView;
-    @Mock private android.content.res.Resources mResources;
+    @Mock private Resources mResources;
     @Mock private WebContents mWebContents;
     @Mock private ContentView mContentView;
     @Mock private CompositorView mCompositorView;
@@ -194,7 +200,7 @@ public class CompositorViewHolderUnitTest {
     @Mock private InputHintChecker.Natives mInputHintCheckerJni;
     @Mock private MultiWindowModeStateDispatcher mMultiWindowModeStateDispatcher;
     @Mock private InsetObserver mInsetObserver;
-    @Mock private TopUiThemeColorProvider mTopUiThemeColorProvider;
+    @Mock private ToolbarThemeColorProvider mToolbarThemeColorProvider;
     @Mock private SideUiStateProvider mSideUiStateProvider;
 
     @Captor private ArgumentCaptor<TabObserver> mTabObserverCaptor;
@@ -220,7 +226,7 @@ public class CompositorViewHolderUnitTest {
         ApplicationStatus.onStateChangeForTesting(mActivity, ActivityState.CREATED);
 
         // Setup the mock keyboard.
-        KeyboardVisibilityDelegate.setInstance(mMockKeyboard);
+        KeyboardVisibilityDelegate.setInstanceForTesting(mMockKeyboard);
 
         mViewportInsets = ApplicationViewportInsetTracker.createForTests();
         when(mInsetObserver.isKeyboardInOverlayMode()).thenReturn(false);
@@ -277,7 +283,7 @@ public class CompositorViewHolderUnitTest {
 
         mCompositorViewHolder = spy(new CompositorViewHolder(mContext, null));
 
-        mCompositorViewHolder.setTopUiThemeColorProvider(mTopUiThemeColorProvider);
+        mCompositorViewHolder.setToolbarThemeColorProvider(mToolbarThemeColorProvider);
         mCompositorViewHolder.setLayoutManager(mLayoutManager);
         mCompositorViewHolder.setControlContainer(mControlContainer);
         mCompositorViewHolder.setCompositorViewForTesting(mCompositorView);
@@ -308,8 +314,8 @@ public class CompositorViewHolderUnitTest {
         LocalizationUtils.setRtlForTesting(false);
     }
 
-    private List<EventSource> observeTouchAndMotionEvents() {
-        List<EventSource> eventSequence = new ArrayList<>();
+    private List<Integer> observeTouchAndMotionEvents() {
+        List<Integer> eventSequence = new ArrayList<>();
         mCompositorViewHolder
                 .getInMotionSupplier()
                 .addSyncObserverAndPostIfNonNull(
@@ -754,6 +760,162 @@ public class CompositorViewHolderUnitTest {
                 .notifyVirtualKeyboardOverlayRect(mWebContents, 0, 0, 0, 0);
     }
 
+    @Test
+    public void testWebContentResizeTriggeredDueToKeyboardTransition_hasNoTransientOvershoot() {
+        mCompositorViewHolder.updateVirtualKeyboardMode(VirtualKeyboardMode.OVERLAYS_CONTENT);
+        reset(mWebContents);
+
+        int fullViewportHeight = 941;
+        int fullViewportWidth = 1080;
+        int adjustedHeight = fullViewportHeight - KEYBOARD_HEIGHT;
+
+        when(mCompositorViewHolder.getWidth()).thenReturn(fullViewportWidth);
+
+        // Establish the baseline viewport size before keyboard insets change.
+        when(mMockKeyboard.isKeyboardShowing(any())).thenReturn(false);
+        when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(0);
+        when(mCompositorViewHolder.getHeight()).thenReturn(fullViewportHeight);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+        reset(mWebContents);
+
+        // Keyboard show: inset is updated before layout applies the reduced view height.
+        when(mMockKeyboard.isKeyboardShowing(any())).thenReturn(true);
+        when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(KEYBOARD_HEIGHT);
+        when(mCompositorViewHolder.getHeight()).thenReturn(fullViewportHeight);
+        mKeyboardInsetSupplier.set(KEYBOARD_HEIGHT);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+
+        // After layout, view height is reduced and compensation should still keep size stable.
+        when(mCompositorViewHolder.getHeight()).thenReturn(adjustedHeight);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+
+        // Keyboard hide: inset clears before layout restores the full view height.
+        when(mMockKeyboard.isKeyboardShowing(any())).thenReturn(false);
+        when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(0);
+        when(mCompositorViewHolder.getHeight()).thenReturn(adjustedHeight);
+        mKeyboardInsetSupplier.set(0);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+
+        // After layout restoration, size should remain stable.
+        when(mCompositorViewHolder.getHeight()).thenReturn(fullViewportHeight);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+
+        verify(mWebContents, atLeast(1)).setSize(fullViewportWidth, fullViewportHeight);
+        verify(mWebContents, never())
+                .setSize(fullViewportWidth, fullViewportHeight + KEYBOARD_HEIGHT);
+        verify(mWebContents, never()).setSize(fullViewportWidth, adjustedHeight);
+    }
+
+    @Test
+    public void
+            testWebContentResizeTriggeredDueToKeyboardTransition_hasNoIntermediateInsetOvershoot() {
+        mCompositorViewHolder.updateVirtualKeyboardMode(VirtualKeyboardMode.OVERLAYS_CONTENT);
+        reset(mWebContents);
+
+        int fullViewportHeight = 941;
+        int fullViewportWidth = 1080;
+        int intermediateViewportHeight = fullViewportHeight - 16;
+
+        when(mCompositorViewHolder.getWidth()).thenReturn(fullViewportWidth);
+
+        // Establish baseline before keyboard transition starts.
+        when(mMockKeyboard.isKeyboardShowing(any())).thenReturn(false);
+        when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(0);
+        when(mCompositorViewHolder.getHeight()).thenReturn(fullViewportHeight);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+        reset(mWebContents);
+
+        when(mMockKeyboard.isKeyboardShowing(any())).thenReturn(true);
+        when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(KEYBOARD_HEIGHT);
+
+        // Small keyboard inset step arrives before the view height update.
+        when(mCompositorViewHolder.getHeight()).thenReturn(fullViewportHeight);
+        mKeyboardInsetSupplier.set(16);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+
+        // Next inset step arrives after the view has partially resized but before the previous
+        // viewport-height update was observed by updateWebContentsSize().
+        when(mCompositorViewHolder.getHeight()).thenReturn(intermediateViewportHeight);
+        mKeyboardInsetSupplier.set(32);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+
+        ArgumentCaptor<Integer> resizedHeightCaptor = ArgumentCaptor.forClass(Integer.class);
+        verify(mWebContents, atLeast(1))
+                .setSize(eq(fullViewportWidth), resizedHeightCaptor.capture());
+        for (int observedHeight : resizedHeightCaptor.getAllValues()) {
+            Assert.assertTrue(
+                    "Unexpected transient overshoot: "
+                            + observedHeight
+                            + " > "
+                            + fullViewportHeight,
+                    observedHeight <= fullViewportHeight);
+        }
+    }
+
+    @Test
+    public void testWebContentResizeTriggeredDueToKeyboardDismiss_hasNoTransientUndershoot() {
+        mCompositorViewHolder.updateVirtualKeyboardMode(VirtualKeyboardMode.OVERLAYS_CONTENT);
+        reset(mWebContents);
+
+        int fullViewportHeight = 785;
+        int fullViewportWidth = 1080;
+        int intermediateViewportHeight = fullViewportHeight - 24;
+
+        when(mCompositorViewHolder.getWidth()).thenReturn(fullViewportWidth);
+
+        // Establish baseline before keyboard transition.
+        when(mMockKeyboard.isKeyboardShowing(any())).thenReturn(false);
+        when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(0);
+        when(mCompositorViewHolder.getHeight()).thenReturn(fullViewportHeight);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+        reset(mWebContents);
+
+        // Layout race during dismiss: view height shrinks while the inset supplier still reads 0
+        // and the IME animation is in progress.
+        when(mMockKeyboard.isKeyboardShowing(any())).thenReturn(true);
+        when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(24);
+        when(mCompositorViewHolder.getHeight()).thenReturn(intermediateViewportHeight);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+
+        ArgumentCaptor<Integer> resizedHeightCaptor = ArgumentCaptor.forClass(Integer.class);
+        verify(mWebContents, atLeast(1))
+                .setSize(eq(fullViewportWidth), resizedHeightCaptor.capture());
+        for (int observedHeight : resizedHeightCaptor.getAllValues()) {
+            Assert.assertTrue(
+                    "Unexpected transient undershoot: "
+                            + observedHeight
+                            + " < "
+                            + fullViewportHeight,
+                    observedHeight >= fullViewportHeight);
+        }
+    }
+
+    @Test
+    @DisableFeatures(ChromeFeatureList.VIRTUAL_KEYBOARD_TRANSIENT_INNER_HEIGHT_FIX)
+    public void
+            testWebContentResizeTriggeredDueToKeyboardTransition_withKillSwitch_usesLegacySizing() {
+        mCompositorViewHolder.updateVirtualKeyboardMode(VirtualKeyboardMode.OVERLAYS_CONTENT);
+        reset(mWebContents);
+
+        int fullViewportHeight = 941;
+        int fullViewportWidth = 1080;
+        int adjustedHeight = fullViewportHeight - KEYBOARD_HEIGHT;
+
+        when(mCompositorViewHolder.getWidth()).thenReturn(fullViewportWidth);
+
+        when(mMockKeyboard.isKeyboardShowing(any())).thenReturn(true);
+        when(mMockKeyboard.calculateTotalKeyboardHeight(any())).thenReturn(KEYBOARD_HEIGHT);
+        when(mCompositorViewHolder.getHeight()).thenReturn(fullViewportHeight);
+        mKeyboardInsetSupplier.set(KEYBOARD_HEIGHT);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+
+        when(mCompositorViewHolder.getHeight()).thenReturn(adjustedHeight);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+
+        verify(mWebContents, atLeast(1))
+                .setSize(fullViewportWidth, fullViewportHeight + KEYBOARD_HEIGHT);
+    }
+
     // Keyboard resize tests for geometrychange event fired to JS.
     @Test
     public void testWebContentResizeTriggeredDueToKeyboardShow_keyboardInOverlayMode() {
@@ -1063,7 +1225,7 @@ public class CompositorViewHolderUnitTest {
     public void testInMotionOrdering() {
         // With the 'defer in motion' experiment enabled, touch events are routed to android UI
         // after being sent to native/web content.
-        List<EventSource> eventSequence = observeTouchAndMotionEvents();
+        List<Integer> eventSequence = observeTouchAndMotionEvents();
         mCompositorViewHolder.dispatchTouchEvent(MOTION_EVENT_DOWN);
         assertEquals(
                 Arrays.asList(EventSource.TOUCH_EVENT_OBSERVER, EventSource.IN_MOTION),
@@ -1219,7 +1381,7 @@ public class CompositorViewHolderUnitTest {
     public void testAccessibilityNode_boundsAreCorrect() {
         mContext.getResources().getDisplayMetrics().density = 1.375f;
 
-        var virtualView = mock(org.chromium.chrome.browser.layouts.components.VirtualView.class);
+        var virtualView = mock(VirtualView.class);
         // Values in this test case are real numbers captured from clank running
         // in a maximized window.
         RectF dpRect = new RectF(100.36364f, 2.18182f, 337.36365f, 42.18182f);
@@ -1233,13 +1395,12 @@ public class CompositorViewHolderUnitTest {
         when(virtualView.getAccessibilityDescription()).thenReturn("test-node");
         doAnswer(
                         invocation -> {
-                            ((List<org.chromium.chrome.browser.layouts.components.VirtualView>)
-                                            invocation.getArgument(0))
-                                    .add(virtualView);
+                            List<VirtualView> list = invocation.getArgument(0);
+                            list.add(virtualView);
                             return null;
                         })
                 .when(mLayoutManager)
-                .getVirtualViews(any(List.class));
+                .getVirtualViews(anyList());
 
         mCompositorViewHolder.onAccessibilityModeChanged(true);
         assertNotNull(mCompositorViewHolder.mAccessibilityView);
@@ -1288,9 +1449,8 @@ public class CompositorViewHolderUnitTest {
         mSideUiStateProviderSupplier.set(mSideUiStateProvider);
         runCurrentTasks();
 
-        // Act. Pass empty specs, as the CompositorViewHolder is expected to instead query from
-        // the set SideUiStateProvider.
-        mCompositorViewHolder.onSideUiSpecsChanged(SideUiSpecs.EMPTY_SIDE_UI_SPECS);
+        // Act.
+        mCompositorViewHolder.onSideUiSpecsChanged(currentSideUiSpecs);
 
         // Verify.
         verify(mWebContents)
@@ -1315,9 +1475,9 @@ public class CompositorViewHolderUnitTest {
         reset(mWebContents);
 
         // Arbitrary Side UI width.
-        int startContainerWidth = 50;
-        int endContainerWidth = 150;
-        SideUiSpecs currentSideUiSpecs = new SideUiSpecs(startContainerWidth, endContainerWidth);
+        int leftContainerWidth = 50;
+        int rightContainerWidth = 150;
+        SideUiSpecs currentSideUiSpecs = new SideUiSpecs(leftContainerWidth, rightContainerWidth);
         when(mSideUiStateProvider.getCurrentSideUiSpecs()).thenReturn(currentSideUiSpecs);
         mSideUiStateProviderSupplier.set(mSideUiStateProvider);
         runCurrentTasks();
@@ -1325,8 +1485,8 @@ public class CompositorViewHolderUnitTest {
         // Act.
         mCompositorViewHolder.onSideUiSpecsChanged(currentSideUiSpecs);
 
-        // Verify.
-        int expectedContentOffsetX = shouldBeRtl ? endContainerWidth : startContainerWidth;
+        // Verify that RTL does not affect the offset (i.e. always contentOffsetx == left)
+        int expectedContentOffsetX = leftContainerWidth;
         verify(mLayoutManager).setContentOffsetX(expectedContentOffsetX);
     }
 
@@ -1371,5 +1531,85 @@ public class CompositorViewHolderUnitTest {
         assertEquals(
                 "Unexpected start margin.", expectedStartMargin, layoutParams.getMarginStart());
         assertEquals("Unexpected end margin.", expectedEndMargin, layoutParams.getMarginEnd());
+    }
+
+    @Test
+    public void testGetLastNormalSize() {
+        when(mWindowAndroid.getActivity()).thenReturn(new WeakReference<>(mActivity));
+        mCompositorViewHolder.onNativeLibraryReady(mWindowAndroid, null, mPrefService);
+
+        assertEquals(new Size(0, 0), mCompositorViewHolder.getLastNormalSize());
+
+        mCompositorViewHolder.layout(0, 0, 100, 200);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+        assertEquals(new Size(100, 200), mCompositorViewHolder.getLastNormalSize());
+
+        when(mActivity.isInPictureInPictureMode()).thenReturn(true);
+        mCompositorViewHolder.layout(0, 0, 50, 50);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+        assertEquals(new Size(100, 200), mCompositorViewHolder.getLastNormalSize());
+
+        when(mActivity.isInPictureInPictureMode()).thenReturn(false);
+        mCompositorViewHolder.layout(0, 0, 300, 400);
+        mCompositorViewHolder.updateWebContentsSize(mTab);
+        assertEquals(new Size(300, 400), mCompositorViewHolder.getLastNormalSize());
+    }
+
+    @Test
+    public void testOnSurfaceResized_BackgroundTabCaptured_SyncsPhysicalSize() {
+        when(mWindowAndroid.getActivity()).thenReturn(new WeakReference<>(mActivity));
+        mCompositorViewHolder.onNativeLibraryReady(mWindowAndroid, null, mPrefService);
+        when(mPrefService.getBoolean(any())).thenReturn(false);
+
+        // Active foreground tab
+        when(mContentView.getWindowToken()).thenReturn(mock(IBinder.class));
+        when(mWebContents.isBeingCaptured()).thenReturn(false);
+
+        // Add a background captured tab
+        MockTab bgTab = mTabModelSelector.addMockTab();
+        WebContents bgWebContents = mock(WebContents.class);
+        when(bgTab.getWebContents()).thenReturn(bgWebContents);
+        when(bgWebContents.isBeingCaptured()).thenReturn(true);
+
+        int width = 1080;
+        int height = 1920;
+
+        mCompositorViewHolder.onSurfaceResized(width, height);
+
+        // Active foreground tab is updated
+        verify(mCompositorView, times(1))
+                .onPhysicalBackingSizeChanged(eq(mWebContents), eq(width), eq(height));
+        // Background captured tab is ALSO updated
+        verify(mCompositorView, times(1))
+                .onPhysicalBackingSizeChanged(eq(bgWebContents), eq(width), eq(height));
+    }
+
+    @Test
+    public void testOnSurfaceResized_BackgroundTabNotCaptured_DoesNotSyncPhysicalSize() {
+        when(mWindowAndroid.getActivity()).thenReturn(new WeakReference<>(mActivity));
+        mCompositorViewHolder.onNativeLibraryReady(mWindowAndroid, null, mPrefService);
+        when(mPrefService.getBoolean(any())).thenReturn(false);
+
+        // Active foreground tab
+        when(mContentView.getWindowToken()).thenReturn(mock(IBinder.class));
+        when(mWebContents.isBeingCaptured()).thenReturn(false);
+
+        // Add a background non-captured tab
+        MockTab bgTab = mTabModelSelector.addMockTab();
+        WebContents bgWebContents = mock(WebContents.class);
+        when(bgTab.getWebContents()).thenReturn(bgWebContents);
+        when(bgWebContents.isBeingCaptured()).thenReturn(false);
+
+        int width = 1080;
+        int height = 1920;
+
+        mCompositorViewHolder.onSurfaceResized(width, height);
+
+        // Active foreground tab is updated
+        verify(mCompositorView, times(1))
+                .onPhysicalBackingSizeChanged(eq(mWebContents), eq(width), eq(height));
+        // Background non-captured tab is NOT updated
+        verify(mCompositorView, never())
+                .onPhysicalBackingSizeChanged(eq(bgWebContents), anyInt(), anyInt());
     }
 }

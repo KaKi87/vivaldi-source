@@ -63,8 +63,8 @@
 #import "ios/ui/notes/note_home_consumer.h"
 #import "ios/ui/notes/note_home_mediator.h"
 #import "ios/ui/notes/note_home_shared_state.h"
-#import "ios/ui/notes/note_interaction_controller_delegate.h"
 #import "ios/ui/notes/note_interaction_controller.h"
+#import "ios/ui/notes/note_interaction_controller_delegate.h"
 #import "ios/ui/notes/note_model_bridge_observer.h"
 #import "ios/ui/notes/note_navigation_controller.h"
 #import "ios/ui/notes/note_path_cache.h"
@@ -75,8 +75,8 @@
 #import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 #import "ios/web/public/navigation/navigation_manager.h"
 #import "ios/web/public/navigation/referrer.h"
-#import "ui/base/l10n/l10n_util_mac.h"
 #import "ui/base/l10n/l10n_util.h"
+#import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using l10n_util::GetNSString;

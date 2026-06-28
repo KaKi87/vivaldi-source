@@ -4,8 +4,15 @@
 
 #include "components/autofill/core/browser/ui/payments/autofill_progress_dialog_controller_impl.h"
 
+#include <string>
+#include <utility>
+
+#include "base/functional/callback_forward.h"
 #include "base/memory/weak_ptr.h"
+#include "base/notreached.h"
+#include "build/buildflag.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics.h"
+#include "components/autofill/core/browser/ui/payments/autofill_progress_dialog_controller.h"
 #include "components/autofill/core/browser/ui/payments/autofill_progress_ui_type.h"
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -60,6 +67,11 @@ void AutofillProgressDialogControllerImpl::DismissDialog(
 
 void AutofillProgressDialogControllerImpl::OnDismissed(
     bool is_canceled_by_user) {
+  // On macOS without biometrics, the accept/cancel callbacks have the potential
+  // to destroy this controller (e.g., if the tab is closed during the nested
+  // run loop of the passcode prompt). We check a weak pointer to avoid a UAF.
+  auto weak_self = weak_ptr_factory_.GetWeakPtr();
+
   // Dialog is being dismissed so set the pointer to nullptr.
   autofill_progress_dialog_view_.reset();
   if (is_canceled_by_user) {
@@ -68,6 +80,10 @@ void AutofillProgressDialogControllerImpl::OnDismissed(
     if (no_interactive_authentication_callback_) {
       std::move(no_interactive_authentication_callback_).Run();
     }
+  }
+
+  if (!weak_self) {
+    return;
   }
 
   AutofillMetrics::LogProgressDialogResultMetric(

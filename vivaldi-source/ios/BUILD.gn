@@ -1,7 +1,7 @@
 # Copyright (c) 2023 Vivaldi Technologies AS. All rights reserved
 
-import("//build/util/branding.gni")
 import("//build/config/ios/ios_sdk.gni")
+import("//build/util/branding.gni")
 
 action("ios_dsym_archive") {
   script = "//chrome/tools/build/mac/archive_symbols.py"
@@ -10,13 +10,9 @@ action("ios_dsym_archive") {
   # the target outputs that correspond to the dSYMs (since a dSYM is a
   # directory it cannot be listed as a source file). The targets that
   # generate both the dSYM and binary image are listed in deps.
-  _dsyms = [
-    "$root_out_dir/$chrome_product_full_name.dSYM",
-  ]
+  _dsyms = [ "$root_out_dir/$chrome_product_full_name.dSYM" ]
 
-  deps = [
-    "//ios/chrome/app:chrome",
-  ]
+  deps = [ "//ios/chrome/app:chrome" ]
 
   sources = [
     "$root_out_dir/$chrome_product_full_name.app/$chrome_product_full_name",
@@ -26,8 +22,8 @@ action("ios_dsym_archive") {
 
   outputs = [ _output ]
 
-  args = [ rebase_path(_output, root_out_dir) ] +
-          rebase_path(_dsyms, root_out_dir)
+  args =
+      [ rebase_path(_output, root_out_dir) ] + rebase_path(_dsyms, root_out_dir)
 }
 
 if (ios_is_app_extension) {
@@ -45,14 +41,14 @@ if (ios_is_app_extension) {
     ]
 
     deps = [
-      "//ios/chrome/share_extension:share_extension",
-      "//ios/chrome/credential_provider_extension:credential_provider_extension",
-      "//ios/chrome/widget_kit_extension:widget_kit_extension",
+      "//ios/chrome/credential_provider_extension",
+      "//ios/chrome/share_extension",
+      "//ios/chrome/widget_kit_extension",
     ]
 
     sources = [
-      "$root_out_dir/share_extension.appex/share_extension",
       "$root_out_dir/credential_provider_extension.appex/credential_provider_extension",
+      "$root_out_dir/share_extension.appex/share_extension",
       "$root_out_dir/widget_kit_extension.appex/widget_kit_extension",
     ]
 
@@ -61,6 +57,6 @@ if (ios_is_app_extension) {
     outputs = [ _output ]
 
     args = [ rebase_path(_output, root_out_dir) ] +
-            rebase_path(_dsyms, root_out_dir)
+           rebase_path(_dsyms, root_out_dir)
   }
 }

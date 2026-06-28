@@ -21,6 +21,7 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
+#include "base/time/time.h"
 #include "components/contextual_search/contextual_search_context_controller.h"
 #include "components/endpoint_fetcher/endpoint_fetcher.h"
 #include "components/lens/lens_overlay_request_id_generator.h"
@@ -77,6 +78,13 @@ class ComposeboxQueryControllerTest;
 class ComposeboxQueryController
     : public contextual_search::ContextualSearchContextController {
  public:
+  // LINT.IfChange(ComposeboxImageUploadType)
+  enum class UploadImageType {
+    kViewport = 0,
+    kFile = 1,
+  };
+  // LINT.ThenChange(//tools/metrics/histograms/metadata/lens/histograms.xml:ComposeboxImageUploadType)
+
   ComposeboxQueryController(
       signin::IdentityManager* identity_manager,
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
@@ -175,9 +183,9 @@ class ComposeboxQueryController
     ~UploadRequest();
 
     // The time the request was sent.
-    base::Time start_time;
+    base::TimeTicks start_time;
     // The time the response was received.
-    base::Time response_time;
+    base::TimeTicks response_time;
     // The response code of the request. 0 if the response has not been
     // received.
     int response_code = 0;
@@ -215,6 +223,11 @@ class ComposeboxQueryController
     // use_separate_request_ids_for_viewport_images_ is true.
     std::unique_ptr<lens::LensOverlayRequestId> viewport_request_id_;
 
+    // Caches the latest search URL request ID generated for this file,
+    // allowing stateless recontextualization updates to maintain sequence
+    // monotonicity.
+    std::optional<lens::LensOverlayRequestId> request_id_for_updates;
+
     // The headers to attach to the request. Will be set asynchronously after
     // StartFileUploadFlow() is called.
     std::unique_ptr<std::vector<std::string>> request_headers_;
@@ -251,6 +264,7 @@ class ComposeboxQueryController
       std::optional<GURL> page_url,
       std::optional<std::string> page_title,
       std::optional<std::string> file_name,
+      UploadImageType image_type,
       lens::ImageData image_data);
 
   // Creates the request body proto for an image and calls the callback with the
@@ -262,6 +276,7 @@ class ComposeboxQueryController
       std::optional<GURL> page_url,
       std::optional<std::string> page_title,
       std::optional<std::string> file_name,
+      UploadImageType image_type,
       RequestBodyProtoCreatedCallback callback);
 
   // Returns the EndpointFetcher to use with the given params. Protected to
@@ -427,6 +442,7 @@ class ComposeboxQueryController
                                       std::optional<GURL> page_url,
                                       std::optional<std::string> page_title,
                                       std::optional<std::string> file_name,
+                                      UploadImageType image_type,
                                       const SkBitmap& bitmap);
 
   // Creates the request body protos for the file and viewport upload requests

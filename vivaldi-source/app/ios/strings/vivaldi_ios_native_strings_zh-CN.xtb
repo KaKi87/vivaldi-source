@@ -354,6 +354,7 @@
 <translation id="495421405224926623">我已阅读并同意使用条款和隐私政策</translation>
 <translation id="497942794017668482">正在拦截跟踪器和广告</translation>
 <translation id="4983968022327077496">您的组织要求您隐身浏览。隐身模式下不能保存标签页。<ph name="BEGIN_LINK" />了解详情Learn more<ph name="END_LINK" /></translation>
+<translation id="4991261712398289852">两级式</translation>
 <translation id="4993477362660748586">同步</translation>
 <translation id="500392125908657603">地址字段选项</translation>
 <translation id="5037761343305489956">已复制到笔记</translation>
@@ -576,7 +577,7 @@
 <translation id="7703885416803110670">快速拨号组是组织书签的好方法。</translation>
 <translation id="7730831244010940855">在 iPad 上将默认设置切换为 Vivaldi？</translation>
 <translation id="7732622593814325274">管理跟踪器拦截规则</translation>
-<translation id="7739890399071376339">双击可设置标签栈堆叠样式。</translation>
+<translation id="7739890399071376339">双击可设置标签栈样式。</translation>
 <translation id="7765158879357617694">移动</translation>
 <translation id="7771452384635174008">布局</translation>
 <translation id="7781069478569868053">新标签页</translation>
@@ -624,7 +625,7 @@
 <translation id="8304538706952727936">摆脱大型技术公司</translation>
 <translation id="8316087354921793295">当同步处于活动状态时，您的数据将保存到您的 Vivaldi 帐户。</translation>
 <translation id="8323167517179506834">输入网址</translation>
-<translation id="8326104954595890674">新隐身标签</translation>
+<translation id="8326104954595890674">新隐身标签页</translation>
 <translation id="8329813750766387010">更新于：<ph name="DATE" /></translation>
 <translation id="8339701072035560935">空白页</translation>
 <translation id="8347535536909603600">移除 cookie 警告 <ph name="TYPE" />)</translation>
@@ -662,7 +663,7 @@
 <translation id="8730621377337864115">完成</translation>
 <translation id="8733945742171960420">一旦您开始浏览，您的热门网站就会显示在这里。</translation>
 <translation id="8740815429790728127"><ph name="NUMBER_OF_SELECTED_NOTES" /> 个项目已删除</translation>
-<translation id="8763006697839582351">以 Vivaldi 隐身模式打开</translation>
+<translation id="8763006697839582351">在 Vivaldi 的隐身模式中打开</translation>
 <translation id="8765173886020357878">搜索建议</translation>
 <translation id="8786689981011401964">壁纸</translation>
 <translation id="8804164990146287819">隐私政策</translation>
@@ -700,7 +701,6 @@
 <translation id="9157459516617966251">编辑链接</translation>
 <translation id="9157539936604258187">打开链接</translation>
 <translation id="9165758833825521812">阅读器视图</translation>
-<translation id="9171713938468458286">两级式</translation>
 <translation id="9195659219948942754">继续使用您的 Vivaldi 账户中的同步数据</translation>
 <translation id="9195802773917252923">启用书签简称</translation>
 <translation id="9212737146310746733">波斯语 (<ph name="ORIGIN" />)</translation>

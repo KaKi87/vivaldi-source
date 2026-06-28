@@ -65,6 +65,11 @@ RenderWidgetHostImpl* MockRenderWidgetHostDelegate::GetFocusedRenderWidgetHost(
   return !!focused_widget_ ? focused_widget_.get() : widget_host;
 }
 
+RenderWidgetHostImpl*
+MockRenderWidgetHostDelegate::GetRenderWidgetHostWithPageFocus() {
+  return focused_widget_;
+}
+
 void MockRenderWidgetHostDelegate::SendScreenRects() {
   if (rwh_)
     rwh_->SendScreenRects();
@@ -110,5 +115,8 @@ input::TouchEmulator* MockRenderWidgetHostDelegate::GetTouchEmulator(
   NOTIMPLEMENTED();
   return nullptr;
 }
+
+void MockRenderWidgetHostDelegate::CancelAutoscroll(
+    input::RenderWidgetHostViewInput* view) {}
 
 }  // namespace content

@@ -148,7 +148,7 @@ class ChromeOsWebAppExperimentsBrowserTest
     ChromeOsWebAppExperiments::SetScopeExtensionsForTesting(
         {extended_scope_.spec().c_str()});
 
-    app_id_ = InstallWebAppFromPageAndCloseAppBrowser(
+    app_id_ = InstallWebAppInNewTabAndClose(
         browser(), embedded_test_server()->GetURL(
                        "/web_apps/get_manifest.html?theme_color.json"));
     apps::AppReadinessWaiter(profile(), app_id_).Await();
@@ -219,8 +219,7 @@ IN_PROC_BROWSER_TEST_P(ChromeOsWebAppExperimentsBrowserTest,
 INSTANTIATE_TEST_SUITE_P(
     All,
     ChromeOsWebAppExperimentsBrowserTest,
-    testing::Values(apps::test::LinkCapturingFeatureVersion::kV1DefaultOff,
-                    apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
+    testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
                     apps::test::LinkCapturingFeatureVersion::
                         kV2DefaultOffCaptureExistingFrames),
     apps::test::LinkCapturingVersionToString);
@@ -498,8 +497,7 @@ IN_PROC_BROWSER_TEST_P(ChromeOsWebAppExperimentsNavigationBrowserTest,
 INSTANTIATE_TEST_SUITE_P(
     All,
     ChromeOsWebAppExperimentsNavigationBrowserTest,
-    testing::Values(apps::test::LinkCapturingFeatureVersion::kV1DefaultOff,
-                    apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
+    testing::Values(apps::test::LinkCapturingFeatureVersion::kV2DefaultOff,
                     apps::test::LinkCapturingFeatureVersion::
                         kV2DefaultOffCaptureExistingFrames),
     apps::test::LinkCapturingVersionToString);

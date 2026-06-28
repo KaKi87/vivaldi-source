@@ -4,9 +4,12 @@
 
 #include "remoting/host/linux/linux_process_launcher_delegate.h"
 
+#include <grp.h>
 #include <sys/prctl.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#include <optional>
 
 #include "base/check.h"
 #include "base/command_line.h"
@@ -47,8 +50,12 @@ constexpr base::TimeDelta kWaitForExitInterval = base::Seconds(10);
 
 class RunAsUserPreExecDelegate : public base::LaunchOptions::PreExecDelegate {
  public:
-  RunAsUserPreExecDelegate(bool new_session, int uid, int gid)
-      : new_session_(new_session), uid_(uid), gid_(gid) {}
+  RunAsUserPreExecDelegate(bool new_session,
+                           std::optional<uid_t> uid,
+                           std::optional<gid_t> gid)
+      : new_session_(new_session), uid_(uid), gid_(gid) {
+    CHECK(uid_.has_value() == gid_.has_value());
+  }
   ~RunAsUserPreExecDelegate() override = default;
 
   RunAsUserPreExecDelegate(const RunAsUserPreExecDelegate&) = delete;
@@ -61,10 +68,15 @@ class RunAsUserPreExecDelegate : public base::LaunchOptions::PreExecDelegate {
         RAW_LOG(FATAL, "Failed to create a new session.");
       }
     }
-    if (gid_ >= 0 && setgid(gid_) != 0) {
+    if (uid_.has_value() || gid_.has_value()) {
+      if (setgroups(0, nullptr) != 0) {
+        RAW_LOG(FATAL, "Failed to clear supplementary groups");
+      }
+    }
+    if (gid_.has_value() && setgid(*gid_) != 0) {
       RAW_LOG(FATAL, "Failed to setgid");
     }
-    if (uid_ >= 0 && setuid(uid_) != 0) {
+    if (uid_.has_value() && setuid(*uid_) != 0) {
       RAW_LOG(FATAL, "Failed to setuid");
     }
     // Kill the child process when the parent is dead.
@@ -77,8 +89,8 @@ class RunAsUserPreExecDelegate : public base::LaunchOptions::PreExecDelegate {
 
  private:
   bool new_session_;
-  int uid_;
-  int gid_;
+  std::optional<uid_t> uid_;
+  std::optional<gid_t> gid_;
 };
 
 }  // namespace

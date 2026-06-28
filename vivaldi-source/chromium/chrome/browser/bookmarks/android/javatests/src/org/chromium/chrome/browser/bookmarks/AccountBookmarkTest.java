@@ -27,16 +27,17 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.DeviceInfo;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Restriction;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.sync.SyncTestRule;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.util.BookmarkTestRule;
 import org.chromium.chrome.test.util.BookmarkTestUtil;
 import org.chromium.components.browser_ui.widget.RecyclerViewTestUtils;
@@ -71,7 +72,13 @@ public class AccountBookmarkTest {
     @SmallTest
     @Restriction({DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
     public void testAccountFoldersDisplay() {
-        CriteriaHelper.pollUiThread(() -> mBookmarkModel.getAccountMobileFolderId() != null);
+        // Wait for an empty bookmarks: which one is waited on is based on
+        // whether or not this test is running on a desktop device.
+        if (DeviceInfo.isDesktop()) {
+            CriteriaHelper.pollUiThread(() -> mBookmarkModel.getAccountOtherFolderId() != null);
+        } else {
+            CriteriaHelper.pollUiThread(() -> mBookmarkModel.getAccountMobileFolderId() != null);
+        }
         RecyclerViewTestUtils.waitForStableMvcRecyclerView(
                 mBookmarkManagerCoordinator.getRecyclerViewForTesting());
         checkTopLevelAccountFoldersDisplayed();
@@ -82,7 +89,8 @@ public class AccountBookmarkTest {
     @Restriction({DeviceFormFactor.PHONE})
     @DisabledTest(
             message =
-                    "Enable this test when reading list is available w/o restart crbug.com/1510547")
+                    "Enable this test when reading list is available w/o restart"
+                        + " crbug.com/41483140")
     public void testOpenFromReadingListAndNavigateBack() throws Exception {
         CriteriaHelper.pollUiThread(() -> mBookmarkModel.getAccountReadingListFolder() != null);
         RecyclerViewTestUtils.waitForStableMvcRecyclerView(
@@ -105,7 +113,7 @@ public class AccountBookmarkTest {
 
     @Test
     @SmallTest
-    @Restriction({DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
+    @Restriction(DeviceFormFactor.PHONE)
     public void testDefaultFolders() {
         CriteriaHelper.pollUiThread(() -> mBookmarkModel.getAccountMobileFolderId() != null);
         runOnUiThreadBlocking(
@@ -117,13 +125,19 @@ public class AccountBookmarkTest {
     }
 
     private void checkTopLevelAccountFoldersDisplayed() {
-        // TODO(crbug.com/41483140): This is currently broken because the account reading list
-        // folder doesn't show up without a restart. This should be updated once that folder is
-        // available.
         checkToolbarTitleMatches("Bookmarks");
-        BookmarkTestUtil.getRecyclerRowViewInteraction(
-                        "Mobile bookmarks", /* isAccountBookmark= */ true)
-                .check(matches(isDisplayed()));
+
+        // On desktop devices, an empty mobile bookmarks folder is hidden but an
+        // empty other bookmarks folder is shown.
+        if (DeviceInfo.isDesktop()) {
+            BookmarkTestUtil.getRecyclerRowViewInteraction(
+                            "Other bookmarks", /* isAccountBookmark= */ true)
+                    .check(matches(isDisplayed()));
+        } else {
+            BookmarkTestUtil.getRecyclerRowViewInteraction(
+                            "Mobile bookmarks", /* isAccountBookmark= */ true)
+                    .check(matches(isDisplayed()));
+        }
         BookmarkTestUtil.getRecyclerRowViewInteraction(
                         "Reading list", /* isAccountBookmark= */ true)
                 .check(matches(isDisplayed()));

@@ -37,8 +37,8 @@ class LensOverlayWebUIBrowserTest : public WebUIMochaBrowserTest {
     set_test_loader_host(chrome::kChromeUILensOverlayHost);
     scoped_feature_list_.InitWithFeatures(
         /*enabled_features=*/{lens::features::kLensOverlay},
-        /*disabled_features=*/{lens::features::kLensOverlayContextualSearchbox,
-                               lens::features::kLensSearchZeroStateCsb});
+        /*disabled_features=*/{
+            lens::features::kLensOverlayContextualSearchbox});
   }
 
   void SetUp() override {
@@ -142,10 +142,6 @@ IN_PROC_BROWSER_TEST_F(LensOverlayTest, OverlayMoreOptionsButton) {
 
 IN_PROC_BROWSER_TEST_F(LensOverlayTest, OverlayScreenshot) {
   RunOverlayTest("lens/overlay/overlay_screenshot_test.js", "mocha.run()");
-}
-
-IN_PROC_BROWSER_TEST_F(LensOverlayTest, OverlayTheme) {
-  RunOverlayTest("lens/overlay/overlay_theme_test.js", "mocha.run()");
 }
 
 // TODO(crbug.com/414207670): Test is failing on Linux and Win bot.

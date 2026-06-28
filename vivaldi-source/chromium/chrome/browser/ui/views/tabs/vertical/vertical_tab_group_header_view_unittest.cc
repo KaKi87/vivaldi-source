@@ -9,6 +9,7 @@
 
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
+#include "chrome/browser/ui/tabs/tab_group_data.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/tab_groups/tab_group_visual_data.h"
@@ -78,8 +79,13 @@ class VerticalTabGroupHeaderViewTest
  private:
   base::test::ScopedFeatureList feature_list_;
 };
-
-TEST_P(VerticalTabGroupHeaderViewTest, TooltipText) {
+// TODO(crbug.com/501977260): Re-enable this test on Linux.
+#if BUILDFLAG(IS_LINUX)
+#define MAYBE_TooltipText DISABLED_TooltipText
+#else
+#define MAYBE_TooltipText TooltipText
+#endif
+TEST_P(VerticalTabGroupHeaderViewTest, MAYBE_TooltipText) {
   MockDelegate delegate;
   tab_groups::TabGroupVisualData visual_data(
       u"Group Title", tab_groups::TabGroupColorId::kBlue, false);
@@ -97,7 +103,9 @@ TEST_P(VerticalTabGroupHeaderViewTest, TooltipText) {
       .WillRepeatedly(testing::ReturnRef(mock_tab_group));
 
   // Initialize with data
-  header->OnDataChanged(&visual_data, false);
+  tabs::TabGroupData data;
+  data.visual_data = visual_data;
+  header->OnDataChanged(data);
 
   // Empty tool tip if hover cards are enabled.
   std::u16string expected_tooltip =
@@ -111,7 +119,8 @@ TEST_P(VerticalTabGroupHeaderViewTest, TooltipText) {
   // Test unnamed group
   tab_groups::TabGroupVisualData unnamed_visual_data(
       u"", tab_groups::TabGroupColorId::kRed, false);
-  header->OnDataChanged(&unnamed_visual_data, false);
+  data.visual_data = unnamed_visual_data;
+  header->OnDataChanged(data);
 
   // Empty tool tip if hover cards are enabled.
   expected_tooltip = UseGroupHeaderHoverCards()
@@ -122,7 +131,13 @@ TEST_P(VerticalTabGroupHeaderViewTest, TooltipText) {
   EXPECT_EQ(header->GetTooltipText(), expected_tooltip);
 }
 
-TEST_P(VerticalTabGroupHeaderViewTest, ShowHoverCardOnMouseEnter) {
+// TODO(crbug.com/501977260): Re-enable this test on Linux.
+#if BUILDFLAG(IS_LINUX)
+#define MAYBE_ShowHoverCardOnMouseEnter DISABLED_ShowHoverCardOnMouseEnter
+#else
+#define MAYBE_ShowHoverCardOnMouseEnter ShowHoverCardOnMouseEnter
+#endif
+TEST_P(VerticalTabGroupHeaderViewTest, MAYBE_ShowHoverCardOnMouseEnter) {
   MockDelegate delegate;
   tab_groups::TabGroupVisualData visual_data(
       u"Group Title", tab_groups::TabGroupColorId::kBlue, false);
@@ -134,12 +149,7 @@ TEST_P(VerticalTabGroupHeaderViewTest, ShowHoverCardOnMouseEnter) {
           delegate, nullptr, &visual_data));
   widget->Show();
 
-  tab_groups::TabGroupId group_id = tab_groups::TabGroupId::GenerateNew();
-  tabs::MockTabGroup mock_tab_group(nullptr, group_id, visual_data);
-
   if (UseGroupHeaderHoverCards()) {
-    EXPECT_CALL(delegate, GetTabGroup())
-        .WillOnce(testing::ReturnRef(mock_tab_group));
     EXPECT_CALL(delegate, UpdateHoverCard(testing::_));
   } else {
     EXPECT_CALL(delegate, UpdateHoverCard(testing::_)).Times(0);
@@ -149,7 +159,16 @@ TEST_P(VerticalTabGroupHeaderViewTest, ShowHoverCardOnMouseEnter) {
   generator.MoveMouseTo(header->GetBoundsInScreen().CenterPoint());
 }
 
-TEST_P(VerticalTabGroupHeaderViewTest, EditorBubbleButtonVisibilityOnHover) {
+// TODO(crbug.com/501977260): Re-enable this test on Linux.
+#if BUILDFLAG(IS_LINUX)
+#define MAYBE_EditorBubbleButtonVisibilityOnHover \
+  DISABLED_EditorBubbleButtonVisibilityOnHover
+#else
+#define MAYBE_EditorBubbleButtonVisibilityOnHover \
+  EditorBubbleButtonVisibilityOnHover
+#endif
+TEST_P(VerticalTabGroupHeaderViewTest,
+       MAYBE_EditorBubbleButtonVisibilityOnHover) {
   MockDelegate delegate;
   tab_groups::TabGroupVisualData visual_data(
       u"Group Title", tab_groups::TabGroupColorId::kBlue, false);
@@ -162,13 +181,6 @@ TEST_P(VerticalTabGroupHeaderViewTest, EditorBubbleButtonVisibilityOnHover) {
   widget->Show();
 
   ui::test::EventGenerator generator(GetContext(), widget->GetNativeWindow());
-  tab_groups::TabGroupId group_id = tab_groups::TabGroupId::GenerateNew();
-  tabs::MockTabGroup mock_tab_group(nullptr, group_id, visual_data);
-
-  if (UseGroupHeaderHoverCards()) {
-    EXPECT_CALL(delegate, GetTabGroup())
-        .WillOnce(testing::ReturnRef(mock_tab_group));
-  }
 
   auto move_mouse_to = [&](bool inside_view) {
     if (inside_view) {

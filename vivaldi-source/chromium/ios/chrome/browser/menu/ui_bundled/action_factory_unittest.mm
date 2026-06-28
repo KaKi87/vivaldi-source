@@ -193,7 +193,8 @@ TEST_F(ActionFactoryTest, RemoveAction) {
 
   UIImage* expectedImage =
       DefaultSymbolWithPointSize(kHideActionSymbol, kSymbolActionPointSize);
-  NSString* expectedTitle = l10n_util::GetNSString(IDS_IOS_REMOVE_ACTION_TITLE);
+  NSString* expectedTitle =
+      l10n_util::GetNSString(IDS_IOS_CONTENT_SUGGESTIONS_NEVER_SHOW_SITE);
 
   UIAction* action = [factory actionToRemoveWithBlock:^{
   }];
@@ -367,11 +368,8 @@ TEST_F(ActionFactoryTest, CloseAllTabsAction) {
   UIImage* expectedImage =
       DefaultSymbolWithPointSize(kXMarkSymbol, kSymbolActionPointSize);
 
-  int titleID = base::FeatureList::IsEnabled(kTabSwitcherOverflowMenu)
-                    ? IDS_IOS_INACTIVE_TABS_CLOSE_ALL_CONFIRMATION_OPTION
-                    : IDS_IOS_CONTENT_CONTEXT_CLOSEALLTABSANDGROUPS;
-
-  NSString* expectedTitle = l10n_util::GetNSString(titleID);
+  NSString* expectedTitle =
+      l10n_util::GetNSString(IDS_IOS_CONTENT_CONTEXT_CLOSEALLTABSANDGROUPS);
 
   UIAction* action = [factory actionToCloseAllTabsWithBlock:^{
   }];

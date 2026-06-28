@@ -29,6 +29,14 @@ import org.chromium.components.browser_ui.settings.search.SettingsIndexData.Entr
 import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.components.regional_capabilities.RegionalCapabilitiesService;
 
+// Vivaldi
+import android.app.AlertDialog;
+import android.widget.Button;
+
+import org.chromium.chrome.browser.profiles.ProfileManager;
+import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
+import org.chromium.components.search_engines.TemplateUrlService;
+
 /**
  * A preference fragment for selecting a default search engine. ATTENTION: User can't change search
  * engine if it is controlled by an enterprise policy. Check
@@ -87,6 +95,27 @@ public class SearchEngineSettings extends ListFragment
                             .inflate(R.layout.search_engine_choice_header, listView, false);
             listView.addHeaderView(headerView);
         }
+
+        // Vivaldi: Restore Defaults, Ref: VAB-12041
+        View footerView = getLayoutInflater().inflate(
+                R.layout.search_engine_restore_preference, listView, false);
+        listView.addFooterView(footerView);
+
+        footerView.findViewById(R.id.restore_defaults_button).setOnClickListener(v -> {
+            AlertDialog alertDialog = new AlertDialog.Builder(getContext())
+                                          .setTitle(R.string.search_engine_restore_title)
+                                          .setMessage(R.string.search_engine_restore_warning_text)
+                                          .setPositiveButton(R.string.search_engine_restore_text,
+                                                  (dialog, which) -> restoreTemplateUrlList())
+                                          .setNegativeButton(R.string.cancel_button_text,
+                                                  (dialog, which) -> dialog.dismiss())
+                                          .create();
+            alertDialog.show();
+            Button negative = alertDialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+            negative.setAllCaps(false);
+            Button positive = alertDialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            positive.setTextColor(getContext().getColor(R.color.vivaldi_ui_red));
+        }); // Vivaldi End
     }
 
     @Override
@@ -164,6 +193,7 @@ public class SearchEngineSettings extends ListFragment
                                             context.getString(
                                                     R.string.manage_search_engines_and_site_search),
                                             SearchEngineSettings.class.getName())
+                                    .setFragment(SiteSearchSettings.class.getName())
                                     .build();
                     indexData.addEntry(uniqueId, entry);
                 }
@@ -172,6 +202,14 @@ public class SearchEngineSettings extends ListFragment
     // Vivaldi
     public void setCustomAdapter(SearchEngineAdapter adapter) {
         mSearchEngineAdapter = adapter;
+    }
+
+    private void restoreTemplateUrlList() { // Ref: VAB-12041
+        TemplateUrlService templateUrlService = TemplateUrlServiceFactory.getForProfile(
+                ProfileManager.getLastUsedRegularProfile());
+        if (templateUrlService.isLoaded()) {
+            templateUrlService.vivaldiRestoreTemplateUrls();
+        }
     }
     // End Vivaldi
 }

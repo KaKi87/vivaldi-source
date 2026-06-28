@@ -112,7 +112,6 @@
 
 #if BUILDFLAG(IS_CHROMEOS)
 #include "ash/webui/projector_app/public/cpp/projector_app_constants.h"  // nogncheck
-#include "ash/webui/system_apps/public/system_web_app_type.h"
 #include "chrome/browser/ash/guest_os/guest_os_terminal.h"
 #include "chrome/browser/ash/login/demo_mode/demo_session.h"
 #include "chrome/browser/ash/system_web_apps/system_web_app_manager.h"
@@ -124,6 +123,7 @@
 #include "chrome/browser/web_applications/chromeos_web_app_experiments.h"
 #include "chrome/browser/web_applications/policy/app_service_web_app_policy.h"
 #include "chromeos/ash/components/file_manager/app_id.h"
+#include "chromeos/ash/components/system_web_apps/system_web_app_type.h"
 #include "chromeos/ash/experiences/system_web_apps/types/system_web_app_data.h"
 #include "chromeos/ash/experiences/system_web_apps/types/system_web_app_delegate.h"
 #include "chromeos/constants/chromeos_features.h"
@@ -319,6 +319,7 @@ apps::Readiness ConvertWebappUninstallSourceToReadiness(
     case webapps::WebappUninstallSource::kTestCleanup:
     case webapps::WebappUninstallSource::kDevtools:
     case webapps::WebappUninstallSource::kAppMigration:
+    case webapps::WebappUninstallSource::kToolbarPostInstall:
       return apps::Readiness::kUninstalledByUser;
     case webapps::WebappUninstallSource::kUninstallAndReplaceMigration:
     case webapps::WebappUninstallSource::kInternalPreinstalled:
@@ -1133,7 +1134,7 @@ void WebAppPublisherHelper::LaunchAppWithParams(
       params.intent);
 
   bool is_system_web_app = false;
-  std::optional<GURL> override_url = std::nullopt;
+  std::optional<GURL> override_url;
 
 #if BUILDFLAG(IS_CHROMEOS)
   // Terminal SWA has custom launch code and manages its own restore data.
@@ -1522,7 +1523,7 @@ void WebAppPublisherHelper::OnAppRegistrarDestroyed() {
 
 void WebAppPublisherHelper::OnWebAppLastLaunchTimeChanged(
     const std::string& app_id,
-    const base::Time& last_launch_time) {
+    const std::optional<base::Time>& last_launch_time) {
   const WebApp* web_app = GetWebApp(app_id);
   if (!web_app) {
     return;
@@ -1605,7 +1606,7 @@ void WebAppPublisherHelper::OnWebAppDisabledStateChanged(
 
   // If the disable mode is hidden, update the visibility of the new disabled
   // app.
-  std::optional<ash::SystemWebAppType> system_app_type = std::nullopt;
+  std::optional<ash::SystemWebAppType> system_app_type;
   auto* swa_manager = ash::SystemWebAppManager::Get(profile());
   if (swa_manager) {
     system_app_type = swa_manager->GetSystemAppTypeForAppId(app->app_id);
@@ -1865,7 +1866,7 @@ apps::PackageId WebAppPublisherHelper::GetPackageId(
 
 #if BUILDFLAG(IS_CHROMEOS)
 void WebAppPublisherHelper::UpdateAppDisabledMode(apps::App& app) {
-  std::optional<ash::SystemWebAppType> system_app_type = std::nullopt;
+  std::optional<ash::SystemWebAppType> system_app_type;
   auto* swa_manager = ash::SystemWebAppManager::Get(profile());
   if (swa_manager) {
     system_app_type = swa_manager->GetSystemAppTypeForAppId(app.app_id);
@@ -2116,7 +2117,7 @@ void WebAppPublisherHelper::OnProtocolHandlerDialogCompleted(
   }
   provider_->scheduler().LaunchAppWithCustomParams(
       std::move(params),
-      base::BindOnce([](base::WeakPtr<Browser>,
+      base::BindOnce([](base::WeakPtr<BrowserWindowInterface>,
                         base::WeakPtr<content::WebContents> web_contents,
                         apps::LaunchContainer) {
         return web_contents.get();
@@ -2128,7 +2129,7 @@ void WebAppPublisherHelper::OnLaunchCompleted(
     bool is_system_web_app,
     std::optional<GURL> override_url,
     base::OnceCallback<void(content::WebContents*)> on_complete,
-    base::WeakPtr<Browser> browser,
+    base::WeakPtr<BrowserWindowInterface> browser,
     base::WeakPtr<content::WebContents> web_contents,
     apps::LaunchContainer container) {
 #if BUILDFLAG(IS_CHROMEOS)

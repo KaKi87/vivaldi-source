@@ -163,19 +163,13 @@
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/apps/app_service/publishers/publisher_host_factory_impl.h"
 #include "chrome/browser/headless/chrome_browser_main_extra_parts_headless.h"
-#include "chrome/browser/lifetime/smart_restart_metrics_observer.h"
 #include "chrome/browser/profiles/delete_profile_helper.h"
 #include "chrome/browser/resource_coordinator/tab_manager.h"
 #include "chrome/browser/ui/uma_browsing_activity_observer.h"
 #include "chrome/browser/upgrade_detector/upgrade_detector.h"
 #include "chrome/browser/usb/web_usb_detector.h"
-#include "chrome/browser/win/browser_util.h"
 #include "components/soda/soda_installer.h"
 #include "components/soda/soda_util.h"
-#endif
-
-#if !BUILDFLAG(IS_ANDROID) || BUILDFLAG(ENABLE_RLZ)
-#include "base/time/time.h"
 #endif
 
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || \
@@ -192,6 +186,7 @@
 #include "base/task/task_traits.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/ash/settings/hardware_data_usage_controller.h"
+#include "chrome/browser/ash/settings/metrics_reporting_level_controller.h"
 #include "chrome/browser/ash/settings/stats_reporting_controller.h"
 #include "chrome/browser/browser_process_platform_part_ash.h"
 #include "chrome/browser/ui/ash/main_extra_parts/chrome_browser_main_extra_parts_ash.h"
@@ -249,6 +244,7 @@
 #include "chrome/browser/startup/startup_launch_manager.h"
 #include "chrome/browser/ui/network_profile_bubble.h"
 #include "chrome/browser/webnn/win_app_runtime_installer.h"
+#include "chrome/browser/win/browser_util.h"
 #include "chrome/browser/win/chrome_select_file_dialog_factory.h"
 #include "chrome/browser/win/parental_controls.h"
 #include "ui/shell_dialogs/select_file_dialog.h"
@@ -307,7 +303,7 @@
 
 #include "chrome/browser/first_run/first_run.h"
 #include "chrome/browser/rlz/chrome_rlz_tracker_delegate.h"
-#include "components/rlz/rlz_tracker.h"  // nogncheck crbug.com/1125897
+#include "components/rlz/rlz_tracker.h"  // nogncheck crbug.com/40147906
 #endif
 
 #if defined(TOOLKIT_VIEWS)
@@ -349,6 +345,12 @@
 #endif
 #if BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/enterprise/platform_auth/platform_auth_features.h"
+#endif
+
+#if BUILDFLAG(CHROME_FOR_TESTING)
+#include "chrome/browser/chrome_for_testing/chrome_browser_main_extra_parts_cft.h"
+#include "chrome/browser/chrome_for_testing/config.h"
+#include "components/component_updater/component_updater_service.h"
 #endif
 
 #include "app/vivaldi_apptools.h"
@@ -813,6 +815,11 @@ std::unique_ptr<content::BrowserMainParts> ChromeBrowserMainParts::Create(
       std::make_unique<headless::ChromeBrowserMainExtraPartsHeadless>());
 #endif
 
+#if BUILDFLAG(CHROME_FOR_TESTING)
+  main_parts->AddParts(
+      std::make_unique<chrome_for_testing::ChromeBrowserMainExtraPartsCft>());
+#endif
+
 #if BUILDFLAG(USE_ON_DEVICE_MODEL_SERVICE)
   main_parts->AddParts(
       std::make_unique<ChromeBrowserMainExtraPartsOptimizationGuide>());
@@ -1220,6 +1227,7 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
 #if BUILDFLAG(IS_CHROMEOS)
   browser_process_->platform_part()->InitializeCrosSettings();
   ash::StatsReportingController::Initialize(local_state);
+  ash::MetricsReportingLevelController::Initialize(local_state);
   arc::StabilityMetricsManager::Initialize(local_state);
   ash::HWDataUsageController::Initialize(local_state);
 #endif
@@ -1286,7 +1294,7 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
 #if defined(ARCH_CPU_X86_64)
   // The use of Rosetta to run the x64 version of Chromium on Arm is neither
   // tested nor maintained, and there are reports of it crashing in weird ways
-  // (e.g. https://crbug.com/1305353). Warn the user if this is the case, as
+  // (e.g. https://crbug.com/40827020). Warn the user if this is the case, as
   // it's almost certainly accidental on their part.
   if (base::mac::GetCPUType() == base::mac::CPUType::kTranslatedIntel) {
     LOG(ERROR) << "The use of Rosetta to run the x64 version of Chromium on "
@@ -1305,7 +1313,7 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
   // any callbacks, I just want to initialize the mechanism.)
 
   // Much of the Keychain API was marked deprecated as of the macOS 13 SDK.
-  // Removal of its use is tracked in https://crbug.com/1348251 but deprecation
+  // Removal of its use is tracked in https://crbug.com/40233280 but deprecation
   // warnings are disabled in the meanwhile.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -1605,7 +1613,7 @@ void ChromeBrowserMainParts::PostProfileInit(Profile* profile,
       profile->GetPrefs()->GetString(language::prefs::kAcceptLanguages));
   translate::TranslateMetricsLoggerImpl::LogApplicationStartMetrics(
       ChromeTranslateClient::CreateTranslatePrefs(profile->GetPrefs()));
-// On ChromeOS results in a crash. https://crbug.com/1151558
+// On ChromeOS results in a crash. https://crbug.com/40158352
 #if !BUILDFLAG(IS_CHROMEOS)
   language::LanguageUsageMetrics::RecordPageLanguages(
       *UrlLanguageHistogramFactory::GetForBrowserContext(profile));
@@ -1684,15 +1692,6 @@ void ChromeBrowserMainParts::PostBrowserStart() {
   // We setup to observe to the initial page load here to defer running
   // task posted via PostAfterStartupTask until its complete.
   AfterStartupTaskUtils::StartMonitoringStartup();
-
-#if !BUILDFLAG(IS_ANDROID)
-  // Initialize the observer for smart restart metrics on desktop.
-  if (base::FeatureList::IsEnabled(features::kSmartRestartMetrics)) {
-    smart_restart_metrics_observer_ =
-        std::make_unique<smart_restart::SmartRestartMetricsObserver>(
-            UpgradeDetector::GetInstance());
-  }
-#endif
 }
 
 int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
@@ -1860,16 +1859,15 @@ int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
 
 #if BUILDFLAG(ENABLE_BACKGROUND_MODE)
   // Autoload any profiles which are running background apps.
-  // TODO(rlp): Do this on a separate thread. See http://crbug.com/99075.
+  // TODO(rlp): Do this on a separate thread. See http://crbug.com/41474467.
   browser_process_->profile_manager()->AutoloadProfiles();
 #endif
 
   // Post-profile init ---------------------------------------------------------
 
   TranslateService::Initialize();
-  if (base::FeatureList::IsEnabled(features::kGeoLanguage) ||
-      language::GetOverrideLanguageModel() ==
-          language::OverrideLanguageModel::GEO) {
+  if (language::GetOverrideLanguageModel() ==
+      language::OverrideLanguageModel::GEO) {
     language::GeoLanguageProvider::GetInstance()->StartUp(
         browser_process_->local_state());
   }
@@ -2046,6 +2044,16 @@ int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
         g_browser_process->profile_manager()->GetLastOpenedProfiles();
   }
 #endif
+
+#if BUILDFLAG(CHROME_FOR_TESTING)
+  // Delay browser startup until all components required by the Chrome for
+  // Testing configuration are installed and up to date.
+  if (g_browser_process->component_updater()) {
+    g_browser_process->component_updater()->EnsureRequiredComponentsReady(
+        chrome_for_testing::GetRequiredComponentsUpdateTimeout());
+  }
+#endif
+
   // This step is costly.
   if (browser_creator_->Start(*base::CommandLine::ForCurrentProcess(),
                               base::FilePath(), profile_info,
@@ -2194,7 +2202,7 @@ void ChromeBrowserMainParts::PostMainMessageLoopRun() {
   // destroy before the tear-down.
   synthetic_trial_syncer_.reset();
 
-  restart_last_session_ = browser_shutdown::ShutdownPreThreadsStop();
+  restart_mode_ = browser_shutdown::ShutdownPreThreadsStop();
   browser_process_->StartTearDown();
 
   publisher_host_factory_resetter_.reset();
@@ -2217,12 +2225,9 @@ void ChromeBrowserMainParts::PostDestroyThreads() {
     chrome_extra_part->PostDestroyThreads();
   }
 
-  browser_shutdown::RestartMode restart_mode =
-      browser_shutdown::RestartMode::kNoRestart;
+  browser_shutdown::RestartMode restart_mode = restart_mode_;
 
-  if (restart_last_session_) {
-    restart_mode = browser_shutdown::RestartMode::kRestartLastSession;
-
+  if (restart_mode == browser_shutdown::RestartMode::kRestartLastSession) {
 #if BUILDFLAG(ENABLE_BACKGROUND_MODE)
     if (BackgroundModeManager::should_restart_in_background()) {
       restart_mode = browser_shutdown::RestartMode::kRestartInBackground;
@@ -2250,6 +2255,7 @@ void ChromeBrowserMainParts::PostDestroyThreads() {
   // Shutting down in the reverse order of Initialize().
   ash::HWDataUsageController::Shutdown();
   arc::StabilityMetricsManager::Shutdown();
+  ash::MetricsReportingLevelController::Shutdown();
   ash::StatsReportingController::Shutdown();
   browser_process_->platform_part()->ShutdownCrosSettings();
 #endif
@@ -2262,7 +2268,7 @@ void ChromeBrowserMainParts::PostDestroyThreads() {
 
     // It's impossible for there to also be a user-driven relaunch since the
     // browser never fully starts in this case.
-    DCHECK(!restart_last_session_);
+    DCHECK(restart_mode_ == browser_shutdown::RestartMode::kNoRestart);
     restart_mode = browser_shutdown::RestartMode::kRestartThisSession;
   }
 #endif

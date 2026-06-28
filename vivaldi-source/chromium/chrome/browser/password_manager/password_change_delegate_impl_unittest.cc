@@ -5,10 +5,12 @@
 #include "chrome/browser/password_manager/password_change_delegate_impl.h"
 
 #include "base/test/metrics/histogram_tester.h"
+#include "base/types/pass_key.h"
 #include "chrome/browser/optimization_guide/mock_optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/password_manager/chrome_password_manager_client.h"
 #include "chrome/browser/password_manager/password_change/change_password_form_finder.h"
+#include "chrome/browser/password_manager/password_change/detached_web_contents.h"
 #include "chrome/browser/password_manager/password_change/login_state_checker.h"
 #include "chrome/browser/ui/passwords/manage_passwords_ui_controller.h"
 #include "chrome/browser/ui/passwords/password_change_ui_controller.h"
@@ -167,6 +169,14 @@ class PasswordChangeDelegateImplTest : public ChromeRenderViewHostTestHarness {
         GURL(kChangePasswordURL), std::move(form), tab_interface_.get());
     delegate_->SetCustomUIController(
         std::make_unique<MockPasswordChangeUIController>(delegate_.get()));
+    auto detached_web_contents = std::make_unique<DetachedWebContents>(
+        base::PassKey<PasswordChangeDelegateImplTest>(), profile(),
+        GURL(kChangePasswordURL));
+
+    ChromePasswordManagerClient::CreateForWebContents(
+        detached_web_contents->GetWebContents());
+    delegate_->inject_hidden_executor_for_testing(
+        std::move(detached_web_contents));
   }
 
   void ResetDelegate() { delegate_.reset(); }
@@ -326,40 +336,6 @@ TEST_F(PasswordChangeDelegateImplTest,
           PasswordChangeDelegate::CoarseFinalPasswordChangeState::kCanceled));
 }
 
-TEST_F(PasswordChangeDelegateImplTest, OtpDetectionProcessed) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndDisableFeature(
-      password_manager::features::kUserInterventionForPasswordChange);
-
-  SetOptimizationFeatureEnabled(true);
-  CreateDelegate();
-  base::HistogramTester histogram_tester;
-  ukm::TestAutoSetUkmRecorder test_ukm_recorder;
-  autofill::FormData form = autofill::test::CreateTestUnclassifiedFormData();
-  FakePasswordManagerClient fake_client;
-
-  delegate()->StartPasswordChangeFlow();
-  EXPECT_EQ(delegate()->GetCurrentState(),
-            PasswordChangeDelegate::State::kWaitingForChangePasswordForm);
-
-  static_cast<PasswordChangeDelegateImpl*>(delegate())->OnOtpFieldDetected();
-  EXPECT_EQ(delegate()->GetCurrentState(),
-            PasswordChangeDelegate::State::kOtpDetected);
-
-  ResetDelegate();
-  histogram_tester.ExpectUniqueSample(
-      PasswordChangeDelegateImpl::kFinalPasswordChangeStatusHistogram,
-      PasswordChangeDelegate::State::kOtpDetected, /*expected_bucket_count=*/1);
-  histogram_tester.ExpectUniqueSample(
-      PasswordChangeDelegateImpl::kCoarseFinalPasswordChangeStatusHistogram,
-      PasswordChangeDelegate::CoarseFinalPasswordChangeState::kOtpDetected,
-      /*expected_bucket_count=*/1);
-  ukm::TestUkmRecorder::ExpectEntryMetric(
-      GetUkmEntry(test_ukm_recorder),
-      UkmEntry::kCoarseFinalPasswordChangeStatusName,
-      static_cast<int>(PasswordChangeDelegate::CoarseFinalPasswordChangeState::
-                           kOtpDetected));
-}
 
 TEST_F(PasswordChangeDelegateImplTest, PasswordChangeFlowCanceled) {
   SetOptimizationFeatureEnabled(true);

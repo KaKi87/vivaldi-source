@@ -105,6 +105,8 @@ class TabAlertController : public tabs::ContentsObservingTabFeature,
   void OnIsContentDisplayedInHeadsetChanged(bool state) override;
 
  private:
+  class ScopedAlertNotifier;
+
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   void OnGlicSharingStateChange(bool is_sharing);
   void OnGlicAccessingStateChange(bool is_accessing);

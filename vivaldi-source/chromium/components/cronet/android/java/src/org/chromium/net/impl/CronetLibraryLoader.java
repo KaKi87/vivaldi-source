@@ -29,6 +29,9 @@ import org.chromium.net.NetLogCaptureMode;
 import org.chromium.net.NetworkChangeNotifier;
 import org.chromium.net.RegistrationPolicyAlwaysRegister;
 import org.chromium.net.httpflags.BaseFeature;
+import org.chromium.net.httpflags.ResolvedFlags;
+import org.chromium.net.httpflags.ResolvedFlags.Value;
+import org.chromium.net.impl.CronetLogger.CronetSource;
 
 import javax.annotation.concurrent.GuardedBy;
 
@@ -42,17 +45,23 @@ public class CronetLibraryLoader {
     @GuardedBy("sLoadLock")
     private static boolean sInitialized;
 
-    private static final String LIBRARY_NAME =
-            (BuildConfig.CRONET_FOR_AOSP_BUILD
-                    ? "httpengine"
-                    : "cronet." + ImplVersion.getCronetVersion());
-    private static final String TESTING_LIBRARY_NAME = LIBRARY_NAME + "_for_testing";
+    private static final String LIBRARY_NAME_HTTPENGINE = "httpengine";
+    // Library name used to include a version number. We will support this legacy path until all
+    // releases converge, at which point the LIBRARY_NAME_CRONET will be used exclusively.
+    private static final String LIBRARY_NAME_CRONET_VERSIONED =
+            "cronet." + ImplVersion.getCronetVersion();
+    private static final String LIBRARY_NAME_CRONET = "cronet";
+    private static final String TESTING_LIBRARY_SUFFIX = "_for_testing";
     private static boolean sSwitchToTestLibrary;
     @VisibleForTesting public static final String TAG = CronetLibraryLoader.class.getSimpleName();
     // Thread used for initialization work and processing callbacks for
     // long-lived global singletons. This thread lives forever as things like
     // the global singleton NetworkChangeNotifier live on it and are never killed.
     private static final HandlerThread sInitThread = new HandlerThread("CronetInit");
+
+    // Flag containing a comma-separated list of UMA histogram name hashes allowed to be recorded.
+    // If empty or null, UMA recording is disabled. "*" allows all histograms.
+    static final String CRONET_UMA_ALLOWLIST_FLAG = "Cronet_CronetUmaAllowList";
     // Block calling native methods until this ConditionVariable opens to indicate loadLibrary()
     // is completed and native methods have been registered.
     private static final ConditionVariable sWaitForLibLoad = new ConditionVariable();
@@ -96,17 +105,47 @@ public class CronetLibraryLoader {
         }
     }
 
-    @VisibleForTesting
-    public static void loadLibrary() {
+    private static String getLibraryName(String libraryNamePrefix) {
+        return sSwitchToTestLibrary
+                ? libraryNamePrefix + TESTING_LIBRARY_SUFFIX
+                : libraryNamePrefix;
+    }
+
+    // While we support Android API 23, Consumer is not available.
+    private abstract static class LibraryLoaderLambda {
+        abstract void loadLibrary(String libraryName);
+    }
+
+    private static void loadLibraryInternal(LibraryLoaderLambda loadLibraryFunction) {
+        if (BuildConfig.CRONET_FOR_AOSP_BUILD) {
+            // For AOSP we have only one library name, and exceptions should propagate.
+            loadLibraryFunction.loadLibrary(getLibraryName(LIBRARY_NAME_HTTPENGINE));
+        } else {
+            // For NON_AOSP, try the legacy versioned library name first, then the uniform name.
+            try {
+                loadLibraryFunction.loadLibrary(getLibraryName(LIBRARY_NAME_CRONET_VERSIONED));
+            } catch (UnsatisfiedLinkError e) {
+                // TODO(sporeba): This is a fallback supporting the new name pattern.
+                loadLibraryFunction.loadLibrary(getLibraryName(LIBRARY_NAME_CRONET));
+            }
+        }
         if (sSwitchToTestLibrary) {
-            System.loadLibrary(TESTING_LIBRARY_NAME);
             // Enable VLOG(2) unconditionally, as we want to get as much logging as possible when
             // running tests. Also, do this as early as possible so that early logs are not dropped.
             // See also https://crbug.com/433957945.
             CronetLibraryLoaderJni.get().setMinLogLevel(-2);
-        } else {
-            System.loadLibrary(LIBRARY_NAME);
         }
+    }
+
+    @VisibleForTesting
+    public static void loadLibrary() {
+        loadLibraryInternal(
+                new LibraryLoaderLambda() {
+                    @Override
+                    void loadLibrary(String libraryName) {
+                        System.loadLibrary(libraryName);
+                    }
+                });
     }
 
     @VisibleForTesting
@@ -152,7 +191,13 @@ public class CronetLibraryLoader {
                                     "CronetLibraryLoader#ensureInitialized loading native"
                                             + " library")) {
                         if (builder.libraryLoader() != null) {
-                            builder.libraryLoader().loadLibrary(LIBRARY_NAME);
+                            loadLibraryInternal(
+                                    new LibraryLoaderLambda() {
+                                        @Override
+                                        void loadLibrary(String libraryName) {
+                                            builder.libraryLoader().loadLibrary(libraryName);
+                                        }
+                                    });
                         } else {
                             loadLibrary();
                         }
@@ -164,6 +209,18 @@ public class CronetLibraryLoader {
                     CommandLine.getInstance().switchToNativeImpl();
                     CronetLibraryLoaderJni.get()
                             .nativeInit(CronetManifest.shouldUsePerfetto(applicationContext));
+                }
+                try (var nativeUmaRecorderTraceEvent =
+                        ScopedSysTraceEvent.scoped(
+                                "CronetLibraryLoader#ensureInitialized calling "
+                                        + "CronetUmaRecorder#initialize")) {
+                    CronetSource source = NativeCronetEngineBuilderImpl.getCronetSource();
+                    ResolvedFlags flags = HttpFlagsForImpl.getHttpFlags(applicationContext, source);
+                    Value allowlistValue = flags.flags().get(CRONET_UMA_ALLOWLIST_FLAG);
+                    if (allowlistValue != null) {
+                        CronetUmaRecorder.initialize(
+                                applicationContext, allowlistValue.getStringValue(), source);
+                    }
                 }
                 String implVersion = ImplVersion.getCronetVersion();
                 if (!implVersion.equals(CronetLibraryLoaderJni.get().getCronetVersion())) {

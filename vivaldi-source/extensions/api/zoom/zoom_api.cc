@@ -90,9 +90,9 @@ void ZoomAPI::Shutdown() {
 }
 
 // static
-void ZoomAPI::AddZoomObserver(Browser* browser) {
+void ZoomAPI::AddZoomObserver(BrowserWindowInterface* browser) {
   WebContents* web_contents =
-      static_cast<VivaldiBrowserWindow*>(browser->window())->web_contents();
+      static_cast<VivaldiBrowserWindow*>(browser->GetWindow())->web_contents();
   if (web_contents) {
     auto* zoom_controller = zoom::ZoomController::FromWebContents(web_contents);
     if (zoom_controller) {
@@ -105,9 +105,9 @@ void ZoomAPI::AddZoomObserver(Browser* browser) {
 }
 
 // static
-void ZoomAPI::RemoveZoomObserver(Browser* browser) {
+void ZoomAPI::RemoveZoomObserver(BrowserWindowInterface* browser) {
   WebContents* web_contents =
-      static_cast<VivaldiBrowserWindow*>(browser->window())->web_contents();
+      static_cast<VivaldiBrowserWindow*>(browser->GetWindow())->web_contents();
   if (web_contents) {
     auto* zoom_controller = zoom::ZoomController::FromWebContents(web_contents);
     if (zoom_controller) {

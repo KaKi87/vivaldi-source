@@ -4,10 +4,10 @@
 
 #include "chrome/browser/actor/actor_keyed_service_factory.h"
 
-#include "chrome/browser/actor/actor_features.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/common/chrome_features.h"
+#include "components/actor/core/actor_features.h"
 #include "content/public/browser/browser_context.h"
 
 namespace actor {
@@ -43,11 +43,14 @@ bool ActorKeyedServiceFactory::ServiceIsCreatedWithBrowserContext() const {
 std::unique_ptr<KeyedService>
 ActorKeyedServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (!base::FeatureList::IsEnabled(features::kGlicActor)) {
     return nullptr;
   }
   Profile* profile = Profile::FromBrowserContext(context);
   return std::make_unique<ActorKeyedService>(profile);
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
+  return nullptr;
 }
 
 }  // namespace actor

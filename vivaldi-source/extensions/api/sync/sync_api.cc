@@ -34,9 +34,8 @@ using syncer::SyncService;
 namespace extensions {
 
 namespace {
-bool WriteFileWrapper(const base::FilePath& filename,
-                      std::unique_ptr<std::string> data) {
-  return base::WriteFile(filename, *data);
+bool WriteFileWrapper(const base::FilePath& filename, std::string data) {
+  return base::WriteFile(filename, data);
 }
 
 vivaldi::sync::CycleStatus ToVivaldiCycleStatus(
@@ -416,10 +415,10 @@ ExtensionFunction::ResponseAction SyncBackupEncryptionTokenFunction::Run() {
   if (!sync_service->GetUserSettings()->IsEncryptEverythingEnabled())
     return RespondNow(Error("Encryption not enabled"));
 
-  auto key = std::make_unique<std::string>(
-      ::vivaldi::sync_ui_helpers::GetBackupEncryptionToken(sync_service));
+  std::optional<std::string> key =
+      sync_service->GetEncryptionBootstrapTokenForBackup();
 
-  if (key->empty()) {
+  if (!key) {
     return RespondNow(ArgumentList(
         vivaldi::sync::BackupEncryptionToken::Results::Create(false)));
   }
@@ -428,7 +427,7 @@ ExtensionFunction::ResponseAction SyncBackupEncryptionTokenFunction::Run() {
       FROM_HERE, {base::MayBlock()},
       base::BindOnce(&WriteFileWrapper,
                      base::FilePath::FromUTF8Unsafe(params->target_file),
-                     std::move(key)),
+                     std::move(*key)),
       base::BindOnce(&SyncBackupEncryptionTokenFunction::OnBackupDone, this));
 
   AddRef();
@@ -480,8 +479,7 @@ void SyncRestoreEncryptionTokenFunction::OnRestoreDone(
         Profile::FromBrowserContext(browser_context()));
     if (!sync_service)
       return Respond(Error("Sync manager is unavailable"));
-    result = ::vivaldi::sync_ui_helpers::RestoreEncryptionToken(sync_service,
-                                                                *token);
+    result = sync_service->ResetEncryptionBootstrapTokenFromBackup(*token);
   }
 
   Respond(ArgumentList(

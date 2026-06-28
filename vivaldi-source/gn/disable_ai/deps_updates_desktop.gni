@@ -12,9 +12,12 @@ deps_desk_update_deps_list = [
   "//chrome/browser/extensions/api:api_implementations",
   "//chrome/browser/extensions/api/pdf_viewer_private:pdf_viewer_private",
   "//chrome/browser/guest_view:impl",
+  "//chrome/browser/indigo:impl",
+  "//chrome/browser/lifetime:impl",
   "//chrome/browser/pdf:pdf",
   "//chrome/browser/private_ai:private_ai",
   "//chrome/browser/profiles:profiles_extra_parts_impl",
+  "//chrome/browser/record_replay:impl",
   "//chrome/browser/renderer_context_menu:impl",
   "//chrome/browser/skills:ui",
   "//chrome/browser/ui:ui",
@@ -38,25 +41,15 @@ deps_desk_update_deps_list = [
   "//chrome/browser/ui/views/toolbar:toolbar",
   "//chrome/browser/ui/webui:configs",
   "//chrome/browser/ui/webui/ai_overlay_dialog:ai_overlay_dialog",
+  "//chrome/browser/ui/webui/browser_command:browser_command",
   "//chrome/browser/ui/webui/signin:profile_impl",
   "//chrome/browser/ui/webui/skills:skills",
   "//chrome/browser/ui/webui/whats_new:whats_new",
-
 ]
 
 if (is_mac) {
-  deps_desk_update_deps_list += [
-    "//chrome/browser/renderer_host:delegate_impl",
-  ]
+  deps_desk_update_deps_list +=
+      [ "//chrome/browser/renderer_host:delegate_impl" ]
 }
 
-deps_desk_update_deps_templ_list = [
-]
-
-update_target("//chrome/browser/ui/tabs:glic") {
-  public_deps = []
-}
-
-update_target("//chrome/browser/ui/tabs:glic_impl") {
-  deps = []
-}
+deps_desk_update_deps_templ_list = []

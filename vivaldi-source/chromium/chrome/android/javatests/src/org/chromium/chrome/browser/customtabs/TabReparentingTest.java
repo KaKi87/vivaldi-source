@@ -38,6 +38,7 @@ import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
+import org.chromium.base.test.util.DisableLeakChecks;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.app.ChromeActivity;
@@ -63,6 +64,12 @@ import java.util.concurrent.TimeoutException;
  * ChromeTabbedActivity.
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
+@DisableLeakChecks({
+    "crbug.com/512492806 (NavigationInfoCaptureTrigger)",
+    "crbug.com/512492084 (NavigationInfoCaptureTrigger)",
+    "crbug.com/512492786 (NavigationInfoCaptureTrigger)",
+    "crbug.com/512492674 (NavigationInfoCaptureTrigger)"
+})
 public class TabReparentingTest {
     private static final String TEST_PAGE = "/chrome/test/data/android/google.html";
     private static final String SELECT_POPUP_PAGE = "/chrome/test/data/android/select.html";
@@ -182,7 +189,7 @@ public class TabReparentingTest {
     /** Test whether a custom tab can be reparented to a new activity. */
     @Test
     @SmallTest
-    @DisabledTest(message = "crbug.com/1434800")
+    @DisabledTest(message = "crbug.com/40904413")
     public void testTabReparentingBasic() {
         mCustomTabActivityTestRule.startCustomTabActivityWithIntent(createMinimalCustomTabIntent());
         assertEquals(

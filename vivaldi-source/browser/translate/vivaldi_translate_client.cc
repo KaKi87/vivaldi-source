@@ -454,8 +454,8 @@ void VivaldiTranslateClient::OnLanguageDetermined(
 }
 
 void VivaldiTranslateClient::OnPageTranslated(
-    const std::string& original_lang,
-    const std::string& translated_lang,
+    std::string_view original_lang,
+    std::string_view translated_lang,
     translate::TranslateErrors error_type) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   int tab_id = sessions::SessionTabHelper::IdForTab(web_contents()).id();
@@ -463,7 +463,7 @@ void VivaldiTranslateClient::OnPageTranslated(
     ::vivaldi::BroadcastEvent(
         extensions::vivaldi::tabs_private::OnPageTranslated::kEventName,
         extensions::vivaldi::tabs_private::OnPageTranslated::Create(
-            tab_id, original_lang, translated_lang,
+            tab_id, std::string{original_lang}, std::string{translated_lang},
             ToVivaldiTranslateError(error_type)),
         web_contents()->GetBrowserContext());
   }

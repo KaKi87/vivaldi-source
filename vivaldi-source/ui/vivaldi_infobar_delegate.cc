@@ -50,7 +50,7 @@ VivaldiInfoBarDelegate::GetIdentifier() const {
 }
 
 const gfx::VectorIcon& VivaldiInfoBarDelegate::GetVectorIcon() const {
-  return vector_icons::kSettingsChromeRefreshIcon;
+  return vector_icons::kSettingsChromeRefreshOldIcon;
 }
 
 std::u16string VivaldiInfoBarDelegate::GetMessageText() const {

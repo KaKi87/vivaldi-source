@@ -101,6 +101,7 @@
 
   /// Controller for the omnibox autocomplete.
   OmniboxAutocompleteController* _omniboxAutocompleteController;
+
   /// Controller for the omnibox text.
   OmniboxTextController* _omniboxTextController;
 
@@ -293,6 +294,7 @@
   _client.reset();
 
   self.viewController = nil;
+  [self.mediator disconnect];
   self.mediator.templateURLService = nullptr;  // Unregister the observer.
   if (self.keyboardAccessoryView) {
     // Unregister the observer.

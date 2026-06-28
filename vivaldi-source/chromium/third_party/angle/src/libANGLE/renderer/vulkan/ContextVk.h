@@ -253,6 +253,22 @@ class ContextVk : public ContextImpl, public vk::Context, public MultisampleText
     {
         return mShareGroupVk->getMetaDescriptorPools();
     }
+    SamplerCache &getSamplerCache()
+    {
+        if (hasDisplayTextureShareGroup())
+        {
+            return mRenderer->getSamplerCache();
+        }
+        return mShareGroupVk->getSamplerCache();
+    }
+    SamplerYcbcrConversionCache &getYuvConversionCache()
+    {
+        if (hasDisplayTextureShareGroup())
+        {
+            return mRenderer->getYuvConversionCache();
+        }
+        return mShareGroupVk->getYuvConversionCache();
+    }
 
     // Device loss
     gl::GraphicsResetStatus getResetStatus() override;
@@ -360,7 +376,7 @@ class ContextVk : public ContextImpl, public vk::Context, public MultisampleText
     // Query and Fence creation
     QueryImpl *createQuery(gl::QueryType type) override;
     FenceNVImpl *createFenceNV() override;
-    SyncImpl *createSync() override;
+    SyncImpl *createSync(const gl::Context *context) override;
 
     // Transform Feedback creation
     TransformFeedbackImpl *createTransformFeedback(
@@ -427,7 +443,6 @@ class ContextVk : public ContextImpl, public vk::Context, public MultisampleText
 
     angle::Result onVertexArrayChange(const gl::AttributesMask dirtyAttribBits);
 
-    void invalidateDefaultAttribute(size_t attribIndex);
     void invalidateDefaultAttributes(const gl::AttributesMask &dirtyMask);
     angle::Result onFramebufferChange(FramebufferVk *framebufferVk, gl::Command command);
     void onDrawFramebufferRenderPassDescChange(FramebufferVk *framebufferVk,
@@ -912,9 +927,9 @@ class ContextVk : public ContextImpl, public vk::Context, public MultisampleText
 
     uint32_t getCurrentFrameCount() const { return mShareGroupVk->getCurrentFrameCount(); }
 
-    bool isImageWithTileMemoryFinalized(const vk::ImageHelper *image) const;
     void addImageWithTileMemory(vk::ImageHelper *imageToAdd);
     void removeImageWithTileMemory(const vk::ImageHelper *imageToRemove);
+    const vk::ImageHelper *getImageWithTileMemory() const { return mImageWithTileMemory; }
 
     // Restore all graphics state based on current gl::State.
     void restoreAllGraphicsState();
@@ -1110,6 +1125,7 @@ class ContextVk : public ContextImpl, public vk::Context, public MultisampleText
                             gl::PrimitiveMode mode,
                             GLint firstVertexOrInvalid,
                             GLsizei vertexOrIndexCount,
+                            GLsizei baseInstance,
                             GLsizei instanceCount,
                             gl::DrawElementsType indexTypeOrInvalid,
                             const void *indices,
@@ -1118,6 +1134,7 @@ class ContextVk : public ContextImpl, public vk::Context, public MultisampleText
     angle::Result setupIndexedDraw(const gl::Context *context,
                                    gl::PrimitiveMode mode,
                                    GLsizei indexCount,
+                                   GLsizei baseInstance,
                                    GLsizei instanceCount,
                                    gl::DrawElementsType indexType,
                                    const void *indices);
@@ -1147,6 +1164,8 @@ class ContextVk : public ContextImpl, public vk::Context, public MultisampleText
                                     gl::PrimitiveMode mode,
                                     GLint firstVertex,
                                     GLsizei vertexOrIndexCount,
+                                    GLsizei baseInstance,
+                                    GLsizei instanceCount,
                                     gl::DrawElementsType indexTypeOrInvalid,
                                     const void *indices,
                                     uint32_t *numIndicesOut);
@@ -1341,11 +1360,12 @@ class ContextVk : public ContextImpl, public vk::Context, public MultisampleText
                                  QueueSubmitReason reason);
     angle::Result flushImpl(const gl::Context *context);
 
-    void handleDeviceLost();
-    bool shouldEmulateSeamfulCubeMapSampling() const;
     void clearAllGarbage();
     void dumpCommandStreamDiagnostics();
     angle::Result flushOutsideRenderPassCommands();
+    angle::Result flushAndSubmitCommandsImpl(const vk::Semaphore *signalSemaphore,
+                                             const vk::SharedExternalFence *externalFence,
+                                             QueueSubmitReason queueSubmitReason);
     // Flush commands and end render pass without setting any dirty bits.
     // flushCommandsAndEndRenderPass() and flushDirtyGraphicsRenderPass() will set the dirty bits
     // directly or through the iterator respectively.  Outside those two functions, this shouldn't
@@ -1440,7 +1460,7 @@ class ContextVk : public ContextImpl, public vk::Context, public MultisampleText
     void generateOutsideRenderPassCommandsQueueSerial();
     void generateRenderPassCommandsQueueSerial(QueueSerial *queueSerialOut);
 
-    angle::Result finalizeImagesWithTileMemory();
+    angle::Result finalizeImageWithTileMemory();
 
     angle::ImageLoadContext mImageLoadContext;
 
@@ -1575,7 +1595,7 @@ class ContextVk : public ContextImpl, public vk::Context, public MultisampleText
     gl::AttribArray<vk::DynamicBuffer> mStreamedVertexBuffers;
     gl::AttributesMask mHasInFlightStreamedVertexBuffers;
 
-    std::vector<vk::ImageHelper *> mImagesWithTileMemory;
+    vk::ImageHelper *mImageWithTileMemory;
 
     // We use a single pool for recording commands. We also keep a free list for pool recycling.
     vk::SecondaryCommandPools mCommandPools;

@@ -26,6 +26,7 @@
 #import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/autofill/model/bottom_sheet/save_card_bottom_sheet_model.h"
 #import "ios/chrome/browser/autofill/model/message/save_card_message_with_links.h"
+#import "ios/chrome/browser/autofill/ui_bundled/autofill_credit_card_ui_type.h"
 #import "ios/chrome/browser/autofill/ui_bundled/bottom_sheet/bottom_sheet_constants.h"
 #import "ios/chrome/browser/autofill/ui_bundled/bottom_sheet/save_card_bottom_sheet_consumer.h"
 #import "ios/chrome/browser/shared/public/commands/autofill_commands.h"
@@ -70,6 +71,7 @@ constexpr std::string_view kCreditCardUploadSuccessConfirmationResultPrefix =
 
 autofill::AutofillSaveCardUiInfo CreateAutofillSaveCardUiInfo(bool for_upload) {
   autofill::AutofillSaveCardUiInfo ui_info = autofill::AutofillSaveCardUiInfo();
+  ui_info.is_for_upload = for_upload;
   ui_info.title_text = std::u16string(u"Title");
   ui_info.description_text = std::u16string(u"Description Text");
   ui_info.logo_icon_id = IDR_INFOBAR_AUTOFILL_CC;
@@ -111,6 +113,7 @@ autofill::AutofillSaveCardUiInfo CreateAutofillSaveCardUiInfo(bool for_upload) {
 @property(nonatomic, copy) NSString* cardAccessibilityLabel;
 @property(nonatomic, strong) UIImage* issuerIcon;
 @property(nonatomic, strong) NSArray<SaveCardMessageWithLinks*>* legalMessages;
+@property(nonatomic, assign) BOOL saveButtonEnabled;
 
 @end
 
@@ -198,7 +201,6 @@ class SaveCardBottomSheetMediatorTest : public PlatformTest {
     model_ = nullptr;
     [mediator_ disconnect];
     EXPECT_OCMOCK_VERIFY((id)mock_autofill_commands_handler_);
-    EXPECT_OCMOCK_VERIFY(mock_consumer_);
   }
 
   web::WebTaskEnvironment* task_environment() {
@@ -402,6 +404,7 @@ TEST_F(SaveCardBottomSheetMediatorTest, ConfirmationAutoDismissed_OnTimeOut) {
   OCMExpect([mock_autofill_commands_handler_ dismissSaveCardBottomSheet]);
   task_environment()->FastForwardBy(kConfirmationDismissDelay);
   EXPECT_EQ([mediator_ isDismissingForTesting], YES);
+  EXPECT_OCMOCK_VERIFY(mock_consumer_);
 }
 
 // Tests that bottomsheet is not auto-dismissed before the timer for
@@ -598,18 +601,9 @@ TEST_F(SaveCardBottomSheetMediatorTest,
       LegacySaveCardPromptResult::kClosed, 1);
 }
 
-// Tests that `onUpdatedAndAcceptedForSaveAndFill` calls the corresponding
+// Tests that `saveAndFillWithCardNumber` calls the corresponding
 // method on the model.
 TEST_F(SaveCardBottomSheetMediatorTest, OnUpdatedAndAcceptedForSaveAndFill) {
-  autofill::payments::PaymentsAutofillClient::UserProvidedCardSaveAndFillDetails
-      details;
-  details.card_number = u"5555555555554444";
-  details.cardholder_name = u"John Doe";
-  details.expiration_date_month = u"12";
-  details.expiration_date_year = u"2030";
-  details.security_code = u"123";
-  details.nickname = u"My Test Card";
-
   // Expect the model to receive the call with the correct details.
   EXPECT_CALL(
       *model_,
@@ -636,9 +630,79 @@ TEST_F(SaveCardBottomSheetMediatorTest, OnUpdatedAndAcceptedForSaveAndFill) {
                              UserProvidedCardSaveAndFillDetails::nickname,
                          testing::Optional(std::u16string(u"My Test Card"))))));
 
-  // Pass by value using std::move, matching the updated performance
-  // improvement.
-  [mediator_ onUpdatedAndAcceptedForSaveAndFill:std::move(details)];
+  [mediator_ didUpdateValue:@"5555555555554444"
+                   forField:AutofillCreditCardUIType::kNumber];
+  [mediator_ didUpdateValue:@"122030"
+                   forField:AutofillCreditCardUIType::kExpMonth];
+  [mediator_ didUpdateValue:@"John Doe"
+                   forField:AutofillCreditCardUIType::kFullName];
+  [mediator_ didUpdateValue:@"123"
+                   forField:AutofillCreditCardUIType::kSecurityCode];
+  [mediator_ didUpdateValue:@"My Test Card"
+                   forField:AutofillCreditCardUIType::kNickname];
+
+  [mediator_ didTapSave];
+}
+
+TEST_F(SaveCardBottomSheetMediatorTest,
+       OnUpdatedAndAcceptedForSaveAndFill_SingleDigitMonth) {
+  // Expect the model to receive the call with the correct details.
+  EXPECT_CALL(
+      *model_,
+      OnUpdatedAndAcceptedForSaveAndFill(testing::AllOf(
+          testing::Field(&autofill::payments::PaymentsAutofillClient::
+                             UserProvidedCardSaveAndFillDetails::card_number,
+                         u"5555555555554444"),
+          testing::Field(
+              &autofill::payments::PaymentsAutofillClient::
+                  UserProvidedCardSaveAndFillDetails::cardholder_name,
+              u"John Doe"),
+          testing::Field(
+              &autofill::payments::PaymentsAutofillClient::
+                  UserProvidedCardSaveAndFillDetails::expiration_date_month,
+              u"1"),
+          testing::Field(
+              &autofill::payments::PaymentsAutofillClient::
+                  UserProvidedCardSaveAndFillDetails::expiration_date_year,
+              u"2025"),
+          testing::Field(&autofill::payments::PaymentsAutofillClient::
+                             UserProvidedCardSaveAndFillDetails::security_code,
+                         testing::Optional(std::u16string(u"123"))),
+          testing::Field(&autofill::payments::PaymentsAutofillClient::
+                             UserProvidedCardSaveAndFillDetails::nickname,
+                         testing::Optional(std::u16string(u"My Test Card"))))));
+
+  [mediator_ didUpdateValue:@"5555555555554444"
+                   forField:AutofillCreditCardUIType::kNumber];
+  [mediator_ didUpdateValue:@"1/2025"
+                   forField:AutofillCreditCardUIType::kExpMonth];
+  [mediator_ didUpdateValue:@"John Doe"
+                   forField:AutofillCreditCardUIType::kFullName];
+  [mediator_ didUpdateValue:@"123"
+                   forField:AutofillCreditCardUIType::kSecurityCode];
+  [mediator_ didUpdateValue:@"My Test Card"
+                   forField:AutofillCreditCardUIType::kNickname];
+
+  [mediator_ didTapSave];
+}
+
+TEST_F(SaveCardBottomSheetMediatorTest, UpdateSaveButtonStatus) {
+  FakeSaveCardBottomSheetConsumer* consumer =
+      [[FakeSaveCardBottomSheetConsumer alloc] init];
+  mediator_.consumer = consumer;
+
+  EXPECT_FALSE(consumer.saveButtonEnabled);
+
+  [mediator_ didUpdateValue:@"4242424242424242"
+                   forField:AutofillCreditCardUIType::kNumber];
+  [mediator_ didUpdateValue:@"122029"
+                   forField:AutofillCreditCardUIType::kExpMonth];
+  [mediator_ didUpdateValue:@"123"
+                   forField:AutofillCreditCardUIType::kSecurityCode];
+  [mediator_ didUpdateValue:@"Card"
+                   forField:AutofillCreditCardUIType::kNickname];
+
+  EXPECT_TRUE(consumer.saveButtonEnabled);
 }
 
 class SaveCardBottomSheetMediatorTestForLocalSave
@@ -754,6 +818,7 @@ TEST_F(SaveCardBottomSheetMediatorTestForLocalSave,
   OCMExpect([mock_autofill_commands_handler_ dismissSaveCardBottomSheet]);
   task_environment()->FastForwardBy(kConfirmationDismissDelay);
   EXPECT_EQ([mediator_ isDismissingForTesting], YES);
+  EXPECT_OCMOCK_VERIFY(mock_consumer_);
 }
 
 // Test that on local save bottomsheet's autodismissal due to timeout in
@@ -923,3 +988,53 @@ INSTANTIATE_TEST_SUITE_P(
         autofill::payments::PaymentsAutofillClient::CardSaveType::kCardSaveOnly,
         autofill::payments::PaymentsAutofillClient::CardSaveType::
             kCardSaveWithCvc));
+
+class SaveCardBottomSheetMediatorTestForSaveScanAndFill
+    : public SaveCardBottomSheetMediatorTest {
+ public:
+  SaveCardBottomSheetMediatorTestForSaveScanAndFill()
+      : SaveCardBottomSheetMediatorTest(/*for_upload=*/true) {
+    // Re-initialize model and mediator with CardSaveAndFillDialogCallback.
+    model_ = nullptr;
+    [mediator_ disconnect];
+
+    using Variant = std::variant<
+        autofill::payments::PaymentsAutofillClient::LocalSaveCardPromptCallback,
+        autofill::payments::PaymentsAutofillClient::
+            UploadSaveCardPromptCallback,
+        autofill::payments::PaymentsAutofillClient::
+            CardSaveAndFillDialogCallback>;
+
+    std::unique_ptr<MockSaveCardBottomSheetModel> model =
+        std::make_unique<MockSaveCardBottomSheetModel>(
+            CreateAutofillSaveCardUiInfo(/*for_upload=*/true),
+            Variant(static_cast<autofill::payments::PaymentsAutofillClient::
+                                    CardSaveAndFillDialogCallback>(
+                base::DoNothing())),
+            autofill::payments::PaymentsAutofillClient::SaveCreditCardOptions()
+                .with_num_strikes(0));
+    model_ = model.get();
+    mediator_ = [[SaveCardBottomSheetMediator alloc]
+                initWithUIModel:std::move(model)
+        autofillCommandsHandler:mock_autofill_commands_handler_];
+  }
+};
+
+TEST_F(SaveCardBottomSheetMediatorTestForSaveScanAndFill, SetConsumer) {
+  FakeSaveCardBottomSheetConsumer* consumer =
+      [[FakeSaveCardBottomSheetConsumer alloc] init];
+  mediator_.consumer = consumer;
+  TestCommonAttributesOfConsumer(consumer);
+
+  // Even though the C++ delegate holds CardSaveAndFillDialogCallback (so
+  // save_card_delegate()->is_for_upload() is false), the model's
+  // is_for_upload() is true because ui_info.is_for_upload is true, so legal
+  // messages must be populated.
+  NSMutableArray<SaveCardMessageWithLinks*>* messages =
+      [SaveCardMessageWithLinks convertFrom:model_->legal_messages()];
+  ASSERT_GT([messages count], 0u);
+  for (NSUInteger index = 0; index < [messages count]; index++) {
+    EXPECT_NSEQ(messages[index].messageText,
+                (consumer.legalMessages[index]).messageText);
+  }
+}

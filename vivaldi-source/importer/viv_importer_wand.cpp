@@ -19,6 +19,7 @@
 #include "importer/viv_importer_utils.h"
 
 #include "app/vivaldi_resources.h"
+#include "base/logging.h"
 
 /*
 Opera SSL Private Key Verification

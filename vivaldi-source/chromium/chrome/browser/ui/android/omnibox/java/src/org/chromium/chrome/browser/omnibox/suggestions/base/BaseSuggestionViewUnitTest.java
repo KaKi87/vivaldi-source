@@ -36,8 +36,8 @@ import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.omnibox.suggestions.RecyclerViewSelectionController;
-import org.chromium.chrome.browser.omnibox.test.R;
 
 /** Tests for {@link BaseSuggestionView}. */
 @RunWith(BaseRobolectricTestRunner.class)
@@ -174,7 +174,7 @@ public class BaseSuggestionViewUnitTest {
         ActionButtonView actionButtonWithoutShowOnFocus = mView.getActionButtons().get(1);
 
         // Initial visibility is invisible for the showOnlyOnFocus button.
-        assertEquals(View.GONE, actionButtonWithShowOnFocus.getVisibility());
+        assertEquals(View.INVISIBLE, actionButtonWithShowOnFocus.getVisibility());
         assertEquals(View.VISIBLE, actionButtonWithoutShowOnFocus.getVisibility());
 
         // Select the view. The showOnlyOnFocus button should become visible.
@@ -184,7 +184,7 @@ public class BaseSuggestionViewUnitTest {
 
         // Deselect the view. The showOnlyOnFocus button should become invisible.
         mView.setSelected(false);
-        assertEquals(View.GONE, actionButtonWithShowOnFocus.getVisibility());
+        assertEquals(View.INVISIBLE, actionButtonWithShowOnFocus.getVisibility());
         assertEquals(View.VISIBLE, actionButtonWithoutShowOnFocus.getVisibility());
 
         // Hover over the view. The showOnlyOnFocus button should become invisible.
@@ -194,7 +194,7 @@ public class BaseSuggestionViewUnitTest {
 
         // Hover away from the view. The showOnlyOnFocus button should become invisible.
         mView.onHoverEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_HOVER_EXIT, 1.f, 1.f, 0));
-        assertEquals(View.GONE, actionButtonWithShowOnFocus.getVisibility());
+        assertEquals(View.INVISIBLE, actionButtonWithShowOnFocus.getVisibility());
         assertEquals(View.VISIBLE, actionButtonWithoutShowOnFocus.getVisibility());
     }
 
@@ -235,5 +235,22 @@ public class BaseSuggestionViewUnitTest {
                 MotionEvent.obtain(0, 0, MotionEvent.ACTION_UP, 1.f, 1.f, 0));
         view.setHovered(false);
         assertFalse(view.isHovered());
+    }
+
+    @Test
+    public void setActionButtonsCount_decreaseToZeroWhileButtonSelected() {
+        mView.setActionButtonsCount(1);
+        mView.setSelected(true);
+
+        // Select the action button.
+        assertTrue(sendKey(KeyEvent.KEYCODE_TAB));
+
+        // Verify that the action button is selected.
+        assertTrue(mView.getActionButtons().get(0).isSelected());
+
+        // Now set count to 0. This should not crash.
+        mView.setActionButtonsCount(0);
+
+        assertEquals(0, mView.getActionButtons().size());
     }
 }

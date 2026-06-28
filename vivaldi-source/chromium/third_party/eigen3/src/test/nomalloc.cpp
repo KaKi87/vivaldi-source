@@ -7,6 +7,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 // discard stack allocation as that too bypasses malloc
 #define EIGEN_STACK_ALLOCATION_LIMIT 0
@@ -156,6 +157,17 @@ void ctms_decompositions() {
   jSVD.compute(A);
 }
 
+template <typename Scalar>
+void selfadjoint_eigensolver_large_fixed_no_malloc() {
+  typedef Eigen::Matrix<Scalar, 96, 96> Matrix;
+  Matrix A = Matrix::Random();
+  Matrix saA = A.adjoint() * A;
+
+  Eigen::SelfAdjointEigenSolver<Matrix> solver;
+  solver.compute(saA);
+  VERIFY_IS_EQUAL(solver.info(), Eigen::Success);
+}
+
 void test_zerosized() {
   // default constructors:
   Eigen::MatrixXd A;
@@ -219,6 +231,8 @@ EIGEN_DECLARE_TEST(nomalloc) {
 
   // Check decomposition modules with dynamic matrices that have a known compile-time max size (ctms)
   CALL_SUBTEST_4(ctms_decompositions<float>());
+  CALL_SUBTEST_4(selfadjoint_eigensolver_large_fixed_no_malloc<float>());
+  CALL_SUBTEST_4(selfadjoint_eigensolver_large_fixed_no_malloc<double>());
 
   CALL_SUBTEST_5(test_zerosized());
 

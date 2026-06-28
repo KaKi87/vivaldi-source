@@ -12,6 +12,11 @@ APIs, interfaces and helper functions for passkey plugin authenticator implement
 - pluginauthenticator.h
 - webauthnplugin.h
 
+The 3 new EXPERIMENTAL APIs listed below are now available for Windows Insiders - KB5072046. They will be finalized (prefix removed) very soon.
+- EXPERIMENTAL_WebAuthNPluginAddAuthenticator2
+- EXPERIMENTAL_WebAuthNPluginPerformUserVerification2
+- EXPERIMENTAL_WebAuthNPluginUpdateAuthenticatorDetails2
+
 # Having Issues?
 If you have any issues in adopting these APIs or need some clarification, please contact fido-dev@microsoft.com.
 

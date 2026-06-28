@@ -25,6 +25,7 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.util.Set;
 
 // Vivaldi
 import org.chromium.build.BuildConfig;
@@ -79,20 +80,19 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
     /** Enums that defines the scroll behavior for different controls. */
     @Target(ElementType.TYPE_USE)
     @Retention(RetentionPolicy.SOURCE)
-    @IntDef({
-        LayerScrollBehavior.ALWAYS_SCROLL_OFF,
-        LayerScrollBehavior.NEVER_SCROLL_OFF,
-        LayerScrollBehavior.DEFAULT_SCROLL_OFF
-    })
+    @IntDef({LayerScrollBehavior.DEFAULT_SCROLL_OFF, LayerScrollBehavior.NEVER_SCROLL_OFF})
     public @interface LayerScrollBehavior {
-        int ALWAYS_SCROLL_OFF = 0;
-        int NEVER_SCROLL_OFF = 1;
-
         /**
          * By default, this layer will scroll off. However, if this layer is positioned underneath a
          * visible layer that is NEVER_SCROLL_OFF, this layer will no longer scroll off.
          */
-        int DEFAULT_SCROLL_OFF = 2;
+        int DEFAULT_SCROLL_OFF = 0;
+
+        /**
+         * This layer will never scroll off, contributing to the minimum height of the bottom
+         * controls.
+         */
+        int NEVER_SCROLL_OFF = 1;
     }
 
     /** Enums that defines the type and position for each bottom controls. */
@@ -161,6 +161,10 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
 
     private @ColorInt int mCurrentBackgroundColor;
 
+    // The height of the browser controls is currently being animated due to the addition/removal of
+    // a layer.
+    private boolean mCurrentlyAnimating;
+
     // The default state is used before any visibility constraint changes occur (ex. reopening
     // chrome after it has been closed.) It must be set to SHOWN to allow the browser to initialize
     // the UI models with the correct y offsets.
@@ -209,8 +213,15 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
      * Checks whether there are any layers that are currently visible besides the specified type.
      */
     public boolean hasVisibleLayersOtherThan(@LayerType int typeToExclude) {
+        return hasVisibleLayersOtherThan(Set.of(typeToExclude));
+    }
+
+    /**
+     * Checks whether there are any layers that are currently visible besides the specified types.
+     */
+    public boolean hasVisibleLayersOtherThan(Set<Integer> typesToExclude) {
         for (int layerType : STACK_ORDER) {
-            if (typeToExclude == layerType) continue;
+            if (typesToExclude.contains(layerType)) continue;
 
             if (mLayerVisibilities.get(layerType)) return true;
         }
@@ -220,6 +231,16 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
     /** Returns whether the layer of the given type is visible. */
     public boolean isLayerVisible(@LayerType int layerType) {
         return mLayers.get(layerType) != null && mLayerVisibilities.get(layerType);
+    }
+
+    /** Returns whether the specified layer is the topmost visible layer. */
+    public boolean isTopmostVisibleLayer(@LayerType int layerType) {
+        for (int type : STACK_ORDER) {
+            if (mLayerVisibilities.get(type)) {
+                return type == layerType;
+            }
+        }
+        return false;
     }
 
     /** Returns the calculated total height of all visible layers. */
@@ -247,6 +268,19 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
      */
     public boolean hasMultipleNonScrollableLayer() {
         return mHasMoreThanOneNonScrollableLayer;
+    }
+
+    /**
+     * Checks whether there are any layers that are currently non-scrollable besides the specified
+     * type.
+     */
+    public boolean hasNonScrollableLayersOtherThan(@LayerType int typeToExclude) {
+        for (int layerType : STACK_ORDER) {
+            if (layerType == typeToExclude) continue;
+
+            if (isLayerNonScrollable(layerType)) return true;
+        }
+        return false;
     }
 
     private boolean isVisibilityForced() {
@@ -290,9 +324,17 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
         return mBrowserControlsSizer;
     }
 
+    /** Returns the current background color of the bottom controls. */
+    public @ColorInt int getBackgroundColor() {
+        return mCurrentBackgroundColor;
+    }
+
     /**
      * @see BrowserControlsSizer#notifyBackgroundColor(int).
+     * @deprecated {@link BottomControlsLayer} should provide the background color to the {@link
+     *     BottomControlsStacker} instead.
      */
+    @Deprecated
     public void notifyBackgroundColor(@ColorInt int color) {
         mCurrentBackgroundColor = color;
         mBrowserControlsSizer.notifyBackgroundColor(color);
@@ -423,7 +465,7 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
             int bottomControlsMinHeightOffset,
             boolean animated,
             boolean offsetsAppliedByBrowser) {
-        // 0. Initialize the offset for each layer.
+        // STEP 0: Initialize the offset for each layer.
         SparseIntArray yOffsetOfLayers = new SparseIntArray(STACK_ORDER.length);
         int height = 0;
         int totalMinHeight = 0;
@@ -441,8 +483,11 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
         // controls; mTotalHeight as the bottom of the bottom controls)
         int minHeightBottomOffset = mTotalHeight - bottomControlsMinHeightOffset;
 
-        // Calculate the height for each layer. Given we have limited number of layers, looping
-        // through layers shouldn't be too costly.
+        boolean isAnimating = mCurrentlyAnimating;
+
+        // STEP 1: Calculate the height for each layer. Given we have limited number of layers,
+        // looping through layers shouldn't be too costly.
+        boolean hasNeverScrollOffLayer = false;
         for (int type : STACK_ORDER) {
             BottomControlsLayer layer = mLayers.get(type);
             if (layer == null || !mLayerVisibilities.get(type)) continue;
@@ -463,19 +508,18 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
             //
             // When the offsets are applied by the browser, the browser should be in full control of
             // the layers' positions, and the behavior is identical to having BCIV disabled.
-            if (!offsetsAppliedByBrowser) {
+            if (!offsetsAppliedByBrowser && !isAnimating) {
                 layerYOffset = mLayerRestingOffsets.get(type);
             } else {
-                boolean shouldScrollOff = shouldLayerScrollOff(layer, totalMinHeight);
-                assert totalMinHeight == 0 || !shouldScrollOff
-                        : "A scroll-off layer under a NEVER_SCROLL_OFF layer is not supported."
-                                + " Layer: "
-                                + layer.getType();
+                boolean shouldScrollOff = shouldLayerScrollOff(layer, hasNeverScrollOffLayer);
 
-                // 1. Accumulate the layer's height to ensure the height does not change during
+                // Accumulate the layer's height to ensure the height does not change during
                 // layout update. This is only used for assertion.
                 height += layer.getHeight();
                 totalMinHeight += shouldScrollOff ? 0 : layer.getHeight();
+                if (!shouldScrollOff) {
+                    hasNeverScrollOffLayer = true;
+                }
 
                 if (shouldScrollOff) {
                     // [Scrollable layers]
@@ -513,10 +557,10 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
             yOffsetOfLayers.put(type, layerYOffset);
         }
 
-        // 2. If animated, compare and fix the yOffset with the previous mLayerOffsets if reposition
-        // is caused by an animated browser controls height adjustment. This needs to run in a
-        // different loop to cooperate browser controls height reduction, as we need to still push
-        // updates to layer that's changed from visible -> hidden.
+        // STEP 2: If animated, compare and fix the yOffset with the previous mLayerOffsets if
+        // reposition is caused by an animated browser controls height adjustment. This needs to run
+        // in a different loop to cooperate browser controls height reduction, as we need to still
+        // push updates to layer that's changed from visible -> hidden.
         //
         // TODO(clhager) This block was implemented with the assumption that `animated` would be
         // true if heights/offsets were changing due to an animation. This assumption is incorrect,
@@ -524,7 +568,7 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
         // the screen. `animated` is only true when the android views for the browser controls are
         // visible, or when there is a browser driven animation in progress (meaning there are no
         // composited views present.)
-        if (animated && bottomOffset != 0) {
+        if ((isAnimating || animated) && bottomOffset != 0) {
             // When bottomOffset is negative, the browser controls is going through a height
             // reduction.
             //
@@ -569,8 +613,8 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
             }
         }
 
-        // 3. Dispatch the yOffset to each layers. Do this after the calculation is done, so all
-        // layers do not change their state during the algorithm.
+        // STEP 3: Dispatch the yOffset to each layers. Do this after the calculation is done, so
+        // all layers do not change their state during the algorithm.
         for (int layerType : STACK_ORDER) {
             BottomControlsLayer layer = mLayers.get(layerType);
             if (layer == null) continue;
@@ -614,21 +658,19 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
     private void recalculateLayerSizes() {
         int height = 0;
         int minHeight = 0;
+        boolean hasNeverScrollOffLayer = false;
+        int nonScrollableLayerCount = 0;
         for (int type : STACK_ORDER) {
             BottomControlsLayer layer = mLayers.get(type);
             if (layer == null || !mLayerVisibilities.get(type)) continue;
 
-            boolean shouldScrollOff = shouldLayerScrollOff(layer, minHeight);
-            assert minHeight == 0 || !shouldScrollOff
-                    : "A scroll-off layer under a NEVER_SCROLL_OFF layer is not supported. Layer: "
-                            + layer.getType();
-
-            // When min height exists before processing the current layer's height, it means more
-            // than one non-scrollable layer exists.
-            mHasMoreThanOneNonScrollableLayer = minHeight != 0;
-
+            boolean shouldScrollOff = shouldLayerScrollOff(layer, hasNeverScrollOffLayer);
+            if (!shouldScrollOff) {
+                hasNeverScrollOffLayer = true;
+                nonScrollableLayerCount++;
+            }
             if (shouldScrollOff) {
-                if (mOffsetTagsInfo != null) {
+                if (mOffsetTagsInfo != null && !mCurrentlyAnimating) {
                     layer.updateOffsetTag(mOffsetTagsInfo);
                 }
             } else {
@@ -640,6 +682,7 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
             mLayerHasMinHeight.put(type, !shouldScrollOff);
         }
 
+        mHasMoreThanOneNonScrollableLayer = nonScrollableLayerCount > 1;
         mTotalHeight = height;
         mTotalMinHeight = minHeight;
 
@@ -665,9 +708,13 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
         }
 
         int height = 0;
+        boolean foundPivot = false;
         for (int i = 0; i < STACK_ORDER.length; i++) {
             int type = STACK_ORDER[i];
-            if (type < startLayer) continue;
+            if (type == startLayer) {
+                foundPivot = true;
+            }
+            if (!foundPivot) continue;
 
             BottomControlsLayer layer = mLayers.get(type);
             if (layer == null || !mLayerVisibilities.get(type)) continue;
@@ -713,14 +760,14 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
     }
 
     /**
-     * The layer should scroll off if it is labeled as ALWAYS_SCROLL_OFF, or if it is labeled as
-     * DEFAULT_SCROLL_OFF and isn't positioned under a NEVER_SCROLL_OFF layer.
+     * The layer should scroll off if it is labeled as DEFAULT_SCROLL_OFF and isn't positioned under
+     * a NEVER_SCROLL_OFF layer.
      */
-    private static boolean shouldLayerScrollOff(BottomControlsLayer layer, int totalMinHeight) {
+    private static boolean shouldLayerScrollOff(
+            BottomControlsLayer layer, boolean hasNeverScrollOffLayer) {
         int scrollOffBehavior = layer.getScrollBehavior();
-        return (scrollOffBehavior == LayerScrollBehavior.ALWAYS_SCROLL_OFF)
-                || (totalMinHeight == 0
-                        && scrollOffBehavior == LayerScrollBehavior.DEFAULT_SCROLL_OFF);
+        return !hasNeverScrollOffLayer
+                && scrollOffBehavior == LayerScrollBehavior.DEFAULT_SCROLL_OFF;
     }
 
     /**
@@ -795,6 +842,34 @@ public class BottomControlsStacker implements BrowserControlsStateProvider.Obser
                         + layer.getHeight()
                         + " YOffset "
                         + layerYOffset);
+    }
+
+    @Override
+    public void onBottomControlsHeightAnimationStarted() {
+        mCurrentlyAnimating = true;
+        for (int type : STACK_ORDER) {
+            BottomControlsLayer layer = mLayers.get(type);
+            if (layer == null) continue;
+            layer.clearOffsetTag();
+        }
+    }
+
+    @Override
+    public void onBottomControlsHeightAnimationEnded() {
+        mCurrentlyAnimating = false;
+        if (mOffsetTagsInfo == null) return;
+
+        boolean hasNeverScrollOffLayer = false;
+        for (int type : STACK_ORDER) {
+            BottomControlsLayer layer = mLayers.get(type);
+            if (layer == null || !mLayerVisibilities.get(type)) continue;
+            boolean shouldScrollOff = shouldLayerScrollOff(layer, hasNeverScrollOffLayer);
+            if (shouldScrollOff) {
+                layer.updateOffsetTag(mOffsetTagsInfo);
+            } else {
+                hasNeverScrollOffLayer = true;
+            }
+        }
     }
 
     public @Nullable BottomControlsLayer getLayerForTesting(@LayerType int layerType) {

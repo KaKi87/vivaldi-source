@@ -12,8 +12,8 @@
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "extensions/api/site_permissions/site_permissions_api.h"
-#include "extensions/vivaldi_browser_component_wrapper.h"
 #include "extensions/browser/guest_view/web_view/web_view_constants.h"
+#include "extensions/vivaldi_browser_component_wrapper.h"
 #endif
 
 void NotificationPermissionContext::UpdatePrivateTabContext(
@@ -30,14 +30,13 @@ void NotificationPermissionContext::UpdatePrivateTabContext(
         allowed ? CONTENT_SETTING_ALLOW : CONTENT_SETTING_BLOCK;
 
     // Get tab ID
-    int tab_id = VivaldiBrowserComponentWrapper::GetInstance()->GetTabId(web_contents);
+    int tab_id =
+        VivaldiBrowserComponentWrapper::GetInstance()->GetTabId(web_contents);
     if (tab_id >= 0) {
       // Fire onPermissionAccessed event
       extensions::SitePermissionsAPI::FirePermissionAccessedEvent(
-          web_contents->GetBrowserContext(),
-          tab_id,
-          ContentSettingsType::NOTIFICATIONS,
-          requesting_frame.spec(),
+          web_contents->GetBrowserContext(), tab_id,
+          ContentSettingsType::NOTIFICATIONS, requesting_frame.spec(),
           content_setting);
     }
   }

@@ -72,6 +72,7 @@ import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.browsing_data.BrowsingDataBridge.OnClearBrowsingDataListener;
 import org.chromium.chrome.browser.browsing_data.ClearBrowsingDataFragment.DialogOption;
@@ -91,14 +92,12 @@ import org.chromium.chrome.browser.sync.FakeSyncServiceImpl;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
 import org.chromium.chrome.test.util.browser.signin.SigninTestRule;
 import org.chromium.components.browser_ui.settings.SpinnerPreference;
 import org.chromium.components.browser_ui.settings.search.SettingsIndexData;
 import org.chromium.components.browsing_data.DeleteBrowsingDataAction;
-import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.test.util.TestAccounts;
 import org.chromium.components.sync.DataType;
 import org.chromium.ui.test.util.ViewUtils;
@@ -148,7 +147,7 @@ public class ClearBrowsingDataFragmentTest {
                                     return null;
                                 })
                 .when(mBrowsingDataBridgeMock)
-                .clearBrowsingData(any(), any(), any(), anyInt(), any(), any(), any(), any());
+                .clearBrowsingData(any(), any(), any(), anyInt(), any(), any());
 
         // Default to delete all history.
         when(mBrowsingDataBridgeMock.getBrowsingDataDeletionTimePeriod(any()))
@@ -220,7 +219,7 @@ public class ClearBrowsingDataFragmentTest {
                 () ->
                         !IdentityServicesProvider.get()
                                 .getIdentityManager(ProfileManager.getLastUsedRegularProfile())
-                                .hasPrimaryAccount(ConsentLevel.SIGNIN),
+                                .hasPrimaryAccount(),
                 "Account should be signed out!");
         // Footer should be hidden after sign-out.
         onView(withText(preferences.buildSignOutOfChromeText().toString())).check(doesNotExist());
@@ -256,7 +255,7 @@ public class ClearBrowsingDataFragmentTest {
                 () ->
                         !IdentityServicesProvider.get()
                                 .getIdentityManager(ProfileManager.getLastUsedRegularProfile())
-                                .hasPrimaryAccount(ConsentLevel.SIGNIN),
+                                .hasPrimaryAccount(),
                 "Account should be signed out!");
         // Footer should be hidden after sign-out.
         onView(withText(preferences.buildSignOutOfChromeText().toString())).check(doesNotExist());
@@ -309,8 +308,6 @@ public class ClearBrowsingDataFragmentTest {
                         eq(getAllDataTypes()),
                         eq(DEFAULT_TIME_PERIOD),
                         any(),
-                        any(),
-                        any(),
                         any());
     }
 
@@ -355,8 +352,6 @@ public class ClearBrowsingDataFragmentTest {
                         any(),
                         eq(new int[] {BrowsingDataType.CACHE}),
                         eq(TimePeriod.LAST_HOUR),
-                        any(),
-                        any(),
                         any(),
                         any());
 
@@ -591,14 +586,7 @@ public class ClearBrowsingDataFragmentTest {
         // Should be cleared again.
         verify(mBrowsingDataBridgeMock, times(2))
                 .clearBrowsingData(
-                        eq(expectedProfile),
-                        any(),
-                        eq(expectedTypes),
-                        anyInt(),
-                        any(),
-                        any(),
-                        any(),
-                        any());
+                        eq(expectedProfile), any(), eq(expectedTypes), anyInt(), any(), any());
     }
 
     /**
@@ -609,15 +597,7 @@ public class ClearBrowsingDataFragmentTest {
     private void assertDataTypesCleared(int... types) {
         // TODO(yfriedman): Add testing for time period.
         verify(mBrowsingDataBridgeMock)
-                .clearBrowsingData(
-                        any(),
-                        any(),
-                        eq(types),
-                        eq(DEFAULT_TIME_PERIOD),
-                        any(),
-                        any(),
-                        any(),
-                        any());
+                .clearBrowsingData(any(), any(), eq(types), eq(DEFAULT_TIME_PERIOD), any(), any());
     }
 
     /** This presses the 'clear' button on the root preference page. */
@@ -718,7 +698,7 @@ public class ClearBrowsingDataFragmentTest {
     /**
      * Tests that the important sites dialog is shown and if we cancel nothing happens.
      *
-     * <p>http://crbug.com/727310
+     * <p>http://crbug.com/41322002
      */
     @Test
     @MediumTest
@@ -746,8 +726,7 @@ public class ClearBrowsingDataFragmentTest {
 
         // Nothing was cleared.
         verify(mBrowsingDataBridgeMock, never())
-                .clearBrowsingData(
-                        eq(expectedProfile), any(), any(), anyInt(), any(), any(), any(), any());
+                .clearBrowsingData(eq(expectedProfile), any(), any(), anyInt(), any(), any());
     }
 
     /**
@@ -813,9 +792,7 @@ public class ClearBrowsingDataFragmentTest {
                         eq(expectedTypes),
                         eq(DEFAULT_TIME_PERIOD),
                         eq(keepDomains),
-                        any(),
-                        eq(ignoredDomains),
-                        any());
+                        eq(ignoredDomains));
     }
 
     @Test

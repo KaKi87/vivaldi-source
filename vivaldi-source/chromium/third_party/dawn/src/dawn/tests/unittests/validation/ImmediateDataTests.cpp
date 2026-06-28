@@ -30,17 +30,16 @@
 #include <string>
 #include <vector>
 
-#include "dawn/common/NonMovable.h"
-#include "dawn/tests/unittests/validation/ValidationTest.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/tests/unittests/validation/ValidationTest.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/non_movable.h"
 
 namespace dawn {
 namespace {
 
 enum class FeatureMode {
     Enabled,
-    DisabledViaNotAllowUnsafeAPIs,
     DisabledViaBlocklistedFeatures,
 };
 
@@ -50,29 +49,11 @@ struct ImmediateDataDisableTest : ValidationTestWithParam<FeatureMode> {
         switch (GetParam()) {
             case FeatureMode::Enabled:
                 return {};
-            case FeatureMode::DisabledViaNotAllowUnsafeAPIs:
-                return {};
             case FeatureMode::DisabledViaBlocklistedFeatures:
                 return {"immediate_address_space"};
         }
         DAWN_UNREACHABLE();
         return {};
-    }
-
-    bool AllowUnsafeAPIs() override {
-        switch (GetParam()) {
-            case FeatureMode::Enabled:
-                // Currently the only way to enable ImmediateAddressSpace is via AllowUnsafeAPIs.
-                // See GetLanguageFeatureStatus.
-                return true;
-            case FeatureMode::DisabledViaNotAllowUnsafeAPIs:
-                return false;
-            case FeatureMode::DisabledViaBlocklistedFeatures:
-                // Enabling AllowUnsafeAPIs while disabling via blocklist should still fail.
-                return true;
-        }
-        DAWN_UNREACHABLE();
-        return false;
     }
 };
 
@@ -130,7 +111,6 @@ TEST_P(ImmediateDataDisableTest, MaxImmediateSizeIsZero) {
 INSTANTIATE_TEST_SUITE_P(,
                          ImmediateDataDisableTest,
                          ::testing::ValuesIn({FeatureMode::Enabled,
-                                              FeatureMode::DisabledViaNotAllowUnsafeAPIs,
                                               FeatureMode::DisabledViaBlocklistedFeatures}));
 
 class ImmediateDataTest : public ValidationTest {
@@ -179,7 +159,7 @@ TEST_F(ImmediateDataTest, ValidateImmediateSize) {
     }
 }
 
-// Check that immediateSize must be aligned to kImmediateConstantElementByteSize (4 bytes).
+// Check that immediateSize must be aligned to kImmediateElementByteSize (4 bytes).
 TEST_F(ImmediateDataTest, ValidateImmediateSizeAlignment) {
     wgpu::PipelineLayoutDescriptor desc{};
 

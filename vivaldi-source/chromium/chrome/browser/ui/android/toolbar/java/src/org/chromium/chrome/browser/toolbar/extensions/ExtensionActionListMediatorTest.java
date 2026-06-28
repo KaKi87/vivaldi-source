@@ -12,16 +12,24 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.robolectric.Shadows.shadowOf;
 
+import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.os.Looper;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewConfiguration;
 
 import androidx.test.core.app.ApplicationProvider;
 
@@ -35,6 +43,7 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.Robolectric;
 
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNullableObservableSupplier;
@@ -42,23 +51,30 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.MockTab;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.toolbar.extensions.ExtensionActionButtonProperties.ListItemType;
 import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTask;
 import org.chromium.chrome.browser.ui.extensions.ExtensionAction;
+import org.chromium.chrome.browser.ui.extensions.ExtensionAction.HoverCardState;
 import org.chromium.chrome.browser.ui.extensions.ExtensionActionContextMenuBridge;
 import org.chromium.chrome.browser.ui.extensions.ExtensionActionContextMenuBridgeJni;
 import org.chromium.chrome.browser.ui.extensions.ExtensionActionPopupContents;
 import org.chromium.chrome.browser.ui.extensions.ExtensionActionPopupContentsJni;
 import org.chromium.chrome.browser.ui.extensions.ExtensionsToolbarBridge;
+import org.chromium.chrome.browser.ui.toolbar.AdminPolicy;
+import org.chromium.chrome.browser.ui.toolbar.SiteAccess;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.listmenu.ListMenuHost;
 import org.chromium.ui.listmenu.MenuModelBridge;
+import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 
+import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @RunWith(BaseRobolectricTestRunner.class)
 public class ExtensionActionListMediatorTest {
@@ -68,11 +84,13 @@ public class ExtensionActionListMediatorTest {
         private final String mId;
         private final String mTitle;
         private final Bitmap mIcon;
+        private final HoverCardState mHoverCardState;
 
-        public ActionData(String id, String title, Bitmap icon) {
+        public ActionData(String id, String title, Bitmap icon, HoverCardState hoverCardState) {
             mId = id;
             mTitle = title;
             mIcon = icon;
+            mHoverCardState = hoverCardState;
         }
 
         public String getId() {
@@ -85,6 +103,10 @@ public class ExtensionActionListMediatorTest {
 
         public Bitmap getIcon() {
             return mIcon;
+        }
+
+        public HoverCardState getHoverCardState() {
+            return mHoverCardState;
         }
     }
 
@@ -125,9 +147,14 @@ public class ExtensionActionListMediatorTest {
 
     @Mock private ExtensionActionListCoordinator.RecyclerViewDelegate mRecyclerViewDelegate;
 
+    @Mock private TabModelSelector mTabModelSelector;
+
+    @Mock private ModalDialogManager mModalDialogManager;
+
     @Captor private ArgumentCaptor<ListMenuHost.PopupMenuShownListener> mPopupListenerCaptor;
 
-    @Captor private ArgumentCaptor<ExtensionsToolbarBridge.Delegate> mBridgeDelegateCaptor;
+    @Captor
+    private ArgumentCaptor<ExtensionsToolbarBridge.ActionListDelegate> mBridgeDelegateCaptor;
 
     @Before
     public void setUp() {
@@ -148,10 +175,16 @@ public class ExtensionActionListMediatorTest {
                 .thenReturn(mMenuModelBridge);
         when(mMenuModelBridge.populateModelList()).thenReturn(new ModelList());
 
+        HoverCardState hoverCardState =
+                new HoverCardState(SiteAccess.ALL_EXTENSIONS_ALLOWED, "", "", AdminPolicy.NONE, "");
+
         // Set up default actions.
-        ActionData action1 = new ActionData(ACTION1_ID, "title of action 1", ICON_RED);
-        ActionData action2 = new ActionData(ACTION2_ID, "title of action 2", ICON_BLUE);
-        ActionData action3 = new ActionData(ACTION3_ID, "title of action 3", ICON_GREEN);
+        ActionData action1 =
+                new ActionData(ACTION1_ID, "title of action 1", ICON_RED, hoverCardState);
+        ActionData action2 =
+                new ActionData(ACTION2_ID, "title of action 2", ICON_BLUE, hoverCardState);
+        ActionData action3 =
+                new ActionData(ACTION3_ID, "title of action 3", ICON_GREEN, hoverCardState);
 
         mActions.put(ACTION1_ID, action1);
         mActions.put(ACTION2_ID, action2);
@@ -166,9 +199,15 @@ public class ExtensionActionListMediatorTest {
                             assert action != null;
 
                             return new ExtensionAction(
-                                    action.getId(), action.getTitle(), action.getTitle());
+                                    action.getId(),
+                                    action.getTitle(),
+                                    action.getTitle(),
+                                    action.getTitle(),
+                                    action.getHoverCardState());
                         });
 
+        when(mExtensionsToolbarBridge.getAllActionIds())
+                .thenReturn(new String[] {ACTION1_ID, ACTION2_ID, ACTION3_ID});
         when(mExtensionsToolbarBridge.getPinnedActionIds())
                 .thenReturn(new String[] {ACTION1_ID, ACTION2_ID});
 
@@ -190,7 +229,9 @@ public class ExtensionActionListMediatorTest {
                         mRecyclerViewDelegate,
                         mExtensionsToolbarBridge,
                         /* contextMenuPopulatorFactory= */ null,
-                        /* selectionDropdownMenuDelegate= */ null) {
+                        /* selectionDropdownMenuDelegate= */ null,
+                        mTabModelSelector,
+                        mModalDialogManager) {
                     @Override
                     Bitmap getIconForAction(String actionId, WebContents webContents) {
                         ActionData action = mActions.get(actionId);
@@ -201,7 +242,7 @@ public class ExtensionActionListMediatorTest {
                 };
 
         mMediator.fitActionsWithinWidth(1000);
-        verify(mExtensionsToolbarBridge).setDelegate(mBridgeDelegateCaptor.capture());
+        verify(mExtensionsToolbarBridge).setActionListDelegate(mBridgeDelegateCaptor.capture());
 
         shadowOf(Looper.getMainLooper()).idle();
     }
@@ -316,7 +357,14 @@ public class ExtensionActionListMediatorTest {
         ListItem itemForAction1 = mModels.get(0);
         ListItem itemForAction2 = mModels.get(1);
 
-        mActions.put(ACTION1_ID, new ActionData(ACTION1_ID, "new title of action 1", ICON_CYAN));
+        mActions.put(
+                ACTION1_ID,
+                new ActionData(
+                        ACTION1_ID,
+                        "new title of action 1",
+                        ICON_CYAN,
+                        new HoverCardState(
+                                SiteAccess.ALL_EXTENSIONS_ALLOWED, "", "", AdminPolicy.NONE, "")));
         mMediator.updateActionProperties(ACTION1_ID);
 
         // The models should have the additional item.
@@ -337,10 +385,7 @@ public class ExtensionActionListMediatorTest {
         assertEquals(2, mModels.size());
 
         Context context = ApplicationProvider.getApplicationContext();
-        int itemWidth =
-                context.getResources()
-                        .getDimensionPixelSize(
-                                org.chromium.chrome.browser.toolbar.R.dimen.toolbar_button_width);
+        int itemWidth = context.getResources().getDimensionPixelSize(R.dimen.toolbar_button_width);
 
         // Test ample width.
         mMediator.fitActionsWithinWidth(itemWidth * 5);
@@ -363,6 +408,26 @@ public class ExtensionActionListMediatorTest {
 
         // There should be 0 items.
         assertEquals(0, mModels.size());
+    }
+
+    @Test
+    public void testDismissPopupOnDialogAdded() {
+        ArgumentCaptor<ModalDialogManager.ModalDialogManagerObserver> observerCaptor =
+                ArgumentCaptor.forClass(ModalDialogManager.ModalDialogManagerObserver.class);
+        verify(mModalDialogManager).addObserver(observerCaptor.capture());
+
+        // Trigger a popup.
+        long nativeHostPtr = 123L;
+        mBridgeDelegateCaptor.getValue().triggerPopup(ACTION1_ID, nativeHostPtr);
+
+        // Verify the native contents were created.
+        verify(mPopupContentsJniMock).create(nativeHostPtr);
+
+        // Simulate a dialog being added.
+        observerCaptor.getValue().onDialogAdded(null);
+
+        // The pending popup contents should be destroyed to prevent overlapping UIs.
+        verify(mPopupContentsMock).destroy();
     }
 
     @Test
@@ -399,8 +464,7 @@ public class ExtensionActionListMediatorTest {
         int buttonWidth =
                 ApplicationProvider.getApplicationContext()
                         .getResources()
-                        .getDimensionPixelSize(
-                                org.chromium.chrome.browser.toolbar.R.dimen.toolbar_button_width);
+                        .getDimensionPixelSize(R.dimen.toolbar_button_width);
 
         // Constrain width so only 1 action fits (we have 2 pinned actions).
         mMediator.fitActionsWithinWidth(buttonWidth);
@@ -447,8 +511,7 @@ public class ExtensionActionListMediatorTest {
         int buttonWidth =
                 ApplicationProvider.getApplicationContext()
                         .getResources()
-                        .getDimensionPixelSize(
-                                org.chromium.chrome.browser.toolbar.R.dimen.toolbar_button_width);
+                        .getDimensionPixelSize(R.dimen.toolbar_button_width);
 
         // Initially, no width is reserved because nothing is popped out.
         int reservedWidth = mMediator.setCanShowPoppedOutAction(1000);
@@ -466,6 +529,143 @@ public class ExtensionActionListMediatorTest {
                 reservedWidth);
     }
 
+    @Test
+    public void testPendingPopup_DestroyedOnCancellation() {
+        // Trigger a popup.
+        long nativeHostPtr = 123L;
+        mBridgeDelegateCaptor.getValue().triggerPopup(ACTION1_ID, nativeHostPtr);
+
+        // Verify the native contents were created.
+        verify(mPopupContentsJniMock).create(nativeHostPtr);
+
+        // Simulate a cancellation by opening a context menu for another action.
+        mBridgeDelegateCaptor.getValue().showContextMenu(ACTION2_ID);
+
+        // The pending popup contents must be destroyed to prevent memory leaks.
+        verify(mPopupContentsMock).destroy();
+    }
+
+    @Test
+    public void testPendingPopup_DestroyedOnMediatorTeardown() {
+        // Trigger a popup to enter the PopupPending state.
+        long nativeHostPtr = 123L;
+        mBridgeDelegateCaptor.getValue().triggerPopup(ACTION1_ID, nativeHostPtr);
+
+        // Destroy the mediator before the UI animation finishes.
+        mMediator.destroy();
+
+        // The pending popup contents must be destroyed during teardown.
+        verify(mPopupContentsMock).destroy();
+    }
+
+    @Test
+    public void testHoverCard_ShowsAfterDelay() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        when(mWindowAndroid.getActivity()).thenReturn(new WeakReference<>(activity));
+
+        mMediator.reconcileActionItems();
+        ListItem item = mModels.get(0);
+        View.OnHoverListener listener =
+                item.model.get(ExtensionActionButtonProperties.ON_HOVER_LISTENER);
+
+        // Set up the mock action to track if its state is queried.
+        ExtensionAction action = mock(ExtensionAction.class);
+        ExtensionAction.HoverCardState state = mock(ExtensionAction.HoverCardState.class);
+        when(action.getHoverCardState()).thenReturn(state);
+        doReturn(action).when(mExtensionsToolbarBridge).getAction(eq(ACTION1_ID), any());
+
+        View anchorView = new View(activity);
+        when(mRecyclerViewDelegate.getButtonViewForId(ACTION1_ID)).thenReturn(anchorView);
+
+        // Trigger hover enter.
+        MotionEvent enterEvent = mock(MotionEvent.class);
+        when(enterEvent.getAction()).thenReturn(MotionEvent.ACTION_HOVER_ENTER);
+        listener.onHover(anchorView, enterEvent);
+
+        // Verify the card construction hasn't started yet.
+        verify(action, never()).getHoverCardState();
+
+        // Fast forward looper past the long press timeout.
+        shadowOf(Looper.getMainLooper())
+                .idleFor(ViewConfiguration.getLongPressTimeout(), TimeUnit.MILLISECONDS);
+
+        // Verify the mediator proceeded to build and show the card.
+        verify(action).getHoverCardState();
+    }
+
+    @Test
+    public void testHoverCard_CancelsOnExitBeforeDelay() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        when(mWindowAndroid.getActivity()).thenReturn(new WeakReference<>(activity));
+
+        mMediator.reconcileActionItems();
+        ListItem item = mModels.get(0);
+        View.OnHoverListener listener =
+                item.model.get(ExtensionActionButtonProperties.ON_HOVER_LISTENER);
+
+        ExtensionAction action = mock(ExtensionAction.class);
+        ExtensionAction.HoverCardState state = mock(ExtensionAction.HoverCardState.class);
+        when(action.getHoverCardState()).thenReturn(state);
+        doReturn(action).when(mExtensionsToolbarBridge).getAction(eq(ACTION1_ID), any());
+
+        View anchorView = new View(activity);
+        when(mRecyclerViewDelegate.getButtonViewForId(ACTION1_ID)).thenReturn(anchorView);
+
+        // Trigger hover enter.
+        MotionEvent enterEvent = mock(MotionEvent.class);
+        when(enterEvent.getAction()).thenReturn(MotionEvent.ACTION_HOVER_ENTER);
+        listener.onHover(anchorView, enterEvent);
+
+        // Immediately trigger hover exit before the delay finishes.
+        MotionEvent exitEvent = mock(MotionEvent.class);
+        when(exitEvent.getAction()).thenReturn(MotionEvent.ACTION_HOVER_EXIT);
+        listener.onHover(anchorView, exitEvent);
+
+        // Fast forward looper past the long press timeout.
+        shadowOf(Looper.getMainLooper())
+                .idleFor(ViewConfiguration.getLongPressTimeout(), TimeUnit.MILLISECONDS);
+
+        // Verify the runnable was cancelled and the card was never constructed.
+        verify(action, never()).getHoverCardState();
+    }
+
+    @Test
+    public void testHoverCard_DoesNotShowWhenStateNotIdle() {
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+        when(mWindowAndroid.getActivity()).thenReturn(new WeakReference<>(activity));
+
+        mMediator.reconcileActionItems();
+        ListItem item = mModels.get(0);
+        View.OnHoverListener listener =
+                item.model.get(ExtensionActionButtonProperties.ON_HOVER_LISTENER);
+
+        ExtensionAction action = mock(ExtensionAction.class);
+        ExtensionAction.HoverCardState state = mock(ExtensionAction.HoverCardState.class);
+        when(action.getHoverCardState()).thenReturn(state);
+        doReturn(action).when(mExtensionsToolbarBridge).getAction(eq(ACTION1_ID), any());
+
+        View anchorView = new View(activity);
+        when(mRecyclerViewDelegate.getButtonViewForId(ACTION1_ID)).thenReturn(anchorView);
+
+        // Trigger hover enter to start timer.
+        MotionEvent enterEvent = mock(MotionEvent.class);
+        when(enterEvent.getAction()).thenReturn(MotionEvent.ACTION_HOVER_ENTER);
+        listener.onHover(anchorView, enterEvent);
+
+        // Verify card not shown yet.
+        verify(action, never()).getHoverCardState();
+
+        // Simulate a popup request to immediately move out of the Idle state without side effects.
+        mBridgeDelegateCaptor.getValue().triggerPopup(ACTION1_ID, 123L);
+
+        // Advance timer.
+        shadowOf(Looper.getMainLooper())
+                .idleFor(ViewConfiguration.getLongPressTimeout(), TimeUnit.MILLISECONDS);
+
+        // Verify hover card was not shown.
+        verify(action, never()).getHoverCardState();
+    }
+
     private static Bitmap createSimpleIcon(int color) {
         Bitmap bitmap = Bitmap.createBitmap(12, 12, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
@@ -479,7 +679,6 @@ public class ExtensionActionListMediatorTest {
         ListItem item = mModels.get(index);
         assertEquals(ListItemType.EXTENSION_ACTION, item.type);
         assertEquals(id, item.model.get(ExtensionActionButtonProperties.ID));
-        assertEquals(title, item.model.get(ExtensionActionButtonProperties.TOOLTIP));
         assertEquals(title, item.model.get(ExtensionActionButtonProperties.ACCESSIBLE_NAME));
         assertTrue(icon.sameAs(item.model.get(ExtensionActionButtonProperties.ICON)));
     }

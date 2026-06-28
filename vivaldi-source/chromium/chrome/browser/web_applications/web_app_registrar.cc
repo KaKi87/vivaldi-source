@@ -112,10 +112,8 @@ bool IsNavigationCapturingSettingOffByDefault(
   }
 
   switch (features::kNavigationCapturingDefaultState.Get()) {
-    case features::CapturingState::kDefaultOff:
     case features::CapturingState::kReimplDefaultOff:
       return true;
-    case features::CapturingState::kDefaultOn:
     case features::CapturingState::kReimplDefaultOn:
       return false;
     case features::CapturingState::kReimplOnViaClientMode:
@@ -381,8 +379,9 @@ void WebAppRegistrar::NotifyWebAppLastBadgingTimeChanged(
 
 void WebAppRegistrar::NotifyWebAppLastLaunchTimeChanged(
     const webapps::AppId& app_id,
-    const base::Time& time) {
-  DVLOG(1) << "NotifyWebAppLastLaunchTimeChanged " << app_id << ", " << time;
+    const std::optional<base::Time>& time) {
+  DVLOG(1) << "NotifyWebAppLastLaunchTimeChanged " << app_id << ", "
+           << time.value_or(base::Time());
   for (WebAppRegistrarObserver& observer : observers_) {
     observer.OnWebAppLastLaunchTimeChanged(app_id, time);
   }
@@ -631,7 +630,7 @@ DisplayMode WebAppRegistrar::GetEffectiveDisplayModeFromManifest(
 GURL WebAppRegistrar::GetComputedManifestId(
     const webapps::AppId& app_id) const {
   auto* web_app = GetAppById(app_id);
-  return web_app ? web_app->manifest_id() : GURL();
+  return web_app ? web_app->manifest_id().value() : GURL();
 }
 
 bool WebAppRegistrar::IsTabbedWindowModeEnabled(
@@ -1024,6 +1023,11 @@ bool WebAppRegistrar::AppMatches(const webapps::AppId& app_id,
                 return display_mode != DisplayMode::kBrowser &&
                        display_mode != DisplayMode::kUndefined;
               }
+              case WebAppFilter::SimpleCondition::kIsPlaceholder:
+                return IsPlaceholderApp(
+                           app_id, web_app::WebAppManagement::Type::kKiosk) ||
+                       IsPlaceholderApp(
+                           app_id, web_app::WebAppManagement::Type::kPolicy);
             }
           },
           [&](const WebAppFilter::ManagementRequirement& requirement) {
@@ -1143,6 +1147,11 @@ bool WebAppRegistrar::CanUserUninstallWebApp(
     const webapps::AppId& app_id) const {
   const WebApp* web_app = GetAppById(app_id);
   return web_app && web_app->CanUserUninstallWebApp();
+}
+
+bool WebAppRegistrar::IsPreinstalledOnly(const webapps::AppId& app_id) const {
+  const WebApp* web_app = GetAppById(app_id);
+  return web_app && web_app->HasOnlySource(WebAppManagement::kDefault);
 }
 
 bool WebAppRegistrar::IsPreventCloseEnabled(
@@ -1544,10 +1553,13 @@ const GURL& WebAppRegistrar::GetAppStartUrl(
   return web_app ? web_app->start_url() : GURL::EmptyGURL();
 }
 
-webapps::ManifestId WebAppRegistrar::GetAppManifestId(
+std::optional<webapps::ManifestId> WebAppRegistrar::GetAppManifestId(
     const webapps::AppId& app_id) const {
   auto* web_app = GetAppById(app_id);
-  return web_app ? web_app->manifest_id() : webapps::ManifestId();
+  if (web_app) {
+    return web_app->manifest_id();
+  }
+  return std::nullopt;
 }
 
 const std::string* WebAppRegistrar::GetAppLaunchQueryParams(
@@ -1746,10 +1758,10 @@ base::Time WebAppRegistrar::GetAppLastBadgingTime(
   return web_app ? web_app->last_badging_time() : base::Time();
 }
 
-base::Time WebAppRegistrar::GetAppLastLaunchTime(
+std::optional<base::Time> WebAppRegistrar::GetAppLastLaunchTime(
     const webapps::AppId& app_id) const {
   auto* web_app = GetAppById(app_id);
-  return web_app ? web_app->last_launch_time() : base::Time();
+  return web_app ? web_app->last_launch_time() : std::nullopt;
 }
 
 base::Time WebAppRegistrar::GetAppFirstInstallTime(

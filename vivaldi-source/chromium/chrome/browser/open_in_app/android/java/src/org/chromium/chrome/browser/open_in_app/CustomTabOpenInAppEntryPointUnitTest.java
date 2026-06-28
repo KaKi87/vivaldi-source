@@ -111,7 +111,8 @@ public class CustomTabOpenInAppEntryPointUnitTest {
                 /* isExternalProtocol= */ false,
                 /* isPdf= */ false,
                 /* mimeType= */ "",
-                Page.createForTesting());
+                Page.createForTesting(),
+                /* isSameOrigin= */ true);
 
         mEntryPoint = new CustomTabOpenInAppEntryPoint(mTabSupplier, mContext);
         mTabSupplier.set(mTab);
@@ -137,6 +138,7 @@ public class CustomTabOpenInAppEntryPointUnitTest {
         assertNonNull(appInfo);
         assertEquals(LABEL, appInfo.appName);
         assertEquals(mIcon, appInfo.appIcon);
+        assertEquals(PACKAGE, appInfo.packageName);
 
         // Check that delegate is also updated.
         assertEquals(appInfo, delegate.getCurrentOpenInAppInfo());

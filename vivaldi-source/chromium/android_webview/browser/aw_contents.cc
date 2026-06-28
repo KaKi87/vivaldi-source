@@ -4,6 +4,7 @@
 
 #include "android_webview/browser/aw_contents.h"
 
+#include <atomic>
 #include <limits>
 #include <memory>
 #include <string>
@@ -49,7 +50,6 @@
 #include "base/android/jni_string.h"
 #include "base/android/locale_utils.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/atomicops.h"
 #include "base/command_line.h"
 #include "base/containers/span.h"
 #include "base/feature_list.h"
@@ -119,6 +119,7 @@
 #include "net/cert/x509_util.h"
 #include "third_party/blink/public/common/navigation/navigation_params.h"
 #include "third_party/blink/public/common/web_preferences/web_preferences.h"
+#include "third_party/perfetto/include/perfetto/tracing/track.h"
 #include "third_party/skia/include/core/SkPicture.h"
 #include "ui/gfx/android/java_bitmap.h"
 #include "ui/gfx/geometry/rect_f.h"
@@ -190,7 +191,7 @@ class AwContentsUserData : public base::SupportsUserData::Data {
   raw_ptr<AwContents> contents_;
 };
 
-base::subtle::Atomic32 g_instance_count = 0;
+std::atomic<uint32_t> g_instance_count = 0;
 
 bool IsPrerenderHandleEquivalentTo(
     const std::unique_ptr<content::PrerenderHandle>& handle,
@@ -285,9 +286,10 @@ AwContents::AwContents(std::unique_ptr<WebContents> web_contents)
                              content::GetUIThreadTaskRunner({}),
                              content::GetIOThreadTaskRunner({})),
       web_contents_(std::move(web_contents)) {
-  TRACE_EVENT_BEGIN("android_webview.timeline", "WebView Instance",
-                    perfetto::Track::FromPointer(this));
-  base::subtle::NoBarrier_AtomicIncrement(&g_instance_count, 1);
+  TRACE_EVENT_BEGIN(
+      "android_webview.timeline", "WebView Instance",
+      perfetto::NamedTrack::FromPointer("WebView Instance", this));
+  g_instance_count.fetch_add(1, std::memory_order_relaxed);
   icon_helper_ = std::make_unique<IconHelper>(web_contents_.get());
   icon_helper_->SetListener(this);
   web_contents_->SetUserData(android_webview::kAwContentsUserDataKey,
@@ -428,8 +430,8 @@ AwContents::~AwContents() {
   }
   if (icon_helper_.get())
     icon_helper_->SetListener(NULL);
-  base::subtle::Atomic32 instance_count =
-      base::subtle::NoBarrier_AtomicIncrement(&g_instance_count, -1);
+  uint32_t instance_count =
+    g_instance_count.fetch_add(-1, std::memory_order_relaxed) - 1;
   // When the last WebView is destroyed free all discardable memory allocated by
   // Chromium, because the app process may continue to run for a long time
   // without ever using another WebView.
@@ -446,7 +448,7 @@ AwContents::~AwContents() {
       this);
   // Corresponds to "WebView Instance" in AwContents's constructor.
   TRACE_EVENT_END("android_webview.timeline",
-                  perfetto::Track::FromPointer(this));
+                  perfetto::NamedTrack::FromPointer("WebView Instance", this));
 }
 
 base::android::ScopedJavaLocalRef<jobject> AwContents::GetWebContents(
@@ -490,15 +492,6 @@ base::android::ScopedJavaLocalRef<jobject> AwContents::GetJavaObject() {
   return java_ref_.get(env);
 }
 
-SkBitmap AwContents::GetFavicon(JNIEnv* env) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  gfx::Image favicon_image = web_contents_->GetController()
-                                 .GetLastCommittedEntry()
-                                 ->GetFavicon()
-                                 .image;
-  return favicon_image.AsBitmap();
-}
-
 void AwContents::Destroy(JNIEnv* env) {
   java_ref_.reset();
   delete this;
@@ -533,7 +526,7 @@ static void JNI_AwContents_SetAwDrawSWFunctionTable(JNIEnv* env,
 
 // static
 static int32_t JNI_AwContents_GetNativeInstanceCount(JNIEnv* env) {
-  return base::subtle::NoBarrier_Load(&g_instance_count);
+  return g_instance_count.load(std::memory_order_relaxed);
 }
 
 // static
@@ -733,21 +726,23 @@ void AwContents::HideGeolocationPrompt(const GURL& origin) {
   }
 }
 
-void AwContents::OnPermissionRequest(
-    base::android::ScopedJavaLocalRef<jobject> j_request,
-    AwPermissionRequest* request) {
-  DCHECK(j_request);
-  DCHECK(request);
+base::WeakPtr<AwPermissionRequest> AwContents::OnPermissionRequest(
+    std::unique_ptr<AwPermissionRequestDelegate> permission_request) {
+  DCHECK(permission_request);
 
   JNIEnv* env = AttachCurrentThread();
   ScopedJavaLocalRef<jobject> j_ref = java_ref_.get(env);
   if (!j_ref) {
-    permission_request_handler_->CancelRequest(request->GetOrigin(),
-                                               request->GetResources());
-    return;
+    return nullptr;
   }
 
+  base::WeakPtr<AwPermissionRequest> weak_request;
+  // The Create method also assigns the `weak_request` ptr.
+  base::android::ScopedJavaLocalRef<jobject> j_request =
+      AwPermissionRequest::Create(std::move(permission_request), &weak_request);
+
   Java_AwContents_onPermissionRequest(env, j_ref, j_request);
+  return weak_request;
 }
 
 void AwContents::OnPermissionRequestCanceled(AwPermissionRequest* request) {
@@ -902,13 +897,7 @@ void AwContents::OnReceivedIcon(const GURL& icon_url, const SkBitmap& bitmap) {
   entry->GetFavicon().url = icon_url;
   entry->GetFavicon().image = gfx::Image::CreateFrom1xBitmap(bitmap);
 
-  // Experiment: will not store favicon bitmap in java or call onReceivedIcon
-  // unless onReceivedIcon is overridden crbug.com/41027010
-  if (is_on_received_icon_overridden_ ||
-      !base::FeatureList::IsEnabled(
-          features::kWebViewSkipFaviconJavaCopyUntilNeeded)) {
-    Java_AwContents_onReceivedIcon(env, obj, bitmap);
-  }
+  Java_AwContents_onReceivedIcon(env, obj, bitmap);
 }
 
 void AwContents::OnReceivedTouchIconUrl(const std::string& url,
@@ -1137,8 +1126,7 @@ bool AwContents::OnDraw(JNIEnv* env,
 
   gfx::Size view_size = browser_view_renderer_.size();
   if (view_size.IsEmpty()) {
-    TRACE_EVENT_INSTANT0("android_webview", "EarlyOut_EmptySize",
-                         TRACE_EVENT_SCOPE_THREAD);
+    TRACE_EVENT_INSTANT("android_webview", "EarlyOut_EmptySize");
     return false;
   }
 
@@ -1151,8 +1139,7 @@ bool AwContents::OnDraw(JNIEnv* env,
       SoftwareCanvasHolder::Create(canvas, scroll, view_size,
                                    force_auxiliary_bitmap_rendering);
   if (!canvas_holder || !canvas_holder->GetCanvas()) {
-    TRACE_EVENT_INSTANT0("android_webview", "EarlyOut_NoSoftwareCanvas",
-                         TRACE_EVENT_SCOPE_THREAD);
+    TRACE_EVENT_INSTANT("android_webview", "EarlyOut_NoSoftwareCanvas");
     return false;
   }
   return browser_view_renderer_.OnDrawSoftware(canvas_holder->GetCanvas());
@@ -1370,7 +1357,7 @@ int32_t AwContents::GetEffectivePriority(JNIEnv* env) {
   switch (web_contents_->GetPrimaryMainFrame()
               ->GetProcess()
               ->GetEffectiveImportance()) {
-    case content::ChildProcessImportance::PERCEPTIBLE:
+    case content::ChildProcessImportance::NOT_PERCEPTIBLE:
       NOTREACHED(base::NotFatalUntil::M140);
       [[fallthrough]];
     case content::ChildProcessImportance::NORMAL:
@@ -1615,10 +1602,6 @@ void AwContents::SetJsOnlineProperty(JNIEnv* env, bool network_up) {
           web_contents_->GetPrimaryMainFrame()->GetProcess());
 
   aw_render_process->SetJsOnlineProperty(network_up);
-}
-
-void AwContents::SetOnReceivedIconOverridden(JNIEnv* env, bool is_overridden) {
-  is_on_received_icon_overridden_ = is_overridden;
 }
 
 void AwContents::TrimMemory(JNIEnv* env, int32_t level, bool visible) {

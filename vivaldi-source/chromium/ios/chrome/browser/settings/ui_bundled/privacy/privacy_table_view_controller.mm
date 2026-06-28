@@ -370,12 +370,16 @@ const char kSyncSettingsURL[] = "settings://open_sync";
   [model addSectionWithIdentifier:SectionIdentifierHTTPSOnlyMode];
   [model addItem:self.HTTPSOnlyModeItem
       toSectionWithIdentifier:SectionIdentifierHTTPSOnlyMode];
+
+  if (!IsVivaldiRunning()) {
   if (base::FeatureList::IsEnabled(
           safe_browsing::kMovePasswordLeakDetectionToggleIos)) {
     [model addSectionWithIdentifier:SectionIdentifierPasswordLeakCheck];
     [model addItem:self.passwordLeakCheckItem
         toSectionWithIdentifier:SectionIdentifierPasswordLeakCheck];
   }
+  } // End Vivaldi
+
   [model addSectionWithIdentifier:SectionIdentifierWebServices];
   [model addSectionWithIdentifier:SectionIdentifierIncognitoAuth];
   [model addSectionWithIdentifier:SectionIdentifierIncognitoInterstitial];

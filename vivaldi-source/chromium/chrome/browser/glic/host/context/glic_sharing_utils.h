@@ -28,11 +28,13 @@ namespace glic {
 bool IsBrowserValidForSharingInProfile(
     BrowserWindowInterface* browser_interface,
     Profile* profile);
+bool IsTabValidForPinningInProfile(tabs::TabInterface* tab, Profile* profile);
 
 // Returns true if `web_contents` can be shared, given its current state.
 // This becomes invalid when the committed URL changes.
 // Sharing may still fail for other reasons.
 bool IsTabValidForSharing(content::WebContents* web_contents);
+bool IsTabValidForSharing(tabs::TabInterface* tab);
 
 // Returns an empty pin event.
 GlicPinEvent GetEmptyPinEvent();

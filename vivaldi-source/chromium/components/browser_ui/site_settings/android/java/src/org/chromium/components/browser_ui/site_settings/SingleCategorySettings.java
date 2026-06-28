@@ -397,7 +397,7 @@ public class SingleCategorySettings extends BaseSiteSettingsFragment
         if (allowedGroup == null) return;
 
         if (numAllowed == 0) {
-            if (allowedGroup != null) getPreferenceScreen().removePreference(allowedGroup);
+            getPreferenceScreen().removePreference(allowedGroup);
             return;
         }
 
@@ -808,6 +808,7 @@ public class SingleCategorySettings extends BaseSiteSettingsFragment
 
         // Display the Privacy Sandbox snackbar whenever third-party cookies are blocked.
         if (mode == CookieControlsMode.BLOCK_THIRD_PARTY) {
+            RecordUserAction.record("Settings.PrivacySandbox.Block3PCookies");
             getSiteSettingsDelegate().maybeDisplayPrivacySandboxSnackbar();
         }
         PrefService prefService = UserPrefs.get(getBrowserContextHandle());
@@ -1271,8 +1272,6 @@ public class SingleCategorySettings extends BaseSiteSettingsFragment
             return R.string.website_settings_file_editing_page_description;
         } else if (mCategory.getType() == SiteSettingsCategory.Type.SERIAL_PORT) {
             return R.string.website_settings_serial_port_page_description;
-        } else if (mCategory.getType() == SiteSettingsCategory.Type.LOCAL_NETWORK_ACCESS) {
-            return R.string.website_settings_local_network_access_page_description;
         } else if (mCategory.getType() == SiteSettingsCategory.Type.LOCAL_NETWORK) {
             return R.string.website_settings_local_network_page_description;
         } else if (mCategory.getType() == SiteSettingsCategory.Type.LOOPBACK_NETWORK) {

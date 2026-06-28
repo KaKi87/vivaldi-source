@@ -7,6 +7,10 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
+
+#ifndef EIGEN_TEST_PACKETMATH_TEST_SHARED_H
+#define EIGEN_TEST_PACKETMATH_TEST_SHARED_H
 
 #include "main.h"
 #include <typeinfo>
@@ -294,7 +298,7 @@ struct runall;
 
 template <typename Scalar, typename PacketType = typename internal::packet_traits<Scalar>::type,
           bool Vectorized = internal::packet_traits<Scalar>::Vectorizable,
-          bool HasHalf = !internal::is_same<typename internal::unpacket_traits<PacketType>::half, PacketType>::value>
+          bool HasHalf = !std::is_same<typename internal::unpacket_traits<PacketType>::half, PacketType>::value>
 struct runner;
 
 template <typename Scalar, typename PacketType>
@@ -317,3 +321,5 @@ struct runner<Scalar, PacketType, false, false> {
 
 }  // namespace test
 }  // namespace Eigen
+
+#endif  // EIGEN_TEST_PACKETMATH_TEST_SHARED_H

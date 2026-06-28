@@ -12,6 +12,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -21,7 +22,6 @@ import android.widget.FrameLayout;
 
 import androidx.annotation.MainThread;
 import androidx.annotation.StringRes;
-import androidx.annotation.VisibleForTesting;
 import androidx.fragment.app.Fragment;
 
 import org.chromium.base.DeviceInfo;
@@ -40,7 +40,9 @@ import org.chromium.chrome.browser.firstrun.SkipTosDialogPolicyListener;
 import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManagerImpl;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
+import org.chromium.chrome.browser.signin.services.BadgeConfig;
 import org.chromium.chrome.browser.ui.device_lock.DeviceLockCoordinator;
+import org.chromium.chrome.browser.ui.signin.SigninAndHistorySyncCoordinator;
 import org.chromium.chrome.browser.ui.signin.SigninSurveyController;
 import org.chromium.chrome.browser.ui.signin.SigninUtils;
 import org.chromium.chrome.browser.ui.signin.fullscreen_signin.FullscreenSigninConfig;
@@ -61,7 +63,7 @@ public class SigninFirstRunFragment extends Fragment
         implements FirstRunFragment,
                 FullscreenSigninCoordinator.Delegate,
                 DeviceLockCoordinator.Delegate {
-    @VisibleForTesting static final int ADD_ACCOUNT_REQUEST_CODE = 1;
+    private static final int ADD_ACCOUNT_REQUEST_CODE = 1;
 
     private @Nullable FrameLayout mFragmentView;
     private View mMainView;
@@ -91,7 +93,10 @@ public class SigninFirstRunFragment extends Fragment
                                         R.string.signin_fre_stay_signed_out_button),
                                 /* logoId= */ 0,
                                 /* shouldDisableSignin= */ DeviceInfo.isAutomotive(),
-                                /* surveyType= */ SigninSurveyController.SigninSurveyType.FRE),
+                                /* surveyType= */ SigninSurveyController.SigninSurveyType.FRE,
+                                /* selectedAccountEmail= */ null,
+                                /* signinFlow= */ SigninAndHistorySyncCoordinator.SigninFlow
+                                        .DEFAULT_SIGNIN),
                         SigninAccessPoint.START_PAGE);
 
         var pageDelegate = assumeNonNull(getPageDelegate());
@@ -181,14 +186,25 @@ public class SigninFirstRunFragment extends Fragment
         mFullscreenSigninCoordinator.reset();
     }
 
+    /**
+     * Implements {@link FullscreenSigninCoordinator.Delegate}.
+     *
+     * @deprecated Use {@link #addAccount(String)} instead.
+     */
+    @Override
+    @Deprecated
+    public void addAccount() {
+        addAccount(null);
+    }
+
     /** Implements {@link FullscreenSigninCoordinator.Delegate}. */
     @Override
-    public void addAccount() {
+    public void addAccount(@Nullable String accountEmail) {
         assumeNonNull(getPageDelegate())
                 .recordFreProgressHistogram(MobileFreProgress.WELCOME_ADD_ACCOUNT);
         AccountManagerFacadeProvider.getInstance()
                 .createAddAccountIntent(
-                        null,
+                        accountEmail,
                         (@Nullable Intent intent) -> {
                             if (intent != null) {
                                 startActivityForResult(intent, ADD_ACCOUNT_REQUEST_CODE);
@@ -214,6 +230,12 @@ public class SigninFirstRunFragment extends Fragment
         if (pageDelegate != null) {
             pageDelegate.advanceToNextPage();
         }
+    }
+
+    /** Implements {@link FullscreenSigninCoordinator.Delegate} */
+    @Override
+    public void abortFlow() {
+        exitFirstRun();
     }
 
     /** Implements {@link FullscreenSigninCoordinator.Delegate}. */
@@ -387,5 +409,21 @@ public class SigninFirstRunFragment extends Fragment
 
     boolean getDelayedExitFirstRunCalledForTesting() {
         return mDelayedExitFirstRunCalledForTesting;
+    }
+
+    Drawable getProfilePictureForTesting() {
+        return mFullscreenSigninCoordinator.getProfilePictureForTesting(); // IN-TEST
+    }
+
+    void setStartAnimationForTesting(boolean start) {
+        mFullscreenSigninCoordinator.setStartAnimationForTesting(start); // IN-TEST
+    }
+
+    @Nullable BadgeConfig getSigninAnimationBadgeConfigForTesting() {
+        return mFullscreenSigninCoordinator.getSigninAnimationBadgeConfigForTesting(); // IN-TEST
+    }
+
+    @Nullable BadgeConfig getContinueButtonBadgeConfigForTesting() {
+        return mFullscreenSigninCoordinator.getContinueButtonBadgeConfigForTesting(); // IN-TEST
     }
 }

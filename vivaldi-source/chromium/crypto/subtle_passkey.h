@@ -34,6 +34,8 @@ class KeychainKeyProvider;
 
 // Vivaldi: For compatibility with sync os_crypt portal backend.
 class VivaldiSecretPortalKeyProvider;
+// Vivaldi: For importing from other keychains on macOS
+class VivaldiImportKeychainKeyProvider;
 }
 
 namespace password_manager {
@@ -41,7 +43,9 @@ crypto::SubtlePassKey MakeCryptoPassKey();
 crypto::SubtlePassKey MakeCryptoPassKeyForPasswordHash();
 }
 
-class OSCryptImpl;
+namespace webauthn {
+crypto::SubtlePassKey MakeCryptoPassKey();
+}  // namespace webauthn
 
 namespace crypto {
 
@@ -81,7 +85,6 @@ class CRYPTO_EXPORT SubtlePassKey final {
 
   // These classes use custom PBKDF2 parameters and have to keep doing so for
   // compatibility with existing persisted data.
-  friend class ::OSCryptImpl;
   friend class os_crypt_async::FreedesktopSecretKeyProvider;
   friend class os_crypt_async::KeychainKeyProvider;
 
@@ -90,12 +93,20 @@ class CRYPTO_EXPORT SubtlePassKey final {
   friend SubtlePassKey password_manager::MakeCryptoPassKey();
   friend SubtlePassKey password_manager::MakeCryptoPassKeyForPasswordHash();
 
-  // Vivaldi: For compatibility with sync os_crypt portal backend.
-  friend class os_crypt_async::VivaldiSecretPortalKeyProvider;
+  // These use custom scrypt parameters for compatibility with Android and the
+  // enclave server.
+  friend SubtlePassKey webauthn::MakeCryptoPassKey();
 
   // This class uses custom PBKDF2 parameters which cannot be changed for
   // compatibility with persisted data.
   friend class ash::Key;
+
+  // Vivaldi
+  friend class os_crypt_async::VivaldiImportKeychainKeyProvider;
+  // Vivaldi: For compatibility with sync os_crypt portal backend.
+  friend class os_crypt_async::VivaldiSecretPortalKeyProvider;
+  // End Vivaldi
+
 };
 
 }  // namespace crypto

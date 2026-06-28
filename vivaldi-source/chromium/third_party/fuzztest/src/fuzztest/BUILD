@@ -16,6 +16,7 @@
 
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_static_library.bzl", "cc_static_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -82,7 +83,6 @@ cc_library(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
         "@com_google_fuzztest//common:logging",
-        "@com_google_fuzztest//fuzztest/internal:logging",
         "@com_google_fuzztest//fuzztest/internal:registration",
         "@com_google_fuzztest//fuzztest/internal:registry",
         "@com_google_fuzztest//fuzztest/internal:runtime",
@@ -95,6 +95,7 @@ cc_test(
     deps = [
         ":fuzztest_macros",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:temp_dir",
@@ -174,6 +175,16 @@ cc_library(
         "@com_google_fuzztest//fuzztest/internal/domains:lazy",
     ],
     alwayslink = True,
+)
+
+# Self-contained FuzzTest library archive to be linked with LLVMFuzzerTestOneInput targets.
+cc_static_library(
+    name = "fuzztest_llvm_fuzzer_static",
+    testonly = True,
+    deps = [
+        ":llvm_fuzzer_main",
+        ":llvm_fuzzer_wrapper",
+    ],
 )
 
 cc_library(
@@ -256,4 +267,13 @@ cc_library(
         "@com_google_fuzztest//fuzztest/internal:fixture_driver",
         "@googletest//:gtest",
     ],
+)
+
+# Explicitly exempt the file from checks for a corresponding Bazel rule, since
+# this is an experimental script.
+filegroup(
+    name = "generate_cmake_from_bazel",
+    srcs = ["cmake/generate_cmake_from_bazel.py"],
+    tags = ["ignore_srcs"],
+    visibility = ["//visibility:private"],
 )

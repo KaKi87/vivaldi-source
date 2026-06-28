@@ -1,21 +1,23 @@
-import("//vivaldi/vivaldi_init_settings.gni")
+import("//vivaldi/vivaldi_init_settings.gni") # DO NOT relocate, MUST be first line in the file
+
+assert(is_vivaldi) # Order above is required
+
 import("//build/config/chrome_build.gni")
-
-assert(is_vivaldi)
-
 import("//build/config/ui.gni")
 
+import("//vivaldi/gn/compile_updates.gni")
 import("//vivaldi/gn/config/features.gni")
 import("//vivaldi/gn/config/product.gni")
-import("//vivaldi/gn/compile_updates.gni")
 import("//vivaldi/gn/source_updates.gni")
 
-import("//vivaldi/gn/product_updates.gni")
 import("//vivaldi/gn/deps_updates.gni")
+import("//vivaldi/gn/product_updates.gni")
 
 import("//vivaldi/gn/product_updates_last.gni")
 
 import("//vivaldi/app/resources/untranslated.gni")
+
+import("//vivaldi/installer/enterprise/enterprise.gni")
 
 if (is_android) {
   import("//build/config/android/rules.gni")
@@ -37,17 +39,19 @@ group("All") {
   deps = []
   if (!is_ios) {
     deps += [
-      ":vivaldi",
       ":generate_files_json",
-      "//vivaldi/app:write_translation_xml_generation_script",
-      "//vivaldi/app:write_pakfile_xml_generation_script",
-      "//vivaldi/app:write_full_pakfile_xml_generation_script",
+      ":vivaldi",
     ]
+    if (!is_android) {
+      deps += [
+        "//vivaldi/app:write_full_pakfile_xml_generation_script",
+        "//vivaldi/app:write_pakfile_xml_generation_script",
+        "//vivaldi/app:write_translation_xml_generation_script",
+      ]
+    }
   }
   if (is_android) {
-    deps += [
-        "//vivaldi/components/notes",
-    ]
+    deps += [ "//vivaldi/components/notes" ]
   }
   if (vivaldi_build_tests) {
     deps += [
@@ -75,16 +79,16 @@ group("All") {
   }
   if (is_win) {
     deps += [
-      "//vivaldi/installer/mini_installer/mini_installer",
-      "//vivaldi/installer/enterprise",
-      "//components/zucchini:zucchini",
+      "//components/zucchini",
       "//components/zucchini:zucchini64",
-      # "//ui/views/examples:views_examples", # example test software for viewing icons
+      "//vivaldi/installer/enterprise",
+      "//vivaldi/installer/mini_installer/mini_installer",
+
+      # "//ui/views/examples:views_examples", example test software for viewing
+      # icons
     ]
     if (!vivaldi_disable_sparkle) {
-      deps += [
-        "//vivaldi/update_notifier",
-      ]
+      deps += [ "//vivaldi/update_notifier" ]
     }
     if (vivaldi_build_tests) {
       deps += [
@@ -98,24 +102,24 @@ group("All") {
     deps += [ "//chrome/installer" ]
   }
   if (is_mac) {
-    deps += [
-      "//vivaldi/installer/mac",
-    ]
+    deps += [ "//vivaldi/installer/mac" ]
     if (vivaldi_build_tests) {
       deps += [
         "//third_party/ocmock",
         "//ui/message_center:message_center_unittests",
       ]
     }
+    # Policy templates for mac is currently unsupported
+    if (false && is_official_build && target_cpu == "arm64" &&
+        (build_enterprise_policy_pack ||
+         VIVALDI_RELEASE_KIND == "vivaldi_final")) {
+      deps += [ "//components/policy:pack_policy_templates" ]
+    }
   }
   if (is_linux) {
-    deps += [
-      "//sandbox/linux:chrome_sandbox",
-    ]
+    deps += [ "//sandbox/linux:chrome_sandbox" ]
     if (vivaldi_build_tests) {
-      deps += [
-        "//sandbox/linux:sandbox_linux_unittests",
-      ]
+      deps += [ "//sandbox/linux:sandbox_linux_unittests" ]
       if (use_dbus) {
         deps += [
           "//dbus:dbus_test_server",
@@ -125,8 +129,8 @@ group("All") {
     }
     if (!is_component_build) {
       deps += [
-        "//chrome/installer/linux",
         ":linux_packages_all",
+        "//chrome/installer/linux",
       ]
     }
     if (use_dbus) {
@@ -147,128 +151,115 @@ group("All") {
     deps += [ "//ui/views:views_unittests" ]
   }
   if (is_win && vivaldi_build_tests) {
-    deps += ["//vivaldi/testing:testing"]
+    deps += [ "//vivaldi/testing" ]
   }
-  if (generate_untranslated){
-    deps += [
-      "//vivaldi/app:generate_untranslated"
-    ]
+  if (generate_untranslated) {
+    deps += [ "//vivaldi/app:generate_untranslated" ]
   }
   if (is_ios) {
-    deps += ["//ios/chrome/app:chrome"]
+    deps += [ "//ios/chrome/app:chrome" ]
     if (is_official_build) {
-      deps += ["//vivaldi/ios:ios_dsym_archive"]
+      deps += [ "//vivaldi/ios:ios_dsym_archive" ]
       if (ios_is_app_extension) {
-        deps += ["//vivaldi/ios:ios_extension_dsym_archive"]
+        deps += [ "//vivaldi/ios:ios_extension_dsym_archive" ]
       }
     }
-    if (getenv("CHROME_HEADLESS") != "1") {  # Signing provisions needed for building on builders
-      deps += ["//ios/components:all_tests"]
+    if (getenv("CHROME_HEADLESS") !=
+        "1") {  # Signing provisions needed for building on builders
+      deps += [ "//ios/components:all_tests" ]
     }
   }
   if (is_mac || is_linux) {
     deps += [
-      "//third_party/breakpad:minidump_stackwalk($host_system_allocator_toolchain)",
+      ":copy_symbol_tools",
       "//third_party/breakpad:dump_syms($host_system_allocator_toolchain)",
       "//third_party/breakpad:minidump_dump($host_system_allocator_toolchain)",
-      ":copy_symbol_tools",
+      "//third_party/breakpad:minidump_stackwalk($host_system_allocator_toolchain)",
     ]
     if (is_linux) {
       # Note that minidump-2-core is built in the correct location for the
       # archive step so we do not need to copy it
       # see chromium/third_party/breakpad/BUILD.gn
-      deps += [
-        "//third_party/breakpad:minidump-2-core",
-      ]
+      deps += [ "//third_party/breakpad:minidump-2-core" ]
     }
   }
   if (is_win) {
     deps += [
-      "//third_party/breakpad:dump_syms($host_system_allocator_toolchain)",
       ":copy_symbol_tools",
+      "//third_party/breakpad:dump_syms($host_system_allocator_toolchain)",
     ]
   }
 }
 
 if (!is_ios) {
-group("vivaldi") {
-  deps = [
-    ":standalone",
-    ":vivaldi_version_info",
-    "//chrome",
-  ]
-  if (is_android) {
-    deps -= [ "//chrome" ]
-    deps += [ "//chrome/android:chrome_public_apk" ]
-    if (!is_debug) {
-      deps += [ "//chrome/android:chrome_public_bundle" ]
+  group("vivaldi") {
+    deps = [
+      ":standalone",
+      ":vivaldi_version_info",
+      "//chrome",
+    ]
+    if (is_android) {
+      deps -= [ "//chrome" ]
+      deps += [ "//chrome/android:chrome_public_apk" ]
+      if (!is_debug) {
+        deps += [ "//chrome/android:chrome_public_bundle" ]
+      }
+      foreach(t, [ "//chrome/android:libchrome" ]) {
+        deps += [
+          "${t}__jni_registration__java_sources",
+          "${t}__jni_registration__native_sources",
+        ]
+      }
+      if (!is_debug &&
+          (is_vivaldi_lynkco || is_vivaldi_mercedes || is_vivaldi_mahindra)) {
+        # Bundle (.aab) is not used for these builds:
+        deps -= [ "//chrome/android:chrome_public_bundle" ]
+      }
     }
-    foreach(t, ["//chrome/android:libchrome"]) {
-      deps += [
-        "${t}__jni_registration__native_sources",
-        "${t}__jni_registration__java_sources",
-      ]
-    }
-    if (! is_debug && (is_vivaldi_lynkco || is_vivaldi_mercedes || is_vivaldi_mahindra)) {
-      # Bundle (.aab) is not used for these builds:
-      deps -= [ "//chrome/android:chrome_public_bundle" ]
+    if (is_mac || is_win) {
+      deps += [ "//third_party/crashpad/crashpad/handler:crashpad_handler" ]
     }
   }
-  if (is_mac || is_win) {
-    deps += [ "//third_party/crashpad/crashpad/handler:crashpad_handler" ]
-  }
-}
 }
 
 if (is_mac || is_linux) {
   copy("copy_symbol_tools") {
-    toolchain_folder = get_label_info("$host_system_allocator_toolchain","name")
+    toolchain_folder =
+        get_label_info("$host_system_allocator_toolchain", "name")
 
     # Note that minidump-2-core is built in the correct location for the
     # archive step so we do not need to copy it
     # see chromium/third_party/breakpad/BUILD.gn
     sources = [
-      "$root_build_dir/$toolchain_folder/minidump_stackwalk",
       "$root_build_dir/$toolchain_folder/minidump_dump",
+      "$root_build_dir/$toolchain_folder/minidump_stackwalk",
     ]
     if (!is_android || !is_official_build) {
-      sources += [
-        "$root_build_dir/$toolchain_folder/dump_syms",
-      ]
+      sources += [ "$root_build_dir/$toolchain_folder/dump_syms" ]
     }
-    outputs = [
-      "$root_build_dir/{{source_file_part}}"
-    ]
+    outputs = [ "$root_build_dir/{{source_file_part}}" ]
     deps = [
-      "//third_party/breakpad:minidump_stackwalk($host_system_allocator_toolchain)",
       "//third_party/breakpad:dump_syms($host_system_allocator_toolchain)",
       "//third_party/breakpad:minidump_dump($host_system_allocator_toolchain)",
+      "//third_party/breakpad:minidump_stackwalk($host_system_allocator_toolchain)",
     ]
   }
 }
 if (is_win) {
   copy("copy_symbol_tools") {
-    toolchain_folder = get_label_info("$host_system_allocator_toolchain","name")
+    toolchain_folder =
+        get_label_info("$host_system_allocator_toolchain", "name")
 
-    sources = [
-      "$root_build_dir/$toolchain_folder/dump_syms.exe",
-    ]
-    outputs = [
-      "$root_build_dir/{{source_file_part}}"
-    ]
-    deps = [
-      "//third_party/breakpad:dump_syms($host_system_allocator_toolchain)",
-    ]
+    sources = [ "$root_build_dir/$toolchain_folder/dump_syms.exe" ]
+    outputs = [ "$root_build_dir/{{source_file_part}}" ]
+    deps =
+        [ "//third_party/breakpad:dump_syms($host_system_allocator_toolchain)" ]
   }
 }
 
 copy("standalone") {
-  sources = [
-    "testdata/stp.viv",
-  ]
-  outputs = [
-    "$root_build_dir/stp.viv",
-  ]
+  sources = [ "testdata/stp.viv" ]
+  outputs = [ "$root_build_dir/stp.viv" ]
 }
 
 if (is_linux && !is_component_build) {
@@ -281,12 +272,12 @@ action("generate_files_json") {
   if (is_win) {
     plat = "win"
     if (target_cpu == "x86") {
-      plat="win32"
+      plat = "win32"
     }
   } else if (is_mac || is_ios) {
     plat = "mac"
     if (target_cpu == "arm64") {
-      plat="$plat-$target_cpu"
+      plat = "$plat-$target_cpu"
     }
   } else if (is_android) {
     plat = "android"
@@ -308,13 +299,14 @@ action("generate_files_json") {
     vivaldi_files_cfg,
   ]
 
-  outputs = [files_cfg_target]
+  outputs = [ files_cfg_target ]
 
   args = rebase_path([
-    files_cfg_target,
-    chromium_files_cfg,
-    vivaldi_files_cfg,
-  ], root_build_dir)
+                       files_cfg_target,
+                       chromium_files_cfg,
+                       vivaldi_files_cfg,
+                     ],
+                     root_build_dir)
 }
 
 action("vivaldi_version_info") {
@@ -324,9 +316,7 @@ action("vivaldi_version_info") {
     chrome_version_path,
     lastchange_path,
   ]
-  outputs = [
-    "$root_build_dir/vivaldi_version.txt",
-  ]
+  outputs = [ "$root_build_dir/vivaldi_version.txt" ]
   args = [
            "-f",
            rebase_path(vivaldi_version_path, root_build_dir),

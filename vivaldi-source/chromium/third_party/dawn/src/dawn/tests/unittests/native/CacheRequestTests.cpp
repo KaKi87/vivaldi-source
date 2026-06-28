@@ -25,21 +25,25 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <memory>
 #include <utility>
 #include <vector>
 
-#include "dawn/native/Blob.h"
-#include "dawn/native/CacheRequest.h"
-#include "dawn/tests/DawnNativeTest.h"
-#include "dawn/tests/mocks/platform/CachingInterfaceMock.h"
 #include "dawn/webgpu_cpp_print.h"
+#include "src/dawn/native/Blob.h"
+#include "src/dawn/native/CacheRequest.h"
+#include "src/dawn/tests/DawnNativeTest.h"
+#include "src/dawn/tests/mocks/platform/CachingInterfaceMock.h"
 
 namespace dawn::native {
 namespace {
 
 using ::testing::_;
-using ::testing::ByMove;
 using ::testing::MockFunction;
 using ::testing::Return;
 using ::testing::StrictMock;
@@ -248,13 +252,13 @@ TEST_P(CacheRequestTests, CacheHit) {
     static constexpr char kCachedData[] = "hello world!";
     // Bytes actually stored into and loaded from Blob cache might be different from raw given data.
     Blob actualStoredData = GetDevice()->GetBlobCache()->GenerateActualStoredBlobForTesting(
-        sizeof(kCachedData), kCachedData);
+        std::as_bytes(std::span(kCachedData)));
 
     // Mock a cache hit, and load the cached data.
     EXPECT_CALL(mMockCache, LoadData(_, _, nullptr, 0)).WillOnce(Return(actualStoredData.Size()));
     EXPECT_CALL(mMockCache, LoadData(_, _, _, actualStoredData.Size()))
         .WillOnce(WithArg<2>([&actualStoredData](void* dataOut) {
-            memcpy(dataOut, actualStoredData.Data(), actualStoredData.Size());
+            memcpy(dataOut, actualStoredData.DataPtr(), actualStoredData.Size());
             return actualStoredData.Size();
         }));
 
@@ -263,7 +267,7 @@ TEST_P(CacheRequestTests, CacheHit) {
     EXPECT_CALL(cacheHitFn, Call(_)).WillOnce(WithArg<0>([=](Blob blob) {
         // Expect the cached blob contents to match the cached data.
         EXPECT_EQ(blob.Size(), sizeof(kCachedData));
-        EXPECT_EQ(memcmp(blob.Data(), kCachedData, sizeof(kCachedData)), 0);
+        EXPECT_EQ(memcmp(blob.DataPtr(), kCachedData, sizeof(kCachedData)), 0);
 
         return rv;
     }));
@@ -298,13 +302,13 @@ TEST_P(CacheRequestTests, CacheHitError) {
     static constexpr char kCachedData[] = "hello world!";
     // Bytes actually stored into and loaded from Blob cache might be different from raw given data.
     Blob actualStoredData = GetDevice()->GetBlobCache()->GenerateActualStoredBlobForTesting(
-        sizeof(kCachedData), kCachedData);
+        std::as_bytes(std::span(kCachedData)));
 
     // Mock a cache hit, and load the cached data.
     EXPECT_CALL(mMockCache, LoadData(_, _, nullptr, 0)).WillOnce(Return(actualStoredData.Size()));
     EXPECT_CALL(mMockCache, LoadData(_, _, _, actualStoredData.Size()))
         .WillOnce(WithArg<2>([&actualStoredData](void* dataOut) {
-            memcpy(dataOut, actualStoredData.Data(), actualStoredData.Size());
+            memcpy(dataOut, actualStoredData.DataPtr(), actualStoredData.Size());
             return actualStoredData.Size();
         }));
 
@@ -312,7 +316,7 @@ TEST_P(CacheRequestTests, CacheHitError) {
     EXPECT_CALL(cacheHitFn, Call(_)).WillOnce(WithArg<0>([=](Blob blob) {
         // Expect the cached blob contents to match the cached data.
         EXPECT_EQ(blob.Size(), sizeof(kCachedData));
-        EXPECT_EQ(memcmp(blob.Data(), kCachedData, sizeof(kCachedData)), 0);
+        EXPECT_EQ(memcmp(blob.DataPtr(), kCachedData, sizeof(kCachedData)), 0);
 
         // Return an error.
         return DAWN_VALIDATION_ERROR("fake test error");
@@ -401,7 +405,7 @@ TEST_P(CacheRequestTests, CacheHitHashValidationFailed) {
     static constexpr size_t kCachedDataSize = sizeof(kCachedData);
     // Bytes actually stored into and loaded from Blob cache might be different from raw given data.
     Blob actualStoredData = GetDevice()->GetBlobCache()->GenerateActualStoredBlobForTesting(
-        kCachedDataSize, kCachedData);
+        std::as_bytes(std::span(kCachedData)));
     const size_t sizeWithHash = actualStoredData.Size();
     // With hash validation enabled, the actual stored data size is larger than kCachedData.
     ASSERT_GT(sizeWithHash, kCachedDataSize);
@@ -445,7 +449,7 @@ TEST_P(CacheRequestTests, CacheHitHashValidationFailed) {
             EXPECT_CALL(*cacheHitFn, Call(_)).WillOnce(WithArg<0>([=](Blob blob) {
                 // Expect the loaded blob contents to match the cached data.
                 EXPECT_EQ(blob.Size(), sizeof(kCachedData));
-                EXPECT_EQ(memcmp(blob.Data(), kCachedData, sizeof(kCachedData)), 0);
+                EXPECT_EQ(memcmp(blob.DataPtr(), kCachedData, sizeof(kCachedData)), 0);
 
                 return rvCacheHit;
             }));
@@ -488,7 +492,7 @@ TEST_P(CacheRequestTests, CacheHitHashValidationFailed) {
 
     // Control case: hash validation success.
     {
-        DoTest(actualStoredData.Data(), sizeWithHash, true);
+        DoTest(actualStoredData.DataPtr(), sizeWithHash, true);
     }
 
     // Hash validation failure case 1: loaded blob size too small.
@@ -502,12 +506,13 @@ TEST_P(CacheRequestTests, CacheHitHashValidationFailed) {
 
     // Hash validation failure case 2: loaded blob hash mismatched.
     {
-        Blob modifiedStoredData = CreateBlob(sizeWithHash);
-        memcpy(modifiedStoredData.Data(), actualStoredData.Data(), sizeWithHash);
+        Blob modifiedStoredData = Blob::Create(sizeWithHash);
+        memcpy(modifiedStoredData.DataPtr(), actualStoredData.DataPtr(), sizeWithHash);
         // Modify the last byte to make the hash mismatch.
-        modifiedStoredData.Data()[sizeWithHash - 1] = ~modifiedStoredData.Data()[sizeWithHash - 1];
+        modifiedStoredData.DataPtr()[sizeWithHash - 1] =
+            ~modifiedStoredData.DataPtr()[sizeWithHash - 1];
 
-        DoTest(modifiedStoredData.Data(), sizeWithHash, false);
+        DoTest(modifiedStoredData.DataPtr(), sizeWithHash, false);
     }
 }
 

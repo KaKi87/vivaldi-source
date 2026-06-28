@@ -1,4 +1,3 @@
-
 if (is_win) {
   declare_args() {
     use_hermetic_toolchain = false

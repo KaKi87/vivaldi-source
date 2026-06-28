@@ -54,7 +54,6 @@
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "browser/sessions/vivaldi_session_utils.h"
-#include "chrome/browser/ui/browser_list.h"
 #endif
 
 using namespace vivaldi_image_store;

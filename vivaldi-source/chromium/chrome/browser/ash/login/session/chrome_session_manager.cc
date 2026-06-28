@@ -45,7 +45,6 @@
 #include "chrome/browser/ui/webui/ash/login/arc_vm_data_migration_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/shimless_rma_dialog/shimless_rma_dialog.h"
 #include "chrome/common/chrome_switches.h"
-#include "chrome/common/pref_names.h"
 #include "chromeos/ash/components/account_manager/account_manager_factory.h"
 #include "chromeos/ash/components/cryptohome/cryptohome_parameters.h"
 #include "chromeos/ash/components/dbus/rmad/rmad_client.h"
@@ -60,9 +59,12 @@
 #include "components/account_id/account_id.h"
 #include "components/account_manager_core/chromeos/account_manager.h"
 #include "components/prefs/pref_service.h"
+#include "components/signin/public/base/consent_level.h"
+#include "components/signin/public/base/signin_switches.h"
 #include "components/signin/public/identity_manager/accounts_mutator.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/signin/public/identity_manager/primary_account_mutator.h"
+#include "components/sync/base/features.h"
 #include "components/user_manager/common_types.h"
 #include "components/user_manager/known_user.h"
 #include "components/user_manager/user_manager.h"
@@ -136,7 +138,7 @@ void StartLoginOobeSession(PrefService& local_state) {
 
   // Reset reboot after update flag when login screen is shown.
   if (!ash::InstallAttributes::Get()->IsEnterpriseManaged()) {
-    local_state.ClearPref(::prefs::kRebootAfterUpdate);
+    local_state.ClearPref(ash::prefs::kRebootAfterUpdate);
   }
 }
 
@@ -171,14 +173,22 @@ void UpsertStubUserToAccountManager(Profile* user_profile,
       user->GetAccountId().GetGaiaId(), user->GetDisplayEmail());
 
   // 3. Set it as the Primary Account.
+  const signin::ConsentLevel consent_level =
+      !identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync) &&
+              base::FeatureList::IsEnabled(
+                  syncer::kReplaceSyncPromosWithSignInPromos) &&
+              base::FeatureList::IsEnabled(
+                  ::switches::kChromeOsUseConsentLevelSigninForNewUsers)
+          ? signin::ConsentLevel::kSignin
+          : signin::ConsentLevel::kSync;
+
   identity_manager->GetPrimaryAccountMutator()->SetPrimaryAccount(
-      account_id, signin::ConsentLevel::kSync,
+      account_id, consent_level,
       signin_metrics::AccessPoint::kAshChromeSessionManager);
 
-  CHECK(identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync));
-  CHECK_EQ(
-      identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSync).gaia,
-      user->GetAccountId().GetGaiaId());
+  CHECK(identity_manager->HasPrimaryAccount(consent_level));
+  CHECK_EQ(identity_manager->GetPrimaryAccountInfo(consent_level).gaia,
+           user->GetAccountId().GetGaiaId());
 
   DCHECK_EQ(account_id, identity_manager->GetPrimaryAccountId(
                             signin::ConsentLevel::kSignin));
@@ -364,6 +374,16 @@ bool MaybeStartArcVmDataMigration(user_manager::UserManager* user_manager,
 // NOTE: This has to be called before profile is initialized - so it is set up
 // when extension are loaded during profile initialization.
 void InitFeaturesSessionType(const user_manager::User* user) {
+  auto* command_line = base::CommandLine::ForCurrentProcess();
+
+  // Tests are allowed to set a session type early in startup. Don't override
+  // the session type if it's already set by a test.
+  if (extensions::GetCurrentFeatureSessionType() !=
+          extensions::mojom::FeatureSessionType::kInitial &&
+      command_line->HasSwitch(::switches::kTestType)) {
+    return;
+  }
+
   // Kiosk session should be set as part of kiosk user session initialization
   // in normal circumstances (to be able to properly determine whether kiosk
   // was auto-launched); in case of user session restore, feature session
@@ -371,14 +391,12 @@ void InitFeaturesSessionType(const user_manager::User* user) {
   // kiosk app profile would already be initialized - feature session type
   // should be set before that.
   if (user->IsKioskType()) {
-    if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-            switches::kLoginUser)) {
+    if (command_line->HasSwitch(switches::kLoginUser)) {
       // For kiosk session crash recovery, feature session type has be set
       // before kiosk app controller takes over, as at that point iosk app
       // profile would already be initialized - feature session type
       // should be set before that.
-      bool auto_launched = base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kAppAutoLaunched);
+      bool auto_launched = command_line->HasSwitch(switches::kAppAutoLaunched);
       extensions::SetCurrentFeatureSessionType(
           auto_launched
               ? extensions::mojom::FeatureSessionType::kAutolaunchedKiosk

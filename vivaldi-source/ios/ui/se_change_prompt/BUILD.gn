@@ -14,8 +14,9 @@ source_set("search_engine_change_prompt") {
 
   deps = [
     ":search_engine_change_prompt_swift",
-    "//base:i18n",
+    "resources:assets",
     "//base",
+    "//base:i18n",
     "//components/search_engines",
     "//ios/chrome/app/application_delegate:app_state",
     "//ios/chrome/app/profile",
@@ -27,12 +28,9 @@ source_set("search_engine_change_prompt") {
     "//ios/chrome/common/ui/util",
     "//ui/base",
     "//vivaldi/ios/ui/helpers",
-    "resources:assets",
   ]
 
-  frameworks = [
-    "UIKit.framework",
-  ]
+  frameworks = [ "UIKit.framework" ]
 }
 
 swift_source_set("search_engine_change_prompt_swift") {
@@ -42,9 +40,9 @@ swift_source_set("search_engine_change_prompt_swift") {
     "vivaldi_search_engine_change_prompt_multi_choice_view.swift",
     "vivaldi_search_engine_change_prompt_partner_item.swift",
     "vivaldi_search_engine_change_prompt_strings.swift",
+    "vivaldi_search_engine_change_prompt_view.swift",
     "vivaldi_search_engine_change_prompt_view_provider.swift",
     "vivaldi_search_engine_change_prompt_view_state.swift",
-    "vivaldi_search_engine_change_prompt_view.swift",
   ]
 
   deps = [

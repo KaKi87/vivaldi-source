@@ -17,6 +17,7 @@ import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
 import org.chromium.components.omnibox.AimModelsProto.ModelMode;
+import org.chromium.components.omnibox.AutocompleteInput.AutocompleteState;
 import org.chromium.components.omnibox.AutocompleteInput.SiteSearchData;
 import org.chromium.components.omnibox.ToolModeProto.ToolMode;
 import org.chromium.url.GURL;
@@ -136,14 +137,18 @@ public class AutocompleteInputUnitTest {
         assertFalse(mInput.allowExactKeywordMatch());
 
         // Adding first space should enable keyword matching
-        mInput.setUserText("keyword test");
+        mInput.setUserText("keyword ");
         assertTrue(mInput.allowExactKeywordMatch());
+
+        // Adding subsequent text after space should disable keyword matching
+        mInput.setUserText("keyword test");
+        assertFalse(mInput.allowExactKeywordMatch());
     }
 
     @Test
     public void allowExactKeywordMatch_removingSpace() {
-        // Set text with space to enable keyword matching
-        mInput.setUserText("keyword test");
+        // Set text with first space to enable keyword matching
+        mInput.setUserText("keyword ");
         assertTrue(mInput.allowExactKeywordMatch());
 
         // Removing space should disable keyword matching
@@ -158,19 +163,19 @@ public class AutocompleteInputUnitTest {
         assertFalse(mInput.allowExactKeywordMatch());
 
         // Add space - should enable
-        mInput.setUserText("search term");
+        mInput.setUserText("search ");
         assertTrue(mInput.allowExactKeywordMatch());
 
-        // Modify text but keep space - should remain enabled
+        // Modify text to have multiple words - should become disabled
         mInput.setUserText("search different");
-        assertTrue(mInput.allowExactKeywordMatch());
+        assertFalse(mInput.allowExactKeywordMatch());
 
-        // Remove space - should disable
+        // Remove space - should remain disabled
         mInput.setUserText("searchterm");
         assertFalse(mInput.allowExactKeywordMatch());
 
         // Add space again - should re-enable
-        mInput.setUserText("search again");
+        mInput.setUserText("search ");
         assertTrue(mInput.allowExactKeywordMatch());
     }
 
@@ -180,13 +185,25 @@ public class AutocompleteInputUnitTest {
         mInput.setUserText(null);
         assertFalse(mInput.allowExactKeywordMatch());
 
-        // Test transition from null to text with space
-        mInput.setUserText("test space");
+        // Test transition from null to text with first space
+        mInput.setUserText("test ");
         assertTrue(mInput.allowExactKeywordMatch());
 
         // Test transition to empty string
         mInput.setUserText("");
         assertFalse(mInput.allowExactKeywordMatch());
+    }
+
+    @Test
+    public void testAllowExactKeywordTrigger() {
+        assertTrue(AutocompleteInput.allowExactKeywordTrigger("yahoo "));
+        assertFalse(AutocompleteInput.allowExactKeywordTrigger("yahoo"));
+        assertFalse(AutocompleteInput.allowExactKeywordTrigger(" "));
+        assertFalse(AutocompleteInput.allowExactKeywordTrigger(""));
+        assertFalse(AutocompleteInput.allowExactKeywordTrigger(null));
+        assertFalse(AutocompleteInput.allowExactKeywordTrigger("yahoo t"));
+        assertFalse(AutocompleteInput.allowExactKeywordTrigger("yahoo yahoo "));
+        assertFalse(AutocompleteInput.allowExactKeywordTrigger(" yahoo "));
     }
 
     @Test
@@ -205,6 +222,21 @@ public class AutocompleteInputUnitTest {
 
         // String with just spaces should not be zero-prefix
         mInput.setUserText(" ");
+        assertFalse(mInput.isInZeroPrefixContext());
+
+        // Non-null SiteSearchData should not be zero-prefix.
+        mInput.setUserText("");
+        mInput.setSiteSearchData(new SiteSearchData("keyword", "Full Name"));
+        assertFalse(mInput.isInZeroPrefixContext());
+    }
+
+    @Test
+    public void isInZeroPrefixContext_withSiteSearch() {
+        mInput.setUserText("");
+        assertTrue(mInput.isInZeroPrefixContext());
+
+        mInput.setSiteSearchData(new AutocompleteInput.SiteSearchData("example.com", "Example"));
+        // Even with empty user text, it shouldn't be zero-prefix context if site search is active.
         assertFalse(mInput.isInZeroPrefixContext());
     }
 
@@ -232,6 +264,9 @@ public class AutocompleteInputUnitTest {
                         // SRP
                         PageClassification.SEARCH_RESULT_PAGE_NO_SEARCH_TERM_REPLACEMENT_VALUE,
                         PageClassification.SRP_OMNIBOX_COMPOSEBOX_VALUE,
+                        // Co-browsing
+                        PageClassification.CO_BROWSING_COMPOSEBOX_VALUE,
+                        PageClassification.CO_BROWSING_COMPOSEBOX_VALUE,
                         // Web
                         PageClassification.OTHER_VALUE, //
                         PageClassification.OTHER_OMNIBOX_COMPOSEBOX_VALUE);
@@ -284,18 +319,18 @@ public class AutocompleteInputUnitTest {
         // Test setting text with multiple spaces
         mInput.setUserText("test multiple spaces");
         assertEquals("test multiple spaces", mInput.getUserText());
-        assertTrue(mInput.allowExactKeywordMatch());
+        assertFalse(mInput.allowExactKeywordMatch());
     }
 
     @Test
     public void integrationTest_resetClearsAllState() {
         // Set up some state
         mInput.setPageClassification(PageClassification.OTHER_VALUE);
-        mInput.setUserText("test with space");
+        mInput.setUserText("test ");
 
         // Verify state is set
         assertEquals(PageClassification.OTHER_VALUE, mInput.getPageClassification());
-        assertEquals("test with space", mInput.getUserText());
+        assertEquals("test ", mInput.getUserText());
         assertTrue(mInput.allowExactKeywordMatch());
         assertFalse(mInput.isInZeroPrefixContext());
 
@@ -319,8 +354,8 @@ public class AutocompleteInputUnitTest {
         assertTrue(mInput.isInZeroPrefixContext());
         assertFalse(mInput.allowExactKeywordMatch());
 
-        // Add text with space - should disable caching but enable keyword match
-        mInput.setUserText("search term");
+        // Add text with first space - should disable caching but enable keyword match
+        mInput.setUserText("search ");
         assertFalse(mInput.isInCacheableContext());
         assertFalse(mInput.isInZeroPrefixContext());
         assertTrue(mInput.allowExactKeywordMatch());
@@ -371,21 +406,21 @@ public class AutocompleteInputUnitTest {
     }
 
     @Test
-    public void shouldSuppressAutomaticSuggestionsUntilUserStartsTyping_updatesOwnState() {
+    public void getAutocompleteState_updatesOwnState() {
         mInput.setInitialUserText("initial");
         mInput.setUserText("initial");
-        mInput.setSuppressAutomaticSuggestionsUntilUserStartsTyping(true);
+        mInput.setAutocompleteState(AutocompleteState.STANDBY);
 
         // Still matches initial text.
-        assertTrue(mInput.shouldSuppressAutomaticSuggestionsUntilUserStartsTyping());
+        assertEquals(AutocompleteState.STANDBY, mInput.getAutocompleteState());
 
         // Diverges from initial text.
         mInput.setUserText("initial typing");
-        assertFalse(mInput.shouldSuppressAutomaticSuggestionsUntilUserStartsTyping());
+        assertEquals(AutocompleteState.ENABLED, mInput.getAutocompleteState());
 
-        // Reverts to initial text - should still be false.
+        // Reverts to initial text - should still be ENABLED.
         mInput.setUserText("initial");
-        assertFalse(mInput.shouldSuppressAutomaticSuggestionsUntilUserStartsTyping());
+        assertEquals(AutocompleteState.ENABLED, mInput.getAutocompleteState());
     }
 
     @Test
@@ -397,7 +432,7 @@ public class AutocompleteInputUnitTest {
         String userText = "initialUserText";
         String initialUserText = "initialUserText";
         boolean hasAttachments = true;
-        boolean suppressAutomaticSuggestionsUntilUserStartsTyping = true;
+        int autocompleteState = AutocompleteState.STANDBY;
         int selectionStart = 1;
         int selectionEnd = 2;
         int refineActionUsage = AutocompleteInput.RefineActionUsage.SEARCH_WITH_PREFIX;
@@ -414,8 +449,7 @@ public class AutocompleteInputUnitTest {
         input1.setUserText(userText);
         input1.setInitialUserText(initialUserText);
         input1.setHasAttachments(hasAttachments);
-        input1.setSuppressAutomaticSuggestionsUntilUserStartsTyping(
-                suppressAutomaticSuggestionsUntilUserStartsTyping);
+        input1.setAutocompleteState(autocompleteState);
         input1.setSelection(selectionStart, selectionEnd);
         input1.setRefineActionUsage(refineActionUsage);
         input1.setSuggestionsListScrolled();
@@ -434,9 +468,7 @@ public class AutocompleteInputUnitTest {
         assertEquals(userText, input2.getUserText());
         assertEquals(initialUserText, input2.getInitialUserText());
         assertEquals(input1.allowExactKeywordMatch(), input2.allowExactKeywordMatch());
-        assertEquals(
-                suppressAutomaticSuggestionsUntilUserStartsTyping,
-                input2.shouldSuppressAutomaticSuggestionsUntilUserStartsTyping());
+        assertEquals(autocompleteState, input2.getAutocompleteState());
         assertEquals(selectionStart, (int) input2.getSelection().getLower());
         assertEquals(selectionEnd, (int) input2.getSelection().getUpper());
         assertEquals(refineActionUsage, input2.getRefineActionUsage());

@@ -6,6 +6,7 @@
 
 #include "sync/vivaldi_browser_synced_window_delegate.h"
 
+#include "base/logging.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"

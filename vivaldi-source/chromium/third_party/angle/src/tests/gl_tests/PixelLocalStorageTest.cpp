@@ -887,6 +887,92 @@ TEST_P(PixelLocalStorageTest, R32_always_noncoherent)
     doR32Test(PixelLocalStorageTest::CoherencyMode::AlwaysNoncoherent);
 }
 
+// Test that comma operator and passing PLS planes to functions work.
+TEST_P(PixelLocalStorageTest, CommaOperator)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_ANGLE_shader_pixel_local_storage"));
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_EXT_color_buffer_float"));
+
+    constexpr char kFS[] = R"(layout(r32f, binding=0) uniform highp pixelLocalANGLE plane1;
+    layout(binding=1, r32i) uniform highp ipixelLocalANGLE plane2;
+    layout(r32ui, binding=2) uniform highp upixelLocalANGLE plane3;
+
+    highp vec4 loadPlane(highp pixelLocalANGLE p)
+    {
+        return pixelLocalLoadANGLE(p);
+    }
+
+    highp ivec4 iloadPlane(highp ipixelLocalANGLE p)
+    {
+        return pixelLocalLoadANGLE(p);
+    }
+
+    highp uvec4 uloadPlane(highp pixelLocalANGLE unused, highp upixelLocalANGLE p)
+    {
+        return pixelLocalLoadANGLE(p);
+    }
+
+    int j = 0;
+    void incJ()
+    {
+        ++j;
+    }
+
+    void main()
+    {
+        highp int i = 0;
+        pixelLocalStoreANGLE(plane1, color + loadPlane((++i, plane1)));
+        pixelLocalStoreANGLE(plane2, ivec4(aux1) + iloadPlane((plane1, incJ(), plane2)));
+        pixelLocalStoreANGLE(plane3, uvec4(aux2) + uloadPlane((++i, plane1), (loadPlane((++i, incJ(), plane1)), plane3)));
+        if (i != 3 || j != 2)
+        {
+            pixelLocalStoreANGLE(plane3, uvec4(1234));
+        }
+    })";
+    mProgram.compile(kFS);
+
+    PLSTestTexture tex1(GL_R32F);
+    PLSTestTexture tex2(GL_R32I);
+    PLSTestTexture tex3(GL_R32UI);
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexturePixelLocalStorageANGLE(0, tex1, 0, 0, GL_NONE);
+    glFramebufferTexturePixelLocalStorageANGLE(1, tex2, 0, 0, GL_NONE);
+    glFramebufferTexturePixelLocalStorageANGLE(2, tex3, 0, 0, GL_NONE);
+    glViewport(0, 0, W, H);
+    glDrawBuffers(0, nullptr);
+
+    glBeginPixelLocalStorageANGLE(
+        3, GLenumArray({GL_LOAD_OP_ZERO_ANGLE, GL_LOAD_OP_ZERO_ANGLE, GL_LOAD_OP_ZERO_ANGLE}));
+
+    // Accumulate R in 4 separate passes.
+    mProgram.drawBoxes(
+        {{FULLSCREEN, {-1.5, 0, 0, 0}, {0x000000ff, 0, 0, 0}, {0x000000ff, 0, 0, 0}},
+         {FULLSCREEN, {-10.25, 0, 0, 0}, {0x0000ff00, 0, 0, 0}, {0x0000ff00, 0, 0, 0}},
+         {FULLSCREEN, {-100, 0, 0, 0}, {0x00ff0000, 0, 0, 0}, {0x00ff0000, 0, 0, 0}},
+         {FULLSCREEN, {.25, 0, 0, 0}, {-0x1000000, 0, 0, 0}, {0xff000000, 0, 0, 22}}},
+        UseBarriers::IfNotCoherent);
+
+    glEndPixelLocalStorageANGLE(3, GLenumArray({GL_STORE_OP_STORE_ANGLE, GL_STORE_OP_STORE_ANGLE,
+                                                GL_STORE_OP_STORE_ANGLE}));
+
+    // Incorrectly transformed without the IR.  Test above makes sure there is no compiler crash
+    // without the IR.
+    ANGLE_SKIP_TEST_IF(!getEGLWindow()->isFeatureEnabled(Feature::UseIr));
+
+    attachTexture2DToScratchFBO(tex1);
+    EXPECT_PIXEL_RECT32F_EQ(0, 0, W, H, GLColor32F(-111.5, 0, 0, 1));
+
+    attachTexture2DToScratchFBO(tex2);
+    EXPECT_PIXEL_RECT32I_EQ(0, 0, W, H, GLColor32I(-1, 0, 0, 1));
+
+    attachTexture2DToScratchFBO(tex3);
+    EXPECT_PIXEL_RECT32UI_EQ(0, 0, W, H, GLColor32UI(0xffffffff, 0, 0, 1));
+
+    ASSERT_GL_NO_ERROR();
+}
+
 // Check proper functioning of the clear value state.
 TEST_P(PixelLocalStorageTest, ClearValues_rgba8)
 {
@@ -4382,6 +4468,171 @@ TEST_P(PixelLocalStorageTest, TiledRenderingInteractions)
     glEndTilingQCOM(GL_COLOR_BUFFER_BIT0_QCOM);
 }
 
+// Regression test for the Metal backend not resetting the MTLRenderPassDesc defaultWidth/Height
+// when switching between PLS and no PLS. Checks the state leak that happens when switching FBOs.
+TEST_P(PixelLocalStorageTest, DefaultRPDescSizeLeak_BetweenFBOs)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_ANGLE_shader_pixel_local_storage"));
+    mProgram.compile(R"(
+        layout(binding=0, rgba8) uniform highp pixelLocalANGLE pls;
+        void main()
+        {
+            pixelLocalStoreANGLE(pls, color + pixelLocalLoadANGLE(pls));
+        })");
+
+    // Render to a large-sized PLS.
+    {
+        GLFramebuffer fbo;
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+        PLSTestTexture texture(GL_RGBA8, 8192, 8192);
+        glFramebufferTexturePixelLocalStorageANGLE(0, texture, 0, 0, GL_NONE);
+
+        glBeginPixelLocalStorageANGLE(1, GLenumArray({GL_LOAD_OP_ZERO_ANGLE}));
+        mProgram.drawBoxes({{FULLSCREEN}});
+        glEndPixelLocalStorageANGLE(1, GLenumArray({GL_STORE_OP_STORE_ANGLE}));
+    }
+
+    // Render to a small texture. If the state leaks, the Metal debug device complains that the
+    // defaultWidth/Height is larger than the attachment size.
+    {
+        GLFramebuffer fbo;
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+        GLTexture texture;
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 4, 4);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+        EXPECT_GLENUM_EQ(GL_FRAMEBUFFER_COMPLETE, glCheckFramebufferStatus(GL_FRAMEBUFFER));
+
+        ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Red());
+        drawQuad(program, essl1_shaders::PositionAttrib(), 0.0f);
+    }
+}
+
+// Regression test for the Metal backend not resetting the MTLRenderPassDesc defaultWidth/Height
+// when switching between PLS and no PLS. Checks the state leak that happens when reusing the same
+// FBO.
+TEST_P(PixelLocalStorageTest, DefaultRPDescSizeLeak_SameFBO)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_ANGLE_shader_pixel_local_storage"));
+
+    mProgram.compile(R"(
+        layout(binding=0, rgba8) uniform highp pixelLocalANGLE pls;
+        void main()
+        {
+            pixelLocalStoreANGLE(pls, color + pixelLocalLoadANGLE(pls));
+        })");
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+    // Render to a large-sized PLS.
+    {
+
+        PLSTestTexture texture(GL_RGBA8, 8192, 8192);
+        glFramebufferTexturePixelLocalStorageANGLE(0, texture, 0, 0, GL_NONE);
+
+        glBeginPixelLocalStorageANGLE(1, GLenumArray({GL_LOAD_OP_ZERO_ANGLE}));
+        mProgram.drawBoxes({{FULLSCREEN}});
+        glEndPixelLocalStorageANGLE(1, GLenumArray({GL_STORE_OP_STORE_ANGLE}));
+
+        glFramebufferTexturePixelLocalStorageANGLE(0, 0, 0, 0, GL_NONE);
+    }
+
+    // Render to a small texture. If the state leaks, the Metal debug device complains that the
+    // defaultWidth/Height is larger than the attachment size.
+    {
+        GLTexture texture;
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 4, 4);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+        EXPECT_GLENUM_EQ(GL_FRAMEBUFFER_COMPLETE, glCheckFramebufferStatus(GL_FRAMEBUFFER));
+
+        ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::Red());
+        drawQuad(program, essl1_shaders::PositionAttrib(), 0.0f);
+    }
+}
+
+// Test potential UAF when delete a texture while attached to FBO and used as input attachment.
+TEST_P(PixelLocalStorageTest, DeleteTextureUsedAsInputAttachment)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_ANGLE_shader_pixel_local_storage"));
+
+    const char kVSSource[] = R"( #version 300 es
+        void main() {
+          vec2 p = vec2(float((gl_VertexID & 1) * 2 - 1),
+                        float((gl_VertexID & 2) - 1));
+          gl_Position = vec4(p, 0.0, 1.0);
+        })";
+
+    const char kFSSource[] = R"(#version 300 es
+        #extension GL_ANGLE_shader_pixel_local_storage : require
+        precision mediump float;
+        layout(binding=0, rgba8) uniform lowp pixelLocalANGLE plane0;
+        layout(location=0) out lowp vec4 o0;
+        layout(location=1) out lowp vec4 o1;
+        void main() {
+          vec4 v = pixelLocalLoadANGLE(plane0);
+          pixelLocalStoreANGLE(plane0, v + vec4(0.1));
+          o0 = vec4(1.0, 0.0, 0.0, 1.0);
+          o1 = vec4(0.0, 1.0, 0.0, 1.0);
+        })";
+
+    ANGLE_GL_PROGRAM(program, kVSSource, kFSSource);
+    glUseProgram(program);
+
+    const int kWdith = 16, kHeight = 16;
+    glViewport(0, 0, kWdith, kHeight);
+    glDisable(GL_DITHER);
+
+    // ---- Textures -----------------------------------------------------------
+    PLSTestTexture tc0a(GL_RGBA8, kWdith, kHeight);
+    PLSTestTexture tc0b(GL_RGBA8, kWdith, kHeight);
+    PLSTestTexture tc1(GL_RGBA8, kWdith, kHeight);
+    PLSTestTexture tpls(GL_RGBA8, kWdith, kHeight);
+
+    // ---- FBO setup ----------------------------------------------------------
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tc0a, 0);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, tc1, 0);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+
+    glFramebufferTexturePixelLocalStorageANGLE(0, tpls, 0, 0, GL_NONE);
+    GLenum drawBuffers[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+    glDrawBuffers(2, drawBuffers);
+
+    // ---- Draw 1: populate input-attachment descriptors for {0, 1, plsSlot} --
+    GLenum loadOpZero = GL_LOAD_OP_ZERO_ANGLE;
+    glBeginPixelLocalStorageANGLE(1, &loadOpZero);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    GLenum storeOpStore = GL_STORE_OP_STORE_ANGLE;
+    glEndPixelLocalStorageANGLE(1, &storeOpStore);
+
+    // ---- Detach + delete the victim, then force ANGLE finishImpl ------------
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, 0, 0);
+    tc1.reset();
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    EXPECT_PIXEL_RECT_EQ(0, 0, 1, 1, GLColor::red);
+
+    // ---- Replace COLOR_ATTACHMENT0 to force a descriptor-set cache miss -----
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tc0b, 0);
+    GLenum singleDrawBuffer[] = {GL_COLOR_ATTACHMENT0};
+    glDrawBuffers(1, singleDrawBuffer);
+
+    // ---- Draw 2: stale slot for color1 is emitted to vkUpdateDescriptorSets -
+    GLenum loadOpLoad = GL_LOAD_OP_LOAD_ANGLE;
+    glBeginPixelLocalStorageANGLE(1, &loadOpLoad);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glEndPixelLocalStorageANGLE(1, &storeOpStore);
+
+    // Force render-pass end + flushDescriptorSetUpdates
+    EXPECT_PIXEL_RECT_EQ(0, 0, 1, 1, GLColor::red);
+}
+
 // Checks that draw commands validate current PLS state against the shader's PLS uniforms.
 class DrawCommandValidationTest
 {
@@ -6091,6 +6342,11 @@ TEST_P(PixelLocalStorageValidationTest, BeginPixelLocalStorageANGLE_loadops)
         ASSERT_GL_INTEGER(GL_PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE, 0);
     }
 
+    GLTexture tex;
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 100, 100);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+
     // INVALID_OPERATION is generated if <loadops>[0..<n>-1] is LOAD_OP_LOAD_ANGLE and
     // the pixel local storage plane at that same index is memoryless.
     glFramebufferMemorylessPixelLocalStorageANGLE(0, GL_RGBA8, GL_NONE);
@@ -6296,6 +6552,98 @@ TEST_P(PixelLocalStorageValidationTest, BeginPixelLocalStorageANGLE_base_max_lev
     EXPECT_GL_SINGLE_ERROR_MSG(
         "Mipmap level for PLS backing texture outside the effective base/max range.");
     ASSERT_GL_INTEGER(GL_PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE, 0);
+}
+
+// Test that operations performed during interrupted PLS which make PLS invalid are validated on
+// resume.
+TEST_P(PixelLocalStorageValidationTest, ResumeValidatesFramebufferState)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_ANGLE_shader_pixel_local_storage"));
+
+    // Small PLS backing texture (4x4) and large color attachment (WxH = 128x128).
+    PLSTestTexture smallPLS(GL_RGBA8, 4, 4);
+    PLSTestTexture largeAttachment(GL_RGBA8, W, H);
+
+    std::vector<GLubyte> zeros(W * H * 4, 0);
+    glBindTexture(GL_TEXTURE_2D, largeAttachment);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, zeros.data());
+    ASSERT_GL_NO_ERROR();
+
+    // FBO with NO attachments, only a PLS plane.
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexturePixelLocalStorageANGLE(0, smallPLS, 0, 0, GL_NONE);
+    ASSERT_GL_NO_ERROR();
+
+    // Shader that writes to both color attachment 0 and PLS plane 0.
+    PLSProgram p;
+    p.compile(R"(
+    layout(binding=0, rgba8) uniform highp pixelLocalANGLE pls;
+    layout(location=0) out vec4 fragColor;
+    void main()
+    {
+        pixelLocalStoreANGLE(pls, vec4(0, 1, 0, 1));
+        fragColor = vec4(1, 0, 0, 1);
+    })");
+
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glViewport(0, 0, W, H);
+
+    glBeginPixelLocalStorageANGLE(1, GLenumArray({GL_LOAD_OP_ZERO_ANGLE}));
+    ASSERT_GL_NO_ERROR();
+    ASSERT_GL_INTEGER(GL_PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE, 1);
+
+    glFramebufferPixelLocalStorageInterruptANGLE();
+    ASSERT_GL_NO_ERROR();
+    ASSERT_GL_INTEGER(GL_PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE, 0);
+
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                           largeAttachment, 0);
+    ASSERT_GL_NO_ERROR();
+
+    // Invalid because fbo attachment and PLS plane now have different sizes.
+    glFramebufferPixelLocalStorageRestoreANGLE();
+    EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+}
+
+// Test that state changes which are invalid for PLS are validated on restore
+TEST_P(PixelLocalStorageValidationTest, RestoreValidatesSameStatesAsBegin)
+{
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    ASSERT_GL_NO_ERROR();
+
+    PLSTestTexture pls0(GL_RGBA8, 256, 256, 9);
+    glFramebufferTexturePixelLocalStorageANGLE(0, pls0, 2, 0, GL_NONE);
+
+    GLenum dontCare[1] = {GL_DONT_CARE};
+    glBeginPixelLocalStorageANGLE(1, dontCare);
+    ASSERT_GL_NO_ERROR();
+
+    glFramebufferPixelLocalStorageInterruptANGLE();
+    EXPECT_GL_NO_ERROR();
+
+    glEnable(GL_DITHER);
+    EXPECT_GL_NO_ERROR();
+
+    glFramebufferPixelLocalStorageRestoreANGLE();
+    EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+
+    glDisable(GL_DITHER);
+    glFramebufferPixelLocalStorageRestoreANGLE();
+    glEndPixelLocalStorageANGLE(1, dontCare);
+    EXPECT_GL_NO_ERROR();
+}
+
+// Restoring PLS is always valid if begin has not been called.
+TEST_P(PixelLocalStorageValidationTest, RestoreAlwaysValidIfNotBegun)
+{
+    glFramebufferPixelLocalStorageInterruptANGLE();
+    EXPECT_GL_NO_ERROR();
+
+    glEnable(GL_DITHER);
+    glFramebufferPixelLocalStorageRestoreANGLE();
+    EXPECT_GL_NO_ERROR();
 }
 
 // Check that glBeginPixelLocalStorageANGLE validates feedback loops with GL_TEXTURE_2D as

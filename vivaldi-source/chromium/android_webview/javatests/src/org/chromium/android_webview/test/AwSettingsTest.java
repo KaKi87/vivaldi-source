@@ -28,7 +28,6 @@ import org.junit.runner.RunWith;
 
 import org.chromium.android_webview.AwContents;
 import org.chromium.android_webview.AwSettings;
-import org.chromium.android_webview.AwSettings.LayoutAlgorithm;
 import org.chromium.android_webview.AwWebResourceRequest;
 import org.chromium.android_webview.common.AwFeatureMap;
 import org.chromium.android_webview.common.AwFeatures;
@@ -49,10 +48,12 @@ import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
+import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.base.test.util.TestFileUtil;
 import org.chromium.base.test.util.UrlUtils;
 import org.chromium.blink_public.common.BlinkFeatures;
 import org.chromium.components.embedder_support.util.WebResourceResponseInfo;
+import org.chromium.components.webauthn.WebauthnMode;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
 import org.chromium.content_public.browser.test.util.HistoryUtils;
@@ -64,6 +65,7 @@ import org.chromium.net.test.util.TestWebServer;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.display.DisplayAndroid;
 import org.chromium.ui.display.DisplayUtil;
+import org.chromium.url.GURL;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -914,13 +916,10 @@ public class AwSettingsTest {
         protected static final float PARAGRAPH_FONT_SIZE = 14.0f;
 
         AwSettingsTextAutosizingTestHelper(
-                AwTestContainerView containerView,
-                TestAwContentsClient contentViewClient,
-                boolean isAutosizingEnabled)
+                AwTestContainerView containerView, TestAwContentsClient contentViewClient)
                 throws Throwable {
             super(containerView, contentViewClient, true);
             mNeedToWaitForFontSizeChange = false;
-            mAutosizingEnabled = isAutosizingEnabled;
             loadDataSync(getData());
         }
 
@@ -983,65 +982,7 @@ public class AwSettingsTest {
         }
 
         protected boolean mNeedToWaitForFontSizeChange;
-        protected boolean mAutosizingEnabled;
         private float mOldFontSize;
-    }
-
-    class AwSettingsLayoutAlgorithmTestHelper extends AwSettingsTextAutosizingTestHelper<Integer> {
-        AwSettingsLayoutAlgorithmTestHelper(
-                AwTestContainerView containerView,
-                TestAwContentsClient contentViewClient,
-                boolean isAutosizingEnabled)
-                throws Throwable {
-            super(containerView, contentViewClient, isAutosizingEnabled);
-            // Font autosizing doesn't step in for narrow layout widths.
-            mAwSettings.setUseWideViewPort(true);
-        }
-
-        @LayoutAlgorithm
-        @Override
-        protected Integer getAlteredValue() {
-            return AwSettings.LAYOUT_ALGORITHM_TEXT_AUTOSIZING;
-        }
-
-        @LayoutAlgorithm
-        @Override
-        protected Integer getInitialValue() {
-            return AwSettings.LAYOUT_ALGORITHM_NARROW_COLUMNS;
-        }
-
-        @LayoutAlgorithm
-        @Override
-        protected Integer getCurrentValue() {
-            return mAwSettings.getLayoutAlgorithm();
-        }
-
-        @Override
-        protected void setCurrentValue(@LayoutAlgorithm Integer value) throws Throwable {
-            super.setCurrentValue(value);
-            mAwSettings.setLayoutAlgorithm(value);
-            if (!mAutosizingEnabled) {
-                mNeedToWaitForFontSizeChange = false;
-            }
-        }
-
-        @Override
-        protected void doEnsureSettingHasValue(@LayoutAlgorithm Integer value) throws Throwable {
-            final float actualFontSize = getActualFontSize();
-            if (value == AwSettings.LAYOUT_ALGORITHM_TEXT_AUTOSIZING && mAutosizingEnabled) {
-                Assert.assertNotEquals(
-                        "Actual font size: " + actualFontSize,
-                        actualFontSize,
-                        PARAGRAPH_FONT_SIZE,
-                        0.1);
-            } else {
-                Assert.assertEquals(
-                        "Actual font size: " + actualFontSize,
-                        actualFontSize,
-                        PARAGRAPH_FONT_SIZE,
-                        0.1);
-            }
-        }
     }
 
     class AwSettingsTextZoomTestHelper extends AwSettingsTextAutosizingTestHelper<Integer> {
@@ -1049,73 +990,9 @@ public class AwSettingsTest {
         private final float mInitialActualFontSize;
 
         AwSettingsTextZoomTestHelper(
-                AwTestContainerView containerView,
-                TestAwContentsClient contentViewClient,
-                boolean isAutosizingEnabled)
+                AwTestContainerView containerView, TestAwContentsClient contentViewClient)
                 throws Throwable {
-            super(containerView, contentViewClient, isAutosizingEnabled);
-            mInitialActualFontSize = getActualFontSize();
-        }
-
-        @Override
-        protected Integer getAlteredValue() {
-            return INITIAL_TEXT_ZOOM * 2;
-        }
-
-        @Override
-        protected Integer getInitialValue() {
-            return INITIAL_TEXT_ZOOM;
-        }
-
-        @Override
-        protected Integer getCurrentValue() {
-            return mAwSettings.getTextZoom();
-        }
-
-        @Override
-        protected void setCurrentValue(Integer value) throws Throwable {
-            super.setCurrentValue(value);
-            mAwSettings.setTextZoom(value);
-        }
-
-        @Override
-        protected void doEnsureSettingHasValue(Integer value) throws Throwable {
-            final float actualFontSize = getActualFontSize();
-            // Ensure that actual vs. initial font size ratio is similar to actual vs. initial
-            // text zoom values ratio.
-            final float ratiosDelta =
-                    Math.abs(
-                            (actualFontSize / mInitialActualFontSize)
-                                    - (value / (float) INITIAL_TEXT_ZOOM));
-            Assert.assertTrue(
-                    "|("
-                            + actualFontSize
-                            + " / "
-                            + mInitialActualFontSize
-                            + ") - ("
-                            + value
-                            + " / "
-                            + INITIAL_TEXT_ZOOM
-                            + ")| = "
-                            + ratiosDelta,
-                    ratiosDelta <= 0.2f);
-        }
-    }
-
-    class AwSettingsTextZoomAutosizingTestHelper
-            extends AwSettingsTextAutosizingTestHelper<Integer> {
-        private static final int INITIAL_TEXT_ZOOM = 100;
-        private final float mInitialActualFontSize;
-
-        AwSettingsTextZoomAutosizingTestHelper(
-                AwTestContainerView containerView,
-                TestAwContentsClient contentViewClient,
-                boolean isAutosizingEnabled)
-                throws Throwable {
-            super(containerView, contentViewClient, isAutosizingEnabled);
-            mAwSettings.setLayoutAlgorithm(AwSettings.LAYOUT_ALGORITHM_TEXT_AUTOSIZING);
-            // The initial font size can be adjusted by font autosizer depending on the page's
-            // viewport width.
+            super(containerView, contentViewClient);
             mInitialActualFontSize = getActualFontSize();
         }
 
@@ -2915,76 +2792,12 @@ public class AwSettingsTest {
 
     @Test
     @SmallTest
-    @EnableFeatures(BlinkFeatures.FORCE_OFF_TEXT_AUTOSIZING)
-    @Feature({"AndroidWebView", "Preferences"})
-    public void testLayoutAlgorithmWithTwoViewsWithTextAutosizingDisabled() throws Throwable {
-        ViewPair views = createViews();
-        runPerViewSettingsTest(
-                new AwSettingsLayoutAlgorithmTestHelper(
-                        views.getContainer0(), views.getClient0(), false),
-                new AwSettingsLayoutAlgorithmTestHelper(
-                        views.getContainer1(), views.getClient1(), false));
-    }
-
-    @Test
-    @SmallTest
-    @DisableFeatures(BlinkFeatures.FORCE_OFF_TEXT_AUTOSIZING)
-    @Feature({"AndroidWebView", "Preferences"})
-    public void testLayoutAlgorithmWithTwoViewsWithTextAutosizingEnabled() throws Throwable {
-        ViewPair views = createViews();
-        runPerViewSettingsTest(
-                new AwSettingsLayoutAlgorithmTestHelper(
-                        views.getContainer0(), views.getClient0(), true),
-                new AwSettingsLayoutAlgorithmTestHelper(
-                        views.getContainer1(), views.getClient1(), true));
-    }
-
-    @Test
-    @SmallTest
-    @EnableFeatures(BlinkFeatures.FORCE_OFF_TEXT_AUTOSIZING)
     @Feature({"AndroidWebView", "Preferences"})
     public void testTextZoomWithTwoViewsWithTextAutosizingDisabled() throws Throwable {
         ViewPair views = createViews();
         runPerViewSettingsTest(
-                new AwSettingsTextZoomTestHelper(views.getContainer0(), views.getClient0(), false),
-                new AwSettingsTextZoomTestHelper(views.getContainer1(), views.getClient1(), false));
-    }
-
-    @Test
-    @SmallTest
-    @DisableFeatures(BlinkFeatures.FORCE_OFF_TEXT_AUTOSIZING)
-    @Feature({"AndroidWebView", "Preferences"})
-    public void testTextZoomWithTwoViewsWithTextAutosizingEnabled() throws Throwable {
-        ViewPair views = createViews();
-        runPerViewSettingsTest(
-                new AwSettingsTextZoomTestHelper(views.getContainer0(), views.getClient0(), true),
-                new AwSettingsTextZoomTestHelper(views.getContainer1(), views.getClient1(), true));
-    }
-
-    @Test
-    @SmallTest
-    @EnableFeatures(BlinkFeatures.FORCE_OFF_TEXT_AUTOSIZING)
-    @Feature({"AndroidWebView", "Preferences"})
-    public void testTextZoomAutosizingWithTwoViewsWithTextAutosizingDisabled() throws Throwable {
-        ViewPair views = createViews();
-        runPerViewSettingsTest(
-                new AwSettingsTextZoomAutosizingTestHelper(
-                        views.getContainer0(), views.getClient0(), false),
-                new AwSettingsTextZoomAutosizingTestHelper(
-                        views.getContainer1(), views.getClient1(), false));
-    }
-
-    @Test
-    @SmallTest
-    @DisableFeatures(BlinkFeatures.FORCE_OFF_TEXT_AUTOSIZING)
-    @Feature({"AndroidWebView", "Preferences"})
-    public void testTextZoomAutosizingWithTwoViewsWithTextAutosizingEnabled() throws Throwable {
-        ViewPair views = createViews();
-        runPerViewSettingsTest(
-                new AwSettingsTextZoomAutosizingTestHelper(
-                        views.getContainer0(), views.getClient0(), true),
-                new AwSettingsTextZoomAutosizingTestHelper(
-                        views.getContainer1(), views.getClient1(), true));
+                new AwSettingsTextZoomTestHelper(views.getContainer0(), views.getClient0()),
+                new AwSettingsTextZoomTestHelper(views.getContainer1(), views.getClient1()));
     }
 
     @Test
@@ -3739,9 +3552,9 @@ public class AwSettingsTest {
         mOverriddenFactory = new EmptyDocumentPersistenceTestDependencyFactory(allow);
 
         final TestAwContentsClient client = new TestAwContentsClient();
-        final AwTestContainerView mContainerView =
+        final AwTestContainerView containerView =
                 mActivityTestRule.createAwTestContainerViewOnMainSync(client);
-        final AwContents awContents = mContainerView.getAwContents();
+        final AwContents awContents = containerView.getAwContents();
         AwActivityTestRule.enableJavaScriptOnUiThread(awContents);
         JSUtils.executeJavaScriptAndWaitForResult(
                 InstrumentationRegistry.getInstrumentation(),
@@ -3823,9 +3636,9 @@ public class AwSettingsTest {
         mOverriddenFactory = new SelectionRangeTestDependencyFactory(doNotUpdate);
 
         final TestAwContentsClient client = new TestAwContentsClient();
-        final AwTestContainerView mContainerView =
+        final AwTestContainerView containerView =
                 mActivityTestRule.createAwTestContainerViewOnMainSync(client);
-        final AwContents awContents = mContainerView.getAwContents();
+        final AwContents awContents = containerView.getAwContents();
         AwActivityTestRule.enableJavaScriptOnUiThread(awContents);
         final String testPageHtml =
                 "<html><head></head><body><div id='a' contenteditable></div><script>"
@@ -4084,10 +3897,7 @@ public class AwSettingsTest {
         AwSettingsTextScaleMetaTagTestHelper(
                 AwTestContainerView containerView, TestAwContentsClient contentViewClient)
                 throws Throwable {
-            super(
-                    containerView,
-                    contentViewClient,
-                    !AwFeatureMap.isEnabled(BlinkFeatures.FORCE_OFF_TEXT_AUTOSIZING));
+            super(containerView, contentViewClient);
             // Enable JavaScript for reading font size.
             mAwSettings.setJavaScriptEnabled(true);
             // Always set autosizing here, but we control it via flags later.
@@ -4135,11 +3945,6 @@ public class AwSettingsTest {
         protected void setCurrentValue(Integer value) throws Throwable {
             super.setCurrentValue(value);
             mAwSettings.setTextZoom(value);
-            // If the meta tag is disabled but autosizing is enabled, the font size will not change
-            // at all in this scenario, so we skip the wait to avoid timeouts.
-            if (!AwFeatureMap.isEnabled(BlinkFeatures.TEXT_SCALE_META_TAG) && mAutosizingEnabled) {
-                mNeedToWaitForFontSizeChange = false;
-            }
         }
 
         @Override
@@ -4148,9 +3953,6 @@ public class AwSettingsTest {
             // With OR without the meta tag, setTextZoom should scale the default font size of
             // medium.
             float expectedRatio = value / (float) INITIAL_TEXT_ZOOM;
-            if (!AwFeatureMap.isEnabled(BlinkFeatures.TEXT_SCALE_META_TAG) && mAutosizingEnabled) {
-                expectedRatio = 1.0f;
-            }
 
             final float ratiosDelta =
                     Math.abs((actualFontSize / mInitialActualFontSize) - expectedRatio);
@@ -4190,26 +3992,14 @@ public class AwSettingsTest {
             } else {
                 // TextScaleMetaTag Disabled: Fixed font size SHOULD scale (legacy behavior).
                 float expectedFixedSize = 20.0f * (value / (float) INITIAL_TEXT_ZOOM);
-                if (mAutosizingEnabled) {
-                    expectedFixedSize = 20.0f;
-                }
                 Assert.assertEquals(
                         "Fixed font size should scale", expectedFixedSize, fixedSize, 2.0f);
 
-                if (mAutosizingEnabled) {
-                    float expectedWidth = value;
-                    Assert.assertEquals(
-                            "env() should track scale when autosizing on",
-                            expectedWidth,
-                            envWidth,
-                            1.0f);
-                } else {
-                    Assert.assertEquals(
-                            "no meta & no autosizing? env(preferred-text-scale) should be 1 ",
-                            100.0f,
-                            envWidth,
-                            1.0f);
-                }
+                Assert.assertEquals(
+                        "no meta & no autosizing? env(preferred-text-scale) should be 1 ",
+                        100.0f,
+                        envWidth,
+                        1.0f);
             }
         }
     }
@@ -4219,19 +4009,6 @@ public class AwSettingsTest {
     @EnableFeatures(BlinkFeatures.TEXT_SCALE_META_TAG)
     @Feature({"AndroidWebView", "Preferences"})
     public void testTextScaleMetaTagWithTwoViews() throws Throwable {
-        ViewPair views = createViews();
-        runPerViewSettingsTest(
-                new AwSettingsTextScaleMetaTagTestHelper(views.getContainer0(), views.getClient0()),
-                new AwSettingsTextScaleMetaTagTestHelper(
-                        views.getContainer1(), views.getClient1()));
-    }
-
-    @Test
-    @SmallTest
-    @EnableFeatures(BlinkFeatures.TEXT_SCALE_META_TAG)
-    @DisableFeatures(BlinkFeatures.FORCE_OFF_TEXT_AUTOSIZING)
-    @Feature({"AndroidWebView", "Preferences"})
-    public void testTextScaleMetaTagWithTwoViewsWithAutosizingEnabled() throws Throwable {
         ViewPair views = createViews();
         runPerViewSettingsTest(
                 new AwSettingsTextScaleMetaTagTestHelper(views.getContainer0(), views.getClient0()),
@@ -4253,18 +4030,6 @@ public class AwSettingsTest {
 
     @Test
     @SmallTest
-    @DisableFeatures({BlinkFeatures.TEXT_SCALE_META_TAG, BlinkFeatures.FORCE_OFF_TEXT_AUTOSIZING})
-    @Feature({"AndroidWebView", "Preferences"})
-    public void testTextScaleMetaTagWithTwoViewsWithAutosizingEnabledDisabled() throws Throwable {
-        ViewPair views = createViews();
-        runPerViewSettingsTest(
-                new AwSettingsTextScaleMetaTagTestHelper(views.getContainer0(), views.getClient0()),
-                new AwSettingsTextScaleMetaTagTestHelper(
-                        views.getContainer1(), views.getClient1()));
-    }
-
-    @Test
-    @SmallTest
     @Feature({"AndroidWebView", "Preferences"})
     public void testIgnoreDuplicateNavs() throws Throwable {
         final TestAwContentsClient contentClient = new TestAwContentsClient();
@@ -4275,13 +4040,190 @@ public class AwSettingsTest {
 
         // Verify default values: feature disabled and threshold set to -1 (default).
         Assert.assertFalse(settings.getIgnoreDuplicateNavEnabled());
-        Assert.assertEquals(-1, settings.getIgnoreDuplicateNavThreshold());
+        Assert.assertEquals(-1L, settings.getIgnoreDuplicateNavThreshold());
 
         // Enable the feature and set a custom threshold.
         settings.setIgnoreDuplicateNavEnabled(true);
-        int customThreshold = 1000;
+        long customThreshold = 1000L;
         settings.setIgnoreDuplicateNavThreshold(customThreshold);
         Assert.assertTrue(settings.getIgnoreDuplicateNavEnabled());
         Assert.assertEquals(customThreshold, settings.getIgnoreDuplicateNavThreshold());
+    }
+
+    @Test
+    @SmallTest
+    @Feature({"AndroidWebView", "Preferences"})
+    public void testSetWebauthnSupportFromNonUIThread() throws Throwable {
+        final TestAwContentsClient contentClient = new TestAwContentsClient();
+        final AwTestContainerView testContainerView =
+                mActivityTestRule.createAwTestContainerViewOnMainSync(contentClient);
+        final AwContents awContents = testContainerView.getAwContents();
+        final AwSettings settings = mActivityTestRule.getAwSettingsOnUiThread(awContents);
+
+        // Call setWebauthnSupport from the instrumentation thread (non-UI thread).
+        // This should not crash.
+        settings.setWebauthnSupport(WebauthnMode.APP);
+
+        // Verify the setting was applied.
+        Assert.assertEquals(
+                WebauthnMode.APP,
+                mActivityTestRule.getAwSettingsOnUiThread(awContents).getWebauthnSupport());
+    }
+
+    @Test
+    @SmallTest
+    @Feature({"AndroidWebView", "Preferences"})
+    @DisableFeatures(AwFeatures.WEBVIEW_FORCE_WEB_AUTHN)
+    public void testWebauthnDefaultDisabled() throws Throwable {
+        final TestAwContentsClient contentClient = new TestAwContentsClient();
+        final AwTestContainerView testContainerView =
+                mActivityTestRule.createAwTestContainerViewOnMainSync(contentClient);
+        final AwContents awContents = testContainerView.getAwContents();
+        final AwSettings settings = mActivityTestRule.getAwSettingsOnUiThread(awContents);
+        settings.setJavaScriptEnabled(true);
+
+        Assert.assertEquals(
+                "WebAuthn default should be NONE by default.",
+                WebauthnMode.NONE,
+                settings.getWebauthnSupport());
+
+        TestWebServer webServer = TestWebServer.start();
+        try {
+            final String pageUrl =
+                    webServer.setResponse("/test.html", "<html><body></body></html>", null);
+            mActivityTestRule.loadUrlSync(
+                    awContents, contentClient.getOnPageFinishedHelper(), pageUrl);
+            Assert.assertFalse(
+                    "WebAuthn JavaScript interface should NOT be exposed",
+                    hasWebAuthnJavaScriptInterfaces(awContents, contentClient));
+        } finally {
+            webServer.shutdown();
+        }
+    }
+
+    @Test
+    @SmallTest
+    @Feature({"AndroidWebView", "Preferences"})
+    @EnableFeatures(AwFeatures.WEBVIEW_FORCE_WEB_AUTHN)
+    public void testWebauthnEnabledByFlag() throws Throwable {
+        final TestAwContentsClient contentClient = new TestAwContentsClient();
+        final AwTestContainerView testContainerView =
+                mActivityTestRule.createAwTestContainerViewOnMainSync(contentClient);
+        final AwContents awContents = testContainerView.getAwContents();
+        final AwSettings settings = mActivityTestRule.getAwSettingsOnUiThread(awContents);
+        settings.setJavaScriptEnabled(true);
+
+        Assert.assertEquals(
+                "WebAuthn default should be APP mode when the flag is enabled.",
+                WebauthnMode.APP,
+                settings.getWebauthnSupport());
+
+        TestWebServer webServer = TestWebServer.start();
+        try {
+            final String pageUrl =
+                    webServer.setResponse("/test.html", "<html><body></body></html>", null);
+            mActivityTestRule.loadUrlSync(
+                    awContents, contentClient.getOnPageFinishedHelper(), pageUrl);
+            Assert.assertTrue(
+                    "WebAuthn JavaScript interface should be exposed",
+                    hasWebAuthnJavaScriptInterfaces(awContents, contentClient));
+        } finally {
+            webServer.shutdown();
+        }
+    }
+
+    @Test
+    @SmallTest
+    @Feature({"AndroidWebView", "Preferences"})
+    @EnableFeatures(AwFeatures.WEBVIEW_FORCE_WEB_AUTHN)
+    public void testWebauthnFlagAndAppSetting() throws Throwable {
+        final TestAwContentsClient contentClient = new TestAwContentsClient();
+        final AwTestContainerView testContainerView =
+                mActivityTestRule.createAwTestContainerViewOnMainSync(contentClient);
+        final AwContents awContents = testContainerView.getAwContents();
+        final AwSettings settings = mActivityTestRule.getAwSettingsOnUiThread(awContents);
+        settings.setJavaScriptEnabled(true);
+
+        Assert.assertEquals(
+                "WebAuthn default should be APP mode when the flag is enabled.",
+                WebauthnMode.APP,
+                settings.getWebauthnSupport());
+
+        TestWebServer webServer = TestWebServer.start();
+        try {
+            final String pageUrl =
+                    webServer.setResponse("/test.html", "<html><body></body></html>", null);
+            mActivityTestRule.loadUrlSync(
+                    awContents, contentClient.getOnPageFinishedHelper(), pageUrl);
+            Assert.assertTrue(
+                    "WebAuthn JavaScript interface should be exposed",
+                    hasWebAuthnJavaScriptInterfaces(awContents, contentClient));
+
+            // Change the mode and reload the apge. Verify that the interfaces disappear again.
+            settings.setWebauthnSupport(WebauthnMode.NONE);
+            Assert.assertEquals(
+                    "setWebauthnSupport() API should still take effect.",
+                    WebauthnMode.NONE,
+                    settings.getWebauthnSupport());
+            mActivityTestRule.loadUrlSync(
+                    awContents, contentClient.getOnPageFinishedHelper(), pageUrl);
+            Assert.assertFalse(
+                    "WebAuthn JavaScript interface should NOT be exposed",
+                    hasWebAuthnJavaScriptInterfaces(awContents, contentClient));
+        } finally {
+            webServer.shutdown();
+        }
+    }
+
+    private static boolean isSecureDomain(GURL url) {
+        if ("https".equals(url.getScheme())) {
+            return true;
+        }
+        if ("http".equals(url.getScheme()) && "localhost".equals(url.getHost())) {
+            return true;
+        }
+        if ("http".equals(url.getScheme()) && "127.0.0.1".equals(url.getHost())) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean hasWebAuthnJavaScriptInterfaces(
+            AwContents awContents, TestAwContentsClient contentClient) throws Throwable {
+        if (!isSecureDomain(awContents.getUrl())) {
+            throw new Exception(
+                    "This web URL ("
+                            + awContents.getUrl()
+                            + ") is insecure, however WebAuthn interfaces are only ever exposed for"
+                            + " secure web schemes. Please rewrite this test case so that it uses"
+                            + " a localhost HTTP server (locahost is treated as 'trusted' for"
+                            + " testing purposes).");
+        }
+        String jsResult =
+                mActivityTestRule.executeJavaScriptAndWaitForResult(
+                        awContents,
+                        contentClient,
+                        "typeof window.PublicKeyCredential !== 'undefined'");
+        return "true".equals(jsResult);
+    }
+
+    @Test
+    @SmallTest
+    @Feature({"AndroidWebView"})
+    public void testSetWebauthnSupportLogsPermissionStatus() throws Throwable {
+        final AwTestContainerView testContainerView =
+                mActivityTestRule.createAwTestContainerViewOnMainSync(new TestAwContentsClient());
+        final AwContents awContents = testContainerView.getAwContents();
+        final AwSettings settings = mActivityTestRule.getAwSettingsOnUiThread(awContents);
+
+        HistogramWatcher histogramWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.WebView.Webauthn.BrowserModePermissionGranted", false);
+
+        // Since the test app does not have CREDENTIAL_MANAGER_SET_ORIGIN permission,
+        // this call should log `false` to the histogram and succeed without throwing.
+        settings.setWebauthnSupport(WebauthnMode.BROWSER);
+
+        histogramWatcher.assertExpected();
     }
 }

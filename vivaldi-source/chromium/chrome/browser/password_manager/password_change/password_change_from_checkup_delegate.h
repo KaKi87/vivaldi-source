@@ -9,11 +9,12 @@
 #include <string>
 
 #include "base/callback_list.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/actor/tools/tool_delegate.h"
-#include "chrome/browser/password_manager/password_change/change_password_form_filling_submission_helper.h"
+#include "chrome/browser/password_manager/password_change/change_password_form_filler.h"
 #include "url/gurl.h"
 
 class ChangePasswordFormWaiter;
@@ -25,9 +26,11 @@ class WebContents;
 namespace password_manager {
 struct CredentialUIEntry;
 class PasswordFormManager;
+class PasswordManagerClient;
 }  // namespace password_manager
 
 namespace glic {
+class GlicInstance;
 class GlicKeyedService;
 }
 
@@ -36,7 +39,8 @@ class GlicKeyedService;
 // page.
 class PasswordChangeFromCheckupDelegate {
  public:
-  PasswordChangeFromCheckupDelegate();
+  explicit PasswordChangeFromCheckupDelegate(
+      password_manager::PasswordManagerClient* client);
   ~PasswordChangeFromCheckupDelegate();
 
   void StartPasswordChangeFlow(
@@ -47,14 +51,14 @@ class PasswordChangeFromCheckupDelegate {
   std::optional<actor::ActorTask::State> GetFindFormTaskState() const {
     return find_form_task_state_;
   }
-
+  std::optional<actor::TaskId> GetVerificationTaskId() const {
+    return verification_task_id_;
+  }
+  std::u16string generated_password() const { return generated_password_; }
+  bool has_saved_form_manager() const { return saved_form_manager_ != nullptr; }
 #endif
 
  private:
-  void AutoSelectCredential(
-      const std::vector<actor_login::Credential>& credentials,
-      actor::ToolDelegate::CredentialSelectedCallback callback);
-
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   glic::GlicKeyedService* GetGlicService();
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
@@ -63,31 +67,36 @@ class PasswordChangeFromCheckupDelegate {
 
   void OnChangePasswordFormManagerFound(
       password_manager::PasswordFormManager* form_manager);
-  void OnChangePasswordFormSubmitted(
-      ChangePasswordFormFillingSubmissionHelper::SubmissionResult result);
+  void OnChangePasswordFormFilled(
+      ChangePasswordFormFiller::FillingResult result);
 
   void OnVerificationTaskStateChanged(actor::ActorTask& task);
   void OnVerificationTimeout();
   void HandleMaybeSuccessfulPasswordChange();
+  void InvokeVerificationFlow(std::string post_submission_prompt);
 
   base::WeakPtr<content::WebContents> originator_;
+  raw_ptr<password_manager::PasswordManagerClient> client_;
   base::WeakPtr<content::WebContents> actuation_web_contents_;
+
+  base::WeakPtr<glic::GlicInstance> glic_instance_;
 
   std::u16string username_;
   std::u16string current_password_;
+  std::u16string generated_password_;
   GURL credential_url_;
 
-  std::optional<actor::TaskId> actor_task_id_;
+  std::optional<actor::TaskId> find_form_task_id_;
 
   base::CallbackListSubscription actor_task_state_subscription_;
 
-  std::unique_ptr<ChangePasswordFormFillingSubmissionHelper> submission_helper_;
+  std::unique_ptr<ChangePasswordFormFiller> form_filler_;
   std::unique_ptr<ChangePasswordFormWaiter> form_waiter_;
 
-  std::optional<actor::TaskId> find_form_task_id_;
-  std::optional<actor::ActorTask::State> find_form_task_state_ = std::nullopt;
+  std::optional<actor::ActorTask::State> find_form_task_state_;
 
   std::optional<actor::TaskId> verification_task_id_;
+  std::optional<actor::TaskId> dummy_task_id_;
   std::unique_ptr<password_manager::PasswordFormManager> saved_form_manager_;
   bool verification_task_created_ = false;
   base::OneShotTimer verification_timer_;

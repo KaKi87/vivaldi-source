@@ -183,8 +183,8 @@ NSString* const kPlaceholderSuffix = @"__";
     return defaultAction;
   }
 
-  if ([self.delegate respondsToSelector:@selector(richLinkTextView:
-                                                      shouldHandle:)] &&
+  if ([self.delegate
+          respondsToSelector:@selector(richLinkTextView:shouldHandle:)] &&
       ![self.delegate richLinkTextView:self shouldHandle:tappedLink]) {
     return nil;
   }
@@ -195,8 +195,8 @@ NSString* const kPlaceholderSuffix = @"__";
     if (!strongSelf) {
       return;
     }
-    if ([strongSelf.delegate respondsToSelector:@selector(richLinkTextView:
-                                                                    didTap:)]) {
+    if ([strongSelf.delegate
+            respondsToSelector:@selector(richLinkTextView:didTap:)]) {
       [strongSelf.delegate richLinkTextView:strongSelf didTap:tappedLink];
     }
   }];

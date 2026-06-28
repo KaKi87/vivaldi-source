@@ -8,6 +8,7 @@ import {BrowserProxy, ESTIMATED_WORDS_PER_MS, getWordCount, MIN_MS_TO_READ, Node
 import {assertArrayEquals, assertEquals, assertFalse, assertGT, assertNotEquals, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
 import {MockTimer} from 'chrome-untrusted://webui-test/mock_timer.js';
 
+import {setWindowSize} from './common.js';
 import {FakeReadingMode} from './fake_reading_mode.js';
 import {TestColorUpdaterBrowserProxy} from './test_color_updater_browser_proxy.js';
 
@@ -39,6 +40,11 @@ suite('NodeStore', () => {
   setup(() => {
     // Clearing the DOM should always be done first.
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
+
+    // Always set a large innerHeight and innerWidth to ensure elements are
+    // considered visible and don't wrap unexpectedly in tests.
+    setWindowSize(10000, 10000);
+
     BrowserProxy.setInstance(new TestColorUpdaterBrowserProxy());
     readingMode = new FakeReadingMode();
     chrome.readingMode = readingMode as unknown as typeof chrome.readingMode;
@@ -70,6 +76,20 @@ suite('NodeStore', () => {
     assertEquals(node, nodeStore.getDomNode(id));
   });
 
+  test('setAxNodeOffset and getAxNodeOffset', () => {
+    const node = document.createElement('p');
+    const offset = 17;
+
+    nodeStore.setAxNodeOffset(node, offset);
+
+    assertEquals(offset, nodeStore.getAxNodeOffset(node));
+  });
+
+  test('getAxNodeOffset returns 0 if not set', () => {
+    const node = document.createElement('p');
+    assertEquals(0, nodeStore.getAxNodeOffset(node));
+  });
+
   test('removeDomNode after set', () => {
     const node1 = document.createElement('p');
     const id1 = 308;
@@ -78,12 +98,14 @@ suite('NodeStore', () => {
 
     nodeStore.setDomNode(node1, id1);
     nodeStore.setDomNode(node2, id2);
+    nodeStore.setAxNodeOffset(node1, 17);
     nodeStore.removeDomNode(node1);
 
     assertFalse(!!nodeStore.getAxId(node1));
     assertFalse(!!nodeStore.getDomNode(id1));
     assertEquals(id2, nodeStore.getAxId(node2));
     assertEquals(node2, nodeStore.getDomNode(id2));
+    assertEquals(0, nodeStore.getAxNodeOffset(node1));
   });
 
   test('removeDomNode without setting does not crash', () => {
@@ -97,6 +119,7 @@ suite('NodeStore', () => {
     const id2 = 310;
     nodeStore.setDomNode(node1, id1);
     nodeStore.setDomNode(node2, id2);
+    nodeStore.setAxNodeOffset(node1, 12);
 
     nodeStore.clearDomNodes();
 
@@ -104,6 +127,7 @@ suite('NodeStore', () => {
     assertFalse(!!nodeStore.getDomNode(id1));
     assertFalse(!!nodeStore.getAxId(node2));
     assertFalse(!!nodeStore.getDomNode(id2));
+    assertEquals(0, nodeStore.getAxNodeOffset(node1));
   });
 
   test('replaceDomNode', () => {
@@ -111,9 +135,11 @@ suite('NodeStore', () => {
     const parentId = 308;
     const child = document.createTextNode('You can build me up');
     const childId = 310;
+    const offset = 17;
     parent.appendChild(child);
     nodeStore.setDomNode(parent, parentId);
     nodeStore.setDomNode(child, childId);
+    nodeStore.setAxNodeOffset(child, offset);
     const replacer = document.createTextNode('You can tear me down');
 
     nodeStore.replaceDomNode(child, replacer);
@@ -121,6 +147,8 @@ suite('NodeStore', () => {
     assertEquals(replacer, nodeStore.getDomNode(childId));
     assertEquals(parent, nodeStore.getDomNode(parentId));
     assertFalse(!!nodeStore.getAxId(child));
+    assertEquals(offset, nodeStore.getAxNodeOffset(replacer));
+    assertEquals(0, nodeStore.getAxNodeOffset(child));
     const children = parent.childNodes;
     assertEquals(1, children.length);
     assertEquals(replacer, children.item(0));

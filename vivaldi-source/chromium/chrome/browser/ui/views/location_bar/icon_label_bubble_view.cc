@@ -58,8 +58,7 @@ constexpr int kIconLabelBubbleFadeInDurationMs = 250;
 constexpr int kIconLabelBubbleFadeOutDurationMs = 175;
 
 // The length of the label fade in and out animations.
-constexpr int kIconLabelAnimationDurationMs = 600;
-
+constexpr int kIconLabelFadeAnimationDurationMs = 600;
 }  // namespace
 
 SkAlpha IconLabelBubbleView::Delegate::GetIconLabelBubbleSeparatorAlpha()
@@ -153,7 +152,11 @@ class IconLabelBubbleView::HighlightPathGenerator
 
 IconLabelBubbleView::IconLabelBubbleView(const gfx::FontList& font_list,
                                          Delegate* delegate)
-    : delegate_(delegate),
+    : LabelButton(PressedCallback(),
+                  std::u16string_view(),
+                  views::style::CONTEXT_BUTTON,
+                  std::make_unique<views::SingleAnimatedImageContainer>(this)),
+      delegate_(delegate),
       separator_view_(AddChildView(std::make_unique<SeparatorView>(this))) {
   DCHECK(delegate_);
 
@@ -674,12 +677,7 @@ int IconLabelBubbleView::GetInternalSpacing() const {
     return 0;
   }
 
-  constexpr int kDefaultInternalSpacingTouchUI = 10;
-  constexpr int kDefaultInternalSpacingChromeRefresh = 4;
-
-  return (ui::TouchUiController::Get()->touch_ui()
-              ? kDefaultInternalSpacingTouchUI
-              : kDefaultInternalSpacingChromeRefresh) +
+  return GetLayoutConstant(LayoutConstant::kLocationBarChildInternalSpacing) +
          GetExtraInternalSpacing();
 }
 
@@ -716,10 +714,10 @@ void IconLabelBubbleView::SetUpForInOutAnimation(base::TimeDelta duration) {
   // proportion of time spent in each portion of the animation is controlled by
   // open_state_fraction_.
   slide_animation_.SetSlideDuration(
-      duration + 2 * base::Milliseconds(kIconLabelAnimationDurationMs));
+      duration + 2 * base::Milliseconds(kIconLabelFadeAnimationDurationMs));
   // The tween is calculated in GetWidthBetween().
   slide_animation_.SetTweenType(gfx::Tween::LINEAR);
-  open_state_fraction_ = static_cast<float>(kIconLabelAnimationDurationMs) /
+  open_state_fraction_ = static_cast<float>(kIconLabelFadeAnimationDurationMs) /
                          duration.InMilliseconds();
 }
 

@@ -31,7 +31,6 @@
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window/test/mock_browser_window_interface.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
@@ -2336,6 +2335,29 @@ TEST_P(TabStripModelTest, TabGroupsFocusingAutoCloseSwitchFocus) {
   EXPECT_EQ(4, tabstrip()->count());
 }
 
+TEST_P(TabStripModelTest, ActivateTabUnfocusesAndClosesGroupNoCrash) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeatureWithParameters(
+      features::kTabGroupsFocusing,
+      {{"tab_groups_focusing_auto_close", "true"}});
+
+  PrepareTabs(tabstrip(), 3);
+  tab_groups::TabGroupId group_id = tabstrip()->AddToNewGroup({0, 1});
+  tabstrip()->SetFocusedGroup(group_id);
+
+  // Tab 2 is not in the group.
+  // This should call SetFocusedGroup(nullopt), which should close the group.
+  // This previously crashed due to ReentrancyCheck in CloseAllTabsInGroup
+  // because ActivateTabAt already has a ReentrancyCheck.
+  tabstrip()->ActivateTabAt(
+      2, TabStripUserGestureDetails(
+             TabStripUserGestureDetails::GestureType::kOther));
+
+  EXPECT_EQ(std::nullopt, tabstrip()->GetFocusedGroup());
+  EXPECT_FALSE(tabstrip()->group_model()->ContainsTabGroup(group_id));
+  EXPECT_EQ(1, tabstrip()->count());
+}
+
 TEST_P(TabStripModelTest, SplitTabPinning) {
   for (bool split_is_selected : {true, false}) {
     for (bool use_left_tab : {true, false}) {
@@ -2746,13 +2768,13 @@ TEST_P(TabStripModelTest, SplitLayoutTest) {
   EXPECT_EQ("0ps 3ps 1p 2 4", GetTabStripStateString(tabstrip()));
   EXPECT_EQ(
       tabstrip()->GetSplitData(split_tab_id)->visual_data()->split_layout(),
-      split_tabs::SplitTabLayout::kVertical);
+      split_tabs::SplitTabLayout::kSideBySide);
 
   tabstrip()->UpdateSplitLayout(split_tab_id,
-                                split_tabs::SplitTabLayout::kHorizontal);
+                                split_tabs::SplitTabLayout::kStacked);
   EXPECT_EQ(
       tabstrip()->GetSplitData(split_tab_id)->visual_data()->split_layout(),
-      split_tabs::SplitTabLayout::kHorizontal);
+      split_tabs::SplitTabLayout::kStacked);
 
   tabstrip()->CloseAllTabs();
   EXPECT_TRUE(tabstrip()->empty());
@@ -2776,12 +2798,91 @@ TEST_P(TabStripModelTest, SplitRatioTest) {
   EXPECT_EQ("0ps 3ps 1p 2 4", GetTabStripStateString(tabstrip()));
   EXPECT_EQ(
       tabstrip()->GetSplitData(split_tab_id)->visual_data()->split_layout(),
-      split_tabs::SplitTabLayout::kVertical);
+      split_tabs::SplitTabLayout::kSideBySide);
 
   tabstrip()->UpdateSplitRatio(split_tab_id, 0.7);
   EXPECT_EQ(
       tabstrip()->GetSplitData(split_tab_id)->visual_data()->split_ratio(),
       0.7);
+
+  tabstrip()->CloseAllTabs();
+  EXPECT_TRUE(tabstrip()->empty());
+}
+
+class SplitTabVisualsObserver : public TabStripModelObserver {
+ public:
+  explicit SplitTabVisualsObserver(TabStripModel* model) : model_(model) {
+    model_->AddObserver(this);
+  }
+  ~SplitTabVisualsObserver() override { model_->RemoveObserver(this); }
+
+  void OnSplitTabChanged(const SplitTabChange& change) override {
+    if (change.type == SplitTabChange::Type::kVisualsChanged) {
+      is_intermediate_ = change.GetVisualsChange()->is_intermediate();
+      reason_ = change.GetVisualsChange()->reason();
+      call_count_++;
+    }
+  }
+
+  std::optional<bool> is_intermediate() const { return is_intermediate_; }
+  std::optional<SplitTabChange::SplitVisualChangeReason> reason() const {
+    return reason_;
+  }
+  int call_count() const { return call_count_; }
+
+  void Reset() {
+    is_intermediate_.reset();
+    reason_.reset();
+    call_count_ = 0;
+  }
+
+ private:
+  raw_ptr<TabStripModel> model_;
+  std::optional<bool> is_intermediate_;
+  std::optional<SplitTabChange::SplitVisualChangeReason> reason_;
+  int call_count_ = 0;
+};
+
+TEST_P(TabStripModelTest, UpdateSplitRatioIntermediate) {
+  ASSERT_NO_FATAL_FAILURE(
+      PrepareTabstripForSelectionTest(tabstrip(), 5, 2, {2}));
+
+  // Add tab at index 4 to a group.
+  tabstrip()->AddToNewGroup({4});
+  tabstrip()->ActivateTabAt(
+      0, TabStripUserGestureDetails(
+             TabStripUserGestureDetails::GestureType::kOther));
+
+  split_tabs::SplitTabId split_tab_id = tabstrip()->AddToNewSplit(
+      {3}, split_tabs::SplitTabVisualData(),
+      split_tabs::SplitTabCreatedSource::kToolbarButton);
+
+  SplitTabVisualsObserver observer(tabstrip());
+
+  // Test non-intermediate update (default).
+  tabstrip()->UpdateSplitRatio(split_tab_id, 0.7);
+  EXPECT_EQ(observer.call_count(), 1);
+  EXPECT_FALSE(observer.is_intermediate().value_or(true));
+  EXPECT_EQ(observer.reason().value(),
+            SplitTabChange::SplitVisualChangeReason::kRatioUpdated);
+
+  observer.Reset();
+
+  // Test intermediate update.
+  tabstrip()->UpdateSplitRatio(split_tab_id, 0.6, /*is_intermediate=*/true);
+  EXPECT_EQ(observer.call_count(), 1);
+  EXPECT_TRUE(observer.is_intermediate().value_or(false));
+  EXPECT_EQ(observer.reason().value(),
+            SplitTabChange::SplitVisualChangeReason::kRatioUpdated);
+
+  observer.Reset();
+
+  // Test explicit non-intermediate update.
+  tabstrip()->UpdateSplitRatio(split_tab_id, 0.5, /*is_intermediate=*/false);
+  EXPECT_EQ(observer.call_count(), 1);
+  EXPECT_FALSE(observer.is_intermediate().value_or(true));
+  EXPECT_EQ(observer.reason().value(),
+            SplitTabChange::SplitVisualChangeReason::kRatioUpdated);
 
   tabstrip()->CloseAllTabs();
   EXPECT_TRUE(tabstrip()->empty());
@@ -4925,7 +5026,7 @@ class DummySingleWebContentsDialogManager
 }  // namespace
 
 // Verifies a newly inserted tab retains its previous blocked state.
-// http://crbug.com/276334
+// http://crbug.com/41038967
 TEST_P(TabStripModelTest, TabBlockedState) {
   // Start with a source tab tabstrip()->
   TestTabStripModelDelegate dummy_tab_strip_delegate;
@@ -6013,7 +6114,7 @@ TEST_P(TabStripModelTest, MoveWebContentsAtCorrectlySendsGroupClearedEvent) {
 }
 
 // Ensure that the opener for a tab never refers to a dangling WebContents.
-// Regression test for crbug.com/1092308.
+// Regression test for crbug.com/40052517.
 TEST_P(TabStripModelTest, DanglingOpener) {
   PrepareTabs(tabstrip(), 2);
 
@@ -7161,6 +7262,8 @@ TEST_F(TabStripModelCallbackTest, MoveTabToNewGroupThenCloseTab) {
   tabstrip()->AppendWebContents(CreateWebContents(), true);
   tabstrip()->AddToNewGroup({0});
   tabstrip()->SelectTabAt(0);
+  EXPECT_TRUE(tabstrip()->IsContextMenuCommandEnabled(
+      0, TabStripModel::CommandAddToNewGroupFromMenuItem));
   tabstrip()->ExecuteContextMenuCommand(
       0, TabStripModel::CommandAddToNewGroupFromMenuItem);
   tabstrip()->CloseWebContentsAt(0, TabCloseTypes::CLOSE_NONE);
@@ -7275,4 +7378,55 @@ TEST_P(TabStripModelTest, ReinsertTabGroupCollectionVerifyListSelectionModel) {
   // Note the active and anchor did not change.
   EXPECT_EQ("active=2 anchor=2 selection=2 4",
             tabstrip()->selection_model().GetListSelectionModel().ToString());
+}
+
+TEST_P(TabStripModelTest, TabGroupCallbackOnTabAdded) {
+  PrepareTabstripForSelectionTest(tabstrip(), /*tab_count*/ 2,
+                                  /*pinned_count*/ 0,
+                                  /*selected_tabs*/ {0});
+
+  tab_groups::TabGroupId group_id =
+      tabstrip()->AddToNewGroup(std::vector<int>{0});
+  TabGroup* const tab_group = tabstrip()->group_model()->GetTabGroup(group_id);
+
+  bool was_notified = false;
+  base::CallbackListSubscription subscription =
+      tab_group->RegisterOnGroupChanged(base::BindRepeating(
+          [](bool* was_notified) { *was_notified = true; }, &was_notified));
+  tabstrip()->AddToExistingGroup({1}, group_id);
+  EXPECT_TRUE(was_notified);
+}
+
+TEST_P(TabStripModelTest, TabGroupCallbackOnTabRemoved) {
+  PrepareTabstripForSelectionTest(tabstrip(), /*tab_count*/ 2,
+                                  /*pinned_count*/ 0,
+                                  /*selected_tabs*/ {0});
+
+  tab_groups::TabGroupId group_id =
+      tabstrip()->AddToNewGroup(std::vector<int>{0, 1});
+  TabGroup* const tab_group = tabstrip()->group_model()->GetTabGroup(group_id);
+
+  bool was_notified = false;
+  base::CallbackListSubscription subscription =
+      tab_group->RegisterOnGroupChanged(base::BindRepeating(
+          [](bool* was_notified) { *was_notified = true; }, &was_notified));
+  tabstrip()->CloseWebContentsAt(0, TabCloseTypes::CLOSE_NONE);
+  EXPECT_TRUE(was_notified);
+}
+
+TEST_P(TabStripModelTest, TabGroupCallbackOnTabMoved) {
+  PrepareTabstripForSelectionTest(tabstrip(), /*tab_count*/ 2,
+                                  /*pinned_count*/ 0,
+                                  /*selected_tabs*/ {0});
+
+  tab_groups::TabGroupId group_id =
+      tabstrip()->AddToNewGroup(std::vector<int>{0, 1});
+  TabGroup* const tab_group = tabstrip()->group_model()->GetTabGroup(group_id);
+
+  bool was_notified = false;
+  base::CallbackListSubscription subscription =
+      tab_group->RegisterOnGroupChanged(base::BindRepeating(
+          [](bool* was_notified) { *was_notified = true; }, &was_notified));
+  tabstrip()->MoveWebContentsAt(0, 1, false);
+  EXPECT_TRUE(was_notified);
 }

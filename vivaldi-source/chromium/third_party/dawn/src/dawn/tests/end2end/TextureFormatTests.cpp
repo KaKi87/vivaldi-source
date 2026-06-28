@@ -31,12 +31,13 @@
 #include <utility>
 #include <vector>
 
-#include "dawn/common/Assert.h"
-#include "dawn/common/Math.h"
-#include "dawn/tests/DawnTest.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/TextureUtils.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/common/Assert.h"
+#include "src/dawn/common/Math.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/TextureUtils.h"
+#include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/compiler.h"
 
 namespace dawn {
 namespace {
@@ -61,7 +62,7 @@ class ExpectFloatWithTolerance : public detail::Expectation {
 
         for (size_t i = 0; i < mExpected.size(); ++i) {
             float expectedValue = mExpected[i];
-            float actualValue = actual[i];
+            float actualValue = DAWN_UNSAFE_TODO(actual[i]);
 
             if (!FloatsMatch(expectedValue, actualValue)) {
                 testing::AssertionResult result = testing::AssertionFailure()
@@ -108,7 +109,7 @@ class ExpectFloat16 : public detail::Expectation {
 
         for (size_t i = 0; i < mExpected.size(); ++i) {
             uint16_t expectedValue = mExpected[i];
-            uint16_t actualValue = actual[i];
+            uint16_t actualValue = DAWN_UNSAFE_TODO(actual[i]);
 
             if (!Floats16Match(expectedValue, actualValue)) {
                 testing::AssertionResult result = testing::AssertionFailure()
@@ -145,7 +146,7 @@ class ExpectRG11B10Ufloat : public detail::Expectation {
 
         for (size_t i = 0; i < mExpected.size(); ++i) {
             uint32_t expectedValue = mExpected[i];
-            uint32_t actualValue = actual[i];
+            uint32_t actualValue = DAWN_UNSAFE_TODO(actual[i]);
 
             if (!RG11B10UfloatMatch(expectedValue, actualValue)) {
                 testing::AssertionResult result = testing::AssertionFailure()

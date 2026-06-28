@@ -7,6 +7,7 @@
 
 #include <set>
 
+#include "base/gtest_prod_util.h"
 #include "base/scoped_multi_source_observation.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/profiles/profile_observer.h"
@@ -35,6 +36,9 @@ class ProfileLaunchObserver : public ProfileObserver,
   void OnProfileWillBeDestroyed(Profile* profile) override;
 
  private:
+  FRIEND_TEST_ALL_PREFIXES(StartupBrowserCreatorTest,
+                           ClearsProfileSetsAfterActivation);
+
   friend class StartupBrowserCreator;
   friend bool HasPendingUncleanExit(Profile*);
 
@@ -62,12 +66,12 @@ class ProfileLaunchObserver : public ProfileObserver,
 
   // These are the profiles that get launched by
   // StartupBrowserCreator::LaunchBrowser.
-  std::set<raw_ptr<const Profile, SetExperimental>> launched_profiles_;
+  std::set<raw_ptr<Profile, SetExperimental>> launched_profiles_;
   // These are the profiles for which at least one browser window has been
   // opened. This is needed to know when it is safe to activate
   // |profile_to_activate_|, otherwise, new browser windows being opened will
   // be activated on top of it.
-  std::set<raw_ptr<const Profile, SetExperimental>> opened_profiles_;
+  std::set<raw_ptr<Profile, SetExperimental>> opened_profiles_;
   // This is null until the profile to activate has been chosen. This value
   // should only be set once all profiles have been launched, otherwise,
   // activation may not happen after the launch of newer profiles.

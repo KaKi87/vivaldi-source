@@ -35,6 +35,9 @@
 // Notifies the consumer to record the lens overlay entrypoint availability.
 - (void)recordLensOverlayAvailability;
 
+// Updates the visibility of the AI Hub "New" feature badge.
+- (void)updateAIHubNewBadgeVisibility;
+
 // Vivaldi
 // Notifies the consumer to update the location text.
 // `text` provides full address.

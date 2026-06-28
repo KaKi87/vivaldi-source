@@ -3,24 +3,22 @@
 source_set("markdown_editor") {
   sources = [
     "markdown_command_delegate.h",
-    "markdown_keyboard_view_provider.h",
-    "markdown_keyboard_view_provider.mm",
     "markdown_keyboard_view.h",
     "markdown_keyboard_view.mm",
-    "markdown_webview_input_view_protocols.h",
+    "markdown_keyboard_view_provider.h",
+    "markdown_keyboard_view_provider.mm",
     "markdown_toolbar_view.h",
     "markdown_toolbar_view.mm",
+    "markdown_webview_input_view_protocols.h",
     "vivaldi_markdown_constants.h",
     "vivaldi_markdown_constants.mm",
-    "vivaldi_notes_web_view_creation_util.h",
-    "vivaldi_notes_web_view_creation_util.mm",
     "vivaldi_notes_web_view.h",
     "vivaldi_notes_web_view.mm",
+    "vivaldi_notes_web_view_creation_util.h",
+    "vivaldi_notes_web_view_creation_util.mm",
   ]
 
-  deps = [
-    "//base",
-  ]
+  deps = [ "//base" ]
 
   frameworks = [ "UIKit.framework" ]
 }

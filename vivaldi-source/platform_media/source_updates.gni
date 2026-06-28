@@ -3,69 +3,55 @@ import("//third_party/ffmpeg/ffmpeg_options.gni")
 import("//vivaldi/gn/config/features.gni")
 
 if (system_proprietary_codecs) {
-
-if (is_mac) {
-  update_target("//sandbox/policy/mac:package_sb_files") {
-    if (!defined(deps)) {
-      deps = []
+  if (is_mac) {
+    update_target("//sandbox/policy/mac:package_sb_files") {
+      if (!defined(deps)) {
+        deps = []
+      }
+      sources -= [ "renderer.sb" ]
+      sources += [ get_label_info(
+                       "//vivaldi/platform_media/sandbox/mac:generate_sb_files",
+                       "target_gen_dir") + "/renderer.sb" ]
+      deps += [ "//vivaldi/platform_media/sandbox/mac:generate_sb_files" ]
     }
-    sources -= ["renderer.sb"]
-    sources += [get_label_info("//vivaldi/platform_media/sandbox/mac:generate_sb_files", "target_gen_dir")+"/renderer.sb"]
-    deps += ["//vivaldi/platform_media/sandbox/mac:generate_sb_files"]
   }
-}
 
-update_target("//media/renderers:renderers") {
-  sources += [
-    "//vivaldi/platform_media/decoders/platform_logging_util.cc",
-    "//vivaldi/platform_media/decoders/platform_logging_util.h",
-    "//vivaldi/platform_media/decoders/debug_buffer_logger.cc",
-    "//vivaldi/platform_media/decoders/debug_buffer_logger.h",
-    "//vivaldi/platform_media/decoders/vivaldi_decoder_config.h",
-    "//vivaldi/platform_media/decoders/vivaldi_decoder_config.cc",
-  ]
-
-  if (is_win) {
+  update_target("//media/renderers:renderers") {
     sources += [
-      "//vivaldi/platform_media/decoders/win/wmf_video_decoder.cc",
-      "//vivaldi/platform_media/decoders/win/wmf_video_decoder.h",
+      "//vivaldi/platform_media/decoders/debug_buffer_logger.cc",
+      "//vivaldi/platform_media/decoders/debug_buffer_logger.h",
+      "//vivaldi/platform_media/decoders/platform_logging_util.cc",
+      "//vivaldi/platform_media/decoders/platform_logging_util.h",
+      "//vivaldi/platform_media/decoders/vivaldi_decoder_config.cc",
+      "//vivaldi/platform_media/decoders/vivaldi_decoder_config.h",
     ]
 
-    libs += [
-      "d3d9.lib",
-      "dxva2.lib",
-      "strmiids.lib",
-      "mf.lib",
-      "mfreadwrite.lib",
-      "mfuuid.lib",
-      "Propsys.lib",
-    ]
+    if (is_win) {
+      sources += [
+        "//vivaldi/platform_media/decoders/win/wmf_video_decoder.cc",
+        "//vivaldi/platform_media/decoders/win/wmf_video_decoder.h",
+        "//vivaldi/platform_media/sandbox/win/platform_media_init.cc",
+        "//vivaldi/platform_media/sandbox/win/platform_media_init.h",
+      ]
+
+      libs += [
+        "d3d9.lib",
+        "dxva2.lib",
+        "strmiids.lib",
+        "mf.lib",
+        "mfreadwrite.lib",
+        "mfuuid.lib",
+        "Propsys.lib",
+      ]
+
+      deps += [ "//media/base/win:media_foundation_util" ]
+    }
 
     deps += [
-      "//media/base/win:media_foundation_util",
+      "//base:base_static",  # For vivaldi_switches
     ]
   }
-
-  deps += [
-    "//base:base_static",   # For vivaldi_switches
-  ]
-}
-
-if (is_win) {
-
-update_template_instance("//base:base") {
-  if (!defined(sources)) {
-    sources = []
-  }
-  sources += [
-      "//vivaldi/platform_media/sandbox/win/platform_media_init.cc",
-      "//vivaldi/platform_media/sandbox/win/platform_media_init.h",
-  ]
-}
-
-}
-
-} # system_proprietary_codecs
+}  # system_proprietary_codecs
 
 # --------------------
 # fmpeg changes
@@ -74,15 +60,11 @@ update_template_instance("//base:base") {
 if (is_linux || is_mac || is_win) {
   update_target("//third_party/ffmpeg:ffmpeg_internal") {
     if (is_mac) {
-      sources += [
-        "//vivaldi/platform_media/ffmpeg/audiotoolboxdec.c",
-      ]
+      sources += [ "//vivaldi/platform_media/ffmpeg/audiotoolboxdec.c" ]
     }
 
     if (is_win) {
-      sources += [
-        "//vivaldi/platform_media/ffmpeg/wmfaacdec.c",
-      ]
+      sources += [ "//vivaldi/platform_media/ffmpeg/wmfaacdec.c" ]
       libs += [
         "Mfplat.lib",
         "mfuuid.lib",
@@ -93,10 +75,10 @@ if (is_linux || is_mac || is_win) {
     if (!is_linux) {
       # Only used by Mac and Windows codecs
       sources += [
-          "//vivaldi/platform_media/ffmpeg/ffviv_audio_kit.c",
-          "//vivaldi/platform_media/ffmpeg/ffviv_audio_kit.h",
-          "//vivaldi/platform_media/ffmpeg/ffviv_log.cc",
-          "//vivaldi/platform_media/ffmpeg/ffviv_log.h",
+        "//vivaldi/platform_media/ffmpeg/ffviv_audio_kit.c",
+        "//vivaldi/platform_media/ffmpeg/ffviv_audio_kit.h",
+        "//vivaldi/platform_media/ffmpeg/ffviv_log.cc",
+        "//vivaldi/platform_media/ffmpeg/ffviv_log.h",
       ]
 
       # Allow to call Chromium logging
@@ -105,16 +87,15 @@ if (is_linux || is_mac || is_win) {
 
     # Use custom generated include files.
     # We should is able to simplify this at some point.
-    deps += ["//vivaldi/platform_media/ffmpeg:generate_config"]
+    deps += [ "//vivaldi/platform_media/ffmpeg:generate_config" ]
     if (target_cpu == current_cpu) {
       assert(include_dirs[0] ==
-            "chromium/config/$ffmpeg_branding/$os_config/$ffmpeg_arch")
+             "chromium/config/$ffmpeg_branding/$os_config/$ffmpeg_arch")
     }
     original_include_dir = include_dirs
     include_dirs = []
-    include_dirs +=
-        [ get_path_info("//vivaldi/platform_media/ffmpeg/", "gen_dir") ] +
-            original_include_dir
+    include_dirs += [ get_path_info("//vivaldi/platform_media/ffmpeg/",
+                                    "gen_dir") ] + original_include_dir
 
     # Workaround for the Byggmakker caching issue. We change the value
     # whenever we add a new generated header file that should be found

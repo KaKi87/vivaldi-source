@@ -12,6 +12,7 @@
 #include "base/strings/stringprintf.h"
 #include "remoting/signaling/content_description.h"
 #include "remoting/signaling/jingle_data_structures.h"
+#include "remoting/signaling/signal_strategy.h"
 #include "remoting/signaling/signaling_address.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -281,64 +282,40 @@ TEST(JingleMessageXmlConverterTest, SessionInfo_Generic_RoundTrip) {
 }
 
 TEST(JingleMessageXmlConverterTest, ContentDescription_RoundTrip) {
-  std::unique_ptr<CandidateSessionConfig> config =
-      CandidateSessionConfig::CreateEmpty();
-  config->set_ice_supported(true);
-  config->set_webrtc_supported(true);
-
-  ChannelConfig channel_config(ChannelConfig::TRANSPORT_STREAM, 2,
-                               ChannelConfig::CODEC_VP8);
-  config->mutable_video_configs()->push_back(channel_config);
-
   JingleAuthentication auth;
   auth.id = "auth_id";
 
-  ContentDescription description(std::move(config), auth);
+  ContentDescription description(auth);
 
   std::unique_ptr<XmlElement> xml = ContentDescriptionToXml(description);
   ASSERT_TRUE(xml);
 
   std::unique_ptr<ContentDescription> parsed =
-      ContentDescriptionFromXml(xml.get(), true);
+      ContentDescriptionFromXml(xml.get());
   ASSERT_TRUE(parsed);
 
-  EXPECT_TRUE(parsed->config()->ice_supported());
-  EXPECT_TRUE(parsed->config()->webrtc_supported());
-  ASSERT_EQ(parsed->config()->video_configs().size(), 1U);
-  EXPECT_EQ(parsed->config()->video_configs().front().transport,
-            ChannelConfig::TRANSPORT_STREAM);
-  EXPECT_EQ(parsed->config()->video_configs().front().version, 2);
-  EXPECT_EQ(parsed->config()->video_configs().front().codec,
-            ChannelConfig::CODEC_VP8);
   EXPECT_EQ(parsed->authentication().id, "auth_id");
 }
 
-TEST(JingleMessageXmlConverterTest, IceTransportInfo_RoundTrip) {
-  IceTransportInfo transport;
-  IceTransportInfo::IceCredentials cred;
-  cred.channel = "test-channel";
-  cred.ufrag = "test-ufrag";
-  cred.password = "test-password";
-  transport.ice_credentials.push_back(cred);
+TEST(JingleMessageXmlConverterTest, JingleTransportInfo_RoundTrip) {
+  JingleTransportInfo transport;
+  transport.xml_namespace = "google:remoting:webrtc";
 
   IceTransportInfo::NamedCandidate candidate;
   candidate.name = "test-candidate";
   candidate.candidate = webrtc::Candidate(
       1, "udp", webrtc::SocketAddress("1.2.3.4", 1234), 1, "ufrag", "password",
       webrtc::IceCandidateType::kHost, 0, "foundation");
+  candidate.sdp_m_line_index = 0;
   transport.candidates.push_back(candidate);
 
-  std::unique_ptr<XmlElement> xml = IceTransportInfoToXml(transport);
+  std::unique_ptr<XmlElement> xml = JingleTransportInfoToXml(transport);
   ASSERT_TRUE(xml);
 
-  IceTransportInfo parsed_transport;
-  EXPECT_TRUE(IceTransportInfoFromXml(xml.get(), &parsed_transport));
+  JingleTransportInfo parsed_transport;
+  EXPECT_TRUE(JingleTransportInfoFromXml(xml.get(), &parsed_transport));
 
-  ASSERT_EQ(parsed_transport.ice_credentials.size(), 1U);
-  EXPECT_EQ(parsed_transport.ice_credentials.front().channel, "test-channel");
-  EXPECT_EQ(parsed_transport.ice_credentials.front().ufrag, "test-ufrag");
-  EXPECT_EQ(parsed_transport.ice_credentials.front().password, "test-password");
-
+  EXPECT_EQ(parsed_transport.xml_namespace, "google:remoting:webrtc");
   ASSERT_EQ(parsed_transport.candidates.size(), 1U);
   EXPECT_EQ(parsed_transport.candidates.front().name, "test-candidate");
   EXPECT_EQ(parsed_transport.candidates.front()
@@ -348,6 +325,41 @@ TEST(JingleMessageXmlConverterTest, IceTransportInfo_RoundTrip) {
             "1.2.3.4");
   EXPECT_EQ(parsed_transport.candidates.front().candidate.address().port(),
             1234);
+}
+
+TEST(JingleMessageXmlConverterTest, XmlContainsDtd_NoDtd) {
+  EXPECT_FALSE(XmlContainsDtd("<root><child/></root>"));
+}
+
+TEST(JingleMessageXmlConverterTest, XmlContainsDtd_StandardDtd) {
+  EXPECT_TRUE(XmlContainsDtd("<!DOCTYPE root SYSTEM \"test.dtd\"><root/>"));
+}
+
+TEST(JingleMessageXmlConverterTest, XmlContainsDtd_Utf16Le) {
+  // UTF-16LE encoded "<!DOCTYPE root>"
+  std::string xml(
+      "\xFF\xFE\x3C\x00\x21\x00\x44\x00\x4F\x00\x43\x00\x54\x00\x59\x00\x50\x00"
+      "\x45\x00",
+      20);
+  EXPECT_TRUE(XmlContainsDtd(xml));
+}
+
+TEST(JingleMessageXmlConverterTest, XmlContainsDtd_Utf16Be) {
+  // UTF-16BE encoded "<!DOCTYPE root>"
+  std::string xml(
+      "\xFE\xFF\x00\x3C\x00\x21\x00\x44\x00\x4F\x00\x43\x00\x54\x00\x59\x00\x50"
+      "\x00\x45\x00",
+      20);
+  EXPECT_TRUE(XmlContainsDtd(xml));
+}
+
+TEST(JingleMessageXmlConverterTest, XmlContainsDtd_MixedCase) {
+  EXPECT_TRUE(XmlContainsDtd("<!doctype root><root/>"));
+}
+
+TEST(JingleMessageXmlConverterTest, ParseStanzaXml_LargeXml) {
+  std::string large_xml(64 * 1024 + 1, ' ');
+  EXPECT_FALSE(SignalStrategy::ParseStanzaXml(large_xml).has_value());
 }
 
 }  // namespace remoting

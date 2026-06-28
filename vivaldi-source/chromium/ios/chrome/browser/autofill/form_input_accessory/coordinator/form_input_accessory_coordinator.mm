@@ -31,30 +31,27 @@
 #import "components/password_manager/core/browser/ui/credential_ui_entry.h"
 #import "components/password_manager/core/common/password_manager_features.h"
 #import "components/password_manager/ios/password_generation_provider.h"
-#import "components/plus_addresses/core/browser/grit/plus_addresses_strings.h"
-#import "components/plus_addresses/core/common/features.h"
 #import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/autofill/form_input_accessory/coordinator/form_input_accessory_mediator.h"
 #import "ios/chrome/browser/autofill/form_input_accessory/coordinator/form_input_accessory_mediator_handler.h"
 #import "ios/chrome/browser/autofill/form_input_accessory/ui/form_input_accessory_view_controller.h"
 #import "ios/chrome/browser/autofill/form_input_accessory/ui/form_input_accessory_view_controller_delegate.h"
+#import "ios/chrome/browser/autofill/manual_fill/coordinator/address_coordinator.h"
+#import "ios/chrome/browser/autofill/manual_fill/coordinator/card_coordinator.h"
+#import "ios/chrome/browser/autofill/manual_fill/coordinator/expanded_manual_fill_coordinator.h"
+#import "ios/chrome/browser/autofill/manual_fill/coordinator/manual_fill_all_password_coordinator.h"
+#import "ios/chrome/browser/autofill/manual_fill/coordinator/manual_fill_all_password_coordinator_delegate.h"
+#import "ios/chrome/browser/autofill/manual_fill/coordinator/manual_fill_password_coordinator.h"
+#import "ios/chrome/browser/autofill/manual_fill/model/manual_fill_injection_handler.h"
+#import "ios/chrome/browser/autofill/manual_fill/public/manual_fill_constants.h"
+#import "ios/chrome/browser/autofill/manual_fill/ui/fallback_view_controller.h"
 #import "ios/chrome/browser/autofill/model/autofill_ai_util.h"
 #import "ios/chrome/browser/autofill/model/autofill_tab_helper.h"
 #import "ios/chrome/browser/autofill/model/bottom_sheet/autofill_bottom_sheet_tab_helper.h"
 #import "ios/chrome/browser/autofill/model/features.h"
 #import "ios/chrome/browser/autofill/model/personal_data_manager_factory.h"
-#import "ios/chrome/browser/autofill/ui_bundled/autofill_credit_card_util.h"
 #import "ios/chrome/browser/autofill/ui_bundled/branding/branding_coordinator.h"
-#import "ios/chrome/browser/autofill/ui_bundled/manual_fill/address_coordinator.h"
-#import "ios/chrome/browser/autofill/ui_bundled/manual_fill/card_coordinator.h"
-#import "ios/chrome/browser/autofill/ui_bundled/manual_fill/expanded_manual_fill_coordinator.h"
-#import "ios/chrome/browser/autofill/ui_bundled/manual_fill/fallback_view_controller.h"
-#import "ios/chrome/browser/autofill/ui_bundled/manual_fill/manual_fill_all_password_coordinator.h"
-#import "ios/chrome/browser/autofill/ui_bundled/manual_fill/manual_fill_all_password_coordinator_delegate.h"
-#import "ios/chrome/browser/autofill/ui_bundled/manual_fill/manual_fill_all_plus_address_coordinator.h"
-#import "ios/chrome/browser/autofill/ui_bundled/manual_fill/manual_fill_constants.h"
-#import "ios/chrome/browser/autofill/ui_bundled/manual_fill/manual_fill_injection_handler.h"
-#import "ios/chrome/browser/autofill/ui_bundled/manual_fill/manual_fill_password_coordinator.h"
+#import "ios/chrome/browser/autofill/ui_bundled/util/autofill_credit_card_util.h"
 #import "ios/chrome/browser/bubble/ui_bundled/bubble_constants.h"
 #import "ios/chrome/browser/bubble/ui_bundled/bubble_view_controller_presenter.h"
 #import "ios/chrome/browser/device_reauth/model/reauthentication_service.h"
@@ -112,8 +109,6 @@ const base::Feature* FetchIPHFeatureFromEnum(
     case SuggestionFeatureForIPH::kAutofillExternalAccountProfile:
       return &feature_engagement::
           kIPHAutofillExternalAccountProfileSuggestionFeature;
-    case SuggestionFeatureForIPH::kPlusAddressCreation:
-      return &feature_engagement::kIPHPlusAddressCreateSuggestionFeature;
     case SuggestionFeatureForIPH::kHomeAndWorkAddressSuggestion:
       return &feature_engagement::kIPHAutofillHomeWorkProfileSuggestionFeature;
     case SuggestionFeatureForIPH::kAccountNameEmailSuggestion:
@@ -131,7 +126,6 @@ const base::Feature* FetchIPHFeatureFromEnum(
     FormInputAccessoryMediatorHandler,
     FormInputAccessoryViewControllerDelegate,
     ManualFillAllPasswordCoordinatorDelegate,
-    ManualFillAllPlusAddressCoordinatorDelegate,
     PasswordCoordinatorDelegate,
     ExpandedManualFillCoordinatorDelegate,
     SecurityAlertCommands>
@@ -171,9 +165,6 @@ const base::Feature* FetchIPHFeatureFromEnum(
 
   // Modal alert.
   AlertCoordinator* _alertCoordinator;
-
-  // Coordinator in charge of presenting the view to show all plus addresses.
-  ManualFillAllPlusAddressCoordinator* _allPlusAddressCoordinator;
 }
 
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
@@ -290,6 +281,7 @@ const base::Feature* FetchIPHFeatureFromEnum(
 
 - (void)resetLoadingStates {
   [_formInputAccessoryViewController resetLoadingStates];
+  [_formInputAccessoryMediator resetSuggestions];
 }
 
 #pragma mark - Presenting Children
@@ -371,9 +363,6 @@ const base::Feature* FetchIPHFeatureFromEnum(
         tracker->NotifyEvent(
             "autofill_external_account_profile_suggestion_accepted");
         break;
-      case SuggestionFeatureForIPH::kPlusAddressCreation:
-        tracker->NotifyEvent("plus_address_create_suggestion_feature_used");
-        break;
       case SuggestionFeatureForIPH::kHomeAndWorkAddressSuggestion:
         tracker->NotifyEvent(
             "home_work_address_create_suggestion_feature_used");
@@ -447,18 +436,17 @@ const base::Feature* FetchIPHFeatureFromEnum(
     return NO;
   }
 
-  base::optional_ref<const autofill::EntityInstance> entity =
-      autofill::GetEntityInstance(self.profile, formSuggestion.payload);
-  if (!entity.has_value()) {
-    return NO;
-  }
-
   // Filling entities will unconditionally call
   // ChromeAutofillClientIOS::HideAutofillSuggestions once the filling is
-  // completed. This process is synchronous for local entities, but asynchronous
-  // for wallet server private passes.
-  return autofill::IsMaskedStorageSupported(entity->type(),
-                                            entity->record_type());
+  // completed. This process is asynchronous if the payload requires a server
+  // fetch (e.g., retrieving a masked entity from Google Wallet).
+  autofill::Suggestion::Payload payload = formSuggestion.payload;
+  if (const auto* ai_payload =
+          std::get_if<autofill::Suggestion::AutofillAiPayload>(&payload)) {
+    return ai_payload->requires_server_fetch;
+  }
+
+  return NO;
 }
 
 #pragma mark - FallbackCoordinatorDelegate
@@ -525,18 +513,6 @@ const base::Feature* FetchIPHFeatureFromEnum(
         (password_manager::CredentialUIEntry)credential {
   [self stopManualFillAllPasswordCoordinator];
   [self dispatchCommandToEditPassword:credential];
-}
-
-#pragma mark - ManualFillAllPlusAddressCoordinatorDelegate
-
-- (void)manualFillAllPlusAddressCoordinatorWantsToBeDismissed:
-    (ManualFillAllPlusAddressCoordinator*)coordinator {
-  [self stopManualFillAllPlusAddressCoordinator];
-}
-
-- (void)dismissManualFillAllPlusAddressAndOpenManagePlusAddress {
-  [self stopManualFillAllPlusAddressCoordinator];
-  [self openManagePlusAddress];
 }
 
 #pragma mark - CardCoordinatorDelegate
@@ -633,51 +609,6 @@ const base::Feature* FetchIPHFeatureFromEnum(
   [self.navigator openAddressSettings];
 }
 
-#pragma mark - PlusAddressCoordinatorDelegate
-
-// Opens the create plus address bottom sheet.
-- (void)openCreatePlusAddressSheet {
-  [self reset];
-
-  web::WebState* activeWebState = [self activeWebState];
-
-  __weak __typeof(self) weakSelf = self;
-  auto callback = base::BindOnce(^(const std::string& plusAddress) {
-    [weakSelf.injectionHandler
-        userDidPickContent:base::SysUTF8ToNSString(plusAddress)
-             passwordField:NO
-             requiresHTTPS:NO];
-  });
-
-  AutofillBottomSheetTabHelper* tabHelper =
-      AutofillBottomSheetTabHelper::FromWebState(activeWebState);
-  tabHelper->ShowPlusAddressesBottomSheet(std::move(callback));
-}
-
-- (void)openAllPlusAddressesPicker:(BOOL)isAddressManualFallback {
-  [self reset];
-
-  [self stopManualFillAllPlusAddressCoordinator];
-
-  _allPlusAddressCoordinator = [[ManualFillAllPlusAddressCoordinator alloc]
-      initWithBaseViewController:self.baseViewController
-                         browser:self.browser
-                injectionHandler:self.injectionHandler];
-  _allPlusAddressCoordinator.manualFillAllPlusAddressCoordinatorDelegate = self;
-  _allPlusAddressCoordinator.isAddressManualFallback = isAddressManualFallback;
-  [_allPlusAddressCoordinator start];
-}
-
-- (void)openManagePlusAddress {
-  OpenNewTabCommand* command = [OpenNewTabCommand
-      commandWithURLFromChrome:
-          GURL(plus_addresses::features::kPlusAddressManagementUrl.Get())];
-
-  id<SceneCommands> sceneHandler =
-      HandlerForProtocol(self.browser->GetCommandDispatcher(), SceneCommands);
-  [sceneHandler openURLInNewTab:command];
-}
-
 #pragma mark - ExpandedManualFillCoordinatorDelegate
 
 - (void)stopExpandedManualFillCoordinator:
@@ -761,12 +692,6 @@ const base::Feature* FetchIPHFeatureFromEnum(
   _allPasswordCoordinator = nil;
 }
 
-- (void)stopManualFillAllPlusAddressCoordinator {
-  [_allPlusAddressCoordinator stop];
-  _allPlusAddressCoordinator.manualFillAllPlusAddressCoordinatorDelegate = nil;
-  _allPlusAddressCoordinator = nil;
-}
-
 - (void)dismissAlertCoordinator {
   [_alertCoordinator stop];
   _alertCoordinator = nil;
@@ -848,11 +773,6 @@ const base::Feature* FetchIPHFeatureFromEnum(
           IDS_AUTOFILL_IPH_EXTERNAL_ACCOUNT_PROFILE_SUGGESTION);
       voiceOverText = l10n_util::GetNSString(
           IDS_AUTOFILL_IPH_EXTERNAL_ACCOUNT_PROFILE_SUGGESTION);
-      break;
-    case SuggestionFeatureForIPH::kPlusAddressCreation:
-      text = l10n_util::GetNSString(IDS_PLUS_ADDRESS_CREATE_SUGGESTION_IPH_IOS);
-      voiceOverText = l10n_util::GetNSString(
-          IDS_PLUS_ADDRESS_CREATE_SUGGESTION_IPH_SCREENREADER_IOS);
       break;
     case SuggestionFeatureForIPH::kHomeAndWorkAddressSuggestion:
       text = l10n_util::GetNSString(

@@ -14,7 +14,6 @@
 #include "installer/mini_installer/util/util_constants.h"
 
 namespace base {
-class CommandLine;
 class FilePath;
 class Version;
 }  // namespace base

@@ -123,6 +123,7 @@ class MockWebContentsObserver : public WebContentsObserver {
                const GlobalRequestID& request_id,
                const blink::mojom::ResourceLoadInfo& resource_load_info),
               (override));
+  MOCK_METHOD(void, OnFedCmFederatedLogin, (bool success), (override));
   MOCK_METHOD(void,
               OnCookiesAccessed,
               (RenderFrameHost* render_frame_host,
@@ -199,6 +200,15 @@ class MockWebContentsObserver : public WebContentsObserver {
               InnerWebContentsAttached,
               (WebContents* inner_web_contents,
                RenderFrameHost* render_frame_host),
+              (override));
+  MOCK_METHOD(void,
+              SurfaceEmbedChildWebContentsAttached,
+              (WebContents * inner_web_contents,
+               RenderFrameHost* embedder_render_frame_host),
+              (override));
+  MOCK_METHOD(void,
+              SurfaceEmbedChildWebContentsDetached,
+              (WebContents * inner_web_contents),
               (override));
   MOCK_METHOD(void,
               DidCloneToNewWebContents,

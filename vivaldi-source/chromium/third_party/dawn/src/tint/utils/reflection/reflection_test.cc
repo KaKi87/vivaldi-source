@@ -28,16 +28,15 @@
 #include "src/tint/utils/reflection/reflection.h"
 
 #include "gmock/gmock.h"
-
 #include "src/tint/utils/rtti/castable.h"
 
 namespace tint {
 namespace {
 
 struct S {
-    int i;
-    unsigned u;
-    bool b;
+    int i = 0;
+    unsigned u = 0;
+    bool b = false;
     TINT_REFLECT(S, i, u, b);
 };
 
@@ -112,22 +111,30 @@ struct VirtualNonCastable {
 
 struct VirtualCastable : Castable<VirtualCastable, CastableBase> {
     ~VirtualCastable() override = default;
-    int a, b, c;
+    int a = 0;
+    int b = 0;
+    int c = 0;
     TINT_REFLECT(VirtualCastable, a, b, c);
 };
 
 struct MissingFirst {
-    int a, b, c;
+    int a = 0;
+    int b = 0;
+    int c = 0;
     TINT_REFLECT(MissingFirst, b, c);
 };
 
 struct MissingMid {
-    int a, b, c;
+    int a = 0;
+    int b = 0;
+    int c = 0;
     TINT_REFLECT(MissingMid, a, c);
 };
 
 struct MissingLast {
-    int a, b, c;
+    int a = 0;
+    int b = 0;
+    int c = 0;
     TINT_REFLECT(MissingLast, a, b);
 };
 
@@ -137,24 +144,20 @@ TEST(TintCheckAllFieldsReflected, Tests) {
 
     auto missing_first = reflection::detail::CheckAllFieldsReflected<MissingFirst>();
     ASSERT_NE(missing_first, Success);
-    EXPECT_THAT(missing_first.Failure().reason.Str(), testing::HasSubstr("reflection_test.cc"));
-    EXPECT_THAT(missing_first.Failure().reason.Str(),
-                testing::HasSubstr(R"(error: TINT_REFLECT(MissingFirst, ...) field mismatch at 'b'.
+    EXPECT_THAT(missing_first.Failure().reason,
+                testing::HasSubstr(R"(TINT_REFLECT(MissingFirst, ...) field mismatch at 'b'.
 Expected field offset of 0 bytes, but field was at 4 bytes)"));
 
     auto missing_mid = reflection::detail::CheckAllFieldsReflected<MissingMid>();
     ASSERT_NE(missing_mid, Success);
-    EXPECT_THAT(missing_mid.Failure().reason.Str(), testing::HasSubstr("reflection_test.cc"));
-    EXPECT_THAT(missing_mid.Failure().reason.Str(),
-                testing::HasSubstr(R"(error: TINT_REFLECT(MissingMid, ...) field mismatch at 'c'.
+    EXPECT_THAT(missing_mid.Failure().reason,
+                testing::HasSubstr(R"(TINT_REFLECT(MissingMid, ...) field mismatch at 'c'.
 Expected field offset of 4 bytes, but field was at 8 bytes)"));
 
     auto missing_last = reflection::detail::CheckAllFieldsReflected<MissingLast>();
     ASSERT_NE(missing_last, Success);
-    EXPECT_THAT(missing_last.Failure().reason.Str(), testing::HasSubstr("reflection_test.cc"));
-    EXPECT_THAT(
-        missing_last.Failure().reason.Str(),
-        testing::HasSubstr(R"(error: TINT_REFLECT(MissingLast, ...) missing fields at end of class
+    EXPECT_THAT(missing_last.Failure().reason,
+                testing::HasSubstr(R"(TINT_REFLECT(MissingLast, ...) missing fields at end of class
 Expected class size of 8 bytes, but class is 12 bytes)"));
 }
 

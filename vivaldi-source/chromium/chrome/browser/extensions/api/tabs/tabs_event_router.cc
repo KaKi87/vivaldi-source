@@ -48,6 +48,7 @@ namespace {
 constexpr char kAudibleKey[] = "audible";
 constexpr char kAutoDiscardableKey[] = "autoDiscardable";
 constexpr char kFromIndexKey[] = "fromIndex";
+constexpr char kGroupIdKey[] = "groupId";
 constexpr char kMutedInfoKey[] = "mutedInfo";
 constexpr char kNewPositionKey[] = "newPosition";
 constexpr char kNewWindowIdKey[] = "newWindowId";
@@ -134,6 +135,9 @@ TabsEventRouter::TabEntry::TabEntry(TabsEventRouter& router,
   pinned_state_subscription_ =
       tab->RegisterPinnedStateChanged(base::BindRepeating(
           &TabEntry::OnPinnedStateChanged, weak_factory_.GetWeakPtr()));
+
+  group_changed_subscription_ = tab->RegisterGroupChanged(base::BindRepeating(
+      &TabEntry::OnGroupChanged, weak_factory_.GetWeakPtr()));
 
   auto* audible_helper = RecentlyAudibleHelper::FromWebContents(&contents);
   recently_audible_subscription_ =
@@ -261,7 +265,7 @@ void TabsEventRouter::TabEntry::NavigationEntryCommitted(
         if (ext->Set(::vivaldi::TabExtKey::kWorkspaceId, target_workspace_id) ==
             ::vivaldi::TabExtData::Result::kUpdated) {
           // NOTE(ondrej@vivaldi.com): VB-126370
-          ext->Remove(::vivaldi::TabExtKey::kGroupId);
+          ext->Ungroup();
           changed_property_names.insert("vivExtData");
           ::vivaldi::SanitizeAllTabs();
         }
@@ -332,6 +336,12 @@ void TabsEventRouter::TabEntry::OnRecentlyAudibleStateChanged(
 void TabsEventRouter::TabEntry::OnPinnedStateChanged(tabs::TabInterface* tab,
                                                      bool new_pinned_state) {
   router_->TabUpdated(this, {kPinnedKey});
+}
+
+void TabsEventRouter::TabEntry::OnGroupChanged(
+    tabs::TabInterface* tab,
+    std::optional<tab_groups::TabGroupId> new_group) {
+  router_->TabUpdated(this, {kGroupIdKey});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -580,6 +590,14 @@ void TabsEventRouter::OnTabAdded(TabListInterface& tab_list,
                   EventRouter::UserGestureState::kUnknown,
                   SuggestFiltering(contents));
 
+    // If the tab was part of a group, we also treat this as a groupId update.
+    // It's a shame this isn't handled as part of the group change callback --
+    // it seems like it should be (the tab can't have been part of a previous
+    // group if it's being added to this window).
+    if (tab->GetGroup().has_value()) {
+      DispatchTabUpdatedEvent(contents, {kGroupIdKey});
+    }
+
     return;
   }
 
@@ -647,6 +665,13 @@ void TabsEventRouter::OnTabRemoved(TabListInterface& tab_list,
   if (TabRemoveReasonUtils::WillDeleteTab(removed_reason)) {
     DispatchTabRemovedEvent(*web_contents, tab_list.IsClosingAllTabs());
   } else {
+    // If the tab was part of a group, we also treat this as a groupId update.
+    // It's a shame this isn't handled as part of the group change callback --
+    // it seems like it should be, since the tab is being removed from the
+    // current group if it's being removed from the window.
+    if (tab->GetGroup().has_value()) {
+      DispatchTabUpdatedEvent(web_contents, {kGroupIdKey});
+    }
     DispatchTabDetachedEvent(*web_contents);
   }
 }
@@ -722,6 +747,38 @@ void TabsEventRouter::OnHighlightedTabsChanged(
                 api::tabs::OnHighlighted::kEventName, std::move(args),
                 EventRouter::UserGestureState::kUnknown,
                 extensions::Event::NO_FILTERING);  // Vivaldi
+}
+
+void TabsEventRouter::OnWebContentsReplaced(
+    TabListInterface& tab_list,
+    tabs::TabInterface* tab,
+    content::WebContents* old_contents,
+    content::WebContents* new_contents) {
+  // Notify listeners that the next tabs closing or being added are due to
+  // WebContents being swapped.
+  const int new_tab_id = ExtensionTabUtil::GetTabId(new_contents);
+  const int old_tab_id = ExtensionTabUtil::GetTabId(old_contents);
+  base::ListValue args;
+  args.Append(new_tab_id);
+  args.Append(old_tab_id);
+
+  Event::VivFilter vivpanel = Event::NO_FILTERING;
+  if (SuggestFiltering(old_contents) == Event::VIVALDI_ONLY ||
+      SuggestFiltering(new_contents) == Event::VIVALDI_ONLY) {
+    vivpanel = Event::VIVALDI_ONLY;
+  }
+
+  DispatchEvent(Profile::FromBrowserContext(new_contents->GetBrowserContext()),
+                events::TABS_ON_REPLACED, api::tabs::OnReplaced::kEventName,
+                std::move(args), EventRouter::UserGestureState::kUnknown, vivpanel);
+
+  UnregisterForTabNotifications(*old_contents,
+                                /*expect_registered=*/true);
+
+  if (!GetTabEntry(*new_contents)) {
+    RegisterForTabNotifications(*new_contents,
+                                tab_list.GetIndexOfTab(tab->GetHandle()));
+  }
 }
 
 void TabsEventRouter::OnTabListDestroyed(TabListInterface& tab_list) {

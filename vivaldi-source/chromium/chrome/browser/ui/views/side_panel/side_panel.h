@@ -23,7 +23,6 @@
 #include "ui/views/view_utils.h"
 
 class BrowserView;
-class SidePanelAnimationPerfReporter;
 
 class SidePanel : public views::AccessiblePaneView,
                   public views::ResizeAreaDelegate {
@@ -35,9 +34,7 @@ class SidePanel : public views::AccessiblePaneView,
   // BrowserViewLayout::LayoutSidePanelView. As such, left will always be on the
   // left side of the browser regardless of LTR / RTL mode.
   enum class HorizontalAlignment { kLeft = 0, kRight };
-  explicit SidePanel(BrowserView* browser_view,
-                     SidePanelEntry::PanelType type,
-                     bool has_border);
+  explicit SidePanel(BrowserView* browser_view);
   SidePanel(const SidePanel&) = delete;
   SidePanel& operator=(const SidePanel&) = delete;
   ~SidePanel() override;
@@ -49,6 +46,8 @@ class SidePanel : public views::AccessiblePaneView,
   bool ShouldRestrictMaxWidth() const;
   void UpdateWidthOnEntryChanged();
   void UpdateSidePanelWidthPref(const std::string& panel_id, int width);
+  void UpdateHorizontalAlignment(
+      std::optional<SidePanelEntryId> entry_id = std::nullopt);
   double GetAnimationValue() const;
   gfx::RoundedCornersF background_radii() const { return background_radii_; }
   void SetBackgroundRadii(const gfx::RoundedCornersF& radii);
@@ -78,8 +77,6 @@ class SidePanel : public views::AccessiblePaneView,
   void AddHeaderView(std::unique_ptr<views::View> view);
   void RemoveHeaderView();
 
-  void SetOutlineVisibility(bool visible);
-
   // Gets the upper bound of the content area size if the side panel is shown
   // right now. If the side panel is not showing, returns the minimum width
   // and browser view height minus the padding insets. The actual content
@@ -94,7 +91,8 @@ class SidePanel : public views::AccessiblePaneView,
   // panel has been resized since metrics were last logged.
   void RecordMetricsIfResized();
 
-  SidePanelEntry::PanelType type() const { return type_; }
+  void SetCurrentEntryType(SidePanelType type);
+  SidePanelType GetCurrentEntryType() const;
 
   // Reflects the current state of the visibility of the side panel.
   enum class State { kClosed, kOpening, kOpen, kClosing };
@@ -116,16 +114,12 @@ class SidePanel : public views::AccessiblePaneView,
   // and resets the animation.
   void ResetSidePanelAnimationContent();
 
-  void SetActiveEntryUsesDefaultHorizontalAlignment(
-      bool use_default_horizontal_alignment);
-
   // This is the parent view for the contents of the side panel.
   views::View* GetContentParentView();
 
   views::View* resize_area_for_testing() { return resize_area_; }
 
  private:
-  class BorderView;
   class VisibleBoundsViewClipper;
 
   // This method is the shared implementation of Open/Close.
@@ -136,17 +130,14 @@ class SidePanel : public views::AccessiblePaneView,
   bool ShouldShowAnimation() const;
   void AnnounceResize();
 
-  void UpdateHorizontalAlignment();
-
   // views::View:
   void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
 
   void OnAnimationProgressed(const BrowserAnimationController* controller,
                              BrowserAnimationUpdate status);
 
-  raw_ptr<BorderView> border_view_ = nullptr;
   const raw_ptr<BrowserView> browser_view_;
-  const SidePanelEntry::PanelType type_;
+  SidePanelType current_entry_type_ = SidePanelType::kToolbar;
   raw_ptr<views::View> resize_area_ = nullptr;
   raw_ptr<views::View> header_view_ = nullptr;
   raw_ptr<views::View> content_parent_view_;
@@ -174,12 +165,6 @@ class SidePanel : public views::AccessiblePaneView,
 
   gfx::RoundedCornersF background_radii_;
 
-  // When false, the side panel's should align to the opposite side of what it
-  // typically would based on the alignment pref and panel type. This is special
-  // case behavior that should be removed when toolbar and content height side
-  // panels are unified.
-  bool use_default_horizontal_alignment_ = true;
-
   // Keeps track of the side the side panel will appear on (left or right).
   HorizontalAlignment horizontal_alignment_;
 
@@ -189,11 +174,7 @@ class SidePanel : public views::AccessiblePaneView,
   State state_ = State::kClosed;
 
   // Subscription for animation updates.
-  BrowserAnimationGroup animation_group_;
   base::CallbackListSubscription animation_subscription_;
-
-  // Animation perf reporter.
-  std::unique_ptr<SidePanelAnimationPerfReporter> animation_perf_reporter_;
 
   // Cache of recent animation values.
   std::map<BrowserAnimationSequence, double> last_animation_values_;

@@ -5,7 +5,7 @@
 #include "chrome/browser/ui/views/location_bar/lens_overlay_homework_page_action_icon_view.h"
 
 #include "build/branding_buildflags.h"
-#include "chrome/browser/glic/public/glic_enabling.h"
+//#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/lens/region_search/lens_region_search_controller.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search/search.h"
@@ -29,6 +29,7 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/view_class_properties.h"
 
@@ -97,7 +98,7 @@ bool LensOverlayHomeworkPageActionIconView::ShouldShow() {
 
   // Hide the homework chip if the broader lens feature is disabled.
   const auto* controller =
-      browser_->GetFeatures().lens_overlay_entry_point_controller();
+      lens::LensOverlayEntryPointController::From(browser_);
   if (!controller || !controller->AreVisible()) {
     return false;
   }
@@ -164,21 +165,8 @@ void LensOverlayHomeworkPageActionIconView::OnExecuting(
       LensSearchController::FromTabWebContents(GetWebContents());
   CHECK(controller);
 
-  if (lens::features::IsLensOverlayStraightToSrpEnabled()) {
-    std::string query_text =
-        lens::features::GetStraightToSrpQuery().empty()
-            ? l10n_util::GetStringUTF8(IDS_LENS_CONTEXTUAL_SEARCH_DEFAULT_QUERY)
-            : lens::features::GetStraightToSrpQuery();
-    controller->IssueTextSearchRequest(
-        lens::LensOverlayInvocationSource::kHomeworkActionChip, query_text,
-        /*additional_query_parameters=*/{},
-        AutocompleteMatchType::Type::SEARCH_SUGGEST,
-        /*is_zero_prefix_suggestion=*/false,
-        /*suppress_contextualization=*/false);
-  } else {
-    controller->OpenLensOverlay(
-        lens::LensOverlayInvocationSource::kHomeworkActionChip);
-  }
+  controller->OpenLensOverlay(
+      lens::LensOverlayInvocationSource::kHomeworkActionChip);
   UserEducationService::MaybeNotifyNewBadgeFeatureUsed(
       GetWebContents()->GetBrowserContext(), lens::features::kLensOverlay);
 
@@ -199,7 +187,9 @@ const gfx::VectorIcon& LensOverlayHomeworkPageActionIconView::GetVectorIcon()
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
   return vector_icons::kGoogleLensMonochromeLogoIcon;
 #else
-  return vector_icons::kSearchChromeRefreshIcon;
+  return features::IsRoundedIconsEnabled()
+             ? vector_icons::kSearchIcon
+             : vector_icons::kSearchChromeRefreshOldIcon;
 #endif
 }
 

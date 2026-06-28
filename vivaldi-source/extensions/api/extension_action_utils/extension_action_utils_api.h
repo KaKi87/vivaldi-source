@@ -15,7 +15,6 @@
 #include "chrome/browser/extensions/extension_uninstall_dialog.h"
 #include "chrome/browser/extensions/external_install_error.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_list_observer.h"
 #include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 #include "components/sessions/core/session_id.h"
 #include "extensions/browser/extension_function.h"

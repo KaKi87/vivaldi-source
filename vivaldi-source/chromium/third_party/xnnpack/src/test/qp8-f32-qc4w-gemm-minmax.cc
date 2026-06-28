@@ -22,7 +22,6 @@
 #include "src/xnnpack/common.h"
 #include "src/xnnpack/gemm.h"
 #include "src/xnnpack/hardware-config.h"
-#include "src/xnnpack/igemm.h"
 #include "src/xnnpack/microparams-init.h"
 #include "src/xnnpack/pack-lh.h"
 #include "src/xnnpack/pack.h"
@@ -281,7 +280,7 @@ std::vector<GemmTestParams> CreateTests1(
           /*planes=*/1,
           [](GemmMicrokernelTester& tester) {
             tester.Test(xnn_qp8_f32_qc4w_gemm_minmax_ukernel_1x4c16s2__aarch64_neondot,
-                        xnn_init_f32_minmax_scalar_params,
+                        xnn_init_f32_qc4w_minmax_scalar_params,
                         xnn_pack_kai_qs4_weights_and_biases,
                         xnn_packed_stride_kai_qs4_weights_and_biases);
           },
@@ -303,7 +302,7 @@ std::vector<GemmTestParams> CreateTests1(
           /*planes=*/1,
           [](GemmMicrokernelTester& tester) {
             tester.Test(xnn_qp8_f32_qc4w_gemm_minmax_ukernel_1x8c16s2__aarch64_neondot,
-                        xnn_init_f32_minmax_scalar_params,
+                        xnn_init_f32_qc4w_minmax_scalar_params,
                         xnn_pack_kai_qs4_weights_and_biases,
                         xnn_packed_stride_kai_qs4_weights_and_biases);
           },
@@ -325,7 +324,7 @@ std::vector<GemmTestParams> CreateTests1(
           /*planes=*/1,
           [](GemmMicrokernelTester& tester) {
             tester.Test(xnn_qp8_f32_qc4w_gemm_minmax_ukernel_1x4c8s2__aarch64_neondot,
-                        xnn_init_f32_minmax_scalar_params,
+                        xnn_init_f32_qc4w_minmax_scalar_params,
                         xnn_pack_kai_qs4_weights_and_biases,
                         xnn_packed_stride_kai_qs4_weights_and_biases);
           },
@@ -347,7 +346,7 @@ std::vector<GemmTestParams> CreateTests1(
           /*planes=*/1,
           [](GemmMicrokernelTester& tester) {
             tester.Test(xnn_qp8_f32_qc4w_gemm_minmax_ukernel_16x4c8s2__aarch64_neondot_mstep4,
-                        xnn_init_f32_minmax_scalar_params,
+                        xnn_init_f32_qc4w_minmax_scalar_params,
                         xnn_pack_kai_qs4_weights_and_biases,
                         xnn_packed_stride_kai_qs4_weights_and_biases);
           },
@@ -374,7 +373,7 @@ std::vector<GemmTestParams> CreateTests1(
           /*planes=*/1,
           [](GemmMicrokernelTester& tester) {
             tester.Test(xnn_qp8_f32_qc4w_gemm_minmax_ukernel_4x4c16s2__neoni8mm,
-                        xnn_init_f32_minmax_scalar_params,
+                        xnn_init_f32_qc4w_minmax_scalar_params,
                         xnn_pack_kai_qs4_weights_and_biases,
                         xnn_packed_stride_kai_qs4_weights_and_biases);
           },
@@ -396,7 +395,7 @@ std::vector<GemmTestParams> CreateTests1(
           /*planes=*/1,
           [](GemmMicrokernelTester& tester) {
             tester.Test(xnn_qp8_f32_qc4w_gemm_minmax_ukernel_4x8c16s2__neoni8mm,
-                        xnn_init_f32_minmax_scalar_params,
+                        xnn_init_f32_qc4w_minmax_scalar_params,
                         xnn_pack_kai_qs4_weights_and_biases,
                         xnn_packed_stride_kai_qs4_weights_and_biases);
           },
@@ -418,7 +417,7 @@ std::vector<GemmTestParams> CreateTests1(
           /*planes=*/1,
           [](GemmMicrokernelTester& tester) {
             tester.Test(xnn_qp8_f32_qc4w_gemm_minmax_ukernel_8x4c16s2__neoni8mm_mstep2,
-                        xnn_init_f32_minmax_scalar_params,
+                        xnn_init_f32_qc4w_minmax_scalar_params,
                         xnn_pack_kai_qs4_weights_and_biases,
                         xnn_packed_stride_kai_qs4_weights_and_biases);
           },
@@ -440,7 +439,7 @@ std::vector<GemmTestParams> CreateTests1(
           /*planes=*/1,
           [](GemmMicrokernelTester& tester) {
             tester.Test(xnn_qp8_f32_qc4w_gemm_minmax_ukernel_8x8c16s2__neoni8mm_mstep2,
-                        xnn_init_f32_minmax_scalar_params,
+                        xnn_init_f32_qc4w_minmax_scalar_params,
                         xnn_pack_kai_qs4_weights_and_biases,
                         xnn_packed_stride_kai_qs4_weights_and_biases);
           },
@@ -494,7 +493,7 @@ std::vector<GemmTestParams> CreateTests1(
           /*planes=*/1,
           [](GemmMicrokernelTester& tester) {
             tester.Test(xnn_qp8_f32_qc4w_gemm_minmax_ukernel_1x64c4__neonsme2,
-                        xnn_init_f32_minmax_scalar_params,
+                        xnn_init_f32_qc4w_minmax_scalar_params,
                         xnn_pack_kai_qs4_weights_and_biases_sme,
                         xnn_packed_stride_kai_qs4_weights_and_biases_sme);
           },
@@ -543,7 +542,7 @@ std::vector<GemmTestParams> CreateTests1(
           /*planes=*/1,
           [](GemmMicrokernelTester& tester) {
             tester.Test(xnn_qp8_f32_qc4w_gemm_minmax_ukernel_16x64c4__neonsme2,
-                        xnn_init_f32_minmax_scalar_params,
+                        xnn_init_f32_qc4w_minmax_scalar_params,
                         xnn_pack_kai_qs4_weights_and_biases_sme,
                         xnn_packed_stride_kai_qs4_weights_and_biases_sme);
           },

@@ -6,6 +6,7 @@
 #import "base/strings/sys_string_conversions.h"
 #import "base/test/ios/wait_util.h"
 #import "components/data_sharing/public/features.h"
+#import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/authentication/test/signin_earl_grey.h"
 #import "ios/chrome/browser/incognito_reauth/ui_bundled/incognito_reauth_util.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
@@ -32,6 +33,7 @@
 #import "ios/testing/earl_grey/matchers.h"
 #import "net/test/embedded_test_server/embedded_test_server.h"
 #import "ui/base/l10n/l10n_util.h"
+#import "ui/base/l10n/l10n_util_mac.h"
 
 using chrome_test_util::AddTabToGroupSubMenuButton;
 using chrome_test_util::AddTabToNewGroupButton;
@@ -71,6 +73,8 @@ using chrome_test_util::TabGroupViewTitle;
 using chrome_test_util::UngroupButton;
 using chrome_test_util::UngroupConfirmationButton;
 using chrome_test_util::WindowWithNumber;
+using l10n_util::GetNSStringF;
+using l10n_util::GetStringUTF16;
 using testing::NavigationBarBackButton;
 
 namespace {
@@ -290,6 +294,47 @@ void TapTabGridEditButton() {
   }
 }
 
+// Opens the edit menu on the tab grid, using either the overflow menu button or
+// the edit button depending on which is visible.
+void OpenTabGridEditMenu() {
+  NSError* error = nil;
+  [[EarlGrey
+      selectElementWithMatcher:chrome_test_util::TabGridOverflowMenuButton()]
+      assertWithMatcher:grey_sufficientlyVisible()
+                  error:&error];
+  if (error == nil) {
+    TapTabGridOverflowMenuButton();
+  } else {
+    TapTabGridEditButton();
+  }
+}
+
+// Taps the purple color pill from the CreateTabGroupView.
+void TapPurpleButton() {
+  [[EarlGrey selectElementWithMatcher:
+                 grey_accessibilityLabel(GetNSStringF(
+                     IDS_IOS_TAB_GROUP_CREATION_ACCESSIBILITY_COLOR_SELECTION,
+                     GetStringUTF16(IDS_TAB_GROUP_COLOR_PURPLE)))]
+      performAction:grey_tap()];
+}
+
+// Checks that the purple color pill from the CreateTabGroupView is selected.
+void CheckPurpleButtonIsSelected() {
+  [[EarlGrey selectElementWithMatcher:
+                 grey_accessibilityLabel(GetNSStringF(
+                     IDS_IOS_TAB_GROUP_CREATION_ACCESSIBILITY_COLOR_SELECTION,
+                     GetStringUTF16(IDS_TAB_GROUP_COLOR_PURPLE)))]
+      assertWithMatcher:grey_selected()];
+}
+
+// Taps the title in the TabGroupView.
+void TapTabGroupTitle() {
+  [[EarlGrey
+      selectElementWithMatcher:grey_accessibilityID(
+                                   kTabGroupTitleButtonToEditGroupIdentifier)]
+      performAction:grey_tap()];
+}
+
 }  // namespace
 
 // Test Tab Groups feature.
@@ -313,15 +358,16 @@ void TapTabGridEditButton() {
 }
 
 - (AppLaunchConfiguration)appConfigurationForTestCase {
-  AppLaunchConfiguration config;
+  AppLaunchConfiguration config = [super appConfigurationForTestCase];
   config.features_enabled.push_back(
       data_sharing::features::kDataSharingFeature);
-  if ([self isRunningTest:@selector(testCloseAllAndUndo)]) {
-    config.features_disabled.push_back(kTabSwitcherOverflowMenu);
-  } else if ([self isRunningTest:@selector(testCloseOtherTabsInGroup)]) {
-    config.features_disabled.push_back(kTabSwitcherOverflowMenu);
+  if ([self isRunningTest:@selector(testUpdateGroupByTappingTitle)]) {
+    config.features_enabled.push_back(kOpenEditGroupViewByTappingTitle);
+  }
+  if ([self isRunningTest:@selector(testCreateGroupFromTabInAnotherWindow)]) {
+    config.features_disabled.push_back(kChromeNextIa);
   } else {
-    config.features_enabled.push_back(kTabSwitcherOverflowMenu);
+    config.features_enabled.push_back(kChromeNextIa);
   }
   return config;
 }
@@ -927,6 +973,13 @@ void TapTabGridEditButton() {
                                           grey_sufficientlyVisible(), nil)]
       performAction:grey_tap()];
 
+  if ([ChromeEarlGrey isChromeNextEnabled] && ![ChromeEarlGrey isIPadIdiom]) {
+    [[EarlGrey
+        selectElementWithMatcher:ContextMenuItemWithAccessibilityLabelId(
+                                     IDS_IOS_CONTENT_CONTEXT_NEWTABINGROUP)]
+        performAction:grey_tap()];
+  }
+
   [ChromeEarlGrey waitForMainTabCount:2];
 
   [ChromeEarlGreyUI openTabGrid];
@@ -1209,9 +1262,8 @@ void TapTabGridEditButton() {
       assertWithMatcher:grey_sufficientlyVisible()];
 }
 
-// Tests closing all tabs and groups in grid, and that the closing is reversible
-// when pressing the undo button.
-- (void)testCloseAllAndUndo {
+// Tests closing all tabs and groups in grid.
+- (void)testCloseAllWithGroups {
   // Create a tab cell with `Tab 1` as its title.
   [ChromeEarlGrey loadURL:GetQueryTitleURL(self.testServer, kTab1Title)];
   [ChromeEarlGreyUI openTabGrid];
@@ -1223,10 +1275,7 @@ void TapTabGridEditButton() {
   [ChromeEarlGrey loadURL:GetQueryTitleURL(self.testServer, kTab2Title)];
   [ChromeEarlGreyUI openTabGrid];
 
-  // Check that `Tab 2` and the group with title ` 1 Tab`are in the grid and
-  // `Tab 1` is not.
-  [[EarlGrey selectElementWithMatcher:TabWithTitle(kTab1Title)]
-      assertWithMatcher:grey_nil()];
+  // Check that `Tab 2` and the group with title ` 1 Tab` are in the grid.
   [[EarlGrey selectElementWithMatcher:TabWithTitle(kTab2Title)]
       assertWithMatcher:grey_notNil()];
   [[EarlGrey selectElementWithMatcher:TabGridGroupCellWithName(
@@ -1234,43 +1283,25 @@ void TapTabGridEditButton() {
                                               IDS_IOS_TAB_GROUP_TABS_NUMBER, 1),
                                           1)] assertWithMatcher:grey_notNil()];
 
-  {
-    // Disable the synchronization, otherwise the test waits until the animation
-    // that the snackbar appears and disappears is finished.
-    ScopedSynchronizationDisabler disabler;
-
-    // Close all (groups and tabs).
-    TapTabGridEditButton();
-    [[EarlGrey selectElementWithMatcher:TabGridEditMenuCloseAllButton()]
-        performAction:grey_tap()];
-
-    // Check that `Tab 2` and the group with title `1 Tab` are no longer in the
-    // grid.
-    [[EarlGrey selectElementWithMatcher:TabWithTitle(kTab2Title)]
-        assertWithMatcher:grey_nil()];
-    [[EarlGrey
-        selectElementWithMatcher:TabGridGroupCellWithName(
-                                     l10n_util::GetPluralNSStringF(
-                                         IDS_IOS_TAB_GROUP_TABS_NUMBER, 1),
-                                     1)] assertWithMatcher:grey_nil()];
-
-    // Check that the snackbar is displayed.
-    [ChromeEarlGrey waitForUIElementToAppearWithMatcher:TabGroupSnackBar(1)];
-    [[EarlGrey selectElementWithMatcher:TabGroupSnackBar(1)]
-        assertWithMatcher:grey_sufficientlyVisible()];
-  }
-
-  // Tap Undo button.
-  [[EarlGrey selectElementWithMatcher:TabGridUndoCloseAllButton()]
+  // Close all (groups and tabs).
+  OpenTabGridEditMenu();
+  [[EarlGrey selectElementWithMatcher:TabGridEditMenuCloseAllButton()]
       performAction:grey_tap()];
 
-  // Check that `Tab 2` and the group with title `1 Tab` are back in the grid.
+  // Confirm in action sheet.
+  [[EarlGrey selectElementWithMatcher:
+                 chrome_test_util::ActionSheetItemWithAccessibilityLabelId(
+                     IDS_IOS_CONTENT_CONTEXT_CLOSEALLTABSANDGROUPS)]
+      performAction:grey_tap()];
+
+  // Check that `Tab 2` and the group with title `1 Tab` are no longer in the
+  // grid.
   [[EarlGrey selectElementWithMatcher:TabWithTitle(kTab2Title)]
-      assertWithMatcher:grey_notNil()];
+      assertWithMatcher:grey_nil()];
   [[EarlGrey selectElementWithMatcher:TabGridGroupCellWithName(
                                           l10n_util::GetPluralNSStringF(
                                               IDS_IOS_TAB_GROUP_TABS_NUMBER, 1),
-                                          1)] assertWithMatcher:grey_notNil()];
+                                          1)] assertWithMatcher:grey_nil()];
 }
 
 // Tests opening a tab group after resetting the incognito browser (i.e. closing
@@ -1684,11 +1715,10 @@ void TapTabGridEditButton() {
     EARL_GREY_TEST_DISABLED(@"Multiple windows can't be opened.");
   }
 
-  // TODO(crbug.com/456744844): Re-enable the test on iOS26 simulator.
+  // TODO(crbug.com/456744844): Re-enable the test on iOS simulator. See also:
+  // crbug.com/518530903.
 #if TARGET_OS_SIMULATOR
-  if (base::ios::IsRunningOnIOS26OrLater()) {
-    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26 simulator.");
-  }
+  EARL_GREY_TEST_DISABLED(@"Test disabled on simulator.");
 #endif
 
   [ChromeEarlGrey loadURL:GetQueryTitleURL(self.testServer, kTab2Title)];
@@ -1944,6 +1974,39 @@ void TapTabGridEditButton() {
   [[EarlGrey
       selectElementWithMatcher:grey_accessibilityID(kTabGroupViewIdentifier)]
       assertWithMatcher:grey_notVisible()];
+}
+
+// Tests that tapping the title displays the edit group view, and the update
+// is performed correctly.
+- (void)testUpdateGroupByTappingTitle {
+  // Create a tab cell with `Tab 1` as its title.
+  [ChromeEarlGrey loadURL:GetQueryTitleURL(self.testServer, kTab1Title)];
+  [ChromeEarlGreyUI openTabGrid];
+
+  CreateDefaultFirstGroupFromTabCellAtIndex(0);
+
+  // Open the group view.
+  OpenTabGroupAtIndex(0);
+
+  // Tap the title.
+  TapTabGroupTitle();
+
+  // Assert that the create button from the CreateTabGroup view is visible.
+  [[EarlGrey selectElementWithMatcher:CreateTabGroupCreateButton()]
+      assertWithMatcher:grey_sufficientlyVisible()];
+
+  // Select purple color.
+  TapPurpleButton();
+
+  // Tap the create button from the CreateTabGroup view.
+  [[EarlGrey selectElementWithMatcher:CreateTabGroupCreateButton()]
+      performAction:grey_tap()];
+
+  // Tap the title.
+  TapTabGroupTitle();
+
+  // Check the purple color is selected.
+  CheckPurpleButtonIsSelected();
 }
 
 @end

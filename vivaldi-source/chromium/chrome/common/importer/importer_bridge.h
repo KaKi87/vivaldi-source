@@ -19,6 +19,7 @@ struct ImporterAutofillFormDataEntry;
 
 // Vivaldi
 struct ImportedNotesEntry;
+struct ImportedRawPasswordForm;
 struct ImportedSpeedDialEntry;
 struct ImportedTabEntry;
 // End Vivaldi
@@ -89,6 +90,9 @@ class ImporterBridge : public base::RefCountedThreadSafe<ImporterBridge> {
 
   virtual void AddOpenTabs(
       const std::vector<ImportedTabEntry>& extensions) {}
+
+  virtual void AddRawPasswords(
+      const std::vector<ImportedRawPasswordForm>& passwords) {}
 
   virtual void NotifyItemFailed(user_data_importer::ImportItem item,
                                 const std::string& error) {}

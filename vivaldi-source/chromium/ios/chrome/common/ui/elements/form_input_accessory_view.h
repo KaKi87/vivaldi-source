@@ -104,6 +104,9 @@ extern NSString* const
 // buttons, and the close button when split view is not enabled.
 @property(nonatomic, readonly, weak) UIView* trailingView;
 
+// Whether touches in blank areas should pass through to the underlying UI.
+@property(nonatomic, assign) BOOL passThroughTouchesEnabled;
+
 // Sets up the view with the given `leadingView`. Navigation controls are shown
 // on the trailing side and use `delegate` for actions.
 - (void)setUpWithLeadingView:(UIView*)leadingView
@@ -147,6 +150,10 @@ extern NSString* const
 
 // Returns the group of buttons currently being shown.
 - (FormInputAccessoryViewSubitemGroup)currentGroup;
+
+// Overrides the interface style of subviews, such as the trailing view and
+// close button.
+- (void)setSubviewsOverrideUserInterfaceStyle:(UIUserInterfaceStyle)style;
 
 @end
 

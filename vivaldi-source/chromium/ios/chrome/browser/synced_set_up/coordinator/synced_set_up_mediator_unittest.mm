@@ -10,11 +10,13 @@
 #import "base/test/task_environment.h"
 #import "base/time/time.h"
 #import "base/values.h"
+#import "components/desktop_to_mobile_promos/features.h"
 #import "components/ntp_tiles/pref_names.h"
 #import "components/omnibox/browser/omnibox_pref_names.h"
 #import "components/sync_device_info/device_info.h"
 #import "components/sync_device_info/device_info_util.h"
 #import "components/sync_device_info/fake_device_info_sync_service.h"
+#import "components/sync_device_info/test_device_info_builder.h"
 #import "components/sync_preferences/cross_device_pref_tracker/cross_device_pref_tracker.h"
 #import "components/sync_preferences/cross_device_pref_tracker/prefs/cross_device_pref_names.h"
 #import "ios/chrome/app/app_startup_parameters.h"
@@ -196,48 +198,6 @@ class SyncedSetUpMediatorTest : public PlatformTest {
     web_state_list_->ActivateWebStateAt(index);
   }
 
-  // Creates a DeviceInfo object.
-  std::unique_ptr<syncer::DeviceInfo> CreateDeviceInfoForTesting(
-      std::string guid,
-      syncer::DeviceInfo::FormFactor form_factor,
-      syncer::DeviceInfo::OsType os_type,
-      base::Time last_updated_timestamp = base::Time::Now()) {
-    return CreateFakeDeviceInfo(guid, "Device Name", std::nullopt,
-                                syncer::DeviceInfo::DeviceType::kUnset, os_type,
-                                form_factor, "manufacturer", "model",
-                                std::string(), last_updated_timestamp);
-  }
-
-  // Helper for creating a DeviceInfo object.
-  std::unique_ptr<syncer::DeviceInfo> CreateFakeDeviceInfo(
-      const std::string& guid,
-      const std::string& name = "name",
-      const std::optional<syncer::DeviceInfo::SharingInfo>& sharing_info =
-          std::nullopt,
-      syncer::DeviceInfo::DeviceType device_type =
-          syncer::DeviceInfo::DeviceType::kUnset,
-      syncer::DeviceInfo::OsType os_type = syncer::DeviceInfo::OsType::kUnknown,
-      syncer::DeviceInfo::FormFactor form_factor =
-          syncer::DeviceInfo::FormFactor::kUnknown,
-      const std::string& manufacturer_name = "manufacturer",
-      const std::string& model_name = "model",
-      const std::string& full_hardware_class = std::string(),
-      base::Time last_updated_timestamp = base::Time::Now()) {
-    return std::make_unique<syncer::DeviceInfo>(
-        guid, name, "chrome_version", "user_agent", device_type, os_type,
-        form_factor, "device_id", manufacturer_name, model_name,
-        full_hardware_class, last_updated_timestamp,
-        syncer::DeviceInfoUtil::GetPulseInterval(),
-        /*send_tab_to_self_receiving_enabled=*/
-        false, syncer::DeviceInfo::SendTabReceivingType::kChromeOrUnspecified,
-        sharing_info,
-        /*paask_info=*/std::nullopt,
-        /*fcm_registration_token=*/std::string(),
-        /*interested_data_types=*/syncer::DataTypeSet(),
-        /*auto_sign_out_last_signin_timestamp=*/std::nullopt,
-        /*desktop_to_ios_promo_receiving_enabled=*/false);
-  }
-
   // Helper for configuring a TimestampedPrefValue.
   void ConfigureTimestampedPrefValue(
       sync_preferences::TimestampedPrefValue& timestamped_value,
@@ -290,9 +250,9 @@ TEST_F(SyncedSetUpMediatorTest, TestDelegateInformedOfFirstRunOnNTP) {
 
   // Add the remote device to the Device Info Tracker.
   device_info_sync_service_.GetDeviceInfoTracker()->Add(
-      CreateDeviceInfoForTesting(remote_guid,
-                                 syncer::DeviceInfo::FormFactor::kPhone,
-                                 syncer::DeviceInfo::OsType::kIOS));
+      syncer::TestDeviceInfoBuilder(syncer::DeviceInfo::OsType::kIOS)
+          .WithGuid(remote_guid)
+          .Build());
 
   // Set corresponding pref on the local device.
   SetProfilePref(ntp_tiles::prefs::kMagicStackHomeModuleEnabled,
@@ -325,9 +285,9 @@ TEST_F(SyncedSetUpMediatorTest, TestDelegateInformedOfFirstRunOnURLPage) {
 
   // Add the remote device to the Device Info Tracker.
   device_info_sync_service_.GetDeviceInfoTracker()->Add(
-      CreateDeviceInfoForTesting(remote_guid,
-                                 syncer::DeviceInfo::FormFactor::kPhone,
-                                 syncer::DeviceInfo::OsType::kIOS));
+      syncer::TestDeviceInfoBuilder(syncer::DeviceInfo::OsType::kIOS)
+          .WithGuid(remote_guid)
+          .Build());
 
   // Set corresponding pref on the local device.
   SetProfilePref(ntp_tiles::prefs::kMagicStackHomeModuleEnabled,
@@ -360,9 +320,9 @@ TEST_F(SyncedSetUpMediatorTest,
 
   // Add the remote device to the Device Info Tracker.
   device_info_sync_service_.GetDeviceInfoTracker()->Add(
-      CreateDeviceInfoForTesting(remote_guid,
-                                 syncer::DeviceInfo::FormFactor::kPhone,
-                                 syncer::DeviceInfo::OsType::kIOS));
+      syncer::TestDeviceInfoBuilder(syncer::DeviceInfo::OsType::kIOS)
+          .WithGuid(remote_guid)
+          .Build());
 
   // Set corresponding pref on the local device.
   SetLocalStatePref(omnibox::kIsOmniboxInBottomPosition, base::Value(false));
@@ -465,9 +425,9 @@ TEST_F(SyncedSetUpMediatorTest, TestPrefsChangeOnApply) {
 
   // Add the remote device to the Device Info Tracker.
   device_info_sync_service_.GetDeviceInfoTracker()->Add(
-      CreateDeviceInfoForTesting(remote_guid,
-                                 syncer::DeviceInfo::FormFactor::kPhone,
-                                 syncer::DeviceInfo::OsType::kIOS));
+      syncer::TestDeviceInfoBuilder(syncer::DeviceInfo::OsType::kIOS)
+          .WithGuid(remote_guid)
+          .Build());
 
   // Set corresponding pref on the local device.
   SetProfilePref(ntp_tiles::prefs::kMagicStackHomeModuleEnabled,

@@ -36,8 +36,6 @@ public class MessagesMetrics {
             "Android.Messages.DismissedWithoutFullyVisible";
     private static final String DISMISSED_HISTOGRAM_PREFIX = "Android.Messages.Dismissed.";
     private static final String TIME_TO_ACTION_HISTOGRAM_PREFIX = "Android.Messages.TimeToAction.";
-    private static final String TIME_TO_ACTION_DISMISS_HISTOGRAM_PREFIX =
-            "Android.Messages.TimeToAction.Dismiss.";
     static final String STACKING_HISTOGRAM_NAME = "Android.Messages.Stacking";
     static final String STACKING_HIDDEN_NAME = "Android.Messages.Stacking.Hidden";
     static final String STACKING_HIDING_NAME = "Android.Messages.Stacking.Hiding";
@@ -118,7 +116,7 @@ public class MessagesMetrics {
                 ENQUEUED_VISIBLE_HISTOGRAM_NAME, messageIdentifier, MessageIdentifier.COUNT);
     }
 
-    /** Records metrics when a message is hidden after being enqueued.*/
+    /** Records metrics when a message is hidden after being enqueued. */
     static void recordMessageEnqueuedHidden(
             @MessageIdentifier int enqueuedMessage,
             @MessageIdentifier int currentDisplayedMessage) {
@@ -141,17 +139,10 @@ public class MessagesMetrics {
      * Records metrics with duration of time a message was visible before it was dismissed by a user
      * action.
      */
-    static void recordTimeToAction(
-            @MessageIdentifier int messageIdentifier,
-            boolean messageDismissedByGesture,
-            long durationMs) {
+    static void recordTimeToAction(@MessageIdentifier int messageIdentifier, long durationMs) {
         String histogramSuffix = messageIdentifierToHistogramSuffix(messageIdentifier);
         RecordHistogram.deprecatedRecordMediumTimesHistogram(
                 TIME_TO_ACTION_HISTOGRAM_PREFIX + histogramSuffix, durationMs);
-        if (messageDismissedByGesture) {
-            RecordHistogram.deprecatedRecordMediumTimesHistogram(
-                    TIME_TO_ACTION_DISMISS_HISTOGRAM_PREFIX + histogramSuffix, durationMs);
-        }
     }
 
     /**
@@ -172,6 +163,7 @@ public class MessagesMetrics {
 
     /**
      * Record the id of background message when it is stacked.
+     *
      * @param messageIdentifier The id of the background message.
      */
     static void recordStackingHidden(@MessageIdentifier int messageIdentifier) {
@@ -181,6 +173,7 @@ public class MessagesMetrics {
 
     /**
      * Record the id of the front message when there is a background message.
+     *
      * @param messageIdentifier The id of the foreground message.
      */
     static void recordStackingHiding(@MessageIdentifier int messageIdentifier) {
@@ -242,9 +235,9 @@ public class MessagesMetrics {
 
     /**
      * Returns a histogram suffix string that corresponds to message identifier of the current
-     * message.
-     * Update this function when adding a new message identifier.
+     * message. Update this function when adding a new message identifier.
      */
+    // LINT.IfChange(MessageIdentifierToHistogramSuffix)
     public static String messageIdentifierToHistogramSuffix(
             @MessageIdentifier int messageIdentifier) {
         switch (messageIdentifier) {
@@ -364,10 +357,18 @@ public class MessagesMetrics {
                 return "SaveUpdateEntity";
             case MessageIdentifier.SIGNIN_SURVEY:
                 return "SigninSurvey";
+            case MessageIdentifier.EXTENSIONS_REQUEST_ACCESS:
+                return "ExtensionsRequestAccess";
+            case MessageIdentifier.KNOWN_INTERCEPTION_DISCLOSURE:
+                return "KnownInterceptionDisclosure";
+            case MessageIdentifier.GLIC_WINDOW_RESIZED:
+                return "GlicWindowResized";
             default:
                 return "Unknown";
         }
     }
+
+    // LINT.ThenChange(//components/messages/android/message_enums.h:MessageIdentifier)
 
     static String getEnqueuedHistogramNameForTesting() {
         return ENQUEUED_HISTOGRAM_NAME;

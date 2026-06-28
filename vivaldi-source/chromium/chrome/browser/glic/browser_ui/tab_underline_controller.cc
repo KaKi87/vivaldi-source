@@ -40,7 +40,8 @@ void TabUnderlineController::Initialize(
     glic_service_ = GlicKeyedServiceFactory::GetGlicKeyedService(
         browser_window_interface_->GetProfile());
 
-    GlicSharingManager& sharing_manager = glic_service_->sharing_manager();
+    GlicSharingManager& sharing_manager =
+        glic_service_->active_instance_sharing_manager();
 
     // Subscribe to changes in the set of pinned tabs.
     pinned_tabs_change_subscription_ =
@@ -55,12 +56,7 @@ void TabUnderlineController::Initialize(
                                 base::Unretained(this)));
   }
 
-  if (ShouldUseSignalsForContextualTasks()) {
-    contextual_tasks::ActiveTaskContextProvider* active_task_context_provider =
-        contextual_tasks::ActiveTaskContextProvider::From(
-            browser_window_interface_);
-    contextual_task_observation_.Observe(active_task_context_provider);
-  }
+  MaybeObserveContextualTasks();
 
   if (glic_service_) {
     // Fetch the latest context access indicator status from service. We can't
@@ -80,7 +76,8 @@ void TabUnderlineController::OnUiReady() {
   // changes in pinned state before the underline view is reconstructed. Check
   // consistency with pinned state post-construction to ensure the UI state of
   // the underline is correct.
-  OnPinnedTabsChanged(glic_service_->sharing_manager().GetPinnedTabs());
+  OnPinnedTabsChanged(
+      glic_service_->active_instance_sharing_manager().GetPinnedTabs());
 }
 
 void TabUnderlineController::OnFocusedTabChanged(
@@ -148,7 +145,7 @@ void TabUnderlineController::OnIndicatorStatusChanged(bool enabled) {
 }
 
 void TabUnderlineController::OnPinnedTabsChanged(
-    const std::vector<content::WebContents*>& pinned_contents) {
+    const std::vector<tabs::TabInterface*>& pinned_tabs) {
   if (!GetTabInterface()) {
     // If the TabInterface is invalid at this point, there is no relevant UI
     // to handle.
@@ -182,8 +179,7 @@ void TabUnderlineController::OnContextTabsChanged(
 }
 
 void TabUnderlineController::PanelStateChanged(
-    const glic::mojom::PanelState& panel_state,
-    const GlicInstanceCoordinator::PanelStateContext& context) {
+    const glic::mojom::PanelState& panel_state) {
   UpdateUnderlineView(
       panel_state.kind == mojom::PanelStateKind::kHidden
           ? UpdateUnderlineReason::kPanelStateChanged_PanelHidden
@@ -200,8 +196,9 @@ tabs::TabInterface* TabUnderlineController::GetTabInterface() {
 
 bool TabUnderlineController::IsUnderlineTabPinned() {
   if (auto* tab_interface = GetTabInterface()) {
-    return glic_service_ && glic_service_->sharing_manager().IsTabPinned(
-                                tab_interface->GetHandle());
+    return glic_service_ &&
+           glic_service_->active_instance_sharing_manager().IsTabPinned(
+               tab_interface->GetHandle());
   }
   return false;
 }
@@ -212,8 +209,9 @@ bool TabUnderlineController::IsUnderlineTabSharedThroughActiveFollow() {
   }
 
   if (auto* tab_interface = GetTabInterface()) {
-    return (glic_service_->sharing_manager().GetFocusedTabData().focus() ==
-            tab_interface) &&
+    return (glic_service_->active_instance_sharing_manager()
+                .GetFocusedTabData()
+                .focus() == tab_interface) &&
            context_access_indicator_enabled_;
   }
   return false;
@@ -229,7 +227,7 @@ void TabUnderlineController::UpdateUnderlineView(UpdateUnderlineReason reason) {
   SCOPED_CRASH_KEY_BOOL("crbug-398319435", "glic_focused_contents",
                         !!glic_current_focused_contents_);
   SCOPED_CRASH_KEY_BOOL("crbug-398319435", "is_glic_window_showing",
-                        glic_service_ && IsGlicWindowShowing());
+                        glic_service_ && IsAnyGlicPanelShowing());
 
   switch (reason) {
     case UpdateUnderlineReason::kContextAccessIndicatorOn: {
@@ -385,7 +383,7 @@ void TabUnderlineController::ShowOrAnimatePinnedUnderline(
     return;
   }
   // Pinned underlines should never be visible if the glic window is closed.
-  if (!IsGlicWindowShowing()) {
+  if (!IsAnyGlicPanelShowing()) {
     return;
   }
   if (ui_delegate_->IsShowing()) {
@@ -395,8 +393,9 @@ void TabUnderlineController::ShowOrAnimatePinnedUnderline(
   }
 }
 
-bool TabUnderlineController::IsGlicWindowShowing() const {
-  return glic_service_ && glic_service_->IsWindowShowing();
+bool TabUnderlineController::IsAnyGlicPanelShowing() const {
+  return glic_service_ &&
+         glic_service_->instance_coordinator().IsAnyPanelShowing();
 }
 
 std::string TabUnderlineController::UpdateReasonToString(
@@ -456,6 +455,17 @@ bool TabUnderlineController::ShouldUseSignalsForGlicUnderlines() {
 
 bool TabUnderlineController::ShouldUseSignalsForContextualTasks() {
   return base::FeatureList::IsEnabled(contextual_tasks::kContextualTasks);
+}
+
+void TabUnderlineController::MaybeObserveContextualTasks() {
+  if (ShouldUseSignalsForContextualTasks() &&
+      !contextual_task_observation_.IsObserving()) {
+    if (auto* active_task_context_provider =
+            contextual_tasks::ActiveTaskContextProvider::From(
+                browser_window_interface_)) {
+      contextual_task_observation_.Observe(active_task_context_provider);
+    }
+  }
 }
 
 }  // namespace glic

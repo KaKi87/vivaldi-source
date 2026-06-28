@@ -5,30 +5,24 @@
 #include "chrome/browser/extensions/scoped_test_mv2_enabler.h"
 
 #include "base/one_shot_event.h"
-#include "base/test/scoped_feature_list.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
-#include "chrome/browser/extensions/manifest_v2_experiment_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "content/public/test/browser_test.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
+#include "extensions/browser/manifest_v2_experiment_manager.h"
 #include "extensions/common/extension.h"
-#include "extensions/common/extension_features.h"
 #include "extensions/test/test_extension_dir.h"
 
 namespace extensions {
 
 class ScopedTestMV2EnablerBrowserTest : public ExtensionBrowserTest {
  public:
-  ScopedTestMV2EnablerBrowserTest() {
-    feature_list_.InitAndEnableFeature(
-        extensions_features::kExtensionManifestV2Disabled);
-  }
+  ScopedTestMV2EnablerBrowserTest() = default;
   ~ScopedTestMV2EnablerBrowserTest() override = default;
 
  private:
-  base::test::ScopedFeatureList feature_list_;
   ScopedTestMV2Enabler mv2_enabler_;
 };
 

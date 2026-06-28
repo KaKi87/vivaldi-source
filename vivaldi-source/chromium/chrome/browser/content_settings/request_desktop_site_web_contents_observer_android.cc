@@ -55,9 +55,10 @@ RequestDesktopSiteWebContentsObserverAndroid::
 void RequestDesktopSiteWebContentsObserverAndroid::DidStartNavigation(
     content::NavigationHandle* navigation_handle) {
   // A webpage could contain multiple frames, which will trigger this observer
-  // multiple times. Only need to override user agent for the main frame of the
-  // webpage; since the child iframes inherit from the main frame.
-  if (!navigation_handle->IsInMainFrame()) {
+  // multiple times. Only need to override user agent for outermost main frames
+  // of the webpage; since child iframes inherit from the main frame, and fenced
+  // frames should maintain a privacy boundary.
+  if (!navigation_handle->IsInOutermostMainFrame()) {
     return;
   }
 
@@ -92,17 +93,11 @@ void RequestDesktopSiteWebContentsObserverAndroid::DidStartNavigation(
   // RDS External Display support.
   bool should_allow_on_external_display =
       ShouldAllowOnExternalDisplay(is_global_setting);
-  if (navigation_handle->IsRendererInitiated() &&
-      should_allow_on_external_display) {
-    base::UmaHistogramBoolean(
-        "Android.Navigation.Renderer.UAOverrideUpdated.ExternalDisplay",
-        !desktop_mode);
-  }
   desktop_mode |= should_allow_on_external_display;
 
   // Override UA for renderer initiated navigation only. UA override for browser
   // initiated navigation is handled on Java side. This is to workaround known
-  // issues crbug.com/1265751 and crbug.com/1261939.
+  // issues crbug.com/40801643 and crbug.com/40799177.
   if (navigation_handle->IsRendererInitiated()) {
     navigation_handle->SetIsOverridingUserAgent(desktop_mode);
   }
@@ -155,7 +150,7 @@ bool RequestDesktopSiteWebContentsObserverAndroid::ShouldAllowOnExternalDisplay(
   double diagonal_inches =
       std::sqrt(std::pow(width_inches, 2) + std::pow(height_inches, 2));
   bool is_on_eligible_external_display =
-      display.id() != display::kDefaultDisplayId &&
+      display.id() != kPrimaryDisplayId &&
       diagonal_inches >= kDesktopSiteDisplaySizeThresholdInches;
   if (!is_on_eligible_external_display) {
     return false;

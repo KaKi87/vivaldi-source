@@ -187,6 +187,13 @@ void ShareServiceImpl::Share(const std::string& title,
     return;
   }
 
+  if (!share_url.is_empty() && !share_url.SchemeIsHTTPOrHTTPS()) {
+    std::move(callback).Run(blink::mojom::ShareError::PERMISSION_DENIED);
+    ReportBadMessageAndDeleteThis(
+        "Web Share URL scheme must be http or https.");
+    return;
+  }
+
   content::WebContents* const web_contents =
       content::WebContents::FromRenderFrameHost(&render_frame_host());
   if (!web_contents) {
@@ -309,11 +316,12 @@ void ShareServiceImpl::RunShareOperation(
          blink::mojom::ShareError result) { std::move(callback).Run(result); },
       std::move(sharing_service_operation), std::move(callback)));
 #elif BUILDFLAG(IS_WIN)
-  // Drop fullscreen mode so the Share UI can be easily clicked away from,
-  // without clicking back into the web contents
-  base::ScopedClosureRunner fullscreen_block =
-      web_contents->ForSecurityDropFullscreen(
-          /*display_id=*/display::kInvalidDisplayId);
+  auto blocker = web_contents->ForSecurityDropFullscreen(
+      /*display_id=*/display::kInvalidDisplayId);
+  if (!blocker) {
+    std::move(callback).Run(blink::mojom::ShareError::PERMISSION_DENIED);
+    return;
+  }
 
   auto share_operation = std::make_unique<webshare::ShareOperation>(
       title, text, share_url, web_contents);
@@ -327,7 +335,7 @@ void ShareServiceImpl::RunShareOperation(
             fullscreen_block.RunAndReset();
             std::move(callback).Run(result);
           },
-          std::move(share_operation), std::move(fullscreen_block),
+          std::move(share_operation), std::move(*blocker),
           std::move(callback)));
 #else
   NOTREACHED();

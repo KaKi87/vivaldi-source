@@ -99,7 +99,7 @@ UserSelectableTypeInfo GetUserSelectableTypeInfo(
               AUTOFILL,
               {AUTOFILL, AUTOFILL_PROFILE, CONTACT_INFO}};
     case UserSelectableType::kThemes:
-      return {kThemesTypeName, THEMES, {THEMES, THEMES_IOS}};
+      return {kThemesTypeName, THEMES, {THEMES, THEMES_IOS, THEMES_ANDROID}};
     case UserSelectableType::kHistory: {
       DataTypeSet types = {HISTORY, HISTORY_DELETE_DIRECTIVES, USER_EVENTS};
       // With `kSpellcheckSeparateLocalAndAccountDictionaries` enabled,

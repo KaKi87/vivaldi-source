@@ -844,7 +844,8 @@ INSTANTIATE_TEST_SUITE_P(,
                              testing::Values(DeepScanAccessPoint::UPLOAD,
                                              DeepScanAccessPoint::DRAG_AND_DROP,
                                              DeepScanAccessPoint::PASTE,
-                                             DeepScanAccessPoint::PRINT),
+                                             DeepScanAccessPoint::PRINT,
+                                             DeepScanAccessPoint::ACTOR),
                              /*has_custom_rule_message=*/testing::Bool()));
 
 IN_PROC_BROWSER_TEST_P(ContentAnalysisDialogCustomMessageBrowserTest, Test) {
@@ -905,7 +906,8 @@ INSTANTIATE_TEST_SUITE_P(,
                              testing::Values(DeepScanAccessPoint::UPLOAD,
                                              DeepScanAccessPoint::DRAG_AND_DROP,
                                              DeepScanAccessPoint::PASTE,
-                                             DeepScanAccessPoint::PRINT),
+                                             DeepScanAccessPoint::PRINT,
+                                             DeepScanAccessPoint::ACTOR),
                              /*has_custom_rule_message=*/testing::Bool()));
 
 class ContentAnalysisDialogPlainTests : public InProcessBrowserTest {
@@ -1185,7 +1187,7 @@ IN_PROC_BROWSER_TEST_F(ContentAnalysisDialogPlainTests,
                              base::Unretained(this)),
               &mock_download_item,
               ContentAnalysisResponse::Result::TriggeredRule::
-                  CustomRuleMessage()),
+                  CustomRuleMessage(), u""),
           FinalContentAnalysisResult::WARNING)
           ->dialog_delegate_for_testing();
 
@@ -1218,7 +1220,7 @@ IN_PROC_BROWSER_TEST_F(ContentAnalysisDialogPlainTests,
                              base::Unretained(this)),
               nullptr,
               ContentAnalysisResponse::Result::TriggeredRule::
-                  CustomRuleMessage()),
+                  CustomRuleMessage(), u""),
           FinalContentAnalysisResult::WARNING)
           ->dialog_delegate_for_testing();
 
@@ -1242,7 +1244,7 @@ IN_PROC_BROWSER_TEST_F(ContentAnalysisDialogPlainTests,
                              base::Unretained(this)),
               nullptr,
               ContentAnalysisResponse::Result::TriggeredRule::
-                  CustomRuleMessage()),
+                  CustomRuleMessage(), u""),
           FinalContentAnalysisResult::FAILURE)
           ->dialog_delegate_for_testing();
 
@@ -1310,7 +1312,8 @@ IN_PROC_BROWSER_TEST_F(ContentAnalysisDialogPlainTests,
 
 class ContentAnalysisDialogUiTest
     : public DialogBrowserTest,
-      public testing::WithParamInterface<std::tuple<bool, bool, bool>> {
+      public testing::WithParamInterface<
+          std::tuple<bool, bool, bool, FinalContentAnalysisResult>> {
  public:
   ContentAnalysisDialogUiTest() {
     ContentAnalysisDialogController::SetShowDialogDelayForTesting(kNoDelay);
@@ -1324,6 +1327,9 @@ class ContentAnalysisDialogUiTest
   bool custom_message_provided() const { return std::get<0>(GetParam()); }
   bool custom_url_provided() const { return std::get<1>(GetParam()); }
   bool bypass_justification_enabled() const { return std::get<2>(GetParam()); }
+  FinalContentAnalysisResult final_result() const {
+    return std::get<3>(GetParam());
+  }
 
   std::u16string get_custom_message() {
     return custom_message_provided() ? u"Admin comment" : u"";
@@ -1339,7 +1345,8 @@ class ContentAnalysisDialogUiTest
         u"File Name", get_custom_message(), get_custom_url(),
         bypass_justification_enabled(), base::DoNothing(), base::DoNothing(),
         nullptr,
-        ContentAnalysisResponse::Result::TriggeredRule::CustomRuleMessage());
+        ContentAnalysisResponse::Result::TriggeredRule::CustomRuleMessage(),
+        u"");
 
     // This ctor ends up calling into constrained_window to show itself, in a
     // way that relinquishes its ownership. Because of this, new it here and
@@ -1347,7 +1354,7 @@ class ContentAnalysisDialogUiTest
     new ContentAnalysisDialogController(
         std::move(delegate), true,
         browser()->tab_strip_model()->GetActiveWebContents(),
-        DeepScanAccessPoint::DOWNLOAD, 1, FinalContentAnalysisResult::WARNING);
+        DeepScanAccessPoint::DOWNLOAD, 1, final_result());
   }
 };
 
@@ -1355,12 +1362,29 @@ IN_PROC_BROWSER_TEST_P(ContentAnalysisDialogUiTest, InvokeUi_default) {
   ShowAndVerifyUi();
 }
 
-INSTANTIATE_TEST_SUITE_P(,
-                         ContentAnalysisDialogUiTest,
-                         testing::Combine(
-                             /*custom_message_exists*/ testing::Bool(),
-                             /*custom_url_exists*/ testing::Bool(),
-                             /*bypass_justification_enabled*/ testing::Bool()));
+INSTANTIATE_TEST_SUITE_P(
+    ,
+    ContentAnalysisDialogUiTest,
+    testing::Combine(
+        /*custom_message_exists*/ testing::Bool(),
+        /*custom_url_exists*/ testing::Bool(),
+        /*bypass_justification_enabled*/ testing::Bool(),
+        testing::Values(FinalContentAnalysisResult::WARNING)));
+
+// For non-WARNING results, we don't need to test every combination of
+// custom messages and URLs. A single combination is sufficient to verify
+// that the dialog UI renders correctly for these specific states.
+INSTANTIATE_TEST_SUITE_P(
+    DifferentResults,
+    ContentAnalysisDialogUiTest,
+    testing::Combine(
+        /*custom_message_exists*/ testing::Values(true),
+        /*custom_url_exists*/ testing::Values(true),
+        /*bypass_justification_enabled*/ testing::Values(true),
+        testing::Values(FinalContentAnalysisResult::FAILURE,
+                        FinalContentAnalysisResult::FAIL_CLOSED,
+                        FinalContentAnalysisResult::LARGE_FILES,
+                        FinalContentAnalysisResult::ENCRYPTED_FILES)));
 
 class ContentAnalysisDialogCustomRuleMessageUiTest
     : public ContentAnalysisDialogUiTest {
@@ -1377,7 +1401,7 @@ class ContentAnalysisDialogCustomRuleMessageUiTest
     auto delegate = std::make_unique<ContentAnalysisDownloadsDelegate>(
         u"File Name", get_custom_message(), get_custom_url(),
         bypass_justification_enabled(), base::DoNothing(), base::DoNothing(),
-        nullptr, custom_rule_message);
+        nullptr, custom_rule_message, u"");
 
     // This ctor ends up calling into constrained_window to show itself, in a
     // way that relinquishes its ownership. Because of this, new it here and
@@ -1385,7 +1409,7 @@ class ContentAnalysisDialogCustomRuleMessageUiTest
     new ContentAnalysisDialogController(
         std::move(delegate), true,
         browser()->tab_strip_model()->GetActiveWebContents(),
-        DeepScanAccessPoint::DOWNLOAD, 1, FinalContentAnalysisResult::WARNING);
+        DeepScanAccessPoint::DOWNLOAD, 1, final_result());
   }
 
  private:
@@ -1397,12 +1421,29 @@ IN_PROC_BROWSER_TEST_P(ContentAnalysisDialogCustomRuleMessageUiTest,
   ShowAndVerifyUi();
 }
 
-INSTANTIATE_TEST_SUITE_P(,
-                         ContentAnalysisDialogCustomRuleMessageUiTest,
-                         testing::Combine(
-                             /*custom_message_exists*/ testing::Bool(),
-                             /*custom_url_exists*/ testing::Bool(),
-                             /*bypass_justification_enabled*/ testing::Bool()));
+INSTANTIATE_TEST_SUITE_P(
+    ,
+    ContentAnalysisDialogCustomRuleMessageUiTest,
+    testing::Combine(
+        /*custom_message_exists*/ testing::Bool(),
+        /*custom_url_exists*/ testing::Bool(),
+        /*bypass_justification_enabled*/ testing::Bool(),
+        testing::Values(FinalContentAnalysisResult::WARNING)));
+
+// For non-WARNING results, we don't need to test every combination of
+// custom messages and URLs. A single combination is sufficient to verify
+// that the dialog UI renders correctly for these specific states.
+INSTANTIATE_TEST_SUITE_P(
+    DifferentResults,
+    ContentAnalysisDialogCustomRuleMessageUiTest,
+    testing::Combine(
+        /*custom_message_exists*/ testing::Values(true),
+        /*custom_url_exists*/ testing::Values(true),
+        /*bypass_justification_enabled*/ testing::Values(true),
+        testing::Values(FinalContentAnalysisResult::FAILURE,
+                        FinalContentAnalysisResult::FAIL_CLOSED,
+                        FinalContentAnalysisResult::LARGE_FILES,
+                        FinalContentAnalysisResult::ENCRYPTED_FILES)));
 
 class ContentAnalysisDialogDownloadObserverTest
     : public test::DeepScanningBrowserTestBase,
@@ -1443,7 +1484,8 @@ IN_PROC_BROWSER_TEST_F(ContentAnalysisDialogDownloadObserverTest,
           u"", u"", GURL(), true,
           /* open_file_callback */ base::DoNothing(),
           /* discard_callback */ base::DoNothing(), &mock_download_item,
-          ContentAnalysisResponse::Result::TriggeredRule::CustomRuleMessage()),
+          ContentAnalysisResponse::Result::TriggeredRule::CustomRuleMessage(),
+          u""),
       true, browser()->tab_strip_model()->GetActiveWebContents(),
       DeepScanAccessPoint::DOWNLOAD, /* file_count */ 1,
       FinalContentAnalysisResult::WARNING, &mock_download_item);
@@ -1470,7 +1512,8 @@ IN_PROC_BROWSER_TEST_F(ContentAnalysisDialogDownloadObserverTest,
           u"", u"", GURL(), true,
           /* open_file_callback */ base::DoNothing(),
           /* discard_callback */ base::DoNothing(), &mock_download_item,
-          ContentAnalysisResponse::Result::TriggeredRule::CustomRuleMessage()),
+          ContentAnalysisResponse::Result::TriggeredRule::CustomRuleMessage(),
+          u""),
       true, browser()->tab_strip_model()->GetActiveWebContents(),
       DeepScanAccessPoint::DOWNLOAD, /* file_count */ 1,
       FinalContentAnalysisResult::WARNING, &mock_download_item);
@@ -1506,7 +1549,8 @@ IN_PROC_BROWSER_TEST_F(ContentAnalysisDialogDownloadObserverTest,
           u"", u"", GURL(), true,
           /* open_file_callback */ base::DoNothing(),
           /* discard_callback */ base::DoNothing(), mock_download_item.get(),
-          ContentAnalysisResponse::Result::TriggeredRule::CustomRuleMessage()),
+          ContentAnalysisResponse::Result::TriggeredRule::CustomRuleMessage(),
+          u""),
       true, browser()->tab_strip_model()->GetActiveWebContents(),
       DeepScanAccessPoint::DOWNLOAD, /* file_count */ 1,
       FinalContentAnalysisResult::WARNING, mock_download_item.get());

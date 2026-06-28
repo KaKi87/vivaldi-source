@@ -25,8 +25,6 @@ import {ClearBrowsingDataBrowserProxyImpl} from '../../clear_browsing_data_dialo
 import {loadTimeData} from '../../i18n_setup.js';
 import type {MetricsBrowserProxy} from '../../metrics_browser_proxy.js';
 import {MetricsBrowserProxyImpl, PrivacyGuideInteractions, PrivacyGuideStepsEligibleAndReached} from '../../metrics_browser_proxy.js';
-import type {PrivacySandboxBrowserProxy} from '../../privacy_sandbox/privacy_sandbox_browser_proxy.js';
-import {PrivacySandboxBrowserProxyImpl} from '../../privacy_sandbox/privacy_sandbox_browser_proxy.js';
 import {HatsBrowserProxyImpl, TrustSafetyInteraction} from '../hats_browser_proxy.js';
 
 import {getTemplate} from './privacy_guide_completion_fragment.html.js';
@@ -77,11 +75,6 @@ export class PrivacyGuideCompletionFragmentElement extends
         type: Boolean,
         value: false,
       },
-
-      shouldShowV2AdPrivacySubLabel_: {
-        type: Boolean,
-        value: false,
-      },
     };
   }
 
@@ -91,9 +84,6 @@ export class PrivacyGuideCompletionFragmentElement extends
   declare private shouldShowWaa_: boolean;
   private metricsBrowserProxy_: MetricsBrowserProxy =
       MetricsBrowserProxyImpl.getInstance();
-  declare private shouldShowV2AdPrivacySubLabel_: boolean;
-  private privacySandboxBrowserProxy_: PrivacySandboxBrowserProxy =
-      PrivacySandboxBrowserProxyImpl.getInstance();
 
   override ready() {
     super.ready();
@@ -104,11 +94,6 @@ export class PrivacyGuideCompletionFragmentElement extends
         (event: UpdateSyncStateEvent) => this.updateWaaLink_(event.signedIn));
     ClearBrowsingDataBrowserProxyImpl.getInstance().getSyncState().then(
         (status: UpdateSyncStateEvent) => this.updateWaaLink_(status.signedIn));
-    this.privacySandboxBrowserProxy_
-        .shouldShowPrivacySandboxAdTopicsContentParity()
-        .then(state => {
-          this.shouldShowV2AdPrivacySubLabel_ = state;
-        });
   }
 
   override focus() {
@@ -164,8 +149,9 @@ export class PrivacyGuideCompletionFragmentElement extends
         'Settings.PrivacyGuide.CompletionPSClick');
     // Create a MouseEvent directly to avoid Polymer failing to synthesise a
     // click event if this function was called in response to a touch event.
-    // See crbug.com/1253883 for details.
-    // TODO(crbug.com/40162029): Replace this with an ordinary OpenWindowProxy call.
+    // See crbug.com/40199345 for details.
+    // TODO(crbug.com/40162029): Replace this with an ordinary OpenWindowProxy
+    // call.
     this.shadowRoot!.querySelector<HTMLAnchorElement>('#privacySandboxLink')!
         .dispatchEvent(new MouseEvent('click'));
   }
@@ -188,13 +174,6 @@ export class PrivacyGuideCompletionFragmentElement extends
         'Settings.PrivacyGuide.CompletionSWAAClick');
     OpenWindowProxyImpl.getInstance().openUrl(
         loadTimeData.getString('activityControlsUrlInPrivacyGuide'));
-  }
-
-  private computePrivacySandboxRowSubLabel_(): string {
-    return this.i18n(
-        this.shouldShowV2AdPrivacySubLabel_ ?
-            'privacyGuideCompletionCardPrivacySandboxSubLabelAdTopics' :
-            'privacyGuideCompletionCardPrivacySandboxSubLabel');
   }
 }
 

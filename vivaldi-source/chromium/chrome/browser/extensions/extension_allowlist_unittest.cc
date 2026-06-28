@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/extensions/extension_allowlist.h"
+#include "extensions/browser/extension_allowlist.h"
 
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/extensions/extension_management_test_util.h"
@@ -23,6 +23,8 @@
 #include "extensions/common/extension_features.h"
 #include "extensions/common/extension_id.h"
 #include "testing/gtest/include/gtest/gtest.h"
+
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 namespace extensions {
 

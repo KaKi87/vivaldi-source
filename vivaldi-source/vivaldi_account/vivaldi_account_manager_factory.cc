@@ -43,7 +43,8 @@ VivaldiAccountManagerFactory::BuildServiceInstanceForBrowserContext(
 
   return std::make_unique<VivaldiAccountManager>(
       profile->GetPrefs(), g_browser_process->local_state(),
-      std::move(url_loader_factory), std::move(password_store));
+      g_browser_process->os_crypt_async(), std::move(url_loader_factory),
+      std::move(password_store));
 }
 
 }  // namespace vivaldi

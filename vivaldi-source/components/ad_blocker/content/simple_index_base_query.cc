@@ -10,10 +10,10 @@ SimpleIndexBaseQuery::SimpleIndexBaseQuery(GURL url, url::Origin origin)
       is_third_party_(
           origin.opaque() ||
           !net::registry_controlled_domains::SameDomainOrHost(
-              url,
-              origin,
+              url_,
+              origin_,
               net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES)),
-      is_strict_third_party_(origin.IsSameOriginWith(url)) {}
+      is_strict_third_party_(origin_.IsSameOriginWith(url_)) {}
 
 SimpleIndexBaseQuery::~SimpleIndexBaseQuery() = default;
 SimpleIndexBaseQuery::SimpleIndexBaseQuery(SimpleIndexBaseQuery&&) = default;

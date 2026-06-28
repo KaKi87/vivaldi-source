@@ -746,6 +746,7 @@ class ParserBase {
     bool is_private;
     bool is_static;
     bool is_rest;
+    std::optional<AllowReindexScope> allow_reindex_scope;
   };
 
   void DeclareLabel(ZonePtrList<const AstRawString>** labels,
@@ -822,6 +823,7 @@ class ParserBase {
       case ClassLiteralProperty::Kind::AUTO_ACCESSOR:
         return VariableMode::kPrivateGetterAndSetter;
     }
+    UNREACHABLE();
   }
 
   const AstRawString* ClassFieldVariableName(AstValueFactory* ast_value_factory,
@@ -1183,7 +1185,7 @@ class ParserBase {
                 original_scope_) &&
             IsModule(function_state_->kind())));
     return IsAsyncFunction(kind) ||
-           kind == FunctionKind::kClassStaticInitializerFunction;
+           IsClassStaticInitializerFunction(kind);
   }
   bool is_using_allowed() const {
     // UsingDeclaration and AwaitUsingDeclaration are Syntax Errors if the goal
@@ -1302,7 +1304,7 @@ class ParserBase {
   V8_INLINE void UseThis() {
     Scope* scope = this->scope();
     DeclarationScope* closure_scope = scope->GetClosureScope();
-    if (closure_scope->is_reparsed()) return;
+    if (closure_scope->from_scope_info()) return;
     DeclarationScope* receiver_scope = closure_scope->GetReceiverScope();
     Variable* var = receiver_scope->receiver();
     var->set_is_used();
@@ -1703,6 +1705,10 @@ class ParserBase {
     return expression_scope_;
   }
 
+ public:
+  V8_INLINE void set_max_drift(int drift) { max_drift_ = drift; }
+  V8_INLINE int max_drift() const { return max_drift_; }
+
   bool MaybeParsingArrowhead() const {
     return expression_scope_ != nullptr &&
            expression_scope_->has_possible_arrow_parameter_in_scope_chain();
@@ -1766,6 +1772,7 @@ class ParserBase {
   FuncNameInferrer fni_;
   AstValueFactory* ast_value_factory_;  // Not owned.
   typename Types::Factory ast_node_factory_;
+  int max_drift_ = 0;
   RuntimeCallStats* runtime_call_stats_;
   internal::V8FileLogger* v8_file_logger_;
   bool parsing_on_main_thread_;
@@ -1806,6 +1813,7 @@ class ParserBase {
     DeclarationScope* scope = nullptr;
     int function_literal_id = -1;
     bool could_be_immediately_invoked = false;
+    const AllowReindexScope* allow_reindex_scope = nullptr;
 
     bool HasInitialState() const { return scope == nullptr; }
 
@@ -1814,6 +1822,7 @@ class ParserBase {
       function_literal_id = -1;
       ClearStrictParameterError();
       could_be_immediately_invoked = false;
+      allow_reindex_scope = nullptr;
       DCHECK(HasInitialState());
     }
 
@@ -2597,6 +2606,7 @@ typename ParserBase<Impl>::ExpressionT ParserBase<Impl>::ParseProperty(
       prop_info->is_computed_name = true;
       Consume(Token::kLeftBracket);
       AcceptINScope scope(this, true);
+      prop_info->allow_reindex_scope.emplace(&max_drift_);
       ExpressionT expression = ParseAssignmentExpression();
       Expect(Token::kRightBracket);
       if (prop_info->kind == ParsePropertyKind::kNotSet) {
@@ -2766,7 +2776,9 @@ ParserBase<Impl>::ParseClassPropertyDefinition(ClassInfo* class_info,
         if (!has_error() && next_info_id != PeekNextInfoId() &&
             !(prop_info->is_static ? class_info->has_static_elements()
                                    : class_info->has_instance_members())) {
-          impl()->ReindexComputedMemberName(name_expression);
+          DCHECK(prop_info->allow_reindex_scope.has_value());
+          impl()->ReindexComputedMemberName(name_expression,
+                                            *prop_info->allow_reindex_scope);
         }
       } else {
         CheckClassFieldName(prop_info->name, prop_info->is_static);
@@ -3265,8 +3277,9 @@ ParserBase<Impl>::ParseConditionalChainAssignmentExpressionCoverGrammar() {
 
   Token::Value op = peek();
 
-  if (!Token::IsArrowOrAssignmentOp(op) || peek() == Token::kConditional)
+  if (!Token::IsArrowOrAssignmentOp(op) || peek() == Token::kConditional) {
     return expression;
+  }
 
   return ParseAssignmentExpressionCoverGrammarContinuation(lhs_beg_pos,
                                                            expression);
@@ -3347,7 +3360,8 @@ ParserBase<Impl>::ParseAssignmentExpressionCoverGrammarContinuation(
     // not, we'll reindex the arrow function formal parameters to shift them all
     // 1 down to make space for the arrow function.
     if (function_literal_id != GetNextInfoId()) {
-      impl()->ReindexArrowFunctionFormalParameters(&parameters);
+      AllowReindexScope dummy_scope(nullptr);
+      impl()->ReindexArrowFunctionFormalParameters(&parameters, dummy_scope);
     }
 
     expression = ParseArrowFunctionLiteral(parameters, function_literal_id,
@@ -4047,7 +4061,8 @@ ParserBase<Impl>::ParseLeftHandSideContinuation(ExpressionT result) {
         int eval_scope_info_index = 0;
         if (CheckPossibleEvalCall(result, is_optional, scope())) {
           eval_scope_info_index = GetNextInfoId();
-          if (!Call::EvalScopeInfoIndexField::is_valid(eval_scope_info_index)) {
+          if (!Call::EvalScopeInfoIndexField::is_valid(eval_scope_info_index +
+                                                       max_drift_)) {
             ReportMessage(MessageTemplate::kTooManyEvals);
             return impl()->FailureExpression();
           }
@@ -4442,8 +4457,9 @@ void ParserBase<Impl>::ParseFormalParameter(FormalParametersT* parameters) {
     // (x = 1, y = (x = 2)) => {}
     // and even:
     // (x = (x = 2)) => {}.
-    if (var->initializer_position() == kNoSourcePosition)
+    if (var->initializer_position() == kNoSourcePosition) {
       var->clear_maybe_assigned();
+    }
     var->set_initializer_position(initializer_end);
   }
 
@@ -6303,8 +6319,8 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseReturnStatement() {
     case BLOCK_SCOPE:
       // Class static blocks disallow return. They are their own var scopes and
       // have a varblock scope.
-      if (function_state_->kind() ==
-          FunctionKind::kClassStaticInitializerFunction) {
+      if (IsClassStaticInitializerFunction(
+              function_state_->kind())) {
         impl()->ReportMessageAt(loc, MessageTemplate::kIllegalReturn);
         return impl()->NullStatement();
       }
@@ -6509,6 +6525,11 @@ typename ParserBase<Impl>::StatementT ParserBase<Impl>::ParseSwitchStatement(
     impl()->RecordSwitchStatementSourceRange(switch_statement, end_pos);
     Scope* switch_scope = scope()->FinalizeBlockScope();
     if (switch_scope != nullptr) {
+      // Switch scopes are nonlinear, so we need to set the initializer position
+      // to kMaxInt to prevent hole checks from being elided.
+      for (Variable* var : *switch_scope->locals()) {
+        var->set_initializer_position(kMaxInt);
+      }
       return impl()->RewriteSwitchStatement(switch_statement, switch_scope);
     }
     return switch_statement;

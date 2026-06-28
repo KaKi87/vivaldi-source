@@ -1,4 +1,3 @@
-
 # Copyright 2025 Vivaldi Technologies. All rights reserved.
 
 source_set("vivaldi_infobar_badges") {
@@ -8,9 +7,9 @@ source_set("vivaldi_infobar_badges") {
   ]
 
   deps = [
-    "//base",
     "resources:assets",
+    "//base",
   ]
 
- frameworks = [ "UIKit.framework" ]
+  frameworks = [ "UIKit.framework" ]
 }

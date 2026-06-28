@@ -90,21 +90,19 @@ public class NewTabPageUtilUnitTest {
     @Test
     public void testUpdateTilesLayoutTopMargin_shouldShowLogo_phones() {
         Resources resources = mContext.getResources();
-        int mvtContainerTopMargin =
-                resources.getDimensionPixelSize(R.dimen.mvt_container_top_margin);
+        int mvtContainerTopMargin = resources.getDimensionPixelSize(R.dimen.ntp_section_top_margin);
 
         testUpdateTilesLayoutTopMargin_shouldShowLogoImpl(
-                /* isTablet*/ false, mvtContainerTopMargin);
+                /* isTablet= */ false, mvtContainerTopMargin);
     }
 
     @Test
     public void testUpdateTilesLayoutTopMargin_shouldShowLogo_tablets() {
         Resources resources = mContext.getResources();
-        int mvtContainerTopMargin =
-                resources.getDimensionPixelSize(R.dimen.mvt_container_top_margin);
+        int mvtContainerTopMargin = resources.getDimensionPixelSize(R.dimen.ntp_section_top_margin);
 
         testUpdateTilesLayoutTopMargin_shouldShowLogoImpl(
-                /* isTablet*/ true, mvtContainerTopMargin);
+                /* isTablet= */ true, mvtContainerTopMargin);
     }
 
     private void testUpdateTilesLayoutTopMargin_shouldShowLogoImpl(
@@ -123,17 +121,17 @@ public class NewTabPageUtilUnitTest {
                 resources.getDimensionPixelSize(R.dimen.tile_layout_no_logo_top_margin);
 
         testUpdateTilesLayoutTopMargin_shouldNotShowLogoImpl(
-                /* isTablet*/ false, tileLayoutNoLogoTopMargin);
+                /* isTablet= */ false, tileLayoutNoLogoTopMargin);
     }
 
     @Test
     public void testUpdateTilesLayoutTopMargin_shouldNotShowLogo_tablets() {
         Resources resources = mContext.getResources();
         int expectedTileLayoutTopMargin =
-                resources.getDimensionPixelSize(R.dimen.mvt_container_top_margin);
+                resources.getDimensionPixelSize(R.dimen.ntp_section_top_margin);
 
         testUpdateTilesLayoutTopMargin_shouldNotShowLogoImpl(
-                /* isTablet*/ true, expectedTileLayoutTopMargin);
+                /* isTablet= */ true, expectedTileLayoutTopMargin);
     }
 
     private void testUpdateTilesLayoutTopMargin_shouldNotShowLogoImpl(

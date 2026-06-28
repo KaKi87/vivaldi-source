@@ -27,7 +27,6 @@
 #include "core/fpdfapi/parser/cpdf_array.h"
 #include "core/fpdfapi/parser/cpdf_dictionary.h"
 #include "core/fpdfapi/parser/cpdf_document.h"
-#include "core/fpdfapi/parser/cpdf_name.h"
 #include "core/fpdfapi/parser/cpdf_number.h"
 #include "core/fpdfapi/parser/cpdf_string.h"
 #include "core/fpdfapi/render/cpdf_docrenderdata.h"
@@ -37,6 +36,7 @@
 #include "core/fxcrt/fx_extension.h"
 #include "core/fxcrt/notreached.h"
 #include "core/fxcrt/numerics/safe_conversions.h"
+#include "core/fxcrt/retain_ptr.h"
 #include "core/fxcrt/span.h"
 #include "core/fxcrt/span_util.h"
 #include "core/fxcrt/stl_util.h"
@@ -67,19 +67,8 @@ static_assert(FPDF_PAGEOBJ_FORM ==
                   static_cast<int>(CPDF_PageObject::Type::kForm),
               "FPDF_PAGEOBJ_FORM/CPDF_PageObject::FORM mismatch");
 
-bool IsPageObject(CPDF_Page* pPage) {
-  if (!pPage) {
-    return false;
-  }
-
-  RetainPtr<const CPDF_Dictionary> pFormDict = pPage->GetDict();
-  if (!pFormDict->KeyExist(pdfium::page_object::kType)) {
-    return false;
-  }
-
-  RetainPtr<const CPDF_Name> pName =
-      ToName(pFormDict->GetObjectFor(pdfium::page_object::kType)->GetDirect());
-  return pName && pName->GetString() == "Page";
+bool IsPageObject(CPDF_Page* page) {
+  return page && CPDF_Page::IsValidPageDict(page->GetDict());
 }
 
 void CalcBoundingBox(CPDF_PageObject* pPageObj) {
@@ -255,25 +244,25 @@ FPDF_EXPORT FPDF_PAGE FPDF_CALLCONV FPDFPage_New(FPDF_DOCUMENT document,
   }
 
   page_index = std::clamp(page_index, 0, doc->GetPageCount());
-  RetainPtr<CPDF_Dictionary> pPageDict(doc->CreateNewPage(page_index));
-  if (!pPageDict) {
+  RetainPtr<CPDF_Dictionary> page_dict(doc->CreateNewPage(page_index));
+  if (!page_dict) {
     return nullptr;
   }
 
-  pPageDict->SetRectFor(pdfium::page_object::kMediaBox,
+  page_dict->SetRectFor(pdfium::page_object::kMediaBox,
                         CFX_FloatRect(0, 0, width, height));
-  pPageDict->SetNewFor<CPDF_Number>(pdfium::page_object::kRotate, 0);
-  pPageDict->SetNewFor<CPDF_Dictionary>(pdfium::page_object::kResources);
+  page_dict->SetNewFor<CPDF_Number>(pdfium::page_object::kRotate, 0);
+  page_dict->SetNewFor<CPDF_Dictionary>(pdfium::page_object::kResources);
 
 #ifdef PDF_ENABLE_XFA
   if (doc->GetExtension()) {
-    auto pXFAPage = pdfium::MakeRetain<CPDFXFA_Page>(doc, page_index);
-    pXFAPage->LoadPDFPageFromDict(pPageDict);
-    return FPDFPageFromIPDFPage(pXFAPage.Leak());  // Caller takes ownership.
+    auto xfa_page = pdfium::MakeRetain<CPDFXFA_Page>(doc, page_index);
+    CHECK(xfa_page->LoadPDFPageFromDict(std::move(page_dict)));
+    return FPDFPageFromIPDFPage(xfa_page.Leak());  // Caller takes ownership.
   }
 #endif  // PDF_ENABLE_XFA
 
-  auto pPage = pdfium::MakeRetain<CPDF_Page>(doc, pPageDict);
+  auto pPage = pdfium::MakeRetain<CPDF_Page>(doc, std::move(page_dict));
   pPage->AddPageImageCache();
   pPage->ParseContent();
 
@@ -285,22 +274,23 @@ FPDF_EXPORT int FPDF_CALLCONV FPDFPage_GetRotation(FPDF_PAGE page) {
   return IsPageObject(pPage) ? pPage->GetPageRotation() : -1;
 }
 
-FPDF_EXPORT void FPDF_CALLCONV
+FPDF_EXPORT FPDF_BOOL FPDF_CALLCONV
 FPDFPage_InsertObject(FPDF_PAGE page, FPDF_PAGEOBJECT page_object) {
   CPDF_PageObject* pPageObj = CPDFPageObjectFromFPDFPageObject(page_object);
   if (!pPageObj) {
-    return;
+    return false;
   }
 
   std::unique_ptr<CPDF_PageObject> pPageObjHolder(pPageObj);
   CPDF_Page* pPage = CPDFPageFromFPDFPage(page);
   if (!IsPageObject(pPage)) {
-    return;
+    return false;
   }
 
   pPageObj->SetDirty(true);
   pPage->AppendPageObject(std::move(pPageObjHolder));
   CalcBoundingBox(pPageObj);
+  return true;
 }
 
 FPDF_EXPORT FPDF_BOOL FPDF_CALLCONV
@@ -404,6 +394,22 @@ FPDFPageObj_GetMark(FPDF_PAGEOBJECT page_object, unsigned long index) {
   }
 
   return FPDFPageObjectMarkFromCPDFContentMarkItem(pMarks->GetItem(index));
+}
+
+FPDF_EXPORT FPDF_BOOL FPDF_CALLCONV
+FPDFPageObj_AddExistingMark(FPDF_PAGEOBJECT page_object,
+                            FPDF_PAGEOBJECTMARK mark) {
+  CPDF_PageObject* page = CPDFPageObjectFromFPDFPageObject(page_object);
+  CPDF_ContentMarkItem* mark_item =
+      CPDFContentMarkItemFromFPDFPageObjectMark(mark);
+  if (!page || !mark_item) {
+    return false;
+  }
+
+  CPDF_ContentMarks* marks = page->GetContentMarks();
+  marks->AddExistingMark(pdfium::WrapRetain(mark_item));
+  page->SetDirty(true);
+  return true;
 }
 
 FPDF_EXPORT FPDF_PAGEOBJECTMARK FPDF_CALLCONV

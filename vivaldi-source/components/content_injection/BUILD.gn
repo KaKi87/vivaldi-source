@@ -4,10 +4,10 @@ source_set("content_injection") {
   sources = [
     "content_injection_provider.cc",
     "content_injection_provider.h",
-    "content_injection_service_factory.cc",
-    "content_injection_service_factory.h",
     "content_injection_service.cc",
     "content_injection_service.h",
+    "content_injection_service_factory.cc",
+    "content_injection_service_factory.h",
     "content_injection_service_impl.cc",
     "content_injection_service_impl.h",
     "content_injection_types.cc",

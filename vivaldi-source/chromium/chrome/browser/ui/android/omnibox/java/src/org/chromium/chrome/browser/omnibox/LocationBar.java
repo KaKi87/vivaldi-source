@@ -49,14 +49,6 @@ public interface LocationBar {
     void showUrlBarCursorWithoutFocusAnimations();
 
     /**
-     * Notifies the LocationBar to take necessary action after exiting from the NTP, while a
-     * hardware keyboard is connected. If the URL bar was previously focused on the NTP due to a
-     * connected keyboard, a navigation away from the NTP should clear this focus before filling the
-     * current tab's URL.
-     */
-    void clearUrlBarCursorWithoutFocusAnimations();
-
-    /**
      * Reverts any pending edits of the location bar and reset to the page state. This does not
      * change the focus state of the location bar.
      */
@@ -116,6 +108,12 @@ public interface LocationBar {
      * reduce the clutter.
      */
     default void setShowStatusIconForSecureOrigins(boolean showStatusIconForSecureOrigins) {}
+
+    /**
+     * Sets whether the location bar is in mini origin mode. In this mode, certain UI elements are
+     * hidden or modified.
+     */
+    default void setMiniOriginMode(boolean active) {}
 
     /** Gets the height of the url bar view contained by the location bar. */
     default float getUrlBarHeight() {

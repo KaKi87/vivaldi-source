@@ -25,6 +25,33 @@ ActorKeyedServiceFake::ActorKeyedServiceFake(Profile* profile)
 ActorKeyedServiceFake::~ActorKeyedServiceFake() = default;
 
 TaskId ActorKeyedServiceFake::CreateTaskForTesting() {
+  return CreateTaskWithDurationAndFeatureModeForTesting(  // IN-TEST
+      actor::webui::mojom::TaskDuration::kDefault,
+      glic::mojom::FeatureMode::kUnspecified);
+}
+
+TaskId ActorKeyedServiceFake::CreateTransientTaskForTesting() {
+  return CreateTaskWithDurationAndFeatureModeForTesting(  // IN-TEST
+      actor::webui::mojom::TaskDuration::kTransient,
+      glic::mojom::FeatureMode::kUnspecified);
+}
+
+TaskId ActorKeyedServiceFake::CreateExperimentalTriggeringTaskForTesting() {
+  return CreateTaskWithDurationAndFeatureModeForTesting(  // IN-TEST
+      actor::webui::mojom::TaskDuration::kDefault,
+      glic::mojom::FeatureMode::kExperimentalTriggering);
+}
+
+TaskId ActorKeyedServiceFake::CreateTaskWithDurationForTesting(  // IN-TEST
+    actor::webui::mojom::TaskDuration duration) {
+  return CreateTaskWithDurationAndFeatureModeForTesting(  // IN-TEST
+      duration, glic::mojom::FeatureMode::kUnspecified);
+}
+
+TaskId ActorKeyedServiceFake::
+    CreateTaskWithDurationAndFeatureModeForTesting(  // IN-TEST
+        actor::webui::mojom::TaskDuration duration,
+        glic::mojom::FeatureMode feature_mode) {
   std::unique_ptr<ui::UiEventDispatcher> ui_event_dispatcher =
       ui::NewMockUiEventDispatcher();
   std::unique_ptr<ui::UiEventDispatcher> task_ui_event_dispatcher =
@@ -60,6 +87,8 @@ TaskId ActorKeyedServiceFake::CreateTaskForTesting() {
 
   auto task_options = webui::mojom::TaskOptions::New();
   task_options->title = "Test Task";
+  task_options->duration = duration;
+  task_options->feature_mode = feature_mode;
   return ActorKeyedService::CreateTaskForTesting(  // IN-TEST
       std::move(task_ui_event_dispatcher), TestTaskSourceInfo(),
       &no_enterprise_policy_checker_, std::move(task_options),
@@ -79,13 +108,15 @@ void ActorKeyedServiceFake::PauseTaskForTesting(TaskId task_id,  // IN-TEST
 void ActorKeyedServiceFake::StopTaskForTesting(  // IN-TEST
     TaskId task_id,
     ActorTask::StoppedReason stopped_reason) {
+  const auto duration = GetTask(task_id)->get_task_duration();
+  const auto feature_mode = GetTask(task_id)->feature_mode();
   StopTask(task_id, stopped_reason);
   // This fake mocks out the event dispatcher, so we need to manually notify the
   // ui state manager.
   GetActorUiStateManager()->OnUiEvent(ui::StopTask(
       task_id, ActorTask::GetTaskStateFromStoppedReason(stopped_reason),
       "Test Task",
-      /*last_acted_on_tab_handle=*/tabs::TabHandle()));
+      /*last_acted_on_tab_handle=*/tabs::TabHandle(), duration, feature_mode));
 }
 
 }  // namespace actor

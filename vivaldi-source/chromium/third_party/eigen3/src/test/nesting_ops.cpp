@@ -7,6 +7,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #define TEST_ENABLE_TEMPORARY_TRACKING
 
@@ -24,7 +25,7 @@ void use_n_times(const XprType& xpr) {
 template <int N, typename ReferenceType, typename XprType>
 bool verify_eval_type(const XprType&, const ReferenceType&) {
   typedef typename internal::nested_eval<XprType, N>::type EvalType;
-  return internal::is_same<internal::remove_all_t<EvalType>, internal::remove_all_t<ReferenceType>>::value;
+  return std::is_same<internal::remove_all_t<EvalType>, internal::remove_all_t<ReferenceType>>::value;
 }
 
 template <typename MatrixType>

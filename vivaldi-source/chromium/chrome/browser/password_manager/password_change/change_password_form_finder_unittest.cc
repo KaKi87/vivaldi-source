@@ -22,7 +22,6 @@
 #include "components/autofill/core/common/form_data_test_api.h"
 #include "components/optimization_guide/core/model_execution/test/mock_remote_model_executor.h"
 #include "components/optimization_guide/core/optimization_guide_proto_util.h"
-#include "components/os_crypt/sync/os_crypt_mocker.h"
 #include "components/password_manager/core/browser/fake_form_fetcher.h"
 #include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/mock_password_form_cache.h"
@@ -52,6 +51,13 @@ using testing::WithArg;
 
 using QualityStatus = optimization_guide::proto::
     PasswordChangeQuality_StepQuality_SubmissionStatus;
+
+template <typename... Args>
+autofill::FormFieldData CreateTestFormField(Args&&... args) {
+  auto field = autofill::test::CreateTestFormField(std::forward<Args>(args)...);
+  field.set_is_enabled(true);
+  return field;
+}
 
 class MockChromePasswordManagerClient
     : public password_manager::StubPasswordManagerClient {
@@ -164,7 +170,6 @@ class ChangePasswordFormFinderTest : public ChromeRenderViewHostTestHarness,
 
   void SetUp() override {
     ChromeRenderViewHostTestHarness::SetUp();
-    OSCryptMocker::SetUp();
 
     OptimizationGuideKeyedServiceFactory::GetInstance()
         ->SetTestingFactoryAndUse(
@@ -189,7 +194,6 @@ class ChangePasswordFormFinderTest : public ChromeRenderViewHostTestHarness,
   }
 
   void TearDown() override {
-    OSCryptMocker::TearDown();
     ChromeRenderViewHostTestHarness::TearDown();
   }
 
@@ -289,6 +293,10 @@ TEST_P(ChangePasswordFormFinderTest, ChangePasswordFormNotDetected) {
       "PasswordManager.ChangePasswordFormDetected", false, 1);
   histogram_tester.ExpectTotalCount(
       "PasswordManager.ChangePasswordFormDetectionTime", 0);
+  CheckOpenFormStatus(
+      logs_uploader.GetFinalLog(),
+      QualityStatus::
+          PasswordChangeQuality_StepQuality_SubmissionStatus_TIME_OUT);
 }
 
 TEST_P(ChangePasswordFormFinderTest,
@@ -729,8 +737,6 @@ TEST_P(ChangePasswordFormFinderTest, FailsWhenPageTypeIsNotSettingsPage) {
 }
 
 TEST_P(ChangePasswordFormFinderTest, InterventionNeededPageCausesFailure) {
-  base::test::ScopedFeatureList feature_list(
-      password_manager::features::kUserInterventionForPasswordChange);
   base::test::TestFuture<ChangePasswordFormFinder::ErrorCase>
       completion_callback;
   ModelQualityLogsUploader logs_uploader(web_contents(), GURL());
@@ -771,7 +777,7 @@ TEST_P(ChangePasswordFormFinderTest, InterventionNeededPageCausesFailure) {
   CheckOpenFormStatus(
       logs_uploader.GetFinalLog(),
       QualityStatus::
-          PasswordChangeQuality_StepQuality_SubmissionStatus_UNEXPECTED_STATE);
+          PasswordChangeQuality_StepQuality_SubmissionStatus_USER_INTERVENTION_NEEDED);
 }
 
 TEST_P(ChangePasswordFormFinderTest, PageStabilityAfterClick_WaiterNotCreatedUntilStable) {

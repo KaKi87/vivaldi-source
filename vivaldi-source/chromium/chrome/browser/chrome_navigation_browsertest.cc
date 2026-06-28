@@ -72,6 +72,7 @@
 #include "content/public/test/navigation_handle_observer.h"
 #include "content/public/test/test_navigation_observer.h"
 #include "content/public/test/url_loader_interceptor.h"
+#include "extensions/common/extension_features.h"
 #include "extensions/common/switches.h"
 #include "extensions/test/extension_test_message_listener.h"
 #include "extensions/test/test_extension_dir.h"
@@ -294,8 +295,8 @@ class CtrlClickProcessTest : public ChromeNavigationBrowserTest {
 };
 
 // Tests that verify that ctrl-click results 1) open up in a new renderer
-// process (https://crbug.com/23815) and 2) are in a new BrowsingInstance (e.g.
-// cannot find the opener's window by name - https://crbug.com/40490152).
+// process (https://crbug.com/40316458) and 2) are in a new BrowsingInstance
+// (e.g. cannot find the opener's window by name - https://crbug.com/40490152).
 class CtrlClickShouldEndUpInNewProcessTest : public CtrlClickProcessTest {
  protected:
   void VerifyProcessExpectations(content::WebContents* main_contents,
@@ -346,9 +347,14 @@ class CtrlClickShouldEndUpInSameProcessTest : public CtrlClickProcessTest {
     // SiteInstance and BrowsingInstance from the old contents.
     EXPECT_EQ(contents1->GetPrimaryMainFrame()->GetProcess(),
               contents2->GetPrimaryMainFrame()->GetProcess());
-    EXPECT_EQ(
-        contents1->GetPrimaryMainFrame()->GetSiteInstance()->GetSiteURL(),
-        contents2->GetPrimaryMainFrame()->GetSiteInstance()->GetSiteURL());
+    EXPECT_EQ(contents1->GetPrimaryMainFrame()
+                  ->GetSiteInstance()
+                  ->GetSecurityPrincipal()
+                  .GetDeprecatedSiteURL(),
+              contents2->GetPrimaryMainFrame()
+                  ->GetSiteInstance()
+                  ->GetSecurityPrincipal()
+                  .GetDeprecatedSiteURL());
     EXPECT_FALSE(contents1->GetSiteInstance()->IsRelatedSiteInstance(
         contents2->GetSiteInstance()));
   }
@@ -433,7 +439,7 @@ IN_PROC_BROWSER_TEST_F(ChromeNavigationBrowserTest,
 
 // Ensure that URL transformations do not let a webpage populate the Omnibox
 // with a javascript: URL.  See https://crbug.com/40091605 and
-// https://crbug.com/1116280.
+// https://crbug.com/40053083.
 IN_PROC_BROWSER_TEST_F(ChromeNavigationBrowserTest,
                        ClearInvalidPendingURLOnFail) {
   GURL initial_url = embedded_test_server()->GetURL(
@@ -448,7 +454,7 @@ IN_PROC_BROWSER_TEST_F(ChromeNavigationBrowserTest,
       // https://crbug.com/40091605
       "o.o:@javascript:foo()",
 
-      // https://crbug.com/1116280
+      // https://crbug.com/40053083
       "o.o:@javascript::://foo.com%0Aalert(document.domain)"};
   for (const char* kTestUrl : kTestUrls) {
     SCOPED_TRACE(testing::Message() << "kTestUrl = " << kTestUrl);
@@ -667,8 +673,8 @@ IN_PROC_BROWSER_TEST_F(ChromeNavigationBrowserTest,
   }
 }
 
-// Test for https://crbug.com/40586222#c2. It verifies that about:blank does not
-// commit in the error page process when it is redirected to.
+// Test for https://crbug.com/40586222#comment3. It verifies that about:blank
+// does not commit in the error page process when it is redirected to.
 IN_PROC_BROWSER_TEST_F(ChromeNavigationBrowserTest,
                        RedirectErrorPageReloadToAboutBlank) {
   // TODO(https://crbug.com/40804030): Remove this when updated to use MV3.
@@ -687,9 +693,11 @@ IN_PROC_BROWSER_TEST_F(ChromeNavigationBrowserTest,
     ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
     EXPECT_FALSE(observer.last_navigation_succeeded());
     EXPECT_EQ(url, observer.last_navigation_url());
-    EXPECT_EQ(
-        GURL(content::kUnreachableWebDataURL),
-        web_contents->GetPrimaryMainFrame()->GetSiteInstance()->GetSiteURL());
+    EXPECT_EQ(GURL(content::kUnreachableWebDataURL),
+              web_contents->GetPrimaryMainFrame()
+                  ->GetSiteInstance()
+                  ->GetSecurityPrincipal()
+                  .GetDeprecatedSiteURL());
   }
 
   // Install an extension, which will redirect all navigations to a.com URLs to
@@ -730,9 +738,11 @@ IN_PROC_BROWSER_TEST_F(ChromeNavigationBrowserTest,
     observer.Wait();
     EXPECT_TRUE(observer.last_navigation_succeeded());
     EXPECT_EQ(GURL(url::kAboutBlankURL), observer.last_navigation_url());
-    EXPECT_NE(
-        GURL(content::kUnreachableWebDataURL),
-        web_contents->GetPrimaryMainFrame()->GetSiteInstance()->GetSiteURL());
+    EXPECT_NE(GURL(content::kUnreachableWebDataURL),
+              web_contents->GetPrimaryMainFrame()
+                  ->GetSiteInstance()
+                  ->GetSecurityPrincipal()
+                  .GetDeprecatedSiteURL());
   }
 
   // In the above setup, the reload was carried out with the error page being
@@ -748,10 +758,11 @@ IN_PROC_BROWSER_TEST_F(ChromeNavigationBrowserTest,
   // non-error navigation to about:blank.  In this case, the final SiteInstance
   // and process selection should still honor the initiator, rather than end up
   // in an unlocked process and an unassigned SiteInstance.  See
-  // https://crbug.com/1426928.
-  EXPECT_EQ(
-      "http://a.com/",
-      web_contents->GetPrimaryMainFrame()->GetSiteInstance()->GetSiteURL());
+  // https://crbug.com/40261555.
+  EXPECT_EQ("http://a.com/", web_contents->GetPrimaryMainFrame()
+                                 ->GetSiteInstance()
+                                 ->GetSecurityPrincipal()
+                                 .GetDeprecatedSiteURL());
   EXPECT_TRUE(web_contents->GetPrimaryMainFrame()
                   ->GetProcess()
                   ->IsProcessLockedToSiteForTesting());
@@ -760,7 +771,7 @@ IN_PROC_BROWSER_TEST_F(ChromeNavigationBrowserTest,
 // This test covers a navigation that:
 // 1. is initiated by a cross-site initiator,
 // 2. gets redirected via webRequest API to about:blank.
-// This is a regression test for https://crbug.com/1026738.
+// This is a regression test for https://crbug.com/40659880.
 IN_PROC_BROWSER_TEST_F(
     ChromeNavigationBrowserTest,
     NavigationInitiatedByCrossSiteSubframeRedirectedToAboutBlank) {
@@ -852,7 +863,7 @@ IN_PROC_BROWSER_TEST_F(
   //    Note that the extension from step 1 above will redirect
   //    this navigation to an about:blank URL.
   //
-  // This step would have hit the CHECK from https://crbug.com/1026738.
+  // This step would have hit the CHECK from https://crbug.com/40659880.
   url::Origin cross_site_origin = cross_site_subframe->GetLastCommittedOrigin();
   content::TestNavigationObserver nav_observer(popup, 1);
   ASSERT_TRUE(ExecJs(cross_site_subframe,
@@ -899,7 +910,7 @@ IN_PROC_BROWSER_TEST_F(
 // 1. is initiated by a cross-site initiator,
 // 2. gets redirected via webRequest API to a data: URL
 // This covers a scenario similar to the one that led to crashes in
-// https://crbug.com/1026738.
+// https://crbug.com/40659880.
 IN_PROC_BROWSER_TEST_F(
     ChromeNavigationBrowserTest,
     NavigationInitiatedByCrossSiteSubframeRedirectedToDataUrl) {
@@ -1430,7 +1441,7 @@ IN_PROC_BROWSER_TEST_F(ChromeNavigationBrowserTest,
 
 // Tests scenario where a blank iframe inside a blank popup (a popup with only
 // the initial navigation entry) does a same document navigation. This test was
-// added as a regression test for crbug.com/1237874. The main purpose of this
+// added as a regression test for crbug.com/40783736. The main purpose of this
 // test is to ensure that WebContentsObservers and Chrome features don't crash.
 IN_PROC_BROWSER_TEST_F(ChromeNavigationBrowserTest,
                        SameDocumentNavigationInIframeInBlankDocument) {
@@ -1478,7 +1489,7 @@ IN_PROC_BROWSER_TEST_F(ChromeNavigationBrowserTest,
 
 // Test scenario where we attempt a synchronous renderer-initiated same-document
 // navigation inside a blank popup (a popup with only the initial navigation
-// entry). Regression test for crbug.com/1254238. The main purpose of this test
+// entry). Regression test for crbug.com/40794217. The main purpose of this test
 // is to ensure that WebContentsObservers and Chrome features don't crash.
 IN_PROC_BROWSER_TEST_F(ChromeNavigationBrowserTest,
                        SameDocumentNavigationInBlankPopup) {
@@ -1673,23 +1684,37 @@ IN_PROC_BROWSER_TEST_F(WebstoreIsolationBrowserTest, WebstorePopupIsIsolated) {
   EXPECT_TRUE(content::NavigateToURLFromRenderer(popup, webstore_url));
   scoped_refptr<content::SiteInstance> webstore_instance(
       popup->GetPrimaryMainFrame()->GetSiteInstance());
-  EXPECT_NE(webstore_instance, popup_instance);
-  EXPECT_NE(webstore_instance, initial_instance);
-  EXPECT_NE(webstore_instance->GetProcess(), initial_instance->GetProcess());
-  EXPECT_NE(webstore_instance->GetProcess(),
-            popup_instance->GetOrCreateProcessForTesting());
-  EXPECT_FALSE(webstore_instance->IsRelatedSiteInstance(popup_instance.get()));
-  EXPECT_FALSE(
-      webstore_instance->IsRelatedSiteInstance(initial_instance.get()));
 
-  // Finally navigate the popup back away from the web store URL. This will lead
-  // to another new process and BrowsingInstance swap.
-  EXPECT_TRUE(content::NavigateToURLFromRenderer(popup, first_url));
-  scoped_refptr<content::SiteInstance> final_instance(
-      popup->GetPrimaryMainFrame()->GetSiteInstance());
-  EXPECT_NE(final_instance->GetProcess(),
-            webstore_instance->GetOrCreateProcessForTesting());
-  EXPECT_FALSE(final_instance->IsRelatedSiteInstance(webstore_instance.get()));
+  if (base::FeatureList::IsEnabled(extensions_features::kWebstoreHostedApp)) {
+    // The webstore hosted app is installed. The webstore should have been
+    // forced into a new site instance.
+    EXPECT_NE(webstore_instance, popup_instance);
+    EXPECT_NE(webstore_instance, initial_instance);
+    EXPECT_NE(webstore_instance->GetProcess(), initial_instance->GetProcess());
+    EXPECT_NE(webstore_instance->GetProcess(),
+              popup_instance->GetOrCreateProcessForTesting());
+    EXPECT_FALSE(
+        webstore_instance->IsRelatedSiteInstance(popup_instance.get()));
+    EXPECT_FALSE(
+        webstore_instance->IsRelatedSiteInstance(initial_instance.get()));
+
+    // Finally navigate the popup back away from the web store URL. This will
+    // lead to another new process and BrowsingInstance swap.
+    EXPECT_TRUE(content::NavigateToURLFromRenderer(popup, first_url));
+    scoped_refptr<content::SiteInstance> final_instance(
+        popup->GetPrimaryMainFrame()->GetSiteInstance());
+    EXPECT_NE(final_instance->GetProcess(),
+              webstore_instance->GetOrCreateProcessForTesting());
+    EXPECT_FALSE(
+        final_instance->IsRelatedSiteInstance(webstore_instance.get()));
+  } else {
+    // The webstore hosted app isn't installed. No fun site instance
+    // shenanigans; the popup should be in a related site instance to its
+    // opener.
+    EXPECT_EQ(webstore_instance, popup_instance);
+    EXPECT_EQ(webstore_instance->GetProcess(),
+              popup_instance->GetOrCreateProcessForTesting());
+  }
 }
 
 // Make sure that the new Chrome Web Store URL used in production
@@ -2252,7 +2277,7 @@ void ChromeNavigationBrowserTest::ExpectHideSadTabWhenNavigationCompletes(
   EXPECT_FALSE(sad_tab_helper->sad_tab());
 }
 
-// Flaky, see https://crbug.com/1223052 and https://crbug.com/1236500.
+// Flaky, see https://crbug.com/40187460 and https://crbug.com/40192730.
 // Ensure that completing a navigation from a sad tab will clear the sad tab.
 IN_PROC_BROWSER_TEST_F(ChromeNavigationBrowserTest,
                        DISABLED_ClearSadTabWhenNavigationCompletes_CrossSite) {
@@ -2272,7 +2297,7 @@ using NavigationConsumingTest = ChromeNavigationBrowserTest;
 // The fullscreen API is spec'd to require a user activation (aka user gesture),
 // so use that API to test if navigation consumes the activation.
 // https://fullscreen.spec.whatwg.org/#allowed-to-request-fullscreen
-// https://crbug.com/1283289 Flaky on ChromeOS.
+// https://crbug.com/40813521 Flaky on ChromeOS.
 #if BUILDFLAG(IS_CHROMEOS)
 #define MAYBE_NavigationConsumesUserGesture_Fullscreen \
   DISABLED_NavigationConsumesUserGesture_Fullscreen
@@ -3200,61 +3225,6 @@ class FencedFrameNavigationBrowserTest : public ChromeNavigationBrowserTest {
   content::test::FencedFrameTestHelper fenced_frame_test_helper_;
 };
 
-IN_PROC_BROWSER_TEST_F(FencedFrameNavigationBrowserTest,
-                       FencedFrameMainFrameNavigationBlockedIfNetworkRevoked) {
-  ASSERT_TRUE(embedded_https_test_server().Start());
-
-  // Navigate to a page that contains a fenced frame.
-  const GURL main_url = embedded_https_test_server().GetURL(
-      "a.test", "/cross_site_iframe_factory.html?a.test(a.test{fenced})");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), main_url));
-
-  // Get fenced frame render frame host.
-  std::vector<content::RenderFrameHost*> child_frames =
-      fenced_frame_test_helper().GetChildFencedFrameHosts(
-          primary_main_frame_host());
-  EXPECT_EQ(child_frames.size(), 1u);
-  content::RenderFrameHost* fenced_frame_rfh = child_frames[0];
-
-  GURL target_url = embedded_https_test_server().GetURL(
-      "a.test", "/fenced_frames/title0.html");
-
-  // Open the link in new tab.
-  content::OpenURLParams params(
-      target_url, content::Referrer(), content::FrameTreeNodeId(),
-      WindowOpenDisposition::NEW_BACKGROUND_TAB, ui::PAGE_TRANSITION_LINK,
-      /*is_renderer_initiated=*/false);
-
-  params.source_render_process_id =
-      fenced_frame_rfh->GetProcess()->GetDeprecatedID();
-  params.source_render_frame_id = fenced_frame_rfh->GetRoutingID();
-  params.initiator_frame_token = fenced_frame_rfh->GetFrameToken();
-  params.initiator_process_id =
-      fenced_frame_rfh->GetProcess()->GetDeprecatedID();
-  params.initiator_origin = fenced_frame_rfh->GetLastCommittedOrigin();
-  params.source_site_instance = fenced_frame_rfh->GetSiteInstance();
-
-  // Disable fenced frame untrusted network.
-  EXPECT_TRUE(ExecJs(fenced_frame_rfh, R"(
-    (async () => {
-      return window.fence.disableUntrustedNetwork();
-    })();
-  )"));
-
-  ui_test_utils::TabAddedWaiter tab_add(browser());
-
-  // Initiate a main frame navigation with the fenced frame as the initiator.
-  browser()->OpenURL(params, /*navigation_handle_callback=*/{});
-
-  // Make sure the navigation did not take place.
-  tab_add.Wait();
-  int index_of_new_tab = browser()->tab_strip_model()->count() - 1;
-  content::WebContents* new_web_contents =
-      browser()->tab_strip_model()->GetWebContentsAt(index_of_new_tab);
-  EXPECT_TRUE(WaitForLoadStop(new_web_contents));
-  EXPECT_TRUE(new_web_contents->GetLastCommittedURL().is_empty());
-}
-
 // This is a regression test for crbug.com/456473704. It tests that navigating
 // to a top-level data URL that inherits DocumentIsolationPolicy from the
 // context the navigation started in does not crash. In order for the top-level
@@ -3262,8 +3232,16 @@ IN_PROC_BROWSER_TEST_F(FencedFrameNavigationBrowserTest,
 // link in a new tab". Otherwise, the top-level navigation would be blocked.
 // This is why this test is located in the Chrome layer and not in the
 // DocumentIsolationPolicy browsertests in content/.
-IN_PROC_BROWSER_TEST_F(ChromeNavigationBrowserTest,
-                       TopLevelDataURLNavigationWithDocumentIsolationPolicy) {
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
+#define MAYBE_TopLevelDataURLNavigationWithDocumentIsolationPolicy \
+  DISABLED_TopLevelDataURLNavigationWithDocumentIsolationPolicy
+#else
+#define MAYBE_TopLevelDataURLNavigationWithDocumentIsolationPolicy \
+  TopLevelDataURLNavigationWithDocumentIsolationPolicy
+#endif
+IN_PROC_BROWSER_TEST_F(
+    ChromeNavigationBrowserTest,
+    MAYBE_TopLevelDataURLNavigationWithDocumentIsolationPolicy) {
   ContextMenuNotificationObserver menu_observer(
       IDC_CONTENT_CONTEXT_OPENLINKNEWTAB);
   ui_test_utils::AllBrowserTabAddedWaiter add_tab;

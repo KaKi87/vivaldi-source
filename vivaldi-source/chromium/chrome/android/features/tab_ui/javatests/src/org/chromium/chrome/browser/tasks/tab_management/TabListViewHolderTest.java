@@ -98,6 +98,7 @@ import org.chromium.chrome.browser.tasks.tab_management.TabListModel.CardPropert
 import org.chromium.chrome.browser.tasks.tab_management.TabProperties.TabActionState;
 import org.chromium.chrome.tab_ui.R;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
+import org.chromium.components.browser_ui.util.TextResolver;
 import org.chromium.components.browser_ui.util.motion.MotionEventInfo;
 import org.chromium.components.browser_ui.util.motion.MotionEventTestUtils;
 import org.chromium.components.browser_ui.widget.selectable_list.SelectionDelegate;
@@ -110,6 +111,7 @@ import org.chromium.components.payments.ui.CurrencyFormatterJni;
 import org.chromium.components.tab_group_sync.EitherId.EitherGroupId;
 import org.chromium.components.tab_group_sync.LocalTabGroupId;
 import org.chromium.components.tab_groups.TabGroupColorId;
+import org.chromium.components.tab_groups.TabGroupsFeatureMap;
 import org.chromium.content_public.browser.BrowserContextHandle;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
@@ -126,7 +128,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add(ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE)
 @EnableFeatures(ChromeFeatureList.PRICE_ANNOTATIONS)
-@DisableFeatures(ChromeFeatureList.DATA_SHARING_JOIN_ONLY)
+@DisableFeatures({
+    ChromeFeatureList.DATA_SHARING_JOIN_ONLY,
+    TabGroupsFeatureMap.UPDATE_TAB_GROUP_COLORS
+})
 @Batch(Batch.UNIT_TESTS)
 public class TabListViewHolderTest {
     private static final int TAB1_ID = 456;

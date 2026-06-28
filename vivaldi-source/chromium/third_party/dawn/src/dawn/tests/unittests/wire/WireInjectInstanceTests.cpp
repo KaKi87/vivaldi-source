@@ -27,11 +27,11 @@
 
 #include <array>
 
-#include "dawn/common/StringViewUtils.h"
-#include "dawn/tests/MockCallback.h"
-#include "dawn/tests/unittests/wire/WireTest.h"
 #include "dawn/wire/WireClient.h"
 #include "dawn/wire/WireServer.h"
+#include "src/dawn/common/StringViewUtils.h"
+#include "src/dawn/tests/MockCallback.h"
+#include "src/dawn/tests/unittests/wire/WireTest.h"
 
 namespace dawn::wire {
 namespace {
@@ -39,8 +39,6 @@ namespace {
 using testing::_;
 using testing::Mock;
 using testing::MockCallback;
-using testing::NotNull;
-using testing::Return;
 
 class WireInjectInstanceTests : public WireTest {
   public:

@@ -8,9 +8,9 @@ source_set("vivaldi_pagezoom_dialog") {
     "vivaldi_pagezoom_dialog_coordinator.mm",
     "vivaldi_pagezoom_dialog_mediator.h",
     "vivaldi_pagezoom_dialog_mediator.mm",
+    "vivaldi_pagezoom_utils.mm",
     "vivaldi_pagezoom_view_controller.h",
     "vivaldi_pagezoom_view_controller.mm",
-    "vivaldi_pagezoom_utils.mm",
   ]
 
   deps = [
@@ -18,14 +18,14 @@ source_set("vivaldi_pagezoom_dialog") {
     "//components/prefs",
     "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
     "//ios/chrome/browser/shared/model/browser",
-    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/prefs",
+    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/utils",
     "//ui/base",
   ]
 
   frameworks = [
     "Foundation.framework",
-    "UIKit.framework"
+    "UIKit.framework",
   ]
 }

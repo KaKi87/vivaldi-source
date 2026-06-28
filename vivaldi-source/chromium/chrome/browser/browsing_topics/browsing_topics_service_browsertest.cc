@@ -406,7 +406,8 @@ class BrowsingTopicsBrowserTest : public BrowsingTopicsBrowserTestBase {
           {{"epoch_retention_duration", "3650000d"}}},
          {blink::features::kBrowsingTopicsBypassIPIsPubliclyRoutableCheck, {}},
          {features::kPrivacySandboxAdsAPIsOverride, {}}},
-        /*disabled_features=*/{});
+        /*disabled_features=*/{
+            {privacy_sandbox::kPrivacySandboxAdPrivacyUxDeprecation}});
   }
 
   ~BrowsingTopicsBrowserTest() override = default;
@@ -1243,7 +1244,7 @@ IN_PROC_BROWSER_TEST_F(BrowsingTopicsBrowserTest,
   EXPECT_EQ(result, kExpectedApiResult);
 }
 
-// Regression test for crbug/1339735.
+// Regression test for crbug.com/40849882.
 IN_PROC_BROWSER_TEST_F(
     BrowsingTopicsBrowserTest,
     TopicsAPIInvokedInMainFrameUnloadHandler_NoRendererCrash) {

@@ -4,7 +4,6 @@
 
 #include "chrome/browser/web_applications/isolated_web_apps/commands/install_isolated_web_app_command.h"
 
-#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -41,6 +40,7 @@
 #include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_builder.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/key_distribution/test_utils.h"
 #include "chrome/browser/web_applications/locks/lock.h"
+#include "chrome/browser/web_applications/model/web_app_icon_types.h"
 #include "chrome/browser/web_applications/test/fake_web_app_provider.h"
 #include "chrome/browser/web_applications/test/fake_web_contents_manager.h"
 #include "chrome/browser/web_applications/test/mock_data_retriever.h"
@@ -52,7 +52,6 @@
 #include "chrome/browser/web_applications/web_app_constants.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_icon_manager.h"
-#include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_install_utils.h"
 #include "chrome/browser/web_applications/web_app_management_type.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
@@ -585,12 +584,12 @@ TEST_F(InstallIsolatedWebAppCommandManifestIconsTest,
 
   EXPECT_THAT(ExecuteCommand(Parameters{.url_info = url_info}), HasValue());
 
-  base::test::TestFuture<std::map<SquareSizePx, SkBitmap>> test_future;
+  base::test::TestFuture<OrderedSizeToBitmap> test_future;
   web_app_icon_manager().ReadIconAndResize(url_info.app_id(), IconPurpose::ANY,
                                            SquareSizePx{1},
                                            test_future.GetCallback());
 
-  std::map<SquareSizePx, SkBitmap> icon_bitmaps = test_future.Get();
+  OrderedSizeToBitmap icon_bitmaps = test_future.Get();
 
   EXPECT_THAT(icon_bitmaps,
               UnorderedElementsAre(Pair(_, ResultOf(

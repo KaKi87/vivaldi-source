@@ -31,12 +31,12 @@
 #include <utility>
 
 #include "dawn/native/DawnNative.h"
-#include "dawn/native/SharedResourceMemory.h"
 #include "dawn/native/dawn_platform_autogen.h"
-#include "dawn/tests/unittests/native/mocks/BufferMock.h"
-#include "dawn/tests/unittests/native/mocks/DawnMockTest.h"
-#include "dawn/tests/unittests/native/mocks/TextureMock.h"
 #include "gtest/gtest.h"
+#include "src/dawn/native/SharedResourceMemory.h"
+#include "src/dawn/tests/unittests/native/mocks/BufferMock.h"
+#include "src/dawn/tests/unittests/native/mocks/DawnMockTest.h"
+#include "src/dawn/tests/unittests/native/mocks/TextureMock.h"
 
 namespace dawn::native {
 namespace {
@@ -193,8 +193,6 @@ TEST_F(MemoryInstrumentationTest, DumpMemoryStatistics) {
         .usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TransientAttachment,
         .size = {.width = 30, .height = 20},
         .format = kRGBA8UnormTextureFormat,
-        .viewFormatCount = 1,
-        .viewFormats = &kRGBA8UnormTextureFormat,
     };
     wgpu::Texture transientAttachmentTexture =
         device.CreateTexture(&kTransientAttachmentTextureDesc);

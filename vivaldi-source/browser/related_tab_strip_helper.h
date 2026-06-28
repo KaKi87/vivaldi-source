@@ -11,7 +11,6 @@
 
 #include "base/containers/flat_set.h"
 #include "browser/tab_probe.h"
-#include "ui/base/page_transition_types.h"
 
 class Browser;
 class TabStripModel;
@@ -24,11 +23,6 @@ class WebContents;
 namespace vivaldi {
 
 namespace related_tabs {
-
-enum TabSource {
-  kGeneral,
-  kExternalApp,
-};
 
 // Translate ext_ids to tab_ids. The ext_id may be either a tab ext_id or the
 // group ext_id. In case of group ext_id all the tabs within the group would
@@ -64,17 +58,6 @@ void HandleGroups(TabStripModel* tab_strip_model,
 // WARNING: There could be tabs from the different workspaces in between.
 std::optional<int> GetLastInTree(int index, TabStripModel* tab_strip);
 int GetLastInTree(const TabProbe& probe);
-
-std::optional<int> DetermineInsertionIndex(TabStripModel* tab_strip,
-                                           content::WebContents* contents,
-                                           int add_types,
-                                           ui::PageTransition transition,
-                                           TabSource source);
-
-std::optional<int> DetermineDuplicateIndex(TabStripModel* tab_strip,
-                                           content::WebContents* origin,
-                                           content::WebContents* contents,
-                                           int add_types);
 
 std::pair<int, int> CountPinned(const std::vector<TabProbe>& probes);
 

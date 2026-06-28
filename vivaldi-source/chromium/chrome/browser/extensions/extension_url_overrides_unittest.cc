@@ -26,6 +26,7 @@
 #include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/mock_external_provider.h"
+#include "extensions/browser/permissions/permissions_updater.h"
 #include "extensions/browser/test_extension_registry_observer.h"
 #include "extensions/buildflags/buildflags.h"
 #include "extensions/common/api/chrome_url_overrides.h"
@@ -365,14 +366,16 @@ TEST_F(ExtensionWebUITest, TestNumExtensionsOverridingURL) {
                             std::move(chrome_url_overrides))
             .Build();
 
+    PermissionsUpdater(profile_.get()).GrantActivePermissions(extension.get());
     registrar()->AddExtension(extension.get());
-    EXPECT_EQ(extension, ExtensionUrlOverrides::GetExtensionControllingURL(
-                             GURL(chrome::kChromeUINewTabURL), profile_.get()));
+    EXPECT_EQ(extension,
+              ExtensionUrlOverrides::GetExtensionControllingURL(
+                  chrome::ChromeUINewTabURLAsGURL(), profile_.get()));
 
     return extension.get();
   };
 
-  const GURL ntp_url(chrome::kChromeUINewTabURL);
+  const GURL& ntp_url = chrome::ChromeUINewTabURLAsGURL();
 
   // Load a series of extensions that override the new tab page.
   const Extension* extension1 = load_extension_overriding_newtab("one");

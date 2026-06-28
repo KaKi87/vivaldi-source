@@ -314,9 +314,6 @@ constexpr auto kDefaultSupportedPartialTranslateLanguages =
 constexpr std::string_view kLanguageListFetchPath =
     "translate_a/l?client=chrome";
 
-// Represent if the language list updater is disabled.
-bool update_is_disabled = false;
-
 // Retry parameter for fetching.
 constexpr int kMaxRetryOn5xx = 5;
 
@@ -325,25 +322,25 @@ constexpr int kMaxRetryOn5xx = 5;
 const char TranslateLanguageList::kTargetLanguagesKey[] = "tl";
 
 TranslateLanguageList::TranslateLanguageList()
+    : TranslateLanguageList(
+          std::make_unique<TranslateURLFetcherImpl>(kMaxRetryOn5xx)) {}
+
+TranslateLanguageList::TranslateLanguageList(
+    std::unique_ptr<TranslateUrlFetcher> fetcher)
     : resource_requests_allowed_(false),
       request_pending_(false),
       // We default to our hard coded list of languages in
       // |kDefaultSupportedLanguages|. This list will be overridden by a server
       // providing supported languages list.
       supported_languages_(std::begin(kDefaultSupportedLanguages),
-                           std::end(kDefaultSupportedLanguages)) {
+                           std::end(kDefaultSupportedLanguages)),
+      language_list_fetcher_(std::move(fetcher)) {
   // |kDefaultSupportedLanguages| should be sorted alphabetically and contain no
   // duplicates.
   DCHECK(
       std::is_sorted(supported_languages_.begin(), supported_languages_.end()));
   DCHECK(supported_languages_.end() ==
          std::ranges::adjacent_find(supported_languages_));
-
-  if (update_is_disabled)
-    return;
-
-  language_list_fetcher_ =
-      std::make_unique<TranslateURLFetcherImpl>(kMaxRetryOn5xx);
 }
 
 TranslateLanguageList::~TranslateLanguageList() = default;
@@ -356,8 +353,7 @@ void TranslateLanguageList::GetSupportedLanguages(
 
   // Update language lists if they are not updated after Chrome was launched
   // for later requests.
-  if (translate_allowed && !update_is_disabled &&
-      language_list_fetcher_.get()) {
+  if (translate_allowed && language_list_fetcher_.get()) {
     RequestLanguageList();
   }
 }
@@ -448,11 +444,6 @@ bool TranslateLanguageList::HasOngoingLanguageListLoadingForTesting() {
 
 GURL TranslateLanguageList::LanguageFetchURLForTesting() {
   return AddApiKeyToUrl(AddHostLocaleToUrl(TranslateLanguageUrl()));
-}
-
-// static
-void TranslateLanguageList::DisableUpdate() {
-  update_is_disabled = true;
 }
 
 void TranslateLanguageList::OnLanguageListFetchComplete(

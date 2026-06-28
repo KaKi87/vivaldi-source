@@ -38,8 +38,7 @@ Profile* SidePanelCoordinator::GetProfile() {
   return browser_->GetProfile();
 }
 
-void SidePanelCoordinator::Close(SidePanelEntry::PanelType panel_type,
-                                 SidePanelEntryHideReason hide_reason,
+void SidePanelCoordinator::Close(SidePanelEntryHideReason hide_reason,
                                  bool suppress_animations) {}
 
 void SidePanelCoordinator::Show(
@@ -75,18 +74,16 @@ void SidePanelCoordinator::Toggle(SidePanelEntryKey key,
 
 // void SidePanelCoordinator::UpdatePinState() {}
 
-std::optional<SidePanelEntryId> SidePanelCoordinator::GetCurrentEntryId(
-    SidePanelEntry::PanelType panel_type) const {
+std::optional<SidePanelEntryId> SidePanelCoordinator::GetCurrentEntryId()
+    const {
   return std::optional<SidePanelEntryId>();
 }
 
-int SidePanelCoordinator::GetCurrentEntryDefaultContentWidth(
-    SidePanelEntry::PanelType panel_type) const {
+int SidePanelCoordinator::GetCurrentEntryDefaultContentWidth() const {
   return 0;
 }
 
-bool SidePanelCoordinator::IsSidePanelShowing(
-    SidePanelEntry::PanelType panel_type) const {
+bool SidePanelCoordinator::IsSidePanelShowing() const {
   return false;
 }
 
@@ -107,7 +104,6 @@ bool SidePanelCoordinator::IsSidePanelEntryShowing(
 }
 
 base::CallbackListSubscription SidePanelCoordinator::RegisterSidePanelShown(
-    SidePanelEntry::PanelType type,
     ShownCallback callback) {
   return {};
 }

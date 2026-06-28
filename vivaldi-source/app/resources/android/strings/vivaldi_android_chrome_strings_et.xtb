@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="et">
+<translation id="1062777154504442433">Uus kaardivirn</translation>
 <translation id="1204037785786432551">Salvesta link</translation>
 <translation id="1206892813135768548">Kopeeri lingi tekst</translation>
+<translation id="1328749518742029305">Kaardivirn „<ph name="TAB_GROUP_TITLE" />” suletud ja salvestatud</translation>
 <translation id="1397811292916898096">Otsing: <ph name="PRODUCT_NAME" /></translation>
 <translation id="1435593198351412143">PDF-id avatakse automaatselt</translation>
 <translation id="1456207338570705181">Puute peale otsimise funktsioon on saadaval vaid siis, kui Vivaldi vaikimisi otsingumootor on Google. Funktsioon saadab valitud sõna ja praeguse lehe kontekstina Google’i otsingule. <ph name="BEGIN_LINK" />Seadetes<ph name="END_LINK" /> saab selle välja lülitada.</translation>
 <translation id="1598449788754183301">Lülita tavaliste ja privaatsete kaartide vahel</translation>
 <translation id="1644574205037202324">Ajalugu</translation>
 <translation id="1829244130665387512">Otsi lehelt</translation>
-<translation id="1910514478706885609">Ava uues kaardivirnas</translation>
 <translation id="1925021887439448749">Sisesta kohandatud veebiaadress</translation>
 <translation id="2038563949887743358">Lülita saitide arvutiversiooni taotlemine sisse</translation>
 <translation id="208033313373016095">Lugemisvaade veebilehtedele</translation>
 <translation id="2149973817440762519">Muuda järjehoidjat</translation>
 <translation id="2306442503286132111">Järjehoidja salvestatud kausta „<ph name="FOLDER_NAME" />”</translation>
 <translation id="2433507940547922241">Välimus</translation>
-<translation id="2501278716633472235">Mine tagasi</translation>
 <translation id="2546283357679194313">Küpsised ja saidiandmed</translation>
 <translation id="2633278372998075009">Privaatsed kaardid</translation>
 <translation id="2650751991977523696">Kas laadida fail uuesti alla?</translation>
@@ -26,6 +26,7 @@
 <translation id="2871733351037274014">Lehtede eellaadimine</translation>
 <translation id="2904300462646366554">Allalaaditud PDF-dokumendid avatakse automaatselt seadme PDF-vaaturiga.</translation>
 <translation id="2951071800649516099">Lugemisnimekirja saab lisada lehti, mida hiljem lugeda</translation>
+<translation id="3020023775880428664">Liiguta kaart teise virna</translation>
 <translation id="3029276696788198026">Eellaadimine puudub</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> järjehoidja}
@@ -43,7 +44,6 @@
 <translation id="3700829948786686853">Tere tulemast Vivaldit kasutama</translation>
 <translation id="3719826155360621982">Koduleht</translation>
 <translation id="3738139272394829648">Puute peale otsimine</translation>
-<translation id="385051799172605136">Tagasi</translation>
 <translation id="3987993985790029246">Kopeeri link</translation>
 <translation id="399014816462153200">Loetud:</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
@@ -59,20 +59,25 @@
 <translation id="4269820728363426813">Kopeeri lingi aadress</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Esmalt tuleb ekraanilukk Androidi seadetes sisse lülitada.<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Paroolihaldur</translation>
-<translation id="441100617989818073">Kasutamata või dubleeritud kaardid ja kaardivirnad</translation>
+<translation id="4445802392779002787">Lisa kaart virna</translation>
 <translation id="451872707440238414">Otsi järjehoidjatest</translation>
 <translation id="4526803704855831732">Privaatsed kaardid</translation>
 <translation id="4532845899244822526">Kausta valimine</translation>
+<translation id="454284936014822050">Kaardivirn „<ph name="GROUP_TITLE" />”</translation>
 <translation id="4699172675775169585">Vahemällu salvestatud pildid ja failid</translation>
 <translation id="4719086422742491124">Võimaldab veebisaitide sisu kohta lisateavet saada ilma lehelt lahkumata. Vali lehel tekst, mida otsida soovid.
 
 Puute peale otsimise funktsioon on saadaval vaid siis, kui Vivaldi vaikimisi otsingumootor on Google.</translation>
 <translation id="4759238208242260848">Allalaadimised</translation>
-<translation id="4777866634702576038">Kaardivirna kustutamine</translation>
+<translation id="4771820744342013314">Kas kustutada kaardivirn?</translation>
 <translation id="4850886885716139402">Näita</translation>
 <translation id="4883379392681899581">Välju privaatsest režiimist</translation>
 <translation id="4943872375798546930">Tulemusi pole</translation>
 <translation id="49576331685473090">Sisublokeerija</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" /> kaardivirn}
+          other {<ph name="TAB_GROUPS_MANY" /> kaardivirna}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> privaatne kaart}
           other {<ph name="TAB_COUNT_NORMAL" /> privaatset kaarti}}</translation>
@@ -83,6 +88,7 @@ Puute peale otsimise funktsioon on saadaval vaid siis, kui Vivaldi vaikimisi ots
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {Faili allalaadimine…}
             other {# faili allalaadimine…}}</translation>
+<translation id="5210689723585747462">Kaardivirn „<ph name="TAB_GROUP_TITLE" />” suletud</translation>
 <translation id="5233638681132016545">Uus kaart</translation>
 <translation id="5375131951310889874">Võimaldab veebisaitide sisu kohta lisateavet saada ilma lehelt lahkumata. Puute peale otsimise funktsioon on saadaval vaid siis, kui Vivaldi vaikimisi otsingumootor on Google. Funktsioon saadab sõna ja seda ümbritseva konteksti Google’i otsingule, saades vastu definitsioone, pilte, otsingutulemusi jm.
 
@@ -91,11 +97,13 @@ Otsimiseks puuduta pikalt mõnd sõna. Otsingu täpsustamiseks libista paneel t�
 <translation id="5833984609253377421">Jaga linki</translation>
 <translation id="6150320133806434356">Järjehoidja lisatud</translation>
 <translation id="6193448654517602979">Vali kaardid</translation>
+<translation id="6277377952699614191">Kaardivirn</translation>
 <translation id="6336451774241870485">Uus privaatne kaart</translation>
 <translation id="6337323516034698937">Selle kaardi teise seadmesse saatmiseks tuleb esmalt mõlemas seadmes Vivaldi sünkimisteenusesse sisse logida. Vaata, et sisestaksid ka krüptimisparooli, kui vaja.</translation>
 <translation id="6341580099087024258">Küsitakse, kuhu failid salvestada</translation>
 <translation id="6364438453358674297">Kas eemaldada see soovitus ajaloost?</translation>
 <translation id="6404511346730675251">Järjehoidja muutmine</translation>
+<translation id="6453011654157908292">Kaardivirna üksikasjad</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
           =1 {Fail on alla laaditud}
           other {# faili on alla laaditud}}</translation>
@@ -117,6 +125,8 @@ Otsimiseks puuduta pikalt mõnd sõna. Otsingu täpsustamiseks libista paneel t�
 <translation id="7456774706094330779">Laiendatud eellaadimine</translation>
 <translation id="7465104139234185284">Sulge kõik privaatsed kaardid</translation>
 <translation id="7481312909269577407">Edasi</translation>
+<translation id="759273611317559136">Kaardivirn „<ph name="TAB_GROUP_TITLE" />” kustutatud</translation>
+<translation id="7640137753339219124">Kustuta virn</translation>
 <translation id="7764225426217299476">Lisa aadress</translation>
 <translation id="7968014550143838305">Lisati lugemisnimekirja</translation>
 <translation id="804786196054284061">Tarkvara litsentsileping</translation>
@@ -128,6 +138,8 @@ Otsimiseks puuduta pikalt mõnd sõna. Otsingu täpsustamiseks libista paneel t�
           other {(#) mitteaktiivset}}</translation>
 <translation id="8266862848225348053">Allalaadimiste asukoht</translation>
 <translation id="8348430946834215779">Võimaluse korral kasutatakse HTTPS-i ning kui sait seda ei toeta, näidatakse enne laadimist hoiatust.</translation>
+<translation id="8480628728881718381">Ava uuel kaardil selles virnas</translation>
+<translation id="8543049482641423692">Lisa kaart uude virna</translation>
 <translation id="8560602726703398413">Lugemisnimekirja leiad järjehoidjate alt.</translation>
 <translation id="85991616550051997">Mine kodulehele</translation>
 <translation id="8738163682604285902">Kas lülituda lugemisvaatesse?</translation>

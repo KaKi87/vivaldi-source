@@ -22,6 +22,8 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/views/web_apps/web_app_dialog_test_support.h"
+#include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/ui/web_applications/web_app_browsertest_base.h"
 #include "chrome/browser/ui/web_applications/web_app_dialogs.h"
@@ -40,6 +42,7 @@
 #include "chrome/browser/web_applications/web_app_registry_update.h"
 #include "chrome/browser/web_applications/web_app_sync_bridge.h"
 #include "chrome/browser/web_applications/web_install_service_impl.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -54,6 +57,7 @@
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_renderer_host.h"
 #include "net/base/url_util.h"
+#include "net/test/embedded_test_server/controllable_http_response.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "skia/ext/image_operations.h"
@@ -97,7 +101,6 @@ namespace web_app {
 // where this command is essentially being used to reinstall an app that doesn't
 // meet the launch criteria specified via the filter.
 enum class NotLaunchableFromInstallApi {
-  // By default,
   kNoOSIntegration,
   kDisplayModeBrowser,
 };
@@ -107,8 +110,9 @@ class WebInstallFromUrlCommandBrowserTest
       public ::testing::WithParamInterface<NotLaunchableFromInstallApi> {
  public:
   WebInstallFromUrlCommandBrowserTest() {
-    scoped_feature_list_.InitAndEnableFeature(
-        blink::features::kWebAppInstallation);
+    scoped_feature_list_.InitWithFeatures(
+        {blink::features::kWebAppInstallation},
+        {features::kWebAppInstallDialog});
   }
 
   void SetUpOnMainThread() override {
@@ -203,7 +207,7 @@ class WebInstallFromUrlCommandBrowserTest
   // manifest_id.
   std::deque<AppInstalledBy> GetInstalledBy(const GURL& manifest_id) {
     webapps::AppId app_id_from_manifest_id =
-        GenerateAppIdFromManifestId(manifest_id);
+        GenerateAppIdFromManifestId(webapps::ManifestId(manifest_id));
 
     bool found_app = provider().registrar_unsafe().AppMatches(
         app_id_from_manifest_id, WebAppFilter::LaunchableFromInstallApi());
@@ -263,8 +267,7 @@ IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
           .GetURL("/banners/manifest_with_id_test_page.html")
           .spec();
 
-  auto auto_accept_pwa_install_confirmation =
-      SetAutoAcceptPWAInstallConfirmationForTesting();
+  web_app::test::ScopedAutoAcceptWebAppDialogs auto_accept_pwa;
   SetPermissionResponse(/*permission_granted=*/true);
   base::HistogramTester histograms;
   ASSERT_TRUE(TryInstallApp(install_url));
@@ -339,8 +342,7 @@ IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
   std::string manifest_id =
       install_url.GetWithoutFilename().spec() + "index.html";
 
-  auto auto_accept_pwa_install_confirmation =
-      SetAutoAcceptPWAInstallConfirmationForTesting();
+  web_app::test::ScopedAutoAcceptWebAppDialogs auto_accept_pwa;
   SetPermissionResponse(/*permission_granted=*/true);
   base::HistogramTester histograms;
   ASSERT_TRUE(TryInstallApp(install_url.spec(), manifest_id));
@@ -410,29 +412,24 @@ IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
 IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
                        InstallApp_FromPWAWindow) {
   // Install setup
-  auto auto_accept_pwa_install_confirmation =
-      SetAutoAcceptPWAInstallConfirmationForTesting();
-  ui_test_utils::BrowserCreatedObserver browser_created_observer;
+  web_app::test::ScopedAutoAcceptWebAppDialogs auto_accept_pwa;
   base::HistogramTester histograms;
 
   // Install the pwa to use to call `navigator.install()` from within.
-  webapps::AppId app_id = InstallWebAppFromPage(
+  Browser* app_browser = web_app::InstallWebAppFromPageGetBrowser(
       browser(),
       embedded_https_test_server().GetURL("/banners/manifest_test_page.html"));
-  Browser* app_browser = browser_created_observer.Wait();
+  const webapps::AppId app_id = app_browser->app_controller()->app_id();
   content::WebContents* app_web_contents =
       app_browser->tab_strip_model()->GetActiveWebContents();
   histograms.ExpectBucketCount("WebApp.LaunchSource",
                                apps::LaunchSource::kFromReparenting, 1);
 
-  // app to install with `navigator.install()`.
+  // App to install with `navigator.install()`.
   const GURL install_url = embedded_https_test_server().GetURL(
       "/banners/manifest_with_id_test_page.html");
   const GURL manifest_id = embedded_https_test_server().GetURL("/some_id");
 
-  base::AutoReset<bool> auto_accept =
-      SetAutoAcceptPWAInstallConfirmationForTesting();
-  // NavigateToValidUrl(app_browser);
   SetPermissionResponse(/*permission_granted=*/true, app_web_contents);
   // !Important! Because the 2 apps share a scope, we need to pass manifest_id
   // here to ensure an accurate app lookup. If we don't, we'll end up matching
@@ -497,8 +494,7 @@ IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
       install_url.GetWithoutFilename().spec() + "index.html";
   base::HistogramTester histograms;
 
-  auto auto_accept_pwa_install_confirmation =
-      SetAutoAcceptPWAInstallConfirmationForTesting();
+  web_app::test::ScopedAutoAcceptWebAppDialogs auto_accept_pwa;
   SetPermissionResponse(/*permission_granted=*/true);
   ASSERT_TRUE(TryInstallApp(install_url.spec(), manifest_id));
 
@@ -617,8 +613,7 @@ IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
       install_url.GetWithoutFilename().spec() + "index.html";
   base::HistogramTester histograms;
 
-  auto auto_accept_pwa_install_confirmation =
-      SetAutoAcceptPWAInstallConfirmationForTesting();
+  web_app::test::ScopedAutoAcceptWebAppDialogs auto_accept_pwa;
   SetPermissionResponse(/*permission_granted=*/true);
   ASSERT_TRUE(TryInstallApp(install_url.spec(), manifest_id));
 
@@ -739,8 +734,7 @@ IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), current_doc_url));
 
   base::HistogramTester histograms;
-  auto auto_accept_pwa_install_confirmation =
-      SetAutoAcceptPWAInstallConfirmationForTesting();
+  web_app::test::ScopedAutoAcceptWebAppDialogs auto_accept_pwa;
   // No permission should be required.
   SetPermissionResponse(/*permission_granted=*/false);
 
@@ -807,11 +801,8 @@ IN_PROC_BROWSER_TEST_F(WebInstallBackgroundAppAlreadyInstalledBrowserTest,
   const std::string manifest_id =
       GenerateManifestId("some_id", background_doc_install_url).spec();
 
-  webapps::AppId app_id = web_app::InstallWebAppFromPageAndCloseAppBrowser(
+  webapps::AppId app_id = web_app::InstallWebAppInNewTabAndClose(
       browser(), background_doc_install_url);
-  // Verify that the app was installed and launched.
-  histograms.ExpectBucketCount("WebApp.LaunchSource",
-                               apps::LaunchSource::kFromReparenting, 1);
 
   // Initiate another install request for the same background document.
   base::AutoReset<bool> auto_accept =
@@ -873,11 +864,8 @@ IN_PROC_BROWSER_TEST_F(WebInstallBackgroundAppAlreadyInstalledBrowserTest,
   const std::string manifest_id =
       GenerateManifestId("some_id", background_doc_install_url).spec();
 
-  webapps::AppId app_id = web_app::InstallWebAppFromPageAndCloseAppBrowser(
+  webapps::AppId app_id = web_app::InstallWebAppInNewTabAndClose(
       browser(), background_doc_install_url);
-  // Verify that the app was installed and launched.
-  histograms.ExpectBucketCount("WebApp.LaunchSource",
-                               apps::LaunchSource::kFromReparenting, 1);
 
   // Initiate another install request for the same background document.
   base::AutoReset<bool> auto_accept =
@@ -940,11 +928,8 @@ IN_PROC_BROWSER_TEST_F(WebInstallBackgroundAppAlreadyInstalledBrowserTest,
   const std::string manifest_id =
       GenerateManifestId("some_id", background_doc_install_url).spec();
 
-  webapps::AppId app_id = web_app::InstallWebAppFromPageAndCloseAppBrowser(
+  webapps::AppId app_id = web_app::InstallWebAppInNewTabAndClose(
       browser(), background_doc_install_url);
-  // Verify that the app was installed and launched.
-  histograms.ExpectBucketCount("WebApp.LaunchSource",
-                               apps::LaunchSource::kFromReparenting, 1);
 
   // Because we didn't install via web install, we'll be prompted to allow
   // permission before the launch.
@@ -1028,11 +1013,8 @@ IN_PROC_BROWSER_TEST_F(WebInstallBackgroundAppAlreadyInstalledBrowserTest,
   const std::string manifest_id =
       GenerateManifestId("some_id", background_doc_install_url).spec();
 
-  webapps::AppId app_id = web_app::InstallWebAppFromPageAndCloseAppBrowser(
+  webapps::AppId app_id = web_app::InstallWebAppInNewTabAndClose(
       browser(), background_doc_install_url);
-  // Verify that the app was installed and launched.
-  histograms.ExpectBucketCount("WebApp.LaunchSource",
-                               apps::LaunchSource::kFromReparenting, 1);
 
   // Create a redirect URL that redirects to the already installed app.
   GURL redirect_url = embedded_https_test_server().GetURL(
@@ -1067,11 +1049,8 @@ IN_PROC_BROWSER_TEST_F(WebInstallBackgroundAppAlreadyInstalledBrowserTest,
   const std::string manifest_id =
       GenerateManifestId("some_id", background_doc_install_url).spec();
 
-  webapps::AppId app_id = web_app::InstallWebAppFromPageAndCloseAppBrowser(
+  webapps::AppId app_id = web_app::InstallWebAppInNewTabAndClose(
       browser(), background_doc_install_url);
-  // Verify that the app was installed and launched.
-  histograms.ExpectBucketCount("WebApp.LaunchSource",
-                               apps::LaunchSource::kFromReparenting, 1);
 
   // Because we didn't install via web install, we'll be prompted to allow
   // permission before the launch.
@@ -1131,13 +1110,11 @@ IN_PROC_BROWSER_TEST_F(WebInstallBackgroundAppAlreadyInstalledBrowserTest,
       "/banners/manifest_with_id_test_page.html");
   const std::string manifest_id =
       GenerateManifestId("some_id", install_url).spec();
-  auto auto_accept_pwa_install_confirmation =
-      SetAutoAcceptPWAInstallConfirmationForTesting();
-  ui_test_utils::BrowserCreatedObserver browser_created_observer;
+  web_app::test::ScopedAutoAcceptWebAppDialogs auto_accept_pwa;
 
-  webapps::AppId app_id =
-      web_app::InstallWebAppFromPage(browser(), install_url);
-  Browser* app_browser = browser_created_observer.Wait();
+  Browser* app_browser =
+      web_app::InstallWebAppFromPageGetBrowser(browser(), install_url);
+  const webapps::AppId app_id = app_browser->app_controller()->app_id();
   content::WebContents* app_web_contents =
       app_browser->tab_strip_model()->GetActiveWebContents();
   histograms.ExpectBucketCount("WebApp.LaunchSource",
@@ -1212,8 +1189,7 @@ IN_PROC_BROWSER_TEST_F(WebInstallBackgroundAppAlreadyInstalledBrowserTest,
 
   // Initialize first install.
   SetPermissionResponse(/*permission_granted=*/true);
-  auto auto_accept_pwa_install_confirmation =
-      SetAutoAcceptPWAInstallConfirmationForTesting();
+  web_app::test::ScopedAutoAcceptWebAppDialogs auto_accept_pwa;
 
   ASSERT_TRUE(TryInstallApp(install_url.spec(), manifest_id.spec()));
   EXPECT_TRUE(ResultExists());
@@ -1296,15 +1272,14 @@ IN_PROC_BROWSER_TEST_F(WebInstallBackgroundAppAlreadyInstalledBrowserTest,
       "/banners/manifest_with_id_test_page.html");
   const GURL manifest_url =
       embedded_https_test_server().GetURL("/banners/manifest_with_id.json");
-  const GURL manifest_id = GenerateManifestId("some_id", install_url);
+  const GURL manifest_id = GenerateManifestId("some_id", install_url).value();
 
-  auto info_result =
-      WebAppInstallInfo::Create(manifest_url, manifest_id, install_url);
+  auto info_result = WebAppInstallInfo::Create(
+      manifest_url, webapps::ManifestId(manifest_id), install_url);
   ASSERT_TRUE(info_result.has_value());
   std::unique_ptr<WebAppInstallInfo> info =
       std::make_unique<WebAppInstallInfo>(std::move(info_result.value()));
-  auto auto_accept_pwa_install_confirmation =
-      SetAutoAcceptPWAInstallConfirmationForTesting();
+  web_app::test::ScopedAutoAcceptWebAppDialogs auto_accept_pwa;
 
   // Install the app.
   webapps::AppId app_id =
@@ -1377,10 +1352,10 @@ IN_PROC_BROWSER_TEST_P(WebInstallFromUrlCommandBrowserTest, LaunchApp) {
       "/banners/manifest_with_id_test_page.html");
   const GURL manifest_url =
       embedded_https_test_server().GetURL("/banners/manifest_with_id.json");
-  const GURL manifest_id = GenerateManifestId("some_id", install_url);
+  const GURL manifest_id = GenerateManifestId("some_id", install_url).value();
 
-  auto info_result =
-      WebAppInstallInfo::Create(manifest_url, manifest_id, install_url);
+  auto info_result = WebAppInstallInfo::Create(
+      manifest_url, webapps::ManifestId(manifest_id), install_url);
   ASSERT_TRUE(info_result.has_value());
   std::unique_ptr<WebAppInstallInfo> info =
       std::make_unique<WebAppInstallInfo>(std::move(info_result.value()));
@@ -1423,8 +1398,7 @@ IN_PROC_BROWSER_TEST_P(WebInstallFromUrlCommandBrowserTest, LaunchApp) {
   // Prepare to invoke navigator.install for the already installed app, which
   // should initiate the *install* dialog.
   base::HistogramTester histograms;
-  auto auto_accept_pwa_install_confirmation =
-      SetAutoAcceptPWAInstallConfirmationForTesting();
+  web_app::test::ScopedAutoAcceptWebAppDialogs auto_accept_pwa;
   SetPermissionResponse(/*permission_granted=*/true);
 
   NavigateToValidUrl();
@@ -1500,8 +1474,7 @@ IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
   base::HistogramTester histograms;
   SetPermissionResponse(/*permission_granted=*/true);
   // Simulate the user declining the install dialog.
-  auto auto_decline_pwa_install_confirmation =
-      SetAutoDeclinePWAInstallConfirmationForTesting();
+  web_app::test::ScopedAutoDeclineInstallDialogs auto_decline;
 
   ASSERT_TRUE(TryInstallApp(install_url.spec()));
 
@@ -1551,7 +1524,7 @@ IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
 IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest, NoManifest) {
   NavigateToValidUrl();
 
-  // If the site does not have a manifest, the manifest_id will default to the
+  // The site has no manifest, so the install should fail.
   std::string install_url = embedded_https_test_server()
                                 .GetURL("/banners/no_manifest_test_page.html")
                                 .spec();
@@ -1618,7 +1591,7 @@ IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest, NoManifest) {
 IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest, InvalidManifest) {
   NavigateToValidUrl();
 
-  // If the site has an invalid manifest, the manifest_id defaults to the
+  // The site has an invalid manifest, so the install should fail.
   std::string install_url =
       embedded_https_test_server()
           .GetURL("/banners/invalid_manifest_test_page.html")
@@ -1687,7 +1660,7 @@ IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
                        ManifestIdMismatch) {
   NavigateToValidUrl();
 
-  // The computed manifest id of this app is the same as the install_url.
+  // Pass a manifest_id that doesn't match the app's actual manifest id.
   std::string install_url = GetInstallableAppURL().spec();
   std::string manifest_id =
       embedded_https_test_server().GetURL("/incorrect_id").spec();
@@ -1882,8 +1855,7 @@ IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
 IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest, InvalidInstallUrl) {
   NavigateToValidUrl();
 
-  // If the site does not have a manifest, the manifest_id will default to the
-  // current document.
+  // The install URL is unreachable, so the install should fail.
   std::string install_url = "https://invalid.url";
   std::string manifest_id = install_url;
   base::HistogramTester histograms;
@@ -2118,4 +2090,79 @@ IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandDialogTest,
       url_formatter::FormatUrlForDisplayOmitSchemePathAndTrivialSubdomains(
           install_url));
 }
+
+IN_PROC_BROWSER_TEST_F(WebInstallFromUrlCommandBrowserTest,
+                       InstallApp_CrossOrigin_NavigatedDuringInstall) {
+  net::EmbeddedTestServer third_server{net::EmbeddedTestServer::TYPE_HTTPS};
+  third_server.AddDefaultHandlers(GetChromeTestDataDir());
+  net::test_server::ControllableHttpResponse manifest_response(
+      &third_server, "/web_apps/install_url/manifest.json");
+  ASSERT_TRUE(third_server.Start());
+
+  // Navigate to attacker.com (primary server)
+  NavigateToValidUrl();
+
+  GURL install_url =
+      third_server.GetURL("/web_apps/install_url/install_url.html");
+
+  SetPermissionResponse(/*permission_granted=*/true);
+
+  // Call navigator.install asynchronously.
+  ExecuteScriptAsync(web_contents(),
+                     "navigator.install('" + install_url.spec() + "');");
+
+  // Wait for manifest request.
+  manifest_response.WaitForRequest();
+
+  // Navigate the initiating tab to trusted.com (third_server)
+  GURL trusted_url = third_server.GetURL("/simple.html");
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), trusted_url));
+
+  // Send the manifest.
+  std::string manifest_content = R"({
+    "name": "Simple web app",
+    "id": "some_id",
+    "icons": [
+      {
+        "src": "basic-48.png",
+        "sizes": "48x48",
+        "type": "image/png"
+      },
+      {
+        "src": "basic-192.png",
+        "sizes": "192x192",
+        "type": "image/png"
+      }
+    ],
+    "start_url": "index.html",
+    "display": "standalone",
+    "scope": "."
+  })";
+  manifest_response.Send(net::HTTP_OK, "application/manifest+json",
+                         manifest_content);
+  manifest_response.Done();
+
+  // Wait for the install dialog to show.
+  views::NamedWidgetShownWaiter widget_waiter(
+      views::test::AnyWidgetTestPasskey{}, "WebAppSimpleInstallDialog");
+  views::Widget* widget = widget_waiter.WaitIfNeededAndGet();
+  ASSERT_NE(widget, nullptr);
+
+  // Verify the initiating origin subtitle label is attacker.com (primary
+  // server), NOT trusted.com (third_server) even though we navigated there.
+  std::u16string expected_initiating_origin = base::ReplaceStringPlaceholders(
+      u"from: 127.0.0.1:$1",
+      base::span<const std::u16string>(
+          {base::NumberToString16(embedded_https_test_server().port())}),
+      nullptr);
+  views::BubbleDialogDelegate* const bubble_delegate =
+      widget->widget_delegate()->AsBubbleDialogDelegate();
+  EXPECT_EQ(bubble_delegate->GetSubtitle(), expected_initiating_origin);
+
+  // Clean up.
+  views::test::WidgetDestroyedWaiter destroyed(widget);
+  views::test::CancelDialog(widget);
+  destroyed.Wait();
+}
+
 }  // namespace web_app

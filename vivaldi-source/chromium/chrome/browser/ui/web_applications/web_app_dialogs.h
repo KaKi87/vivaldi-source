@@ -121,12 +121,6 @@ void ShowWebAppFileLaunchDialog(const std::vector<base::FilePath>& file_paths,
                                 Profile* profile,
                                 const webapps::AppId& app_id,
                                 WebAppLaunchAcceptanceCallback close_callback);
-// Sets whether |ShowWebAppDialog| should accept immediately without any
-// user interaction. |auto_open_in_window| sets whether the open in window
-// checkbox is checked.
-void SetAutoAcceptWebAppDialogForTesting(bool auto_accept,
-                                         bool auto_open_in_window);
-
 // Sets an override title for the Create Shortcut confirmation view.
 void SetOverrideTitleForTesting(const char* title_to_use);
 
@@ -190,21 +184,9 @@ void ShowSubAppsInstallDialog(
     const webapps::AppId& parent_app_id,
     base::OnceCallback<void(bool)> callback);
 
-// Sets whether |ShowSimpleInstallDialogForWebApps| should accept immediately
-// without any user interaction.
-base::AutoReset<bool> SetAutoAcceptPWAInstallConfirmationForTesting();
-
-// Sets whether |ShowSimpleInstallDialogForWebApps| should decline immediately
-// without any user interaction.
-base::AutoReset<bool> SetAutoDeclinePWAInstallConfirmationForTesting();
-
 // Sets whether |ShowDiyInstallDialogForWebApps| should accept immediately
 // without any user interaction.
 void SetAutoAcceptDiyAppsInstallDialogForTesting(bool auto_accept);
-
-// Sets whether the bubble should close when it is not in an active window
-// during testing.
-base::AutoReset<bool> SetDontCloseOnDeactivateForTesting();
 
 // Shows the Isolated Web App manual install wizard.
 IsolatedWebAppInstallerCoordinator* LaunchIsolatedWebAppInstaller(
@@ -259,16 +241,6 @@ std::unique_ptr<views::View> CreateSimpleInstallDialogView(
     const std::u16string& title,
     const GURL& start_url,
     bool is_maskable);
-
-// Creates a detailed install dialog view that contains
-// a carousel.
-std::unique_ptr<views::View> CreateDetailedInstallDialogView(
-    gfx::ImageSkia icon_image,
-    const std::u16string& title,
-    const GURL& start_url,
-    bool is_maskable,
-    base::WeakPtr<WebAppScreenshotFetcher> fetcher,
-    const std::u16string& description);
 
 // Creates a view for the DIY install dialog that contains the
 // input dialog.

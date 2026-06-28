@@ -332,6 +332,99 @@ class InclusiveLanguageCheckTest(unittest.TestCase):
         self.assertTrue(os.path.normpath('dir2/2.py') in errors[0].message)
 
 
+class CheckLongLinesTest(unittest.TestCase):
+
+    def testCheckJavaLongLines(self):
+        test_cases = [
+            {
+                'name':
+                'Valid Java text blocks (no errors expected)',
+                'files': [
+                    ('some/java/file/TestBlock.java', [
+                        'class TestBlock {',
+                        '  String s = """',
+                        '    this is a very long line that should be ignored because it is inside a text block and we want to allow it as per the style guide.',
+                        '    """;',
+                        '}',
+                    ]),
+                    ('some/java/file/TestComment.java', [
+                        'class TestComment {',
+                        '  // Comment with """',
+                        '  String s = """',
+                        '    this is a very long line that should be ignored because it is inside a text block and we want to allow it as per the style guide.',
+                        '    """;',
+                        '}',
+                    ]),
+                    ('some/java/file/TestEscaped.java', [
+                        'class TestEscaped {',
+                        '  String s = """',
+                        '    line 1',
+                        '    escaped \\""" here',
+                        '    line 3 that is also long but inside block and should be ignored',
+                        '    """;',
+                        '}',
+                    ]),
+                    ('some/java/file/TestLongClosingContent.java', [
+                        'class TestLongClosingContent {',
+                        '  String s = """',
+                        '    content',
+                        '    this is a very long line that ends the text block """;',
+                        '}',
+                    ]),
+                    ('some/java/file/TestLongClosingCode.java', [
+                        'class TestLongClosingCode {',
+                        '  String s = """',
+                        '    content',
+                        '    """; // this line is long but should NOT be flagged because it is the closing line of a text block.',
+                        '}',
+                    ]),
+                ],
+                'expected_errors':
+                0,
+            },
+            {
+                'name':
+                'Invalid Java lines (errors expected)',
+                'files': [
+                    ('some/java/file/TestNormal.java', [
+                        'class TestNormal {',
+                        '  String s = "this is a very long line that should NOT be ignored because it is in a normal string literal.";',
+                        '}',
+                    ]),
+                    ('some/java/file/TestNormalQuotes.java', [
+                        'class TestNormalQuotes {',
+                        '  String s = "normal string with \\"\\"\\" inside";',
+                        '  String t = "normal string that is very long and should be flagged because it is not a text block.";',
+                        '}',
+                    ]),
+                ],
+                'expected_errors':
+                1,
+                'expected_items': ['TestNormal.java', 'TestNormalQuotes.java'],
+            },
+        ]
+
+        for case in test_cases:
+            with self.subTest(case_name=case['name']):
+                input_api = MockInputApi()
+                input_api.files = [
+                    MockFile(os.path.normpath(path), lines)
+                    for path, lines in case['files']
+                ]
+                errors = presubmit_canned_checks.CheckLongLines(input_api,
+                                                                MockOutputApi(),
+                                                                maxlen=80)
+                expected_errors = case.get('expected_errors', 0)
+                self.assertEqual(expected_errors, len(errors))
+                if expected_errors > 0:
+                    all_items = getattr(errors[0], 'items', [])
+                    expected_items = case.get('expected_items', [])
+                    self.assertEqual(len(expected_items), len(all_items))
+                    for item in expected_items:
+                        self.assertTrue(
+                            any(item in str(actual) for actual in all_items))
+
+
 
 class DescriptionChecksTest(unittest.TestCase):
     def testCheckDescriptionUsesColonInsteadOfEquals(self):
@@ -943,7 +1036,7 @@ class CheckForCommitObjectsTest(unittest.TestCase):
         # recursive ls-tree.
         self.input_api.platform = 'win32'
         self.input_api.files = [
-            MockAffectedFile('a' * 100, '') for i in range(100)
+            MockAffectedFile('a' * 100, '') for i in range(350)
         ]
         self.input_api.subprocess.check_output.return_value = b''
 
@@ -975,6 +1068,85 @@ class CheckForCommitObjectsTest(unittest.TestCase):
         self.assertNotIn('-r', ls_tree_cmd)
         self.assertIn('--', ls_tree_cmd)
         self.assertIn('foo.txt', ls_tree_cmd)
+
+    def testWindowsSpecialCharacters(self):
+        # On Windows, if a file contains special characters like '&', we don't
+        # need to fall back to a recursive ls-tree when using shell=False.
+        self.input_api.platform = 'win32'
+        self.input_api.files = [MockAffectedFile('foo&bar.txt', '')]
+        self.input_api.subprocess.check_output.return_value = b''
+
+        presubmit_canned_checks.CheckForCommitObjects(self.input_api,
+                                                      self.output_api)
+
+        # The first call is to `git show HEAD:DEPS`.
+        # The second call is to `git ls-tree`.
+        self.assertEqual(2, self.input_api.subprocess.check_output.call_count)
+        ls_tree_cmd = self.input_api.subprocess.check_output.call_args_list[1][
+            0][0]
+        self.assertNotIn('-r', ls_tree_cmd)
+        self.assertIn('foo&bar.txt', ls_tree_cmd)
+
+
+class CheckPatchFormattedTest(unittest.TestCase):
+
+    def setUp(self):
+        self.input_api = MockInputApi()
+        self.input_api.change.RepositoryRoot = lambda: ROOT_DIR
+        self.input_api.presubmit_local_path = os.path.join(ROOT_DIR, 'subdir')
+
+        # Mock CreateTemporaryFile to accumulate writes into a string
+        self.mock_temp_file = mock.MagicMock()
+        self.mock_temp_file.__enter__.return_value = self.mock_temp_file
+        self.mock_temp_file.name = 'mock_temp_file'
+        self.mock_temp_file.write_content = ''
+
+        def mock_write(content):
+            self.mock_temp_file.write_content += content.decode('utf-8')
+
+        self.mock_temp_file.write.side_effect = mock_write
+        self.input_api.CreateTemporaryFile = mock.Mock(
+            return_value=self.mock_temp_file)
+
+        # Mock git_cl.RunGitWithCode
+        self.patcher = mock.patch('git_cl.RunGitWithCode')
+        self.mock_run_git = self.patcher.start()
+        self.mock_run_git.return_value = (0, '')
+
+    def tearDown(self):
+        self.patcher.stop()
+
+    def testCheckPatchFormatted_WithFileFilter(self):
+        file1 = MockAffectedFile('file1.cc', ['int main() {}'])
+        file2 = MockAffectedFile('file2.py', ['def main(): pass'])
+        self.input_api.files = [file1, file2]
+
+        # Filter to only include python files
+        file_filter = lambda f: f.LocalPath().endswith('.py')
+
+        presubmit_canned_checks.CheckPatchFormatted(self.input_api,
+                                                    MockOutputApi(),
+                                                    file_filter=file_filter)
+
+        diff_content = self.mock_temp_file.write_content
+
+        # Verify that only file2.py's diff is in the diff file
+        self.assertIn('file2.py', diff_content)
+        self.assertNotIn('file1.cc', diff_content)
+
+    def testCheckPatchFormatted_WithoutFileFilter(self):
+        file1 = MockAffectedFile('file1.cc', ['int main() {}'])
+        file2 = MockAffectedFile('file2.py', ['def main(): pass'])
+        self.input_api.files = [file1, file2]
+
+        presubmit_canned_checks.CheckPatchFormatted(self.input_api,
+                                                    MockOutputApi())
+
+        diff_content = self.mock_temp_file.write_content
+
+        # Verify that both files are in the diff file
+        self.assertIn('file1.cc', diff_content)
+        self.assertIn('file2.py', diff_content)
 
 
 if __name__ == '__main__':

@@ -115,9 +115,6 @@ const auto kInstallModes = std::to_array<InstallConstants>({
             L"Vivaldi PDF Document",  // PDF ProgID description.
         .active_setup_guid =
             L"{9C142C0C-124C-4467-B117-EBCC62801D7B}",  // Active Setup GUID.
-        .legacy_command_execute_clsid =
-            L"{DAB968E0-3A13-4CCC-A3AF-85578ACBE9AB}",  // CommandExecuteImpl
-                                                        // CLSID.
 
         .toast_activator_clsid =
             vivaldi::GetOrGenerateToastActivatorCLSID(),  // Toast Activator
@@ -129,6 +126,8 @@ const auto kInstallModes = std::to_array<InstallConstants>({
                            {0x92, 0xBD, 0x6A, 0x33, 0x9A, 0xE9, 0x07,
                             0x06}},  // Elevator CLSID.
         .elevator_iid = {},          // IID elevator_iid;
+        .tracing_service_clsid = {},
+        .tracing_service_iid = {},
         .default_channel_name =
             L"",  // Empty default channel name since no update integration.
         .channel_strategy = ChannelStrategy::UNSUPPORTED,

@@ -52,8 +52,7 @@ class IncognitoTabModelImpl implements IncognitoTabModelInternal {
     private final ObserverList<TabModelObserver> mObservers = new ObserverList<>();
     private final ObserverList<IncognitoTabModelObserver> mIncognitoObservers =
             new ObserverList<>();
-    private final ObserverList<TabGroupModelFilterObserver> mTabGroupObservers =
-            new ObserverList<>();
+    private final ObserverList<TabGroupObserver> mTabGroupObservers = new ObserverList<>();
     private final ObserverList<Callback<TabModelInternal>> mDelegateModelObservers =
             new ObserverList<>();
     private final Callback<@Nullable Tab> mDelegateModelCurrentTabSupplierObserver;
@@ -131,7 +130,7 @@ class IncognitoTabModelImpl implements IncognitoTabModelInternal {
         for (TabModelObserver observer : mObservers) {
             mDelegateModel.addObserver(observer);
         }
-        for (TabGroupModelFilterObserver observer : mTabGroupObservers) {
+        for (TabGroupObserver observer : mTabGroupObservers) {
             mDelegateModel.addTabGroupObserver(observer);
         }
         for (Callback<TabModelInternal> delegateModelObserver : mDelegateModelObservers) {
@@ -407,7 +406,7 @@ class IncognitoTabModelImpl implements IncognitoTabModelInternal {
         mDelegateModel.removeTab(tab);
         mCountOfAddingOrClosingTabs--;
         // Call destroyIncognitoIfNecessary() in case the last incognito tab in this model is
-        // reparented to a different activity. See crbug.com/611806.
+        // reparented to a different activity. See crbug.com/40469243.
         destroyIncognitoIfNecessary();
     }
 
@@ -456,6 +455,16 @@ class IncognitoTabModelImpl implements IncognitoTabModelInternal {
     }
 
     @Override
+    public List<Integer> getOrderedMultiSelectedTabIds() {
+        return mDelegateModel.getOrderedMultiSelectedTabIds();
+    }
+
+    @Override
+    public List<Tab> getOrderedMultiSelectedTabs() {
+        return mDelegateModel.getOrderedMultiSelectedTabs();
+    }
+
+    @Override
     public int findFirstNonPinnedTabIndex() {
         return mDelegateModel.findFirstNonPinnedTabIndex();
     }
@@ -496,20 +505,15 @@ class IncognitoTabModelImpl implements IncognitoTabModelInternal {
     }
 
     @Override
-    public void addTabGroupObserver(TabGroupModelFilterObserver observer) {
+    public void addTabGroupObserver(TabGroupObserver observer) {
         mTabGroupObservers.addObserver(observer);
         mDelegateModel.addTabGroupObserver(observer);
     }
 
     @Override
-    public void removeTabGroupObserver(TabGroupModelFilterObserver observer) {
+    public void removeTabGroupObserver(TabGroupObserver observer) {
         mTabGroupObservers.removeObserver(observer);
         mDelegateModel.removeTabGroupObserver(observer);
-    }
-
-    @Override
-    public TabModel getTabModel() {
-        return this;
     }
 
     @Override
@@ -733,11 +737,6 @@ class IncognitoTabModelImpl implements IncognitoTabModelInternal {
     @Override
     public void deleteTabGroupCollapsed(Token tabGroupId) {
         mDelegateModel.deleteTabGroupCollapsed(tabGroupId);
-    }
-
-    @Override
-    public void markTabStateInitialized() {
-        mDelegateModel.markTabStateInitialized();
     }
 
     @Override

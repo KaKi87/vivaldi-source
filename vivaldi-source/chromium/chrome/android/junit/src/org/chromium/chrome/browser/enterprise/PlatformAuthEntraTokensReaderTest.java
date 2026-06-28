@@ -19,6 +19,10 @@ import android.accounts.AuthenticatorDescription;
 import android.accounts.AuthenticatorException;
 import android.accounts.OperationCanceledException;
 import android.content.Context;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
 import android.os.Bundle;
 
 import org.junit.Before;
@@ -35,9 +39,14 @@ import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.RobolectricUtil;
-import org.chromium.chrome.browser.enterprise.platform_auth.entra_provider_android.TokenReadResult;
+import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.chrome.browser.enterprise.platform_auth.entra_provider_android.Status;
+import org.chromium.chrome.browser.flags.ChromeSwitches;
 
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -50,15 +59,52 @@ public class PlatformAuthEntraTokensReaderTest {
     private static final String BUNDLE_RESULT_KEY = "sso_header_result";
     private static final String TEST_HEADERS = "{\"Authorization\":\"Bearer token\"}";
 
+    private static final String TRUSTED_PACKAGE_NAME = "com.azure.authenticator";
+    private static final String UNTRUSTED_PACKAGE_NAME = "com.malicious.app";
+    private static final byte[] VALID_TEST_SIGNATURE = "valid_test_signature".getBytes();
+    private static final byte[] INVALID_TEST_SIGNATURE = "invalid_test_signature".getBytes();
+
     @Mock private Context mContext;
     @Mock private AccountManager mAccountManager;
     @Mock private AccountManagerFuture<Bundle> mMockFuture;
     @Mock private JniOnceCallback2<Integer, String> mCallback;
 
+    @Mock private PackageManager mPackageManager;
+    @Mock private PackageInfo mPackageInfo;
+    @Mock private SigningInfo mSigningInfo;
+    @Mock private Signature mSignature;
+
+    private MessageDigest mMd;
+
+    private Map<String, byte[]> mTrustedProvidersMap;
+    private Map<String, byte[]> mDebugProvidersMap;
+
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
+        mMd = MessageDigest.getInstance("SHA-512");
         ContextUtils.initApplicationContextForTests(mContext);
+
         when(mContext.getSystemService(Context.ACCOUNT_SERVICE)).thenReturn(mAccountManager);
+        when(mContext.getPackageManager()).thenReturn(mPackageManager);
+
+        // Setup default PackageInfo and SigningInfo mocks
+        when(mPackageManager.getPackageInfo(
+                        anyString(), eq(PackageManager.GET_SIGNING_CERTIFICATES)))
+                .thenReturn(mPackageInfo);
+        mPackageInfo.signingInfo = mSigningInfo;
+        when(mSigningInfo.hasMultipleSigners()).thenReturn(false);
+        when(mSigningInfo.getSigningCertificateHistory()).thenReturn(new Signature[] {mSignature});
+
+        setupBroker(TRUSTED_PACKAGE_NAME);
+        when(mSignature.toByteArray()).thenReturn(VALID_TEST_SIGNATURE);
+
+        mTrustedProvidersMap = new HashMap<>();
+        mDebugProvidersMap = new HashMap<>();
+        PlatformAuthEntraTokensReader.setSignaturesForTesting(
+                mTrustedProvidersMap, mDebugProvidersMap);
+
+        byte[] expectedHash = mMd.digest(VALID_TEST_SIGNATURE);
+        mTrustedProvidersMap.put(TRUSTED_PACKAGE_NAME, expectedHash);
     }
 
     private void runReadTokensOnBackgroundThread(
@@ -81,17 +127,44 @@ public class PlatformAuthEntraTokensReaderTest {
 
     @Test
     public void testReadTokens_noBrokerRegistered() throws Exception {
-        when(mAccountManager.getAuthenticatorTypes()).thenReturn(new AuthenticatorDescription[0]);
+        setupBroker(null);
 
         runReadTokensOnBackgroundThread(TEST_URL, mCallback);
 
-        verify(mCallback).onResult(eq(TokenReadResult.NO_BROKER_REGISTERED), anyString());
+        verify(mCallback).onResult(eq(Status.NO_BROKER_REGISTERED), anyString());
+    }
+
+    @Test
+    public void testReadTokens_untrustedPackageProvider() throws Exception {
+        setupBroker(UNTRUSTED_PACKAGE_NAME);
+
+        runReadTokensOnBackgroundThread(TEST_URL, mCallback);
+
+        verify(mCallback).onResult(eq(Status.UNEXPECTED_PACKAGE_PROVIDER), anyString());
+    }
+
+    @Test
+    public void testReadTokens_signatureVerificationFailed() throws Exception {
+        when(mSignature.toByteArray()).thenReturn(INVALID_TEST_SIGNATURE);
+
+        runReadTokensOnBackgroundThread(TEST_URL, mCallback);
+
+        verify(mCallback).onResult(eq(Status.SIGNATURE_VERIFICATION_FAILED), anyString());
+    }
+
+    @Test
+    public void testReadTokens_packageManagerThrowsException() throws Exception {
+        when(mPackageManager.getPackageInfo(
+                        anyString(), eq(PackageManager.GET_SIGNING_CERTIFICATES)))
+                .thenThrow(new PackageManager.NameNotFoundException());
+
+        runReadTokensOnBackgroundThread(TEST_URL, mCallback);
+
+        verify(mCallback).onResult(eq(Status.UNEXPECTED_ERROR), anyString());
     }
 
     @Test
     public void testReadTokens_success() throws Exception {
-        setupValidBroker();
-
         Bundle resultBundle = new Bundle();
         resultBundle.putString(BUNDLE_RESULT_KEY, TEST_HEADERS);
         when(mMockFuture.getResult(anyLong(), any(TimeUnit.class))).thenReturn(resultBundle);
@@ -107,13 +180,11 @@ public class PlatformAuthEntraTokensReaderTest {
 
         runReadTokensOnBackgroundThread(TEST_URL, mCallback);
 
-        verify(mCallback).onResult(TokenReadResult.OK, TEST_HEADERS);
+        verify(mCallback).onResult(eq(Status.OK), eq(TEST_HEADERS));
     }
 
     @Test
     public void testReadTokens_nullBundleResult() throws Exception {
-        setupValidBroker();
-
         when(mMockFuture.getResult(anyLong(), any(TimeUnit.class))).thenReturn(null);
         when(mAccountManager.getAuthToken(
                         any(Account.class),
@@ -126,13 +197,11 @@ public class PlatformAuthEntraTokensReaderTest {
 
         runReadTokensOnBackgroundThread(TEST_URL, mCallback);
 
-        verify(mCallback).onResult(eq(TokenReadResult.INVALID_BUNDLE_FORMAT), anyString());
+        verify(mCallback).onResult(eq(Status.NO_BUNDLE_RESULT), anyString());
     }
 
     @Test
     public void testReadTokens_nullHeadersEntry() throws Exception {
-        setupValidBroker();
-
         Bundle emptyBundle = new Bundle();
         when(mMockFuture.getResult(anyLong(), any(TimeUnit.class))).thenReturn(emptyBundle);
         when(mAccountManager.getAuthToken(
@@ -146,13 +215,11 @@ public class PlatformAuthEntraTokensReaderTest {
 
         runReadTokensOnBackgroundThread(TEST_URL, mCallback);
 
-        verify(mCallback).onResult(eq(TokenReadResult.INVALID_BUNDLE_FORMAT), anyString());
+        verify(mCallback).onResult(eq(Status.INVALID_BUNDLE_FORMAT), anyString());
     }
 
     @Test
     public void testReadTokens_authenticatorException() throws Exception {
-        setupValidBroker();
-
         when(mMockFuture.getResult(anyLong(), any(TimeUnit.class)))
                 .thenThrow(new AuthenticatorException("Mock auth error"));
         when(mAccountManager.getAuthToken(
@@ -166,13 +233,53 @@ public class PlatformAuthEntraTokensReaderTest {
 
         runReadTokensOnBackgroundThread(TEST_URL, mCallback);
 
-        verify(mCallback).onResult(eq(TokenReadResult.UNEXPECTED_ERROR), anyString());
+        verify(mCallback).onResult(eq(Status.UNEXPECTED_ERROR), anyString());
+    }
+
+    @Test
+    public void testReadTokens_bundleContainsCustomError() throws Exception {
+        Bundle errorBundle = new Bundle();
+        errorBundle.putString("error_code", "url_not_allowed");
+        errorBundle.putString("error_message", "The URL is outside the allowed SSO domain list");
+
+        when(mMockFuture.getResult(anyLong(), any(TimeUnit.class))).thenReturn(errorBundle);
+        when(mAccountManager.getAuthToken(
+                        any(Account.class),
+                        eq("sso_header"),
+                        any(Bundle.class),
+                        anyBoolean(),
+                        any(),
+                        any()))
+                .thenReturn(mMockFuture);
+
+        runReadTokensOnBackgroundThread(TEST_URL, mCallback);
+
+        verify(mCallback).onResult(eq(Status.BUNDLE_RESULT_CONTAINS_ENTRA_ERROR), anyString());
+    }
+
+    @Test
+    public void testReadTokens_bundleContainsStandardError() throws Exception {
+        Bundle errorBundle = new Bundle();
+        errorBundle.putInt(AccountManager.KEY_ERROR_CODE, AccountManager.ERROR_CODE_BAD_REQUEST);
+        errorBundle.putString(AccountManager.KEY_ERROR_MESSAGE, "Bad Request");
+
+        when(mMockFuture.getResult(anyLong(), any(TimeUnit.class))).thenReturn(errorBundle);
+        when(mAccountManager.getAuthToken(
+                        any(Account.class),
+                        eq("sso_header"),
+                        any(Bundle.class),
+                        anyBoolean(),
+                        any(),
+                        any()))
+                .thenReturn(mMockFuture);
+
+        runReadTokensOnBackgroundThread(TEST_URL, mCallback);
+
+        verify(mCallback).onResult(eq(Status.BUNDLE_RESULT_CONTAINS_OS_ERROR), anyString());
     }
 
     @Test
     public void testReadTokens_ioException() throws Exception {
-        setupValidBroker();
-
         when(mMockFuture.getResult(anyLong(), any(TimeUnit.class)))
                 .thenThrow(new IOException("Mock IO error"));
         when(mAccountManager.getAuthToken(
@@ -186,13 +293,11 @@ public class PlatformAuthEntraTokensReaderTest {
 
         runReadTokensOnBackgroundThread(TEST_URL, mCallback);
 
-        verify(mCallback).onResult(eq(TokenReadResult.UNEXPECTED_ERROR), anyString());
+        verify(mCallback).onResult(eq(Status.UNEXPECTED_ERROR), anyString());
     }
 
     @Test
     public void testReadTokens_timeoutException() throws Exception {
-        setupValidBroker();
-
         when(mMockFuture.getResult(anyLong(), any(TimeUnit.class)))
                 .thenThrow(new OperationCanceledException("Mock timeout"));
         when(mAccountManager.getAuthToken(
@@ -206,14 +311,126 @@ public class PlatformAuthEntraTokensReaderTest {
 
         runReadTokensOnBackgroundThread(TEST_URL, mCallback);
 
-        verify(mCallback).onResult(eq(TokenReadResult.UNEXPECTED_ERROR), anyString());
+        verify(mCallback).onResult(eq(Status.TIMEOUT), anyString());
     }
 
-    private void setupValidBroker() {
-        AuthenticatorDescription entraBroker =
-                new AuthenticatorDescription(
-                        BROKER_ACCOUNT_TYPE, "com.microsoft.entra", 0, 0, 0, 0);
-        when(mAccountManager.getAuthenticatorTypes())
-                .thenReturn(new AuthenticatorDescription[] {entraBroker});
+    @Test
+    public void testReadTokens_debugProvider_withoutFlag_blocked() throws Exception {
+        // Setup a debug-only package (exists in DEBUG_PROVIDERS, but not TRUSTED_PROVIDERS)
+        setupBroker("com.microsoft.mockauthapp");
+        mockBrokerSignature("com.microsoft.mockauthapp", "debug_signature", /* isDebug= */ true);
+
+        runReadTokensOnBackgroundThread(TEST_URL, mCallback);
+
+        // Without the CLI flag, expectedSignature is null, but we recognize the package
+        // as a debug provider, so it gets explicitly blocked.
+        verify(mCallback).onResult(eq(Status.DISALLOWED_DEBUG_PACKAGE_PROVIDER), anyString());
+    }
+
+    @Test
+    @CommandLineFlags.Add(ChromeSwitches.ANDROID_ENTRA_SSO_ALLOW_DEBUG_BROKERS)
+    public void testReadTokens_debugProvider_withFlag_success() throws Exception {
+        // Setup a debug-only package
+        setupBroker("com.microsoft.mockauthapp");
+        mockBrokerSignature("com.microsoft.mockauthapp", "debug_signature", /* isDebug= */ true);
+
+        // Setup a successful token read. Because the flag is present, the debug signature
+        // will be retrieved and verified, avoiding the null check.
+        Bundle resultBundle = new Bundle();
+        resultBundle.putString(BUNDLE_RESULT_KEY, TEST_HEADERS);
+        when(mMockFuture.getResult(anyLong(), any(TimeUnit.class))).thenReturn(resultBundle);
+
+        when(mAccountManager.getAuthToken(
+                        any(Account.class),
+                        eq("sso_header"),
+                        any(Bundle.class),
+                        anyBoolean(),
+                        any(),
+                        any()))
+                .thenReturn(mMockFuture);
+
+        runReadTokensOnBackgroundThread(TEST_URL, mCallback);
+
+        verify(mCallback).onResult(eq(Status.OK), eq(TEST_HEADERS));
+    }
+
+    @Test
+    @CommandLineFlags.Add(ChromeSwitches.ANDROID_ENTRA_SSO_ALLOW_DEBUG_BROKERS)
+    public void testReadTokens_productionProvider_withFlag_success() throws Exception {
+        // Default setup assumes only the trusted provider is installed. Testing with the flag set
+        // ensures that the production signature works despite using the flag.
+        Bundle resultBundle = new Bundle();
+        resultBundle.putString(BUNDLE_RESULT_KEY, TEST_HEADERS);
+        when(mMockFuture.getResult(anyLong(), any(TimeUnit.class))).thenReturn(resultBundle);
+
+        when(mAccountManager.getAuthToken(
+                        any(Account.class),
+                        eq("sso_header"),
+                        any(Bundle.class),
+                        anyBoolean(),
+                        any(),
+                        any()))
+                .thenReturn(mMockFuture);
+
+        runReadTokensOnBackgroundThread(TEST_URL, mCallback);
+
+        verify(mCallback).onResult(eq(Status.OK), eq(TEST_HEADERS));
+    }
+
+    @Test
+    @CommandLineFlags.Add(ChromeSwitches.ANDROID_ENTRA_SSO_ALLOW_DEBUG_BROKERS)
+    public void testReadTokens_providerWithDebugKey_withFlag_success() throws Exception {
+        mockBrokerSignature(TRUSTED_PACKAGE_NAME, "debug_signature", /* isDebug= */ true);
+
+        // Setup a successful token read
+        Bundle resultBundle = new Bundle();
+        resultBundle.putString(BUNDLE_RESULT_KEY, TEST_HEADERS);
+        when(mMockFuture.getResult(anyLong(), any(TimeUnit.class))).thenReturn(resultBundle);
+
+        when(mAccountManager.getAuthToken(
+                        any(Account.class),
+                        eq("sso_header"),
+                        any(Bundle.class),
+                        anyBoolean(),
+                        any(),
+                        any()))
+                .thenReturn(mMockFuture);
+
+        runReadTokensOnBackgroundThread(TEST_URL, mCallback);
+
+        verify(mCallback).onResult(eq(Status.OK), eq(TEST_HEADERS));
+    }
+
+    @Test
+    public void testReadTokens_providerWithDebugKey_withoutFlag_blocked() throws Exception {
+        mockBrokerSignature(TRUSTED_PACKAGE_NAME, "debug_signature", /* isDebug= */ true);
+
+        runReadTokensOnBackgroundThread(TEST_URL, mCallback);
+
+        // Without the flag, debug signature is not accepted, so verification fails
+        verify(mCallback).onResult(eq(Status.SIGNATURE_VERIFICATION_FAILED), anyString());
+    }
+
+    private void mockBrokerSignature(String packageName, String signatureString, boolean isDebug) {
+        byte[] rawSignature = signatureString.getBytes();
+        when(mSignature.toByteArray()).thenReturn(rawSignature);
+        byte[] hashed = mMd.digest(rawSignature);
+        if (isDebug) {
+            mDebugProvidersMap.put(packageName, hashed);
+        } else {
+            mTrustedProvidersMap.put(packageName, hashed);
+        }
+    }
+
+    private void setupBroker(String packageName) {
+        if (packageName == null) {
+            when(mAccountManager.getAuthenticatorTypes())
+                    .thenReturn(new AuthenticatorDescription[0]);
+        } else {
+            AuthenticatorDescription entraBroker =
+                    new AuthenticatorDescription(BROKER_ACCOUNT_TYPE, packageName, 0, 0, 0, 0);
+            when(mAccountManager.getAuthenticatorTypes())
+                    .thenReturn(new AuthenticatorDescription[] {entraBroker});
+        }
     }
 }

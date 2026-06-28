@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "sparse_solver.h"
 #include <Eigen/IterativeLinearSolvers>
@@ -26,8 +27,18 @@ void test_conjugate_gradient_T() {
   CALL_SUBTEST(check_sparse_spd_solving(cg_colmajor_upper_I));
 }
 
+// Regression for issue #1704: default-constructing an iterative solver
+// templated on a fixed-size MatrixType tripped a resize(0,0) size assertion.
+template <typename MatrixType>
+void test_default_construct_fixed_size() {
+  ConjugateGradient<MatrixType> cg;
+  BiCGSTAB<MatrixType> bicg;
+  LeastSquaresConjugateGradient<MatrixType> lscg;
+}
+
 EIGEN_DECLARE_TEST(conjugate_gradient) {
   CALL_SUBTEST_1((test_conjugate_gradient_T<double, int>()));
   CALL_SUBTEST_2((test_conjugate_gradient_T<std::complex<double>, int>()));
   CALL_SUBTEST_3((test_conjugate_gradient_T<double, long int>()));
+  CALL_SUBTEST_4(test_default_construct_fixed_size<Matrix3d>());
 }

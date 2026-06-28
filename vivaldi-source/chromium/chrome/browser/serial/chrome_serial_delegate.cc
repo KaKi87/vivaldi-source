@@ -12,7 +12,9 @@
 #include "chrome/browser/serial/web_serial_chooser.h"
 #include "chrome/browser/ui/serial/serial_chooser_controller.h"
 #include "components/guest_view/buildflags/buildflags.h"
+#include "content/public/browser/browser_context.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/storage_partition.h"
 #include "extensions/buildflags/buildflags.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
@@ -35,6 +37,24 @@ ChromeSerialDelegate::ChromeSerialDelegate() = default;
 
 ChromeSerialDelegate::~ChromeSerialDelegate() = default;
 
+bool ChromeSerialDelegate::MayUseSerial(content::RenderFrameHost* frame) {
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
+  // <webview> and <controlledframe> can not isolate origin-based permissions
+  // from the rest of profile, therefore serial is disabled inside.
+  if (extensions::WebViewGuest::FromRenderFrameHost(frame)) {
+    return false;
+  }
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
+
+  content::RenderFrameHost* main_rfh = frame->GetMainFrame();
+  if (main_rfh->GetStoragePartition() !=
+      main_rfh->GetBrowserContext()->GetDefaultStoragePartition()) {
+    return !main_rfh->GetLastCommittedURL().SchemeIsHTTPOrHTTPS();
+  }
+
+  return true;
+}
+
 std::unique_ptr<content::SerialChooser> ChromeSerialDelegate::RunChooser(
     content::RenderFrameHost* frame,
     std::vector<blink::mojom::SerialPortFilterPtr> filters,
@@ -49,18 +69,17 @@ std::unique_ptr<content::SerialChooser> ChromeSerialDelegate::RunChooser(
 
 bool ChromeSerialDelegate::CanRequestPortPermission(
     content::RenderFrameHost* frame) {
-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
-  // <webview> and <controlledframe> can not isolate origin-based permissions
-  // from the rest of profile, therefore serial is disabled inside.
-  if (extensions::WebViewGuest::FromRenderFrameHost(frame)) {
+  if (!MayUseSerial(frame)) {
 
     // Vivaldi: Allow for vivaldi tabs as they are legitimate usage.
+#if !BUILDFLAG(IS_ANDROID)
     if (!IsVivaldiRegularTabFrame(frame))
+#endif
     // Vivaldi: Normal return code follows, but conditioned.
 
     return false;
   }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
+
   return GetChooserContext(frame)->CanRequestObjectPermission(
       frame->GetMainFrame()->GetLastCommittedOrigin());
 }
@@ -68,18 +87,16 @@ bool ChromeSerialDelegate::CanRequestPortPermission(
 bool ChromeSerialDelegate::HasPortPermission(
     content::RenderFrameHost* frame,
     const device::mojom::SerialPortInfo& port) {
-#if BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
-  // <webview> and <controlledframe> can not isolate origin-based permissions
-  // from the rest of profile, therefore serial is disabled inside.
-  if (extensions::WebViewGuest::FromRenderFrameHost(frame)) {
+  if (!MayUseSerial(frame)) {
 
     // Vivaldi: Allow for vivaldi tabs as they are legitimate usage.
+#if !BUILDFLAG(IS_ANDROID)
     if (!IsVivaldiRegularTabFrame(frame))
+#endif
     // Vivaldi: Normal return code follows, but conditioned.
-
     return false;
   }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
+
   return GetChooserContext(frame)->HasPortPermission(
       frame->GetMainFrame()->GetLastCommittedOrigin(), port);
 }

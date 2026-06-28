@@ -67,6 +67,10 @@
 // toolbar.
 - (NSString*)accessibilityLabelForCollapsedPrimaryToolbarButton;
 
+// Returns accessibility label of the collapsed toolbar button in secondary
+// toolbar.
+- (NSString*)accessibilityLabelForCollapsedSecondaryToolbarButton;
+
 // Vivaldi
 /// Returns the default accent color for the primary toolbar.
 @property(nonatomic, readonly) UIColor* primaryToolbarAccentColor;

@@ -30,13 +30,24 @@ public class RecyclerViewSelectionController extends SelectionController
 
     @Override
     protected int getItemCount() {
-        return mLayoutManager.getItemCount();
+        return mLayoutManager == null ? 0 : mLayoutManager.getItemCount();
     }
 
     @Override
     public void reset() {
         super.reset();
-        mLastSelectedItemIndex = RecyclerView.NO_POSITION;
+        if (isParkedAtSentinel()) {
+            mLastSelectedItemIndex = RecyclerView.NO_POSITION;
+        }
+    }
+
+    @Override
+    boolean setPosition(int newPosition) {
+        boolean retVal = super.setPosition(newPosition);
+        if (isParkedAtSentinel()) {
+            mLastSelectedItemIndex = RecyclerView.NO_POSITION;
+        }
+        return retVal;
     }
 
     @Override
@@ -95,7 +106,7 @@ public class RecyclerViewSelectionController extends SelectionController
         // If we don't expose additional views, the user may occasionally be unable to tab through
         // the list; the LayoutManager may report <null> when we request a view at a specific
         // position, because the view is not yet bound when we need it.
-        if (isSelected) {
+        if (isSelected && mLastSelectedItemIndex != index) {
             int exposeUntilViewIndex =
                     (mLastSelectedItemIndex < index)
                             ? Math.min(

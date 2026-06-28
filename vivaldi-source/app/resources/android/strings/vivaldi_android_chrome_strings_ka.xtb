@@ -1,22 +1,35 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="ka">
+<translation id="1062777154504442433">ახალი ჩანართების ჯგუფი</translation>
 <translation id="1204037785786432551">ბმულის გადმოწერა</translation>
 <translation id="1206892813135768548">ბმულის ტექსტის კოპირება</translation>
+<translation id="1223158186497001208">გაზიარებულია <ph name="GROUP_TITLE" /> ჩანართების ჯგუფი ახალი აქტივობით</translation>
+<translation id="1328749518742029305"><ph name="TAB_GROUP_TITLE" /> ჩანართების ჯგუფი დაიხურა და შენახულია</translation>
 <translation id="1397811292916898096"><ph name="PRODUCT_NAME" />-ით ძებნა</translation>
 <translation id="1435593198351412143">PDF-ების ავტომატური გახსნა</translation>
 <translation id="1456207338570705181">შეხებით ძებნა ფუნქციაა, რომელიც, მხოლოდ, მაშინ მუშაობს, როცა Vivaldi-ში ნაგულისხმევ საძიებო სისტემად Google აყენია. ის მონიშნულ სიტყვებს და მიმდინარე გვერდს Google-ში აგზავნის. ამ ფუნქციის გამორთვა <ph name="BEGIN_LINK" />მორგებს<ph name="END_LINK" /> გვერდიდან შეგიძლიათ.</translation>
 <translation id="1598449788754183301">ნორმალური/ინკოგნიტო ჩანართების გადართვა</translation>
+<translation id="1626105448931436644">გაიგეთ მეტი გაზიარებული ჩანართის ჯგუფების შესახებ</translation>
 <translation id="1644574205037202324">ისტორია</translation>
 <translation id="1829244130665387512">გვერდში ძებნა</translation>
-<translation id="1910514478706885609">გახსნა ახალი ჩანართების ნაკრებში</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+          =1 {<ph name="TABS_COUNT_ONE" /> ახალი აქტივობის მქონე ჩანართის ნახვა გაზიარებულ ჩანართის ჯგუფებში}
+          other {<ph name="TABS_COUNT_MANY" /> ახალი აქტივობის მქონე ჩანართის ნახვა გაზიარებულ ჩანართის ჯგუფებში}
+        }</translation>
 <translation id="1925021887439448749">შეიყვანეთ მორგებული ვებ-მისამართი</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+          =1 {ჩანართების ჯგუფში <ph name="OWNER_FIRST_NAME" /> დამატება და კიდევ <ph name="NUMBER_OF_OTHER_MEMBERS" />}
+          other {ჩანართების ჯგუფში <ph name="OWNER_FIRST_NAME" /> დამატება და კიდევ <ph name="NUMBER_OF_OTHER_MEMBERS" />}
+        }</translation>
 <translation id="2038563949887743358">საიტის სრული ვერსიის მოთხოვნის ჩართვა</translation>
+<translation id="2067565353468675023">ჩანართების ჯგუფში მიერთება გვერდით <ph name="OWNER_FIRST_NAME" /></translation>
 <translation id="208033313373016095">მკითხველის ხედი ვებგვერდებისთვის</translation>
 <translation id="2149973817440762519">სანიშნეს ჩასწორება</translation>
 <translation id="2306442503286132111">სანიშნე შენახულია საქაღალდეში <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">გარეგნობა</translation>
-<translation id="2501278716633472235">უკან დაბრუნება</translation>
+<translation id="2495373685671077949">თქვენი ჩანართებისა და ჩანართის ჯგუფების ძებნა</translation>
+<translation id="2500281581698062897">დაუყოვნებლივ დაკარგავთ წვდომას ჩანართების ჯგუფთან “<ph name="GROUP_NAME" />” და <ph name="BLOCKED_MEMBER_FULL_NAME" /> (<ph name="BLOCKED_MEMBER_EMAIL" />) ვეღარ შეძლებს თქვენთან კომუნიკაციას Google-ის სერვისებით.</translation>
 <translation id="2546283357679194313">ქუქიები და საიტის მონაცემები</translation>
 <translation id="2633278372998075009">კონფიდენციალური ჩანართები</translation>
 <translation id="2650751991977523696">გსურთ ფაილის ხელახლა გადმოწერა?</translation>
@@ -26,6 +39,7 @@
 <translation id="2871733351037274014">გვერდების წინასწარ ჩატვირთვა</translation>
 <translation id="2904300462646366554">გადმოწერილი PDF-ები ავტომატურად გაიხსნება თქენ მოწყობილოაზე არსებული ერთ-ერტი PDF-ის დათვალიერების პროგრამით</translation>
 <translation id="2951071800649516099">დაამატეთ გვერდები თქვენს მოგვიანებით წასაკითხთა სიაში</translation>
+<translation id="3020023775880428664">ჩანართის გადატანა ჯგუფში</translation>
 <translation id="3029276696788198026">წინასწარ ჩატვირთვის გარეშე</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> სანიშნე}
@@ -35,7 +49,13 @@
 <translation id="3232293466644486101">ბრაუზერის მონაცემების წაშლა…</translation>
 <translation id="3234355010754616171">ახალი კონფიდენციალური ჩანართი</translation>
 <translation id="3237087289225714896">სტანდარტული წინაწარი ჩატვირთვა:</translation>
+<translation id="3298614730029636660">ჯგუფის დატოვება</translation>
+<translation id="3359462099791810823">შეინარჩუნეთ ეს ჯგუფი და დაამატეთ ჩანართები მოგვიანებით, ან წაშალეთ, თუ აღარ გჭირდებათ.</translation>
 <translation id="3478414204555961127">მკითხველის ხედი</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> ჩანართის მქონე ჯგუფის აღდგენა ფონური ჩანართების ჯგუფის სახით. ფერი <ph name="COLOR_NAME" />.}
+          other {Restore tab stack of <ph name="TAB_COUNT_MANY" /> tჩანართის მქონე ჯგუფის აღდგენა ფონური ჩანართების ჯგუფის სახით <ph name="COLOR_NAME" />,}
+        }</translation>
 <translation id="3504699618187058974">ჩანართების შეტყუპება</translation>
 <translation id="3518985090088779359">დათანხმება და გაგრძელება</translation>
 <translation id="3571177741182643350">წაუკითხავი სტატიები - ხელმისაწვდომია ქსელის გარეშეც:</translation>
@@ -43,9 +63,11 @@
 <translation id="3700829948786686853">მოგესალმებათ Vivaldi</translation>
 <translation id="3719826155360621982">საწყისი გვერდი</translation>
 <translation id="3738139272394829648">შეეხეთ მოსაძებნად</translation>
-<translation id="385051799172605136">უკან</translation>
+<translation id="3900825170941000696">ჩანართების ჯგუფის <ph name="TITLE_OF_GROUP" /> აღდგენა. ფერი <ph name="COLOR_NAME" />. ახალი ფონური ჩანართების ჯგუფის სახით.</translation>
+<translation id="395421286877117532">მოირგეთ ჩანართების ჯგუფი და დაატყაპუნეთ ღილაკზე 'მზადაა'</translation>
 <translation id="3987993985790029246">ბმულის კოპირება</translation>
 <translation id="399014816462153200">წაკითხული სტატიები:</translation>
+<translation id="4048089913902125176">ჩანართების ჯგუფის <ph name="TITLE_OF_GROUP" /> გახსნა. ფერი <ph name="COLOR_NAME" />. საიტებით <ph name="URL_LIST" />.</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> ჩანართი}
           other {<ph name="TAB_COUNT_MANY" /> ჩანართი, <ph name="TAB_COUNT_INCOGNITO" /> პირადი}}</translation>
@@ -54,25 +76,41 @@
 <translation id="4137746084635924146">მოწყობილობის ამჟამინდელი ენა</translation>
 <translation id="4167670741834902166">ახალი კონფიდენციალური ჩანართი</translation>
 <translation id="4195643157523330669">ახალ ჩანართში გახსნა</translation>
+<translation id="4219031106525503429">ჩანართების ჯგუფის “<ph name="GROUP_NAME" />” გაზიარება</translation>
 <translation id="4225895483398857530">ხელსაწყოთა ზოლის მალსახმობი</translation>
 <translation id="4243710787042215766">ინკოგნიტო ჩანართში გახსნა</translation>
 <translation id="4269820728363426813">ბმულის მისამართის კოპირება</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />ეკრანის დაბლოკვის ჩართვა Android-ის პარამეტრებიდან<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">პაროლების მმართველი</translation>
-<translation id="441100617989818073">გამოუყენებელი, ან დუბლირებული ჩანართები და ჯგუფები</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {<ph name="TABS_COUNT_ONE" /> სტანდარტული ჩანართი ახალი აქტივობით გაზიარებულ ჩანართების ჯგუფში}
+          other {<ph name="TABS_COUNT_MANY" /> სტანდარტული ჩანართი ახალი აქტივობით გაზიარებულ ჩანართების ჯგუფში}
+        }</translation>
+<translation id="4445802392779002787">ჩანართის დამატება ჯგუფში</translation>
 <translation id="451872707440238414">სანიშნეებში ძიება</translation>
 <translation id="4526803704855831732">კონფიდენციალური ჩანართები</translation>
 <translation id="4532845899244822526">აირჩიეთ საქაღალდე</translation>
+<translation id="454284936014822050"><ph name="GROUP_TITLE" /> ჩანართების ჯგუფი</translation>
+<translation id="4614713783237504866">გამოუყენებელი, ან გამეორებული ჩანართები და ჯგუფები</translation>
+<translation id="463284870544181537">შეინახეთ ეს ჯგუფი ჩანართების მოგვიანებით დასამატებლად, ან გადით, თუ ის აღარ გჭირდებათ</translation>
+<translation id="4638726726741656531">ახლა ჩანართების ჯგუფში ჩანართების ჩამატება ადვილად შეგიძლიათ</translation>
 <translation id="4699172675775169585">დაკესილი გამოსახულებები და ფაილები</translation>
 <translation id="4719086422742491124">გაიგეთ ვებგვერდების თემის შესახებ გვერდის დატოვების გარეშე. მონიშნეთ ერთ ან მეტი სიტყვა, რათა ის მოძებნოთ.
 
 შეხებით ძებნა ფუნქციაა, რომელიც, მხოლოდ, მაშინაა ხელმისაწვდომი, როცა Vivaldi-ის ნაგულისხმევ საძიებო სისტემად Google-ა დაყენებული.</translation>
 <translation id="4759238208242260848">გადმოწერები</translation>
-<translation id="4777866634702576038">წავშალო ჩანართების ჯგუფი?</translation>
+<translation id="4771820744342013314">წაიშალოს ჩანართების ჯგუფი?</translation>
 <translation id="4850886885716139402">გადახედვა</translation>
 <translation id="4883379392681899581">კონფიდენციალური რეჟიმიდან გასვლა</translation>
+<translation id="4883812026489706387">“<ph name="TAB_GROUP_TITLE" />” ჩანართების ჯგუფს ახალი აქტივობა აქვს</translation>
+<translation id="4887248255051238988">დავტოვოთ ჩანართების ჯგუფი?</translation>
 <translation id="4943872375798546930">შედეგების გარეშე</translation>
 <translation id="49576331685473090">შემცველობის მბლოკავი</translation>
+<translation id="4964059453543967592">დახურული ჩანართების ჯგუფის თავიდან გახსნა</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" /> ჩანართების ჯგუფი}
+          other {<ph name="TAB_GROUPS_MANY" /> ჩანართების ჯგუფი}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> პირადი ჩანართი}
           other {<ph name="TAB_COUNT_NORMAL" /> პირადი ჩანართი}}</translation>
@@ -83,19 +121,26 @@
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {ფაილის გადმოწერა…}
             other {მიმდინარეობს # ფაილის გადმოწერა…}}</translation>
+<translation id="5210689723585747462"><ph name="TAB_GROUP_TITLE" /> ჩანართების ჯგუფი დაიხურა</translation>
 <translation id="5233638681132016545">ახალი ჩანართი</translation>
 <translation id="5375131951310889874">გაიგეთ ვებგვერდის შინაარსი მისი დატოვების გარეშე. შეხებით ძებნა ფუნქციაა, რომელიც, მხოლოდ, მაშინაა ხელმისაწვდომი, როცა Vivaldi-ში ნაგულისხმევ საძიებო სისტემად Google აყენია. ის სიტყვას და მის გარშემო კონტექსტს Google-ზე გააგზავნის, რომელიც აღწერებს, ძებნის შედეგებს, სურათებს და სხვა დეტალებს დააბრუნებს.
 
 იმისათვის, რომ საძებნი სიტყვა მოირგოთ, დიდხანს დააჭირეთ, რათა მონიშნოთ ის. ძებნის გასაუმჯობესებლად ასწიეთ ჩოჩია ბოლომდე მაღლა და ძებნის პანელზე დაატყაპუნეთ.</translation>
+<translation id="5570837353202786816">ყველა მაშინვე დაკარგავს წვდომას ჩანართების ჯგუფთან “<ph name="GROUP_NAME" />” და გაითიშება ყველა მოსაწვევის ბმული</translation>
+<translation id="5614794348925178470">გაზიარებულია <ph name="GROUP_TITLE" /> ჩანართების ჯგუფი</translation>
 <translation id="572328651809341494">უახლესი ჩანართები</translation>
 <translation id="5833984609253377421">ბმულის გაზიარება</translation>
+<translation id="6129507335719227488">ჩანართები ჯგუფში</translation>
 <translation id="6150320133806434356">სანიშნე შენახულია</translation>
 <translation id="6193448654517602979">აირჩიეთ ჩანართები</translation>
+<translation id="6221225660285238685">ჩანართების ჯგუფის გადატანა სხვა ფანჯარაში</translation>
+<translation id="6277377952699614191">ჩანართების ჯგუფი</translation>
 <translation id="6336451774241870485">ახალი კონფიდენციალური ჩანართი</translation>
 <translation id="6337323516034698937">იმისათვის, რომ ეს ჩანართი სხვა მოწყობილობაზე გააგზავნოთ, შედით Vivaldi Sync-ში ორივე მოწყობილობაზე და დარწმუნდით, რომ შეიყვანეთ დაშიფვრის პაროლი, თუ საჭიროა.</translation>
 <translation id="6341580099087024258">შეკითხვა ფაილების შენახვის ადგილის შესახებ</translation>
 <translation id="6364438453358674297">წავშალო მინიშნება ისტორიიდან?</translation>
 <translation id="6404511346730675251">სანიშნეს ჩასწორება</translation>
+<translation id="6453011654157908292">ჩანართების ჯგუფის დეტალები</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
           =1 {ფაილი გადმოწერილია}
           other {# ფაილი გადმოწერილია}}</translation>
@@ -104,11 +149,13 @@
 <translation id="6593061639179217415">ვერსია PC-სთვის</translation>
 <translation id="6610147964972079463">პირადი ჩანართების დახურვა</translation>
 <translation id="6627583120233659107">საქაღალდის ჩასწორება</translation>
+<translation id="6785740335511995065">შენარჩუნდეს ჩანართების ჯგუფი?</translation>
 <translation id="6865313869410766144">ფორმის მონაცემების ავტოშევსება</translation>
 <translation id="6909589135458168665">გვერდების წინასწარ ჩატვირთვა</translation>
 <translation id="7029995644714925509">როცა საიტი გვერდზე არსებული ბმულების წინასწარ ჩატვირთვას მოითხოვს, Vivaldi დაშიფრავს და წინასწარ ჩატვირთავს გვერდებს Google-ის სერვერების გავლით, ქუქიების გარეშე, რათა წინასწარ-ჩატვირთული ვებგვერდისგან თქვენი იდენტიფიკაცია დამალოს.</translation>
 <translation id="706339621163631076">ბრაუზერის კონფიდენციალობის პოლიტიკა</translation>
 <translation id="7100573672995171864">მოირგეთ და მართეთ Vivaldi</translation>
+<translation id="7133879160432070247">დაბლოკვა და ჯგუფიდან გასვლა?</translation>
 <translation id="732145680195464316">სანიშნე შენახულია <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">„Do Not Track“ მოთხოვნის გაგზავნა</translation>
 <translation id="7359002509206457351">წვდომა გადახდის მეთოდებზე</translation>
@@ -117,24 +164,33 @@
 <translation id="7456774706094330779">გაფართოებული წინაწარი ჩატვირთვა</translation>
 <translation id="7465104139234185284">ყველა ინკოგნიტო ჩანართის დახურვა</translation>
 <translation id="7481312909269577407">გადაგზავნა</translation>
+<translation id="759273611317559136"><ph name="TAB_GROUP_TITLE" /> ჩანართების ჯგუფი წაიშალა</translation>
+<translation id="7630413501995820846">ჯგუფის შენარჩუნება</translation>
+<translation id="7640137753339219124">ჯგუფის წაშლა</translation>
 <translation id="7764225426217299476">მისამართის დამატება</translation>
+<translation id="7910753230807645596">დუბლირებული ჩანართები და ჯგუფები, რომლებიც არ გამოიყენებოდა <ph name="DAYS_INACTIVE" /> დღე, გადმოტანილია აქ <ph name="AUTODELETE_SECTION" />. ამის შემოწმება ნებისმიერ დროს შეგიძლიათ <ph name="DECLUTTER_SETTINGS_TITLE" />-ში.</translation>
 <translation id="7968014550143838305">დაემატა საკითხავ სიას</translation>
 <translation id="804786196054284061">მომხმარებლის სალიცენზიო შეთანხმება</translation>
 <translation id="8062594758852531064">გაფართოებული წინაწარი ჩატვირთვა:</translation>
 <translation id="8073388330009372546">გამოსახულების გახსნა ახალ ჩანართში</translation>
 <translation id="8127542551745560481">საწყისი გვერდის ჩასწორება</translation>
+<translation id="8149776854955817519">გადახედეთ თქვენს არააქტიურ ჩანართებს და ჯგუფებს</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
           =1 {(1) არააქტიური ელემენტი}
           other {(#) არააქტიური ელემენტი}}</translation>
 <translation id="8266862848225348053">გადმოწერის მდებარეობა</translation>
 <translation id="8348430946834215779">HTTPS-ის გამოყენება, როცა ეს შესაძლებელია და გაფრთხილება იმ საიტების ჩატვირთვამდე, რომლებსაც მისი მხარდაჭერა არ გააჩნია</translation>
+<translation id="8480628728881718381">ახალი ჩანართის გახსნა ჯგუფში</translation>
+<translation id="8543049482641423692">ჩანართის დამატება ახალ ჯგუფში</translation>
 <translation id="8560602726703398413">თქვენი საკითხავი სია სანიშნეებშია</translation>
 <translation id="85991616550051997">საწყის გვერდზე გადასვლა</translation>
+<translation id="8680308397617585416">თქვენ დაუყოვნებლივ დაკარგავთ წვდომას ჩანარტების ჯგუფთან “<ph name="GROUP_NAME" />” და ის ყველა თქვენი მოწყობილობიდან წაიშლება</translation>
 <translation id="8738163682604285902">ჩაირთოს კითხვის რეჟიმი?</translation>
 <translation id="8820817407110198400">სანიშნეები</translation>
 <translation id="9042893549633094279">კონფიდენციალობა და უსაფრთხოება</translation>
 <translation id="9063523880881406963">საიტის სრული ვერსიის მოთხოვნის გამორთვა</translation>
 <translation id="9080642952018487277">ინკოგნიტო რეჟიმში გადასვლა</translation>
+<translation id="9099398755190923267">ყველა მაშინვე დაკარგავს წვდომას ჩანართების ჯგუფთან “<ph name="GROUP_NAME" />” და ის წაიშლება ყველა მოწყობილობიდან</translation>
 <translation id="930124987204876019">ისტორიის, ქუქი-ჩანაწერების, საიტის მონაცემების, კეშის წაშლა…</translation>
 <translation id="961856697154696964">ბრაუზერის მონაცემების წაშლა</translation>
 </translationbundle>

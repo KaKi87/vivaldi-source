@@ -212,7 +212,7 @@ START_TEST(test_misc_version) {
   if (! versions_equal(&read_version, &parsed_version))
     fail("Version mismatch");
 
-  if (xcstrcmp(version_text, XCS("expat_2.7.5"))
+  if (xcstrcmp(version_text, XCS("expat_2.8.0"))
       != 0) /* needs bump on releases */
     fail("XML_*_VERSION in expat.h out of sync?\n");
 }
@@ -298,7 +298,7 @@ START_TEST(test_misc_stop_during_end_handler_issue_240_1) {
 
   parser = XML_ParserCreate(NULL);
   XML_SetElementHandler(parser, start_element_issue_240, end_element_issue_240);
-  mydata = (DataIssue240 *)malloc(sizeof(DataIssue240));
+  mydata = malloc(sizeof(DataIssue240));
   assert_true(mydata != NULL);
   mydata->parser = parser;
   mydata->deep = 0;
@@ -320,7 +320,7 @@ START_TEST(test_misc_stop_during_end_handler_issue_240_2) {
 
   parser = XML_ParserCreate(NULL);
   XML_SetElementHandler(parser, start_element_issue_240, end_element_issue_240);
-  mydata = (DataIssue240 *)malloc(sizeof(DataIssue240));
+  mydata = malloc(sizeof(DataIssue240));
   assert_true(mydata != NULL);
   mydata->parser = parser;
   mydata->deep = 0;

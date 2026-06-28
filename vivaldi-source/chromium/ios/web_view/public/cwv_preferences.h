@@ -67,17 +67,17 @@ CWV_EXPORT
 @property(nonatomic, assign, getter=isAutofillVCNUsageEnabled)
     BOOL autofillVCNUsageEnabled;
 
-// Whether or not image fetcher usage is enabled.
-@property(nonatomic, assign, getter=isUseImageFetcherEnabled)
-    BOOL useImageFetcherEnabled;
-
-// Whether or not card custom image usage is enabled.
-@property(nonatomic, assign, getter=isUseCardCustomImageEnabled)
-    BOOL useCardCustomImageEnabled;
-
 // Whether or not risk based authentication is enabled.
 @property(nonatomic, assign, getter=isRiskBasedAuthenticationEnabled)
     BOOL riskBasedAuthenticationEnabled;
+
+// Whether or not to trigger a non-fatal check during initialization.
+// This is for integration testing purposes of non-fatal checks on clients.
+// Defaults to NO. In-memory only i.e. doesn't persist through startups.
+// TODO(crbug.com/503005390): Remove after release integration testing in
+// stable.
+@property(nonatomic, assign, getter=isTriggerNonFatalCheckEnabled)
+    BOOL triggerNonFatalCheck;
 
 - (instancetype)init NS_UNAVAILABLE;
 

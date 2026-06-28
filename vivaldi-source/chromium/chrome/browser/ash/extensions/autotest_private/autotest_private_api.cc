@@ -529,7 +529,7 @@ std::string SetAllowedPref(Profile* profile,
                            const base::Value& value) {
   // Special case for the preference that is stored in the "Local State"
   // profile.
-  if (pref_name == prefs::kEnableAdbSideloadingRequested) {
+  if (pref_name == arc::prefs::kEnableAdbSideloadingRequested) {
     DCHECK(value.is_bool());
     g_browser_process->local_state()->Set(pref_name, value);
     return std::string();
@@ -996,7 +996,7 @@ void ForwardFrameRateDataAndReset(
 
   // Moves the callback out and erases the mapping first to allow new tracking
   // for |display_id| to start before |callback| run returns.
-  // See https://crbug.com/1098886.
+  // See https://crbug.com/40702167.
   auto callback = it->second->TakeCallback();
   DCHECK(callback);
   trackers->erase(it);
@@ -4337,7 +4337,8 @@ class AutotestPrivateInstallPWAForCurrentURLFunction::PWAInstallManagerObserver
 AutotestPrivateInstallPWAForCurrentURLFunction::
     AutotestPrivateInstallPWAForCurrentURLFunction()
     : auto_accept_pwa_install_confirmation_(
-          web_app::SetAutoAcceptPWAInstallConfirmationForTesting()) {}
+          &web_app::test::g_auto_accept_all_install_dialogs_for_testing,
+          true) {}
 AutotestPrivateInstallPWAForCurrentURLFunction::
     ~AutotestPrivateInstallPWAForCurrentURLFunction() = default;
 

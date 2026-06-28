@@ -5,7 +5,9 @@
 #include "chrome/browser/glic/suggestions/contextual_cueing_service.h"
 
 #include <cmath>
+#include <variant>
 
+#include "base/check.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/browser_process.h"
@@ -192,8 +194,9 @@ void ContextualCueingService::CueingNudgeShown(const GURL& url) {
   auto iter = recent_visited_origins_.Get(origin);
   if (iter == recent_visited_origins_.end()) {
     iter = recent_visited_origins_.Put(
-        origin, NudgeCapTracker(kNudgeCapCountPerDomain.Get(),
-                                kNudgeCapTimePerDomain.Get()));
+        origin,
+        ::contextual_cueing::NudgeCapTracker(kNudgeCapCountPerDomain.Get(),
+                                             kNudgeCapTimePerDomain.Get()));
   }
   iter->second.CueingNudgeShown();
 }
@@ -262,7 +265,7 @@ bool ContextualCueingService::IsPageTypeEligibleForContextualSuggestions(
 }
 
 void ContextualCueingService::OnNudgeActivity(
-    content::WebContents* web_contents,
+    base::WeakPtr<content::WebContents> web_contents,
     base::TimeTicks document_available_time,
     bool is_dynamic,
     glic::GlicNudgeActivity activity) {
@@ -270,13 +273,13 @@ void ContextualCueingService::OnNudgeActivity(
 
   std::optional<base::TimeTicks> nudge_time =
       recent_nudge_tracker_.GetMostRecentNudgeTime();
-  const GURL& url = web_contents->GetLastCommittedURL();
   NudgeInteraction interaction;
   bool log_ukm = false;
   switch (activity) {
     case glic::GlicNudgeActivity::kNudgeShown:
       interaction = NudgeInteraction::kShown;
-      CueingNudgeShown(url);
+      CueingNudgeShown(web_contents ? web_contents->GetLastCommittedURL()
+                                    : GURL());
       break;
     case glic::GlicNudgeActivity::kNudgeClicked:
       CueingNudgeClicked();
@@ -320,7 +323,7 @@ void ContextualCueingService::OnNudgeActivity(
   LogNudgeInteractionHistogram(interaction, is_dynamic);
   // As this function is called multiple times per nudge only some of the
   // activities result in a UKM call.
-  if (log_ukm) {
+  if (log_ukm && web_contents) {
     CHECK(nudge_time);
     LogNudgeInteractionUKM(
         web_contents->GetPrimaryMainFrame()->GetPageUkmSourceId(), interaction,
@@ -503,17 +506,22 @@ void ContextualCueingService::OnPinnedTabsSuggestionsReceived(
 
 void ContextualCueingService::OnPageContentExtracted(
     content::Page& page,
-    scoped_refptr<
-        const page_content_annotations::RefCountedAnnotatedPageContent>
-        page_content) {
+    page_content_annotations::PageContent page_content) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK(page_content);
+
+  page_content_annotations::RefCountedAnnotatedPageContentPtr
+      annotated_page_content_ptr =
+          page_content_annotations::GetAnnotatedPageContentPtrFromPageContent(
+              page_content);
+  if (!annotated_page_content_ptr) {
+    return;
+  }
 
   auto* cueing_page_data = ContextualCueingPageData::GetForPage(page);
   if (!cueing_page_data) {
     return;
   }
-  cueing_page_data->OnPageContentExtracted(page_content->data);
+  cueing_page_data->OnPageContentExtracted(annotated_page_content_ptr->data);
 }
 
 }  // namespace glic

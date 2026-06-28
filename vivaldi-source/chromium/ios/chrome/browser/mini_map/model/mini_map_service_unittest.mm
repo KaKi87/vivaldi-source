@@ -1,4 +1,4 @@
-// Copyright 2025 The Chromium Authors
+// Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,15 +34,12 @@ class MiniMapServiceTest : public PlatformTest {
     PlatformTest::SetUp();
     feature_list_.InitAndEnableFeature(kIOSMiniMapUniversalLink);
 
+    MiniMapServiceFactory::GetInstance();
     TestProfileIOS::Builder test_profile_builder;
 
     test_profile_builder.AddTestingFactory(
         ios::TemplateURLServiceFactory::GetInstance(),
         ios::TemplateURLServiceFactory::GetDefaultFactory());
-    test_profile_builder.AddTestingFactory(
-        IdentityManagerFactory::GetInstance(),
-        base::BindRepeating(IdentityTestEnvironmentBrowserStateAdaptor::
-                                BuildIdentityManagerForTests));
 
     profile_ = std::move(test_profile_builder).Build();
     OCMStub([application_ sharedApplication]).andReturn(application_);
@@ -118,14 +115,22 @@ TEST_F(MiniMapServiceTest, TestMiniMapIsMapsInstalled) {
   EXPECT_FALSE(mini_map_service_->IsGoogleMapsInstalled());
 }
 
-// Test that service reports correctly the signed-in state.
-TEST_F(MiniMapServiceTest, TestMiniMapIsSignedIn) {
-  signin::IdentityManager* identity_manager =
-      IdentityManagerFactory::GetForProfile(profile_.get());
-  EXPECT_FALSE(mini_map_service_->IsSignedIn());
-  signin::MakePrimaryAccountAvailable(identity_manager, "test@example.com",
-                                      signin::ConsentLevel::kSignin);
-  EXPECT_TRUE(mini_map_service_->IsSignedIn());
-  ClearPrimaryAccount(identity_manager);
-  EXPECT_FALSE(mini_map_service_->IsSignedIn());
+using MiniMapServiceCounterfactualTest = PlatformTest;
+
+TEST_F(MiniMapServiceCounterfactualTest,
+       TestServiceCreationWithCounterfactualFlag) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures({kIOSMiniMapUniversalLinkCounterfactual},
+                                {kIOSMiniMapUniversalLink});
+
+  web::WebTaskEnvironment task_environment;
+  TestProfileIOS::Builder test_profile_builder;
+  test_profile_builder.AddTestingFactory(
+      ios::TemplateURLServiceFactory::GetInstance(),
+      ios::TemplateURLServiceFactory::GetDefaultFactory());
+  std::unique_ptr<TestProfileIOS> profile =
+      std::move(test_profile_builder).Build();
+
+  MiniMapService* service = MiniMapServiceFactory::GetForProfile(profile.get());
+  EXPECT_TRUE(service);
 }

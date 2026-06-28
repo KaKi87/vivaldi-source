@@ -21,7 +21,9 @@ base::TimeTicks TestLayerContext::UpdateDisplayTreeFrom(
     gpu::SharedImageInterface* shared_image_interface,
     const gfx::Rect& viewport_damage_rect,
     bool frame_has_damage,
-    std::vector<ui::LatencyInfo> latency_info) {
+    bool is_flush,
+    std::vector<ui::LatencyInfo> latency_info,
+    viz::TrackedElementRects tracked_element_rects) {
   return base::TimeTicks::Now();
 }
 

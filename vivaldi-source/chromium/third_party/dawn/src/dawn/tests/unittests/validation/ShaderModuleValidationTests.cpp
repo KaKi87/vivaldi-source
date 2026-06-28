@@ -34,12 +34,13 @@
 #include <utility>
 #include <vector>
 
-#include "dawn/common/Constants.h"
-#include "dawn/native/CompilationMessages.h"
-#include "dawn/native/ShaderModule.h"
-#include "dawn/tests/unittests/validation/ValidationTest.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/common/Constants.h"
+#include "src/dawn/native/CompilationMessages.h"
+#include "src/dawn/native/ShaderModule.h"
+#include "src/dawn/tests/unittests/validation/ValidationTest.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/compiler.h"
 
 #if TINT_BUILD_SPV_READER && !defined(__EMSCRIPTEN__)
 #include "spirv-tools/optimizer.hpp"
@@ -399,7 +400,7 @@ TEST_F(ShaderModuleValidationTest, GetCompilationMessages) {
                 reinterpret_cast<const wgpu::DawnCompilationMessageUtf16*>(message->nextInChain);
             EXPECT_EQ(0u, utf16->linePos);
 
-            message = &info->messages[1];
+            message = &DAWN_UNSAFE_TODO(info->messages[1]);
             ASSERT_EQ("Warning Message", std::string_view(message->message));
             ASSERT_EQ(wgpu::CompilationMessageType::Warning, message->type);
             ASSERT_EQ(0u, message->lineNum);
@@ -410,7 +411,7 @@ TEST_F(ShaderModuleValidationTest, GetCompilationMessages) {
                 reinterpret_cast<const wgpu::DawnCompilationMessageUtf16*>(message->nextInChain);
             EXPECT_EQ(0u, utf16->linePos);
 
-            message = &info->messages[2];
+            message = &DAWN_UNSAFE_TODO(info->messages[2]);
             ASSERT_EQ("Error Message", std::string_view(message->message));
             ASSERT_EQ(wgpu::CompilationMessageType::Error, message->type);
             ASSERT_EQ(3u, message->lineNum);
@@ -421,7 +422,7 @@ TEST_F(ShaderModuleValidationTest, GetCompilationMessages) {
                 reinterpret_cast<const wgpu::DawnCompilationMessageUtf16*>(message->nextInChain);
             EXPECT_EQ(4u, utf16->linePos);
 
-            message = &info->messages[3];
+            message = &DAWN_UNSAFE_TODO(info->messages[3]);
             ASSERT_EQ("Complete Message", std::string_view(message->message));
             ASSERT_EQ(wgpu::CompilationMessageType::Info, message->type);
             ASSERT_EQ(3u, message->lineNum);
@@ -745,7 +746,7 @@ class ShaderModuleMaxInterStageShaderVariablesValidationTest : public Validation
         adapter.GetFeatures(&supportedFeatures);
         std::vector<wgpu::FeatureName> requiredFeatures(
             supportedFeatures.features,
-            supportedFeatures.features + supportedFeatures.featureCount);
+            DAWN_UNSAFE_TODO(supportedFeatures.features + supportedFeatures.featureCount));
         return requiredFeatures;
     }
 };
@@ -921,7 +922,7 @@ TEST_F(ShaderModuleMaxInterStageShaderVariablesValidationTest, Test) {
             bool canTest = true;
             for (uint8_t b = 0; b < std::size(builtins); ++b) {
                 if (mask & (1 << b)) {
-                    const Builtin& builtin = builtins[b];
+                    const Builtin& builtin = DAWN_UNSAFE_TODO(builtins[b]);
                     builtInDeclarations += "@builtin(" + std::string(builtin.name) + ") b_" +
                                            std::string(builtin.name) + ": " +
                                            std::string(builtin.type) + ",";
@@ -976,7 +977,7 @@ const WGSLExtensionInfo kExtensions[] = {
     {"chromium_experimental_framebuffer_fetch", true, {wgpu::FeatureName::FramebufferFetch}, {}},
     {"chromium_experimental_subgroup_matrix", true, {wgpu::FeatureName::ChromiumExperimentalSubgroupMatrix}, {}},
     {"chromium_experimental_resource_table", true, {wgpu::FeatureName::ChromiumExperimentalSamplingResourceTable}, {}},
-    {"chromium_experimental_subgroup_size_control", true, {wgpu::FeatureName::ChromiumExperimentalSubgroupSizeControl}, {"subgroups"}},
+    {"subgroup_size_control", true, {wgpu::FeatureName::SubgroupSizeControl}, {"subgroups"}},
     {"atomic_vec2u_min_max", true, {wgpu::FeatureName::AtomicVec2uMinMax}, {}}
 
     // Currently the following WGSL extensions are not enabled under any situation.
@@ -1000,7 +1001,7 @@ class ShaderModuleExtensionValidationTest : public ValidationTest {
         wgpu::SupportedFeatures supportedFeatures;
         adapter.GetFeatures(&supportedFeatures);
         for (uint32_t i = 0; i < supportedFeatures.featureCount; ++i) {
-            requiredFeatures.push_back(supportedFeatures.features[i]);
+            requiredFeatures.push_back(DAWN_UNSAFE_TODO(supportedFeatures.features[i]));
         }
         return requiredFeatures;
     }
@@ -1155,8 +1156,7 @@ INSTANTIATE_TEST_SUITE_P(,
 class SubgroupSizeControlValidationTest : public ValidationTest {
   protected:
     std::vector<wgpu::FeatureName> GetRequiredFeatures() override {
-        return {wgpu::FeatureName::ChromiumExperimentalSubgroupSizeControl,
-                wgpu::FeatureName::Subgroups};
+        return {wgpu::FeatureName::SubgroupSizeControl};
     }
     void TestTotalInvocationsPerWorkgroupAndSubgroupSize(const std::vector<uint32_t>& workgroupSize,
                                                          uint32_t subgroupSize,
@@ -1165,7 +1165,7 @@ class SubgroupSizeControlValidationTest : public ValidationTest {
             std::ostringstream stream;
             stream << R"(
 enable subgroups;
-enable chromium_experimental_subgroup_size_control;)";
+enable subgroup_size_control;)";
 
             if (setSubgroupSizeAsOverride) {
                 stream << "override kSubgroupSize : u32;\n";
@@ -1219,51 +1219,7 @@ TEST_F(SubgroupSizeControlValidationTest, ValidateTotalInvocationsPerWorkgroupAn
     TestTotalInvocationsPerWorkgroupAndSubgroupSize({32}, 32, true);
 }
 
-// Test it is a validation error to use a `@subgroup_size` that is greater than
-// `maxExplicitComputeSubgroupSize` or less than `minExplicitComputeSubgroupSize` on current
-// adapter.
-TEST_F(SubgroupSizeControlValidationTest, ValidateExplicitComputeSubgroupSizes) {
-    wgpu::AdapterInfo info;
-    wgpu::AdapterPropertiesExplicitComputeSubgroupSizeConfigs subgroupSizeConfigs;
-    info.nextInChain = &subgroupSizeConfigs;
-    adapter.GetInfo(&info);
 
-    for (uint32_t subgroupSize = subgroupSizeConfigs.minExplicitComputeSubgroupSize / 2;
-         subgroupSize <= subgroupSizeConfigs.maxExplicitComputeSubgroupSize * 2;
-         subgroupSize *= 2) {
-        ASSERT_TRUE(IsPowerOfTwo(subgroupSize));
-        bool success = subgroupSize >= subgroupSizeConfigs.minExplicitComputeSubgroupSize &&
-                       subgroupSize <= subgroupSizeConfigs.maxExplicitComputeSubgroupSize;
-        TestTotalInvocationsPerWorkgroupAndSubgroupSize({subgroupSize}, subgroupSize, success);
-    }
-}
-
-// Test it is a validation error to use a `@subgroup_size` that makes the total invocations per
-// workgroup exceed the product of `@subgroup_size` and `maxComputeWorkgroupSubgroups` on current
-// adapter.
-TEST_F(SubgroupSizeControlValidationTest, ValidateMaxComputeWorkgroupSubgroups) {
-    wgpu::AdapterInfo info;
-    wgpu::AdapterPropertiesExplicitComputeSubgroupSizeConfigs subgroupSizeConfigs;
-    info.nextInChain = &subgroupSizeConfigs;
-    adapter.GetInfo(&info);
-    wgpu::Limits limits;
-    adapter.GetLimits(&limits);
-
-    uint32_t maxWorkgroupSubgroups = subgroupSizeConfigs.maxComputeWorkgroupSubgroups;
-    uint32_t maxInvocationsPerWorkgroup = limits.maxComputeInvocationsPerWorkgroup;
-
-    for (uint32_t subgroupSize = subgroupSizeConfigs.minExplicitComputeSubgroupSize;
-         subgroupSize <= subgroupSizeConfigs.maxExplicitComputeSubgroupSize; subgroupSize *= 2) {
-        ASSERT_TRUE(IsPowerOfTwo(subgroupSize));
-        uint32_t totalInvocations = maxInvocationsPerWorkgroup;
-        uint32_t workgroupSizeX = subgroupSize;
-        uint32_t workgroupSizeY = totalInvocations / workgroupSizeX;
-        ASSERT_LE(workgroupSizeY, limits.maxComputeWorkgroupSizeY);
-        bool success = maxInvocationsPerWorkgroup <= subgroupSize * maxWorkgroupSubgroups;
-        TestTotalInvocationsPerWorkgroupAndSubgroupSize({workgroupSizeX, workgroupSizeY},
-                                                        subgroupSize, success);
-    }
-}
 
 }  // anonymous namespace
 }  // namespace dawn

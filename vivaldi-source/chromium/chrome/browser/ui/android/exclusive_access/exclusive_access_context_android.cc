@@ -18,7 +18,8 @@ ExclusiveAccessContextAndroid::ExclusiveAccessContextAndroid(
     const jni_zero::JavaRef<jobject>& j_fullscreen_manager,
     const jni_zero::JavaRef<jobject>& j_activity_tab_provider) {
   java_context_.Reset(Java_ExclusiveAccessContext_create(
-      env, j_context, j_fullscreen_manager, j_activity_tab_provider));
+      env, reinterpret_cast<int64_t>(this), j_context, j_fullscreen_manager,
+      j_activity_tab_provider));
 }
 
 ExclusiveAccessContextAndroid::~ExclusiveAccessContextAndroid() = default;
@@ -89,7 +90,7 @@ void ExclusiveAccessContextAndroid::UpdateExclusiveAccessBubble(
 
     // Perform the destroy async. State updates in the exclusive access bubble
     // view may call back into this method. This otherwise results in premature
-    // deletion of the bubble view and UAFs. See crbug.com/1426521.
+    // deletion of the bubble view and UAFs. See crbug.com/40063714.
     exclusive_access_bubble_destruction_task_id_ =
         exclusive_access_bubble_cancelable_task_tracker_.PostTask(
             base::SingleThreadTaskRunner::GetCurrentDefault().get(), FROM_HERE,
@@ -124,7 +125,18 @@ bool ExclusiveAccessContextAndroid::IsExclusiveAccessBubbleDisplayed() const {
   return exclusive_access_bubble_ && exclusive_access_bubble_->IsVisible();
 }
 
-void ExclusiveAccessContextAndroid::OnExclusiveAccessUserInput() {}
+void ExclusiveAccessContextAndroid::OnExclusiveAccessUserInput() {
+  // Notifies the security notice bubble that user input has occurred. This may
+  // re-snooze the bubble's hide timer or re-show it if the snooze period has
+  // elapsed.
+  if (exclusive_access_bubble_) {
+    exclusive_access_bubble_->OnUserInput();
+  }
+}
+
+void ExclusiveAccessContextAndroid::OnExclusiveAccessUserInput(JNIEnv* env) {
+  OnExclusiveAccessUserInput();
+}
 
 content::WebContents*
 ExclusiveAccessContextAndroid::GetWebContentsForExclusiveAccess() {

@@ -130,7 +130,10 @@ void ContentAnalysisDialogController::ShowDialogNow() {
     // accept/cancel the result immediately. See crbug.com/374120523 and
     // crbug.com/388049470 for more context.
     if (!dialog_delegate_->is_pending()) {
-      CancelButtonClicked();
+      content::GetUIThreadTaskRunner({})->PostTask(
+          FROM_HERE,
+          base::BindOnce(&ContentAnalysisDialogController::CancelButtonClicked,
+                         weak_ptr_factory_.GetWeakPtr()));
     }
     return;
   }
@@ -174,7 +177,7 @@ void ContentAnalysisDialogController::SuccessCallback() {
     // It's possible focus has been lost and gained back incorrectly if the user
     // clicked on the page between the time the scan started and the time the
     // dialog closes. This results in the behaviour detailed in
-    // crbug.com/1139050. The fix is to preemptively take back focus when this
+    // crbug.com/40153261. The fix is to preemptively take back focus when this
     // dialog closes on its own.
     scoped_ignore_input_events_.reset();
     web_contents()->Focus();

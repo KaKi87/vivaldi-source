@@ -34,7 +34,7 @@ jobs:
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: ${{ github.job }}
+          key: v2-${{ github.job }}
           max-size: "500M"
           save: ${{ inputs.update-caches }}
       - name: Create output directory
@@ -65,7 +65,7 @@ jobs:
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: ${{ github.job }}
+          key: v2-${{ github.job }}
           max-size: "500M"
           save: ${{ inputs.update-caches }}
       - name: Create output directory
@@ -90,7 +90,7 @@ jobs:
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: ${{ github.job }}
+          key: v2-${{ github.job }}
           max-size: "500M"
           save: ${{ inputs.update-caches }}
       - name: Install Ninja
@@ -115,7 +115,7 @@ jobs:
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: ${{ github.job }}
+          key: v2-${{ github.job }}
           max-size: "500M"
           save: ${{ inputs.update-caches }}
       - name: Install Ninja
@@ -144,7 +144,7 @@ jobs:
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: ${{ github.job }}
+          key: v2-${{ github.job }}
           max-size: "500M"
           save: ${{ inputs.update-caches }}
       - name: Install Ninja
@@ -175,7 +175,7 @@ jobs:
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: ${{ github.job }}
+          key: v2-${{ github.job }}
           max-size: "500M"
           save: ${{ inputs.update-caches }}
       - name: Create output directory
@@ -221,7 +221,7 @@ jobs:
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: ${{ github.job }}-${{ matrix.arch }}
+          key: v2-${{ github.job }}-${{ matrix.arch }}
           max-size: "500M"
           save: ${{ inputs.update-caches }}
       - name: Force compiler binary mtime
@@ -303,9 +303,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: "/home/runner/.cache/bazel"
-          key: ${{ github.job }}
+          key: v2-${{ github.job }}
           restore-keys: |
-            ${{ github.job }}-
+            v2-${{ github.job }}-
       - name: Build and run tests
         if: ${{ inputs.run-tests }}
         env:
@@ -324,7 +324,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: "/home/runner/.cache/bazel"
-          key: ${{ github.job }}-${{ github.sha }}
+          key: v2-${{ github.job }}-${{ github.sha }}
 
   bazel-linux-aarch64-clang18:
     runs-on: arm-ubuntu-arm-22.04-4core
@@ -346,9 +346,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: "/home/runner/.cache/bazel"
-          key: ${{ github.job }}
+          key: v2-${{ github.job }}
           restore-keys: |
-            ${{ github.job }}-
+            v2-${{ github.job }}-
       - name: Build and run tests
         if: ${{ inputs.run-tests }}
         env:
@@ -367,7 +367,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: "/home/runner/.cache/bazel"
-          key: ${{ github.job }}-${{ github.sha }}
+          key: v2-${{ github.job }}-${{ github.sha }}
 
   bazel-linux-x86_64-gcc-9:
     runs-on: ubuntu-22.04-8core
@@ -390,9 +390,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: "/home/runner/.cache/bazel"
-          key: ${{ github.job }}
+          key: v2-${{ github.job }}
           restore-keys: |
-            ${{ github.job }}-
+            v2-${{ github.job }}-
       - name: Build tests
         run: |
             bazel build ${BAZEL_DEFINES} :pthreadpool_test :pthreadpool_cxx_test
@@ -412,4 +412,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: "/home/runner/.cache/bazel"
-          key: ${{ github.job }}-${{ github.sha }}
+          key: v2-${{ github.job }}-${{ github.sha }}

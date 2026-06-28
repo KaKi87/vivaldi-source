@@ -9,13 +9,13 @@ source_set("site_tracker_prefs") {
     "vivaldi_site_tracker_prefs_coordinator.mm",
     "vivaldi_site_tracker_prefs_mediator.h",
     "vivaldi_site_tracker_prefs_mediator.mm",
-    "vivaldi_site_tracker_prefs_view_delegate.h"
+    "vivaldi_site_tracker_prefs_view_delegate.h",
   ]
 
   deps = [
     ":site_tracker_prefs_view_swift",
-    "//base:i18n",
     "//base",
+    "//base:i18n",
     "//components/search_engines",
     "//ios/chrome/app/strings",
     "//ios/chrome/browser/page_info/coordinator",
@@ -27,9 +27,7 @@ source_set("site_tracker_prefs") {
     "//vivaldi/ios/ui/ad_tracker_blocker/settings",
   ]
 
-  frameworks = [
-    "UIKit.framework",
-  ]
+  frameworks = [ "UIKit.framework" ]
 }
 
 swift_source_set("site_tracker_prefs_view_swift") {
@@ -37,10 +35,10 @@ swift_source_set("site_tracker_prefs_view_swift") {
   sources = [
     "vivaldi_site_tracker_prefs_option_view.swift",
     "vivaldi_site_tracker_prefs_pulsating_view.swift",
+    "vivaldi_site_tracker_prefs_view.swift",
     "vivaldi_site_tracker_prefs_view_constants.swift",
     "vivaldi_site_tracker_prefs_view_provider.swift",
     "vivaldi_site_tracker_prefs_view_state.swift",
-    "vivaldi_site_tracker_prefs_view.swift",
   ]
 
   deps = [

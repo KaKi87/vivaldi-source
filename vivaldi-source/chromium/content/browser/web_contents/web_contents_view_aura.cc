@@ -368,11 +368,13 @@ GlobalRoutingID GetRenderViewHostID(RenderViewHost* rvh) {
                          rvh->GetRoutingID());
 }
 
-// Returns the host window for |window|, or nullpr if it has no host window.
+// Returns the host window for |window|, or nullptr if it has no host window.
 aura::Window* GetHostWindow(aura::Window* window) {
-  aura::Window* host_window = window->GetProperty(aura::client::kHostWindowKey);
-  if (host_window)
-    return host_window;
+  base::WeakPtr<aura::Window>* host_window_ptr =
+      window->GetProperty(aura::client::kHostWindowKey);
+  if (host_window_ptr && *host_window_ptr) {
+    return host_window_ptr->get();
+  }
   return window->parent();
 }
 
@@ -1066,13 +1068,6 @@ RenderWidgetHostViewBase* WebContentsViewAura::CreateViewForWidget(
           : new RenderWidgetHostViewAura(render_widget_host);
   view->InitAsChild(GetRenderWidgetHostViewParent());
 
-  RenderWidgetHostImpl* host_impl =
-      RenderWidgetHostImpl::From(render_widget_host);
-
-  if (!host_impl->IsHidden()) {
-    view->Show();
-  }
-
   // We listen to drag drop events in the newly created view's window.
   aura::client::SetDragDropDelegate(view->GetNativeView(), this);
 
@@ -1247,24 +1242,7 @@ void WebContentsViewAura::StartDragging(
 
   drag_security_info_.OnDragInitiated(source_rwh, drop_data);
 
-  GURL source_url = web_contents_->GetPrimaryMainFrame()->GetLastCommittedURL();
-  ui::DataTransferEndpoint data_endpoint(
-      source_url,
-      {.notify_if_restricted = true,
-       .off_the_record = web_contents_->GetBrowserContext()->IsOffTheRecord()});
-
-  ClipboardEndpoint source_endpoint(
-      base::optional_ref<const ui::DataTransferEndpoint>(data_endpoint),
-      base::BindRepeating(
-          [](GlobalRenderFrameHostId rfh_id) -> BrowserContext* {
-            auto* rfh = RenderFrameHost::FromID(rfh_id);
-            if (!rfh) {
-              return nullptr;
-            }
-            return rfh->GetBrowserContext();
-          },
-          web_contents_->GetPrimaryMainFrame()->GetGlobalId()),
-      *web_contents_->GetPrimaryMainFrame());
+  ClipboardEndpoint source_endpoint = CreateClipboardEndpoint(source_rfh);
 
   // Synchronous policy check.
   // If drag is not allowed, it means the policy blocked the action.
@@ -1304,6 +1282,23 @@ void WebContentsViewAura::StartDragging(
   DragOperation result_op;
   {
     gfx::NativeView content_native_view = GetContentNativeView();
+    // For a touch-initiated drag the renderer-supplied `event_info.location`
+    // is untrusted: on Windows it would reach `::SendInput` via
+    // DesktopWindowTreeHostWin::StartTouchDrag and could redirect the
+    // synthesized click to an overlapping HWND (e.g. a permission bubble).
+    // Require an in-flight touch and substitute the browser-observed last
+    // touch point known to aura::Env.
+    gfx::Point trusted_location = event_info.location;
+    if (event_info.source == ui::mojom::DragEventSource::kTouch) {
+      aura::Env* env = aura::Env::GetInstance();
+      if (!env->is_touch_down()) {
+        web_contents_->SystemDragEnded(source_rwh);
+        return;
+      }
+      trusted_location =
+          env->GetLastPointerPoint(event_info.source, content_native_view,
+                                   /*fallback=*/event_info.location);
+    }
     // Make sure event is within the web contents, and the web contents are
     // visible.
     if (
@@ -1312,8 +1307,7 @@ void WebContentsViewAura::StartDragging(
         // fixes split screen mode web ui tab strip drag, or web ui tab strip is
         // fully deprecated.
     // NOTE(ondrej@vivaldi.com): VB-123201
-    //    !content_native_view->GetBoundsInScreen().Contains(
-    //        event_info.location) ||
+    //    !content_native_view->GetBoundsInScreen().Contains(trusted_location) ||
 #endif  // !BUILDFLAG(IS_CHROMEOS)
         !content_native_view->IsVisible()) {
       web_contents_->SystemDragEnded(source_rwh);
@@ -1323,7 +1317,7 @@ void WebContentsViewAura::StartDragging(
     result_op =
         aura::client::GetDragDropClient(root_window)
             ->StartDragAndDrop(std::move(data), root_window,
-                               content_native_view, event_info.location,
+                               content_native_view, trusted_location,
                                ConvertFromDragOperationsMask(operations),
                                event_info.source);
   }

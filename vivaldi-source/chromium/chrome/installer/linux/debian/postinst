@@ -63,10 +63,8 @@ update-alternatives --install /usr/bin/@@package_orig @@package_orig \
 ## MAIN ##
 install_key
 install_deb822_sources
-# TODO(thomasanderson): Enable removal of legacy repo files once the new format
-# is verified in the wild.
-# remove_legacy_list
-# remove_legacy_key
+remove_legacy_list
+remove_legacy_key
 
 # Setup proprietary media support
 nohup /opt/@@PACKAGE/update-ffmpeg > /dev/null 2>&1 &

@@ -17,8 +17,9 @@
 #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/printing/browser/print_composite_client.h"
@@ -26,6 +27,7 @@
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/public/browser/color_chooser.h"
 #include "content/public/browser/file_select_listener.h"
+#include "content/public/browser/host_zoom_map.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_view_host.h"
@@ -199,9 +201,7 @@ void VivaldiUIWebContentsDelegate::PrintCrossProcessSubframe(
 
 void VivaldiUIWebContentsDelegate::ActivateContents(
     content::WebContents* contents) {
-
   window_->browser()->ActivateContents(contents);
-
 }
 
 void VivaldiUIWebContentsDelegate::RenderFrameCreated(
@@ -399,7 +399,9 @@ content::WebContents* VivaldiUIWebContentsDelegate::AddNewContents(
   Profile* profile =
       Profile::FromBrowserContext(new_contents->GetBrowserContext());
 
-  Browser* target_browser = chrome::FindTabbedBrowser(profile, false);
+  BrowserWindowInterface* const bwi =
+      ProfileBrowserCollection::GetForProfile(profile)->FindTabbedBrowser();
+  Browser* target_browser = bwi ? bwi->GetBrowserForMigrationOnly() : nullptr;
   bool browser_created = false;
   if (!target_browser) {
     Browser::CreateParams params(Browser::TYPE_NORMAL, profile, true);

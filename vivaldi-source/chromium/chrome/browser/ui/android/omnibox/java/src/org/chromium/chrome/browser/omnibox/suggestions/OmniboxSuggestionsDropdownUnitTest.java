@@ -8,7 +8,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -17,7 +20,6 @@ import static org.mockito.Mockito.when;
 
 import android.content.Context;
 import android.view.ContextThemeWrapper;
-import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -31,7 +33,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
@@ -39,9 +40,7 @@ import org.robolectric.annotation.Config;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
-import org.chromium.chrome.browser.omnibox.test.R;
+import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.components.omnibox.OmniboxFeatureList;
 
 /** Unit tests for {@link OmniboxSuggestionsDropdown}. */
@@ -53,6 +52,7 @@ public class OmniboxSuggestionsDropdownUnitTest {
     private @Mock Runnable mDropdownScrollToTopListener;
     private @Mock OmniboxSuggestionsDropdownAdapter mAdapter;
     private @Mock View mView;
+    private @Mock OmniboxSuggestionsDropdown.NavigationListener mNavigationListener;
 
     private Context mContext;
     private OmniboxSuggestionsDropdown mDropdown;
@@ -227,7 +227,7 @@ public class OmniboxSuggestionsDropdownUnitTest {
 
     @Test
     public void translateChildrenVertical() {
-        View childView = Mockito.mock(View.class);
+        View childView = mock(View.class);
 
         mDropdown.translateChildrenVertical(45.6f);
         mDropdown.onChildAttachedToWindow(childView);
@@ -239,7 +239,7 @@ public class OmniboxSuggestionsDropdownUnitTest {
 
     @Test
     public void setChildAlpha() {
-        View childView = Mockito.mock(View.class);
+        View childView = mock(View.class);
 
         mDropdown.setChildAlpha(0.6f);
         mDropdown.onChildAttachedToWindow(childView);
@@ -265,35 +265,10 @@ public class OmniboxSuggestionsDropdownUnitTest {
     public void updateVisualScrollState_notAtTop_doesNotScroll() {
         // Scroll down to move away from the top.
         mListener.updateKeyboardVisibilityAndScroll(10, 10);
-        Mockito.clearInvocations(mListener);
+        clearInvocations(mListener);
 
         mListener.updateVisualScrollState();
         verify(mListener, times(0)).postOnAnimation(any());
-    }
-
-    @Test
-    public void testToolbarPosition() {
-        // Feature OFF, Toolbar at the TOP.
-        ChromeFeatureList.sAndroidBottomToolbarV2ReverseOrderSuggestionsList.setForTesting(false);
-        mDropdown.setToolbarPosition(ControlsPosition.TOP);
-        assertTrue(mDropdown.getToolbarOnTopForTesting());
-        assertEquals(Gravity.TOP, mLayoutParams.gravity);
-
-        // Feature OFF, Toolbar at the BOTTOM.
-        mDropdown.setToolbarPosition(ControlsPosition.BOTTOM);
-        assertTrue(mDropdown.getToolbarOnTopForTesting());
-        assertEquals(Gravity.TOP, mLayoutParams.gravity);
-
-        // Feature ON, Toolbar at the TOP.
-        ChromeFeatureList.sAndroidBottomToolbarV2ReverseOrderSuggestionsList.setForTesting(true);
-        mDropdown.setToolbarPosition(ControlsPosition.TOP);
-        assertTrue(mDropdown.getToolbarOnTopForTesting());
-        assertEquals(Gravity.TOP, mLayoutParams.gravity);
-
-        // Feature ON, Toolbar at the BOTTOM.
-        mDropdown.setToolbarPosition(ControlsPosition.BOTTOM);
-        assertFalse(mDropdown.getToolbarOnTopForTesting());
-        assertEquals(Gravity.BOTTOM, mLayoutParams.gravity);
     }
 
     @Test
@@ -381,5 +356,28 @@ public class OmniboxSuggestionsDropdownUnitTest {
     public void testOnLayoutChildren_flagDisabled_noScroll() {
         mListener.onLayoutChildren(null, new RecyclerView.State());
         verify(mListener, times(0)).scrollToPositionWithOffset(anyInt(), anyInt());
+    }
+
+    @Test
+    public void testSetAllowParkingAtSentinel() {
+        SelectionController controller = mDropdown.getSelectionControllerForTesting();
+
+        mDropdown.setAllowParkingAtSentinel(true);
+        assertTrue(controller.isParkedAtSentinel());
+
+        mDropdown.setAllowParkingAtSentinel(false);
+        assertFalse(controller.isParkedAtSentinel());
+    }
+
+    @Test
+    public void testNavigationListener_notifiedOnKeyDown() {
+        mDropdown.setNavigationListener(mNavigationListener);
+        when(mDropdown.isShown()).thenReturn(true);
+
+        mDropdown.onKeyDown(
+                KeyEvent.KEYCODE_TAB,
+                new KeyEvent(0, 0, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_TAB, 0));
+
+        verify(mNavigationListener).onNavigationStateChange(anyBoolean());
     }
 }

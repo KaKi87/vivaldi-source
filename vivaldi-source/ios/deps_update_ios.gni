@@ -1,7 +1,6 @@
 # Copyright (c) 2022 Vivaldi Technologies AS. All rights reserved
 
 import("//build/config/ios/ios_sdk.gni")
-import("//ios/build/chrome_build.gni")
 import("//vivaldi/testing/testing.gni")
 
 update_template_instance("//ios/chrome/app:chrome") {
@@ -98,15 +97,23 @@ update_target("//ios/chrome/browser/badges/ui_bundled:ui_bundled") {
 
 update_target("//ios/chrome/browser/location_bar/ui_bundled:ui_bundled") {
   deps += [
+    "//vivaldi/app:vivaldi_ios_native_strings",
+    "//vivaldi/browser:features",
+    "//vivaldi/components/omnibox:vivaldi_url_utils",
     "//vivaldi/ios/chrome/browser/ui/location_bar:vivaldi_location_bar",
     "//vivaldi/ios/ui/ad_tracker_blocker:vivaldi_ad_tracker_blocker",
   ]
 }
 
+update_target(
+    "//ios/chrome/browser/sharing/ui_bundled/activity_services:activity_services") {
+  deps += [ "//vivaldi/browser:features" ]
+}
+
 update_target("//ios/chrome/browser/settings/ui_bundled:ui_bundled") {
   deps += [
     "//vivaldi/ios/favicon:vivaldi_favicon_service",
-    "//vivaldi/ios/ui/settings:vivaldi_settings"
+    "//vivaldi/ios/ui/settings:vivaldi_settings",
   ]
 }
 
@@ -194,13 +201,12 @@ update_target("//ios/chrome/browser/reading_list/ui_bundled:ui") {
   deps += [ "//vivaldi/ios/panel/resources:assets" ]
 }
 
-update_target(
-    "//ios/chrome/browser/autofill/ui_bundled/manual_fill:manual_fill_ui") {
-  deps += [ "//vivaldi//ios/ui/autofill/resources:vivaldi_autofill_assets" ]
-}
-
 update_target("//ios/chrome/browser/autofill/ui_bundled/branding:branding_ui") {
   deps += [ "//vivaldi/ios/ui/settings:vivaldi_settings_common" ]
+}
+
+update_target("//ios/chrome/browser/autofill/manual_fill/ui:ui") {
+  deps += [ "//vivaldi//ios/ui/autofill/resources:vivaldi_autofill_assets" ]
 }
 
 update_target("//ios/chrome/browser/credential_exchange/ui:ui") {
@@ -220,16 +226,16 @@ update_target("//ios/chrome/browser/browser_content/ui_bundled:ui") {
   ]
 }
 
-update_template_instance("//ios/web/common:user_agent") {
-  deps += [ "//vivaldi/components:user_agent" ]
-}
-
 update_template_instance("//ios/web/navigation:navigation") {
   deps += [
     "//ios/chrome/browser/shared/model/profile",
-    "//vivaldi/components:user_agent",
+    "//vivaldi/components:vivaldi_ios_user_agent_override",
     "//vivaldi/prefs:prefs_strings",
   ]
+}
+
+update_target("//ios/web/common:user_agent") {
+  deps += [ "//vivaldi/components:user_agent" ]
 }
 
 update_target("//components/sessions:shared") {

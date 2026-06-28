@@ -72,7 +72,10 @@ namespace {
 std::vector<GURL> CreateGURLVectorFromIntentURLs(NSArray<NSURL*>* intent_urls) {
   std::vector<GURL> urls;
   for (NSURL* url in intent_urls) {
-    urls.push_back(net::GURLWithNSURL(url));
+    GURL gurl = net::GURLWithNSURL(url);
+    if (gurl.is_valid() && gurl.SchemeIsHTTPOrHTTPS()) {
+      urls.push_back(gurl);
+    }
   }
   return urls;
 }
@@ -98,21 +101,21 @@ UserActivityBrowserAgent::~UserActivityBrowserAgent() {}
 
 #pragma mark - Public methods.
 
+// LINT.IfChange
+// TODO(crbug.com/462018636): This code will be soon migrated to
+// task_request_user_activity.mm, so any change should be reflected also there.
+// Contact fedegermi for additional information or support.
 BOOL UserActivityBrowserAgent::ContinueUserActivity(
     NSUserActivity* user_activity,
     BOOL application_is_active) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   NSURL* webpage_url = user_activity.webpageURL;
 
-  // Credential exchange activity should only be handled in iOS 26 with the
-  // compile-time flag controlling the feature enabled.
+  // Credential exchange activity should only be handled in iOS 26.
   BOOL isCredentialExchangeActivity = NO;
   if (@available(iOS 26, *)) {
-    isCredentialExchangeActivity =
-        CredentialExchangeEnabled() &&
-        [user_activity.activityType
-            isEqualToString:[CredentialImportManager
-                                credentialExchangeActivity]];
+    isCredentialExchangeActivity = [user_activity.activityType
+        isEqualToString:[CredentialImportManager credentialExchangeActivity]];
   }
 
   if ([user_activity.activityType
@@ -121,6 +124,14 @@ BOOL UserActivityBrowserAgent::ContinueUserActivity(
           isEqualToString:NSUserActivityTypeBrowsingWeb]) {
     // App was launched by iOS as a result of Handoff.
     base::UmaHistogramEnumeration(kAppLaunchSource, AppLaunchSource::HANDOFF);
+    if (![connection_information_ startupParameters]) {
+      AppStartupParameters* startup_params = [[AppStartupParameters alloc]
+           initWithExternalURL:net::GURLWithNSURL(webpage_url)
+                   completeURL:net::GURLWithNSURL(webpage_url)
+               applicationMode:ApplicationModeForTabOpening::NORMAL
+          forceApplicationMode:NO];
+      [connection_information_ setStartupParameters:startup_params];
+    }
   } else if (spotlight::IsSpotlightAvailable() &&
              [user_activity.activityType
                  isEqualToString:CSSearchableItemActionType]) {
@@ -423,6 +434,7 @@ BOOL UserActivityBrowserAgent::ContinueUserActivity(
   }
   return ContinueUserActivityURL(webpage_url, application_is_active, NO, NO);
 }
+// LINT.ThenChange(//ios/chrome/app/task_request_user_activity.mm)
 
 // LINT.IfChange
 // TODO(crbug.com/462018636): This code will be soon migrated to
@@ -440,7 +452,7 @@ BOOL UserActivityBrowserAgent::Handle3DTouchApplicationShortcuts(
   }
   return handled_shortcut_item;
 }
-// LINT.ThenChange(ios/chrome/app/task_request_shortcut_item.mm)
+// LINT.ThenChange(//ios/chrome/app/task_request_shortcut_item.mm)
 
 void UserActivityBrowserAgent::RouteToCorrectTab() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -599,7 +611,7 @@ BOOL UserActivityBrowserAgent::HandleShortcutItem(
   base::debug::DumpWithoutCrashing();
   return NO;
 }
-// LINT.ThenChange(ios/chrome/app/task_request_shortcut_item.mm)
+// LINT.ThenChange(//ios/chrome/app/task_request_shortcut_item.mm)
 
 void UserActivityBrowserAgent::OpenRequestedURLs(
     const std::vector<GURL>& webpage_urls,
@@ -641,6 +653,10 @@ void UserActivityBrowserAgent::OpenRequestedURLs(
   }
 }
 
+// LINT.IfChange
+// TODO(crbug.com/462018636): This code will be soon migrated to
+// task_request_user_activity.mm, so any change should be reflected also there.
+// Contact fedegermi for additional information or support.
 BOOL UserActivityBrowserAgent::ContinueUserActivityURL(
     NSURL* webpage_url,
     BOOL application_is_active,
@@ -684,6 +700,7 @@ BOOL UserActivityBrowserAgent::ContinueUserActivityURL(
   }
   return YES;
 }
+// LINT.ThenChange(//ios/chrome/app/task_request_user_activity.mm)
 
 void UserActivityBrowserAgent::OpenMultipleTabs() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);

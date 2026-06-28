@@ -465,7 +465,15 @@ void WaylandToplevelWindow::HandleToplevelConfigure(
     int32_t width_dip,
     int32_t height_dip,
     const WindowStates& window_states) {
+  // HandleToplevelConfigureWithOrigin() calls into the delegate
+  // (OnActivationChanged et al.), which the views layer documents may
+  // synchronously close the widget and destroy this platform window. See
+  // DesktopWindowTreeHostPlatform::OnActivationChanged().
+  auto alive = weak_ptr_factory_.GetWeakPtr();
   HandleToplevelConfigureWithOrigin(0, 0, width_dip, height_dip, window_states);
+  if (!alive) {
+    return;
+  }
   UpdateSessionStateIfNeeded();
 }
 
@@ -497,7 +505,13 @@ void WaylandToplevelWindow::HandleToplevelConfigureWithOrigin(
   fullscreen_display_id_ = display::kInvalidDisplayId;
 
   // Update state before notifying delegate.
+  bool prev_xdg_active = is_xdg_active_;
   is_xdg_active_ = window_states.is_activated;
+  // xdg_toplevel::activated is a paint-only hint, separate from input
+  // activation which is driven by keyboard focus in UpdateActivationState.
+  if (prev_xdg_active != is_xdg_active_) {
+    delegate()->OnPaintAsActiveChanged(is_xdg_active_);
+  }
   bool prev_suspended = is_suspended_;
   is_suspended_ = window_states.is_suspended;
 
@@ -560,7 +574,11 @@ void WaylandToplevelWindow::HandleToplevelConfigureWithOrigin(
     SetRestoredBoundsInDIP(GetBoundsInDIP());
   }
 
+  auto alive = weak_ptr_factory_.GetWeakPtr();
   UpdateActivationState();
+  if (!alive) {
+    return;
+  }
   if (prev_suspended != is_suspended_) {
     frame_manager()->OnWindowSuspensionChanged();
   }

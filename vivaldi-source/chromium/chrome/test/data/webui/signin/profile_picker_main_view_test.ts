@@ -88,8 +88,6 @@ suite('ProfilePickerMainViewTest', function() {
       isProfileCreationAllowed: true,
       isAskOnStartupAllowed: true,
       profilesReorderingEnabled: true,
-      showProfilePickerToAllUsersExperiment: false,
-      isOpenAllProfilesButtonExperimentEnabled: false,
       maxProfilesCountToShowOpenAllProfilesButton: 0,
       useRefreshedUI: false,
     });
@@ -342,35 +340,6 @@ suite('ProfilePickerMainViewTest', function() {
     });
   });
 
-  test('AskOnStartupWithProfilePickerShownToAllUsers', async function() {
-    loadTimeData.overrideValues({
-      showProfilePickerToAllUsersExperiment: true,
-    });
-    resetTest();
-    await browserProxy.whenCalled('initializeMainView');
-    // Hidden while profiles list is not yet defined.
-    assertFalse(isChildVisible(mainViewElement, '#profilesWrapper'));
-    assertFalse(isChildVisible(mainViewElement, '#askOnStartup'));
-    let profiles = generateProfilesList(1);
-    await simulateProfilesListChanged(profiles);
-    await verifyProfileCard(
-        profiles, mainViewElement.shadowRoot.querySelectorAll('profile-card'));
-    // The checkbox 'Ask when chrome opens' should be visible to all users and
-    // checked by default.
-    assertTrue(isChildVisible(mainViewElement, '#askOnStartup'));
-    assertTrue(mainViewElement.$.askOnStartup.checked);
-    // Add a second profile.
-    profiles = generateProfilesList(2);
-    await simulateProfilesListChanged(profiles);
-    await verifyProfileCard(
-        profiles, mainViewElement.shadowRoot.querySelectorAll('profile-card'));
-    assertTrue(isChildVisible(mainViewElement, '#askOnStartup'));
-    assertTrue(mainViewElement.$.askOnStartup.checked);
-    mainViewElement.$.askOnStartup.click();
-    await browserProxy.whenCalled('askOnStartupChanged');
-    assertFalse(mainViewElement.$.askOnStartup.checked);
-  });
-
   [true, false].forEach(isRefreshedUI => {
     test(
         `AskOnStartupSingleToMultipleProfiles${
@@ -470,42 +439,6 @@ suite('ProfilePickerMainViewTest', function() {
     await simulateProfilesListChanged(profiles);
     await verifyProfileCard(
         profiles, mainViewElement.shadowRoot.querySelectorAll('profile-card'));
-  });
-
-  test('OpenAllProfilesClickedForExperiment', async function() {
-    loadTimeData.overrideValues({
-      isOpenAllProfilesButtonExperimentEnabled: true,
-      maxProfilesCountToShowOpenAllProfilesButton: 5,
-    });
-    resetTest();
-    // Button is not visible because number of profiles is less than 2.
-    assertTrue(mainViewElement.$.openAllProfilesButton.hidden);
-
-    const profiles = generateProfilesList(2);
-    await simulateProfilesListChanged(profiles);
-    await browserProxy.whenCalled('recordOpenAllProfilesButtonShown');
-
-    assertFalse(mainViewElement.$.openAllProfilesButton.hidden);
-    mainViewElement.$.openAllProfilesButton.click();
-    await browserProxy.whenCalled('launchAllProfiles');
-  });
-
-  test('OpenAllProfilesButtonAppearsOnSixthProfileRemoved', async function() {
-    loadTimeData.overrideValues({
-      isOpenAllProfilesButtonExperimentEnabled: true,
-      maxProfilesCountToShowOpenAllProfilesButton: 5,
-    });
-    resetTest();
-    await browserProxy.whenCalled('initializeMainView');
-
-    const profiles = generateProfilesList(6);
-
-    await simulateProfilesListChanged(profiles);
-    assertTrue(mainViewElement.$.openAllProfilesButton.hidden);
-
-    await simulateProfileRemoved(profiles[2]!.profilePath);
-    await browserProxy.whenCalled('recordOpenAllProfilesButtonShown');
-    assertFalse(mainViewElement.$.openAllProfilesButton.hidden);
   });
 
   test('LearnMoreClickedInFooterText', async function() {

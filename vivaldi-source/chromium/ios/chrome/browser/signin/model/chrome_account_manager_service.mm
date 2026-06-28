@@ -22,7 +22,7 @@
 
 namespace {
 
-// In this file, we uses classes that implements the tow following traits.
+// In this file, we uses classes that implements the two following traits.
 // Predicate to decide which identity to filter.
 // class Filter {
 // public:
@@ -70,6 +70,19 @@ class KeepGaiaID {
 
  private:
   GaiaId gaia_id_;
+};
+
+// Filter class skipping identities that do not have the given email.
+class KeepEmail {
+ public:
+  explicit KeepEmail(NSString* email) : email_(email) { CHECK(email_); }
+
+  bool ShouldFilter(id<SystemIdentity> identity) const {
+    return ![email_ isEqualToString:identity.userEmail];
+  }
+
+ private:
+  NSString* email_;
 };
 
 // Filter skipping identities if either sub-filter match.
@@ -309,6 +322,16 @@ ChromeAccountManagerService::GetIdentitiesOnDeviceWithGaiaIDs(
     }
   }
   return identities;
+}
+
+id<SystemIdentity> ChromeAccountManagerService::GetIdentityOnDeviceWithEmail(
+    NSString* email) const {
+  if (!email.length) {
+    return nil;
+  }
+  return IterateOverAllIdentitiesOnDevice(
+      FindFirstIdentity{},
+      CombineOr{SkipRestricted{restriction_}, KeepEmail{email}});
 }
 
 NSArray<id<SystemIdentity>>*

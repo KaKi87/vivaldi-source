@@ -9,6 +9,7 @@
 #include <dwmapi.h>
 #include <windows.h>
 
+#include "base/logging.h"
 #include "base/memory/ref_counted_delete_on_sequence.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"

@@ -58,11 +58,11 @@ static_library("calendar") {
   }
 
   deps = [
-    "//base:base",
+    "//base",
     "//chrome:strings",
     "//chrome/common:constants",
-    "//components/keyed_service/core:core",
-    "//components/keyed_service/content:content",
+    "//components/keyed_service/content",
+    "//components/keyed_service/core",
     "//components/prefs",
     "//components/variations",
     "//content/public/browser",
@@ -71,9 +71,7 @@ static_library("calendar") {
     "//vivaldi/prefs:prefs_strings",
   ]
   if (!is_android) {
-    deps += [
-      "//vivaldi/extensions/schema",
-    ]
+    deps += [ "//vivaldi/extensions/schema" ]
   }
   public_deps = [
     #"//components/sync/protocol",

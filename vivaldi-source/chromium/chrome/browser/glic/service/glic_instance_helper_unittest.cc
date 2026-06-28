@@ -7,6 +7,7 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/task_environment.h"
 #include "chrome/browser/glic/public/glic_instance.h"
+#include "chrome/browser/glic/service/metrics/glic_instance_helper_metrics.h"
 #include "components/tabs/public/mock_tab_interface.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/unowned_user_data/unowned_user_data_host.h"
@@ -21,6 +22,9 @@ class FakeGlicInstance : public GlicInstanceHelper::Instance {
   const InstanceId& id() const override { return id_; }
   std::optional<std::string> conversation_id() const override {
     return "test_conversation_id";
+  }
+  std::string conversation_title() const override {
+    return "test_conversation_title";
   }
 
  private:
@@ -97,6 +101,7 @@ TEST_F(GlicInstanceHelperTest, GettersWork) {
   helper.SetBoundInstance(&instance);
   EXPECT_EQ(helper.GetInstanceId(), id);
   EXPECT_EQ(helper.GetConversationId(), "test_conversation_id");
+  EXPECT_EQ(helper.GetConversationTitle(), "test_conversation_title");
 
   helper.OnPinnedByInstance(&instance);
   EXPECT_THAT(helper.GetPinnedInstances(), testing::ElementsAre(&instance));
@@ -266,6 +271,17 @@ TEST_F(GlicInstanceHelperTest, LogsDaisyChainOutcomeNoActionOnDestruction) {
   histogram_tester_.ExpectUniqueSample(
       "Glic.Instance.AutoOpenedPanel.FirstAction.TabContents",
       DaisyChainFirstAction::kNoAction, 1);
+}
+
+TEST_F(GlicInstanceHelperTest, LogsLastActiveInstanceOutcome) {
+  {
+    GlicInstanceHelper helper(&mock_tab_);
+    helper.SetIsDaisyChained(DaisyChainSource::kLastActiveInstance);
+    helper.OnDaisyChainAction(DaisyChainFirstAction::kInputSubmitted);
+  }
+  histogram_tester_.ExpectUniqueSample(
+      "Glic.Instance.AutoOpenedPanel.FirstAction.LastActiveInstance",
+      DaisyChainFirstAction::kInputSubmitted, 1);
 }
 
 }  // namespace glic

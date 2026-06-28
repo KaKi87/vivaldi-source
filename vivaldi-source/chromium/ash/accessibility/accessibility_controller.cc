@@ -15,6 +15,8 @@
 #include "ash/accessibility/accessibility_notification_controller.h"
 #include "ash/accessibility/accessibility_observer.h"
 #include "ash/accessibility/accessibility_prefs_custom_associator.h"
+#include "ash/accessibility/accessibility_prefs_merge_conflict_controller.h"
+#include "ash/accessibility/accessibility_prefs_merge_conflict_dialog.h"
 #include "ash/accessibility/accessibility_sync_prefs_utils.h"
 #include "ash/accessibility/autoclick/autoclick_controller.h"
 #include "ash/accessibility/disable_touchpad_event_rewriter.h"
@@ -97,6 +99,7 @@
 #include "ui/base/cursor/cursor_size.h"
 #include "ui/base/ime/ash/ime_keyboard.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/display/screen.h"
 #include "ui/display/tablet_state.h"
 #include "ui/events/ash/keyboard_capability.h"
@@ -188,8 +191,8 @@ const FeatureData kFeatures[] = {
      IDS_ASH_STATUS_TRAY_ACCESSIBILITY_HIGH_CONTRAST_MODE},
     {FeatureType::kLargeCursor, prefs::kAccessibilityLargeCursorEnabled,
      nullptr, IDS_ASH_STATUS_TRAY_ACCESSIBILITY_LARGE_CURSOR},
-    {FeatureType::kLiveCaption, ::prefs::kLiveCaptionEnabled,
-     &vector_icons::kLiveCaptionOnIcon, IDS_ASH_STATUS_TRAY_LIVE_CAPTION},
+    {FeatureType::kLiveCaption, ::prefs::kLiveCaptionEnabled, nullptr,
+     IDS_ASH_STATUS_TRAY_LIVE_CAPTION},
     {FeatureType::kMonoAudio, prefs::kAccessibilityMonoAudioEnabled, nullptr,
      IDS_ASH_STATUS_TRAY_ACCESSIBILITY_MONO_AUDIO},
     {FeatureType::kMouseKeys, prefs::kAccessibilityMouseKeysEnabled, nullptr, 0,
@@ -934,6 +937,11 @@ bool AccessibilityController::Feature::IsEnterpriseIconVisible() const {
 }
 
 const gfx::VectorIcon& AccessibilityController::Feature::icon() const {
+  if (type_ == FeatureType::kLiveCaption) {
+    return ::features::IsRoundedIconsEnabled()
+               ? vector_icons::kSubtitlesIcon
+               : vector_icons::kLiveCaptionOnOldIcon;
+  }
   DCHECK(icon_);
   if (icon_) {
     return *icon_;
@@ -2365,6 +2373,18 @@ void AccessibilityController::SilenceSpokenFeedback() {
   }
 }
 
+void AccessibilityController::OnTwoFingerTouchStart() {
+  if (client_) {
+    client_->OnTwoFingerTouchStart();
+  }
+}
+
+void AccessibilityController::OnTwoFingerTouchStop() {
+  if (client_) {
+    client_->OnTwoFingerTouchStop();
+  }
+}
+
 bool AccessibilityController::ShouldToggleSpokenFeedbackViaTouch() const {
   return client_ && client_->ShouldToggleSpokenFeedbackViaTouch();
 }
@@ -2485,12 +2505,24 @@ void AccessibilityController::OnSessionStateChanged(
 }
 
 void AccessibilityController::OnFirstSessionReady() {
-  // By the time the user desktop fully loads, any eventual syncable/conflicting
-  // preferences are set in the associator already.
-  //
-  // TODO(crbug.com/479890756): Launch the conflict resolution feature.
+  // By the time the user desktop is fully loaded, any syncable or conflicting
+  // preferences have already been processed by the associator.
+  // If needed, launch the merge resolution dialog.
+  auto controller = AccessibilityPrefsMergeConflictController::MaybeCreate();
+  if (controller && controller->needs_conflict_resolution_dialog()) {
+    prefs_conflict_resolution_dialog_ =
+        AccessibilityPrefsMergeConflictDialog::CreateAndShow(
+            std::move(controller),
+            base::BindOnce(
+                &AccessibilityController::OnPrefsConflictResolutionDialogClosed,
+                GetWeakPtr()));
+  }
 
-  // Reset the associator since it is not needed anymore.
+  // After attempting to construct the dialog, the associator is no longer
+  // required and can be safely destroyed.
+  // The dialog observes changes to the preferences it displays and reacts
+  // accordingly. Any other preference changes that occur while the dialog
+  // is open will proceed through the normal flow.
   prefs_custom_associator_.reset();
 }
 
@@ -2550,7 +2582,8 @@ void AccessibilityController::CopySigninPrefsIfNeeded(
   // Ensure a fresh state on the associator.
   CHECK(!prefs_custom_associator_);
   prefs_custom_associator_ =
-      std::make_unique<AccessibilityPrefsCustomAssociator>();
+      std::make_unique<AccessibilityPrefsCustomAssociator>(
+          current_pref_service);
 
   PrefService* signin_prefs =
       Shell::Get()->session_controller()->GetSigninScreenPrefService();
@@ -2559,18 +2592,24 @@ void AccessibilityController::CopySigninPrefsIfNeeded(
     const PrefService::Preference* pref =
         signin_prefs->FindPreference(pref_path);
 
-    // Ignore if the pref has not been set by the user.
-    if (!pref || !pref->IsUserControlled()) {
+    if (!pref) {
       continue;
     }
 
-    // Copy the pref value from the signin profile.
     const base::Value* value_on_login = pref->GetValue();
-    current_pref_service->Set(pref_path, *value_on_login);
 
-    // Try to "lock" this preference in case it is syncable and we must wait to
-    // sync until after showing the resolution dialog.
-    prefs_custom_associator_->TryLockPref(pref_path, *value_on_login);
+    if (pref->IsUserControlled()) {
+      // Copy the pref value from the signin profile.
+      current_pref_service->Set(pref_path, *value_on_login);
+    }
+
+    // A preference is lockable when its OOBE-configured value may differ
+    // from a previously synced value.
+    if (prefs_custom_associator_->CanLockPref(pref_path)) {
+      // Lock syncable OOBE accessibility prefs so sync application is
+      // deferred until conflicts are resolved.
+      prefs_custom_associator_->TryLockPref(pref_path, *value_on_login);
+    }
   }
 }
 
@@ -3021,13 +3060,26 @@ void AccessibilityController::UpdateCursorColorFromPrefs(bool notify) {
   const bool enabled =
       active_user_prefs_->GetBoolean(prefs::kAccessibilityCursorColorEnabled);
   Shell* shell = Shell::Get();
-  shell->SetCursorColor(
-      enabled
-          // Settings page only sends RGB now. Set alpha as full opaque.
-          ? SkColorSetA(active_user_prefs_->GetInteger(
-                            prefs::kAccessibilityCursorColor),
-                        0xFF)
-          : ui::kDefaultCursorColor);
+
+  const SkColor cursor_color =
+      active_user_prefs_->GetInteger(prefs::kAccessibilityCursorColor);
+  if (enabled && cursor_color == kAccessibilityCursorColorInverted) {
+    if (::features::IsAccessibilityInvertedMouseCursorEnabled()) {
+      shell->SetCursorInverted(true);
+    } else {
+      // Use default cursor if inverted cursor is not supported.
+      shell->SetCursorInverted(false);
+      shell->SetCursorColor(ui::kDefaultCursorColor);
+    }
+  } else {
+    shell->SetCursorInverted(false);
+    shell->SetCursorColor(
+        enabled
+            // Settings page only sends RGB now. Set alpha as full opaque.
+            ? SkColorSetA(cursor_color, 0xFF)
+            : ui::kDefaultCursorColor);
+  }
+
   if (notify) {
     NotifyAccessibilityStatusChanged();
   }
@@ -4145,6 +4197,10 @@ void AccessibilityController::OnRequestDisableFaceGazeAction(
 
   disable_dialog_.reset();
   client_->SendFaceGazeDisableDialogResultToSettings(dialog_accepted);
+}
+
+void AccessibilityController::OnPrefsConflictResolutionDialogClosed() {
+  prefs_conflict_resolution_dialog_.reset();
 }
 
 }  // namespace ash

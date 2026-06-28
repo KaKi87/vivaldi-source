@@ -18,3 +18,6 @@
 # Deprecated, but not marked properly by Chromium
 - MediaRecommendationsEnabled
 - ZstdContentEncodingEnabled
+
+# VB-125617
+- FeedbackSurveysEnabled

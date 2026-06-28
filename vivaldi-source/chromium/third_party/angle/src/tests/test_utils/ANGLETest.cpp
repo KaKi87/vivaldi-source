@@ -890,7 +890,7 @@ void ANGLETestBase::checkUnsupportedExtensions()
         return;
     }
 
-    if (mFixture->configParams.webGLCompatibility &&
+    if ((mFixture->configParams.webGLCompatibility || mFixture->configParams.hardenedContext) &&
         !IsEGLDisplayExtensionEnabled(mFixture->eglWindow->getDisplay(),
                                       "EGL_ANGLE_create_context_webgl_compatibility"))
     {
@@ -1651,6 +1651,11 @@ void ANGLETestBase::setWebGLCompatibilityEnabled(bool webglCompatibility)
     mFixture->configParams.webGLCompatibility = webglCompatibility;
 }
 
+void ANGLETestBase::setHardenedContextEnabled(bool hardenedContext)
+{
+    mFixture->configParams.hardenedContext = hardenedContext;
+}
+
 void ANGLETestBase::setExtensionsEnabled(bool extensionsEnabled)
 {
     mFixture->configParams.extensionsEnabled = extensionsEnabled;
@@ -1674,6 +1679,11 @@ void ANGLETestBase::setClientArraysEnabled(bool enabled)
 void ANGLETestBase::setRobustResourceInit(bool enabled)
 {
     mFixture->configParams.robustResourceInit = enabled;
+}
+
+void ANGLETestBase::setPbuffer(bool enabled)
+{
+    mFixture->configParams.pbuffer = enabled;
 }
 
 void ANGLETestBase::setMutableRenderBuffer(bool enabled)

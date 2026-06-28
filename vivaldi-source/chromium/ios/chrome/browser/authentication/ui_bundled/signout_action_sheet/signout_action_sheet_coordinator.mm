@@ -149,13 +149,13 @@ using signin_metrics::SignoutDataLossAlertReason;
 #pragma mark - ChromeCoordinator
 
 - (void)start {
-  DCHECK(self.authenticationService->HasPrimaryIdentity(
-      signin::ConsentLevel::kSignin));
+  DCHECK(self.authenticationService->HasPrimaryIdentity());
   PrefService* profilePrefService = self.profile->GetPrefs();
   _signedInUserState = GetSignedInUserState(
       self.authenticationService, self.identityManager, profilePrefService);
   if (ForceLeavingPrimaryAccountConfirmationDialog(_signedInUserState,
-                                                   self.profile)) {
+                                                   self.profile,
+                                                   /*gaia_id_to_sign_in=*/{})) {
     [self startActionSheetCoordinatorForSignout];
   } else {
     [self checkForUnsyncedDataAndSignOut];
@@ -316,8 +316,7 @@ using signin_metrics::SignoutDataLossAlertReason;
     return;
   }
 
-  if (!self.authenticationService->HasPrimaryIdentity(
-          signin::ConsentLevel::kSignin)) {
+  if (!self.authenticationService->HasPrimaryIdentity()) {
     SceneState* sceneState = browser->GetSceneState();
     [_completionWrapper signoutCompleteForScene:sceneState];
     _completionWrapper = nil;

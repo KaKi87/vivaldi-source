@@ -29,9 +29,10 @@
 #include <limits>
 #include <vector>
 
-#include "dawn/tests/DawnTest.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/WGPUHelpers.h"
+#include "src/utils/compiler.h"
 
 namespace dawn {
 namespace {
@@ -364,7 +365,8 @@ TEST_P(ImmediateDataTests, SetImmediatesWithRangeOffset) {
         // data range.
         computePassEncoder.SetImmediates(kHalfImmediateDataSize, immediateData.data(),
                                          kHalfImmediateDataSize);
-        computePassEncoder.SetImmediates(0, immediateData.data() + 2, kHalfImmediateDataSize);
+        computePassEncoder.SetImmediates(0, DAWN_UNSAFE_TODO(immediateData.data() + 2),
+                                         kHalfImmediateDataSize);
         computePassEncoder.SetBindGroup(0, CreateBindGroup());
         computePassEncoder.DispatchWorkgroups(1);
         computePassEncoder.End();
@@ -434,7 +436,7 @@ TEST_P(ImmediateDataTests, SetImmediatesMultipleTimes) {
     }
 }
 
-// Test that clamp frag depth(supported by internal immediate constants)
+// Test that clamp frag depth(supported by internal immediates)
 // works fine when shaders have user immediate data
 TEST_P(ImmediateDataTests, UsingImmediateDataDontAffectClampFragDepth) {
     // TODO(crbug.com/473870505): [Capture] support depth/stencil and multi-planar textures.
@@ -491,7 +493,7 @@ TEST_P(ImmediateDataTests, UsingImmediateDataDontAffectClampFragDepth) {
     EXPECT_PIXEL_FLOAT_EQ(0.5f, depthTexture, 0, 0);
 }
 
-// Test that vertex_index (supported by internal immediate constants)
+// Test that vertex_index (supported by internal immediates)
 // works fine when the immediates are unused and optimized out by the driver.
 TEST_P(ImmediateDataTests, VertexIndexOptimizedOut) {
     DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());

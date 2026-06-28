@@ -120,6 +120,10 @@ void ProgressTracker::DidFirstContentfulPaint() {
   MaybeSendProgress();
 }
 
+void ProgressTracker::DidNavigationApiIntercept() {
+  MaybeSendProgress();
+}
+
 void ProgressTracker::SendFinalProgress() {
   if (progress_value_ == 1)
     return;

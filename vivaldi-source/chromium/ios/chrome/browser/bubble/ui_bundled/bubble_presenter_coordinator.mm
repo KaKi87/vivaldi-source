@@ -13,12 +13,15 @@
 #import "ios/chrome/browser/discover_feed/model/discover_feed_service_factory.h"
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_controller.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/gemini_feature_availability.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
+#import "ios/chrome/browser/omnibox/model/omnibox_position/omnibox_position_browser_agent.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_presenter.h"
 #import "ios/chrome/browser/reader_mode/model/features.h"
 #import "ios/chrome/browser/segmentation_platform/model/segmentation_platform_service_factory.h"
 #import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_util.h"
+#import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_backed_boolean.h"
@@ -64,6 +67,7 @@
                        webStateList:self.browser->GetWebStateList()
                fullscreenController:FullscreenController::FromBrowser(
                                         self.browser)
+                        layoutState:self.browser->GetSceneState().layoutState
       overlayPresenterForWebContent:webContentPresenter
                       infobarBanner:infobarBannerPresenter
                        infobarModal:infobarModalPresenter];
@@ -168,7 +172,12 @@
       break;
     }
     case InProductHelpType::kToolbarSwipe: {
-      [_presenter presentToolbarSwipeGestureInProductHelp];
+      OmniboxPositionBrowserAgent* omniboxAgent =
+          OmniboxPositionBrowserAgent::FromBrowser(self.browser);
+      if (!IsChromeNextIaEnabled() ||
+          (omniboxAgent && omniboxAgent->IsCurrentLayoutBottomOmnibox())) {
+        [_presenter presentToolbarSwipeGestureInProductHelp];
+      }
       break;
     }
     case InProductHelpType::kLensOverlayEntrypoint: {
@@ -202,7 +211,16 @@
       CHECK(IsPageActionMenuEnabled());
       _presenter.pageActionMenuEntryPointHandler = HandlerForProtocol(
           commandDispatcher, PageActionMenuEntryPointCommands);
-      [_presenter presentPageActionMenuBubble];
+      [_presenter presentPageActionMenuBubbleForFeature:
+                      feature_engagement::kIPHIOSPageActionMenu];
+      break;
+    }
+    case InProductHelpType::kGeminiExternalAppStoreEvent: {
+      CHECK(IsPageActionMenuEnabled());
+      _presenter.pageActionMenuEntryPointHandler = HandlerForProtocol(
+          commandDispatcher, PageActionMenuEntryPointCommands);
+      [_presenter presentPageActionMenuBubbleForFeature:
+                      feature_engagement::kIPHiOSGeminiExternalAppStoreEvent];
       break;
     }
     case InProductHelpType::kReaderModeOptions: {
@@ -211,7 +229,8 @@
       break;
     }
     case InProductHelpType::kGeminiImageRemix: {
-      CHECK(IsGeminiImageRemixToolEnabled());
+      CHECK(gemini::IsFeatureAvailable(gemini::Feature::kImageRemix,
+                                       self.profile));
       CHECK(IsPageActionMenuEnabled());
       id<BWGCommands> bwgHandler =
           HandlerForProtocol(commandDispatcher, BWGCommands);

@@ -35,14 +35,15 @@
         "type": "string",
         "enum": [
           "target-is-tab",
-          "strip-up",
-          "strip-down",
+          "strip-up", // Does not stick into any group unless "on".
+          "strip-down", // Moves within the group only.
+          "strip-accordion", // Falls into the group only if the both neighbor tabs are within the same group.
+          "strip-no-stacks",
           "below",
           "above",
           "on",
           "into",
-          "group-follows-target", // Set the group the same as the target tab. If the target is a group, no group is set.
-          "preserve-group", // Do not set group unless it would break consistency
+          "detached", // While dragged, the tabs/groups were detached from the tab-strip.
           "create-group", // If the tab wouldn't fall intou any group, create a new one.
           "create-new-group", // put the tabs into a new group explicitely
           "do-not-reparent", // Do not modify reparent_id
@@ -407,22 +408,17 @@
         ]
       },
       {
-        "name": "setExtData",
+        "name": "setGroupProperties",
         "type": "function",
         "parameters": [
           {
               "type": "object",
               "name": "extData",
               "properties": {
-                "tabId": {
-                  "optional": true,
-                  "type": "integer",
-                  "description": "tab"
-                },
-                "extId": {
-                  "optional": true,
+                "groupExtId": {
+                  "optional": false,
                   "type": "string",
-                  "description": "tab or group extId"
+                  "description": "group extId"
                 },
                 "groupColor": {
                   "type": "string",

@@ -80,7 +80,6 @@ limitations under the License.
 #include "xla/xla_data.pb.h"
 #include "tsl/platform/path.h"
 
-// TODO(b/446827313): update names of the tests.
 namespace xla {
 namespace gpu {
 namespace {
@@ -97,6 +96,16 @@ class TritonEmitterTest
     : public HloPjRtInterpreterReferenceMixin<GpuPjRtCodegenTest>,
       public XTileTestBase {
  public:
+  DebugOptions GetDebugOptionsForTest() const override {
+    // TODO: b/509502550 - remove the flag and disable tests that use
+    // multi-output fusions when removing the feature.
+    DebugOptions debug_options = HloPjRtInterpreterReferenceMixin<
+        GpuPjRtCodegenTest>::GetDebugOptionsForTest();
+    debug_options.set_xla_gpu_unsupported_enable_triton_multi_output_fusion(
+        true);
+    return debug_options;
+  }
+
   const stream_executor::GpuComputeCapability& GpuComputeCapability() {
     return device_description().gpu_compute_capability();
   }
@@ -150,7 +159,6 @@ class WarpSpecializationTritonEmitterTest : public TritonEmitterTest {
     return debug_options;
   }
 };
-
 
 TEST_F(TritonEmitterTest, BitcastReduceWithStride4Tiling) {
   constexpr absl::string_view kHloText = R"(
@@ -573,18 +581,17 @@ ENTRY entry {
   const HloFusionInstruction* triton_fusion = Cast<HloFusionInstruction>(
       hlo_module->entry_computation()->root_instruction());
   const se::DeviceDescription dev_info =
-      TestGpuDeviceInfo::RTXA6000DeviceInfo();
-  llvm::LLVMContext llvm_ctx;
+      TestGpuDeviceInfo::RTXA6000DeviceInfo(se::CudaComputeCapability(7, 0));
   mlir::MLIRContext mlir_context;
   llvm::Triple target_triple(nvptx::TargetTriple());
   std::string data_layout(nvptx::DataLayout());
 
   EXPECT_THAT(
-      TritonWrapper("test_fn", triton_fusion,
+      TritonWrapper("test_fn", *triton_fusion,
                     se::CudaComputeCapability{se::CudaComputeCapability::kVolta,
                                               /*minor=*/0},
                     dev_info, BlockLevelParameters(), target_triple,
-                    data_layout, llvm_ctx, mlir_context),
+                    data_layout, mlir_context),
       absl_testing::StatusIs(
           absl::StatusCode::kFailedPrecondition,
           ::testing::HasSubstr("Triton support is only enabled for Ampere GPUs "
@@ -633,7 +640,6 @@ ENTRY entry_computation {
       se::CudaComputeCapability::kHopper, /*minor=*/0};
   const se::DeviceDescription dev_info =
       TestGpuDeviceInfo::RTXA6000DeviceInfo(compute_capability);
-  llvm::LLVMContext llvm_ctx;
   mlir::MLIRContext mlir_context;
   RegisterSymbolicExprStorage(&mlir_context);
   llvm::Triple target_triple(nvptx::TargetTriple());
@@ -647,9 +653,9 @@ ENTRY entry_computation {
   // will be 1024 * 65536 = 67108864 elements, that is larger than the limit of
   // 1048576.
   EXPECT_THAT(
-      TritonWrapper("test_fn", triton_fusion, compute_capability, dev_info,
+      TritonWrapper("test_fn", *triton_fusion, compute_capability, dev_info,
                     block_level_parameters, target_triple, data_layout,
-                    llvm_ctx, mlir_context),
+                    mlir_context),
       absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           ::testing::HasSubstr("Tiling does not satisfy constraints.")));
@@ -1204,43 +1210,6 @@ backend_config={
   EXPECT_TRUE(RunAndCompareNoHloPasses(hlo_text, kExactMatch));
 }
 
-// TODO(b/353484968): move this test to a deviceless file.
-TEST_F(TritonDevicelessTest,
-       GenericEmitterLowersBroadcastFrom0dOperandCorrectly) {
-  constexpr absl::string_view kHloText = R"(
-triton_computation {
-  param_0 = f32[] parameter(0)
-  ROOT broadcast = f32[127,125]{1,0} broadcast(param_0), dimensions={}
-}
-
-ENTRY main {
-  param_0 = f32[] parameter(0)
-  ROOT triton_fusion = f32[127,125]{1,0} fusion(param_0), kind=kCustom,
-    calls=triton_computation, backend_config={
-      "fusion_backend_config":{
-        "kind":"__triton","block_level_fusion_config":{
-          "output_tiles":[{"sizes":["8","4"]}],
-          "num_warps":"1",
-          "num_ctas":"1",
-          "num_stages":"1"}}}
-})";
-
-  TF_ASSERT_OK_AND_ASSIGN(auto module, ParseAndReturnVerifiedModule(kHloText));
-  TF_ASSERT_OK_AND_ASSIGN(
-      auto xtile_module_and_hlo_module,
-      CreateXTileIrAndFileCheck(std::move(module), "triton_computation", R"(
-CHECK:       %[[EXTRACTED_VALUE:.*]] = xtile.extract
-CHECK:       stablehlo.broadcast_in_dim %[[EXTRACTED_VALUE]], dims = []
-          )"));
-
-  TF_EXPECT_OK(LowerXTileIrToTritonAndFileCheck(
-      xtile_module_and_hlo_module.first.get(), R"(
-CHECK:       tt.splat {{.*}} f32 -> tensor<8x4xf32>
-)",
-      GetFusionInstruction(*xtile_module_and_hlo_module.second,
-                           "triton_computation")));
-}
-
 // TODO(b/390559452): Capture the iteration order from the propagated tiling.
 // When computing the tiling separately we need to use the same iteration order.
 TEST_F(TritonEmitterTest, DISABLED_Transpose3DWithExtraOutput) {
@@ -1352,53 +1321,6 @@ INSTANTIATE_TEST_SUITE_P(IotaEmitterParametrizedTestSuite,
                          ::testing::ValuesIn({S8, S16, S32, S64, BF16, F16, F32,
                                               F64}),
                          TypeTestParamToString);
-
-
-TEST_P(TmaParameterizedTritonEmitterTest, BroadcastWorksCorrectly) {
-  constexpr absl::string_view kHloTextTemplate = R"(
-computation {
-  p0 = s32[234]{0} parameter(0)
-  ROOT broadcast = s32[2,234]{1,0} broadcast(p0), dimensions={1}
-}
-
-ENTRY entry_computation {
-  p0 = s32[234]{0} parameter(0)
-  ROOT fusion = s32[2,234]{1,0} fusion(p0), kind=kCustom,
-    calls=computation,
-    backend_config={
-    "fusion_backend_config":{
-      "kind":"__triton",
-      "block_level_fusion_config":{
-        "output_tiles":[{"sizes":["2","128"]}],
-        "num_warps":"1",
-        "num_ctas":"1",
-        "num_stages":"1",
-        "is_tma_allowed":"$0"}}}
-})";
-
-  const bool is_tma_allowed = GetParam();
-  std::string hlo_text = absl::Substitute(kHloTextTemplate, is_tma_allowed);
-
-  constexpr absl::string_view kEmittersHloText = R"(
-computation {
-  p0 = s32[234]{0} parameter(0)
-  ROOT broadcast = s32[2,234]{1,0} broadcast(p0), dimensions={1}
-}
-
-ENTRY entry_computation {
-  p0 = s32[234]{0} parameter(0)
-  ROOT fusion = s32[2,234]{1,0} fusion(p0), kind=kCustom, calls=computation
-})";
-
-  TF_ASSERT_OK_AND_ASSIGN(std::unique_ptr<HloModule> triton_module,
-                          ParseAndReturnVerifiedModule(hlo_text));
-  TF_ASSERT_OK_AND_ASSIGN(std::unique_ptr<HloModule> emitters_module,
-                          ParseAndReturnVerifiedModule(kEmittersHloText));
-
-  EXPECT_TRUE(RunAndCompareTwoModules(std::move(emitters_module),
-                                      std::move(triton_module), kExactMatch,
-                                      /*run_hlo_passes=*/false));
-}
 
 // Reproducer from b/384110192.
 TEST_F(TritonEmitterTest,
@@ -2100,7 +2022,6 @@ TEST_F(TritonEmitterTest, RocmWarpSizeIsSetCorrectly) {
   const HloFusionInstruction* triton_fusion = Cast<HloFusionInstruction>(
       verified_module->entry_computation()->root_instruction());
 
-  llvm::LLVMContext llvm_ctx;
   mlir::MLIRContext mlir_context;
   llvm::Triple target_triple(nvptx::TargetTriple());
   std::string data_layout(nvptx::DataLayout());
@@ -2121,10 +2042,9 @@ TEST_F(TritonEmitterTest, RocmWarpSizeIsSetCorrectly) {
   // https://github.com/openxla/xla/blob/c8b710f1b70f890c9ee4b8756bc53f3a599a0ed5/xla/backends/gpu/codegen/triton/fusion_emitter.cc#L1863-L1867
   dev_info.set_shared_memory_per_block_optin(64 * 1024);
   TF_ASSERT_OK(TritonWrapper(
-      "test_fn", triton_fusion,
+      "test_fn", *triton_fusion,
       se::GpuComputeCapability{se::RocmComputeCapability("gfx942")}, dev_info,
-      block_level_parameters, target_triple, data_layout, llvm_ctx,
-      mlir_context));
+      block_level_parameters, target_triple, data_layout, mlir_context));
   TF_EXPECT_OK(tsl::Env::Default()->GetMatchingPaths(
       tsl::io::JoinPath(output_directory, "*.triton-to-llvm.txt"), &paths));
   EXPECT_EQ(paths.size(), 1);
@@ -2142,9 +2062,9 @@ TEST_F(TritonEmitterTest, RocmWarpSizeIsSetCorrectly) {
   // https://github.com/openxla/xla/blob/c8b710f1b70f890c9ee4b8756bc53f3a599a0ed5/xla/backends/gpu/codegen/triton/fusion_emitter.cc#L1863-L1867
   dev_info_n.set_shared_memory_per_block_optin(64 * 1024);
   TF_ASSERT_OK(TritonWrapper(
-      "test_fn", triton_fusion,
+      "test_fn", *triton_fusion,
       se::GpuComputeCapability{se::RocmComputeCapability("gfx1100")},
-      dev_info_n, block_level_parameters, target_triple, data_layout, llvm_ctx,
+      dev_info_n, block_level_parameters, target_triple, data_layout,
       mlir_context));
   TF_EXPECT_OK(tsl::Env::Default()->GetMatchingPaths(
       tsl::io::JoinPath(output_directory, "*.triton-to-llvm.txt"), &paths));
@@ -2155,6 +2075,87 @@ TEST_F(TritonEmitterTest, RocmWarpSizeIsSetCorrectly) {
       // CHECK: "ttg.threads-per-warp" = 32
     )";
   EXPECT_THAT(RunFileCheck(triton_passes_log, kPattern_n), true);
+}
+
+TEST_F(TritonEmitterTest, RocmWavesPerEuAttributeIsSet) {
+  if (GpuComputeCapability().IsCuda()) {
+    GTEST_SKIP() << "waves_per_eu is ROCm-specific";
+  }
+
+  TF_ASSERT_OK_AND_ASSIGN(std::unique_ptr<HloModule> verified_module,
+                          ParseAndReturnVerifiedModule(GetDotAlgorithmHlo(
+                              F16, F16, PrecisionConfig::ALG_UNSET)));
+
+  const HloFusionInstruction* triton_fusion = Cast<HloFusionInstruction>(
+      verified_module->entry_computation()->root_instruction());
+
+  mlir::MLIRContext mlir_context;
+  llvm::Triple target_triple(amdgpu::TargetTriple());
+  std::string data_layout(amdgpu::DataLayout());
+
+  BlockLevelParameters block_level_parameters;
+  block_level_parameters.output_tile_sizes = {{16, 64}};
+  block_level_parameters.num_warps = 1;
+  block_level_parameters.waves_per_eu = 4;
+
+  se::DeviceDescription dev_info = TestGpuDeviceInfo::AMDMI210DeviceInfo();
+
+  TF_ASSERT_OK_AND_ASSIGN(
+      TritonWrapperResult result,
+      TritonWrapper(
+          "test_fn", *triton_fusion,
+          se::GpuComputeCapability{se::RocmComputeCapability("gfx90a")},
+          dev_info, block_level_parameters, target_triple, data_layout,
+          mlir_context));
+
+  auto llvm_module = std::move(result.kernel_source).thread_safe_module();
+  ASSERT_NE(llvm_module.getModuleUnlocked(), nullptr);
+  auto* fn = llvm_module.getModuleUnlocked()->getFunction("test_fn");
+  ASSERT_NE(fn, nullptr)
+      << "Kernel function 'test_fn' not found in LLVM module";
+  auto attr = fn->getFnAttribute("amdgpu-waves-per-eu");
+  ASSERT_TRUE(attr.isStringAttribute());
+  EXPECT_EQ(attr.getValueAsString().str(), "4, 4");
+}
+
+TEST_F(TritonEmitterTest, RocmWavesPerEuZeroOmitsAttribute) {
+  if (GpuComputeCapability().IsCuda()) {
+    GTEST_SKIP() << "waves_per_eu is ROCm-specific";
+  }
+
+  TF_ASSERT_OK_AND_ASSIGN(std::unique_ptr<HloModule> verified_module,
+                          ParseAndReturnVerifiedModule(GetDotAlgorithmHlo(
+                              F16, F16, PrecisionConfig::ALG_UNSET)));
+
+  const HloFusionInstruction* triton_fusion = Cast<HloFusionInstruction>(
+      verified_module->entry_computation()->root_instruction());
+
+  mlir::MLIRContext mlir_context;
+  llvm::Triple target_triple(amdgpu::TargetTriple());
+  std::string data_layout(amdgpu::DataLayout());
+
+  BlockLevelParameters block_level_parameters;
+  block_level_parameters.output_tile_sizes = {{16, 64}};
+  block_level_parameters.num_warps = 1;
+  block_level_parameters.waves_per_eu = 0;
+
+  se::DeviceDescription dev_info = TestGpuDeviceInfo::AMDMI210DeviceInfo();
+
+  TF_ASSERT_OK_AND_ASSIGN(
+      TritonWrapperResult result,
+      TritonWrapper(
+          "test_fn", *triton_fusion,
+          se::GpuComputeCapability{se::RocmComputeCapability("gfx90a")},
+          dev_info, block_level_parameters, target_triple, data_layout,
+          mlir_context));
+
+  auto llvm_module = std::move(result.kernel_source).thread_safe_module();
+  ASSERT_NE(llvm_module.getModuleUnlocked(), nullptr);
+  auto* fn = llvm_module.getModuleUnlocked()->getFunction("test_fn");
+  ASSERT_NE(fn, nullptr)
+      << "Kernel function 'test_fn' not found in LLVM module";
+  EXPECT_FALSE(fn->hasFnAttribute("amdgpu-waves-per-eu"))
+      << "waves_per_eu=0 should not set amdgpu-waves-per-eu attribute";
 }
 
 struct ScaleDotTestParams {
@@ -2336,7 +2337,7 @@ class TritonScaledDotTest : public TritonEmitterTest {
 TEST_F(TritonScaledDotTest,
        ScaledDotWithOmmittedLhsScaleGetFusedAndExecutedCorrectly) {
   if (!GetCudaComputeCapability().IsAtLeastHopper()) {
-    GTEST_SKIP() << "Skipping test for pre-Hopper GPUs.";
+    GTEST_SKIP() << "Scaled dot isn't supported by Triton for pre-Hopper GPUs.";
   }
   constexpr absl::string_view kHloTextTemplate = R"hlo(
 HloModule ScaledDotWithOmmittedLhsScaleGetFusedAndExecutedCorrectly
@@ -2390,7 +2391,7 @@ ENTRY e {
 
 TEST_F(TritonScaledDotTest, ScaledDotWithBatchGetFusedAndExecutedCorrectly) {
   if (!GetCudaComputeCapability().IsAtLeastHopper()) {
-    GTEST_SKIP() << "Skipping test for pre-Hopper GPUs.";
+    GTEST_SKIP() << "Scaled dot isn't supported by Triton for pre-Hopper GPUs.";
   }
   constexpr absl::string_view kHloTextTemplate = R"hlo(
 HloModule ScaledDotWithBatchGetFusedAndExecutedCorrectly
@@ -2437,7 +2438,7 @@ ENTRY e {
 
 TEST_F(TritonScaledDotTest, BroadcastAndReshapeGetFused) {
   if (!GetCudaComputeCapability().IsAtLeastHopper()) {
-    GTEST_SKIP() << "Skipping test for pre-Hopper GPUs.";
+    GTEST_SKIP() << "Scaled dot isn't supported by Triton for pre-Hopper GPUs.";
   }
   constexpr absl::string_view kHloTextTemplate = R"hlo(
 HloModule ScaledDotWithBatchGetFusedAndExecutedCorrectly
@@ -2496,7 +2497,8 @@ ENTRY e {
 
 TEST_F(TritonScaledDotTest, Fp4Succeeds) {
   if (!GetCudaComputeCapability().IsAtLeastBlackwell()) {
-    GTEST_SKIP() << "Skipping test for pre-Blackwell GPUs.";
+    GTEST_SKIP() << "Scaled dot with FP4 isn't supported by Triton for "
+                    "pre-Blackwell GPUs.";
   }
   constexpr absl::string_view kHloTextTemplate = R"hlo(
     HloModule jit_scaled_dot_fn
@@ -2524,6 +2526,59 @@ TEST_F(TritonScaledDotTest, Fp4Succeeds) {
       CHECK: -> tensor<128x32xf32>
   )";
 
+  EXPECT_THAT(CreateTritonIrAndFileCheckForDot(*scaled_dot_computation,
+                                               kExpectedTritonIr),
+              absl_testing::IsOk());
+
+  EXPECT_TRUE(RunAndCompareNoHloPasses(
+      std::move(optimized_module), ErrorSpec{/*aabs=*/1e-3, /*arel=*/1e-3}));
+}
+
+TEST_F(TritonScaledDotTest, GlobalScalerSucceeds) {
+  if (!GetCudaComputeCapability().IsAtLeastHopper()) {
+    GTEST_SKIP() << "Scaled dot isn't supported by Triton for pre-Hopper GPUs.";
+  }
+  constexpr absl::string_view kHloTextTemplate = R"hlo(
+HloModule ScaledDotWithGlobalScaler
+
+ENTRY e {
+  lhs = f8e4m3fn[3,128,128] parameter(0)
+  rhs = f8e4m3fn[3,128,128] parameter(1)
+  lhs_scale = f8e8m0fnu[3,128,4] parameter(2)
+  rhs_scale = f8e8m0fnu[3,128,4] parameter(3)
+  scaled_dot = bf16[3,128,128] scaled-dot(lhs, rhs, lhs_scale, rhs_scale),
+    lhs_batch_dims={0},
+    rhs_batch_dims={0},
+    lhs_contracting_dims={2},
+    rhs_contracting_dims={2}
+  global_scaler = bf16[] constant(1.42)
+  global_scaler_broadcasted = bf16[3,128,128] broadcast(global_scaler),
+      dimensions={}
+  ROOT _ = bf16[3,128,128] multiply(scaled_dot, global_scaler_broadcasted)
+}
+  )hlo";
+
+  TF_ASSERT_OK_AND_ASSIGN(auto optimized_module,
+                          GetOptimizedModule(kHloTextTemplate));
+  constexpr absl::string_view kExpectedOptimizedHLO = R"(
+    CHECK: %[[fusion_name:.*]] (parameter
+    CHECK: %[[scaled_dot:.*]] = bf16[3,128,128]{2,1,0} scaled-dot
+    CHECK: %[[global_scaler:.*]] = bf16[3,128,128]{2,1,0} broadcast
+    CHECK: ROOT %{{.*}} = bf16[3,128,128]{2,1,0} multiply(%[[scaled_dot]], %[[global_scaler]])
+    CHECK: ENTRY
+    CHECK: ROOT {{.*}} fusion({{.*}}), kind=kCustom, calls=%[[fusion_name]]
+  )";
+  EXPECT_THAT(RunFileCheck(optimized_module->ToString(), kExpectedOptimizedHLO),
+              true);
+
+  HloComputation* scaled_dot_computation = GetFirstComputationWithInstruction(
+      *optimized_module, HloOpcode::kScaledDot);
+  constexpr absl::string_view kExpectedTritonIr = R"(
+      CHECK: tt.dot_scaled
+      CHECK: tensor<128x128xf8E4M3FN>, tensor<128x4xi8>
+      CHECK: tensor<128x16xf8E4M3FN>, tensor<16x4xi8>
+      CHECK: -> tensor<128x16xf32>
+  )";
   EXPECT_THAT(CreateTritonIrAndFileCheckForDot(*scaled_dot_computation,
                                                kExpectedTritonIr),
               absl_testing::IsOk());

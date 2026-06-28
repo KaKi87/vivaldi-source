@@ -46,6 +46,8 @@ struct GlicTestEnvironmentConfig {
   bool force_signin_and_glic_capability = true;
   // The default FRE status saved to prefs after profile creation.
   std::optional<prefs::FreStatus> fre_status = prefs::FreStatus::kCompleted;
+  // If set, overrides the default result of cookie sync.
+  std::optional<bool> override_cookie_sync_result;
 };
 
 namespace internal {
@@ -155,13 +157,11 @@ class GlicTestEnvironmentService : public KeyedService {
   // default, this class replaces this step with an immediately fake success.
   // Change the result of this operation here.
   void SetResultForFutureCookieSync(bool result);
-  void SetResultForFutureCookieSyncInFre(bool result);
 
  private:
   raw_ptr<Profile> profile_;
   // Null during teardown.
   base::WeakPtr<internal::TestCookieSynchronizer> cookie_synchronizer_;
-  base::WeakPtr<internal::TestCookieSynchronizer> fre_cookie_synchronizer_;
 };
 
 // For testing Glic in unit tests.

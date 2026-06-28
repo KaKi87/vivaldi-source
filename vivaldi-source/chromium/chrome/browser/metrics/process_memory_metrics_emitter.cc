@@ -42,6 +42,7 @@
 #include "components/services/paint_preview_compositor/public/mojom/paint_preview_compositor.mojom.h"
 #include "content/public/browser/audio_service_info.h"
 #include "content/public/browser/render_process_host.h"
+#include "content/public/common/child_process_id.h"
 #include "content/public/common/content_switches.h"
 #include "extensions/buildflags/buildflags.h"
 #include "media/mojo/mojom/cdm_service.mojom.h"
@@ -767,6 +768,8 @@ const Metric kAllocatorDumpNamesForMetrics[] = {
      &Memory_Experimental::SetWebCache_OtherResources},
     {"webnn", "WebNN", MetricSize::kLarge, kEffectiveSize,
      EmitTo::kSizeInUkmAndUma, &Memory_Experimental::SetWebNN},
+    {"webgl", "WebGL", MetricSize::kLarge, kEffectiveSize,
+     EmitTo::kSizeInUmaOnly, nullptr},
 #if BUILDFLAG(IS_ANDROID)
     {base::android::MeminfoDumpProvider::kDumpName, "AndroidOtherPss",
      MetricSize::kLarge, base::android::MeminfoDumpProvider::kPssMetricName,
@@ -1386,7 +1389,7 @@ int ProcessMemoryMetricsEmitter::GetNumberOfExtensions(base::ProcessId pid) {
   }
 
   const extensions::Extension* extension =
-      process_map->GetEnabledExtensionByProcessID(rph->GetDeprecatedID());
+      process_map->GetEnabledExtensionByProcessID(rph->GetID());
   // Only include this extension if it's not a hosted app.
   return (extension && !extension->is_hosted_app()) ? 1 : 0;
 #else

@@ -58,6 +58,7 @@ public class BaseSuggestionView<T extends View> extends SuggestionLayout {
      * @param context The context used to construct the suggestion view.
      * @param layoutId Layout ID to be inflated as the contents view.
      */
+    @SuppressWarnings("unchecked") // inflate() returns View, not T.
     public BaseSuggestionView(Context context, @LayoutRes int layoutId) {
         this((T) LayoutInflater.from(context).inflate(layoutId, null));
     }
@@ -128,11 +129,11 @@ public class BaseSuggestionView<T extends View> extends SuggestionLayout {
 
         if (currentViewCount < desiredViewCount) {
             increaseActionButtonsCount(desiredViewCount);
+            mActionButtonsHighlighter.setItemCount(desiredViewCount);
         } else if (currentViewCount > desiredViewCount) {
+            mActionButtonsHighlighter.setItemCount(desiredViewCount);
             decreaseActionButtonsCount(desiredViewCount);
         }
-
-        mActionButtonsHighlighter.setItemCount(desiredViewCount);
     }
 
     /**
@@ -149,6 +150,7 @@ public class BaseSuggestionView<T extends View> extends SuggestionLayout {
      * @param isSelected whether to apply hairline
      */
     private void highlightActionButton(int buttonIndex, boolean isSelected) {
+        if (buttonIndex < 0 || buttonIndex >= mActionButtons.size()) return;
         ActionButtonView actionButtonView = mActionButtons.get(buttonIndex);
         actionButtonView.setSelected(isSelected);
         if (isSelected) {
@@ -170,15 +172,6 @@ public class BaseSuggestionView<T extends View> extends SuggestionLayout {
                         int action = event.getActionMasked();
                         if (action == MotionEvent.ACTION_HOVER_ENTER
                                 || action == MotionEvent.ACTION_HOVER_EXIT) {
-                            // When the action button is pressed, HOVER_EXIT is emitted before the
-                            // touch event. We need to detect and set pressed state in advance in
-                            // order to avoid the premature hiding of the action button.
-                            boolean pressed =
-                                    (event.getButtonState() & MotionEvent.BUTTON_PRIMARY) != 0;
-                            if (pressed) {
-                                actionView.setPressed(true);
-                            }
-
                             boolean hovered = action == MotionEvent.ACTION_HOVER_ENTER;
                             actionView.setHovered(hovered);
                             mAnyActionButtonHovered = hovered;
@@ -193,7 +186,7 @@ public class BaseSuggestionView<T extends View> extends SuggestionLayout {
                             // * Move away from the suggestion view. The suggestion view will
                             //   not have a chance to clear its hover state drawing. To deal with
                             //   this, we force to clear its hover state.
-                            if (!mAnyActionButtonHovered && !mSelfMotionHovered && !pressed) {
+                            if (!mAnyActionButtonHovered && !mSelfMotionHovered) {
                                 setHovered(false);
                             }
                         }
@@ -291,9 +284,40 @@ public class BaseSuggestionView<T extends View> extends SuggestionLayout {
             v.onParentViewSelected(selected);
         }
 
+        if (!selected) {
+            actionChipsView.setSelected(false);
+        }
+
         if (selected && mOnFocusViaSelectionListener != null) {
             mOnFocusViaSelectionListener.run();
         }
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        // Trackpad and mouse clicks trigger ACTION_HOVER_EXIT on action buttons which resets the
+        // hover state of the parent view. That hides the buttons before they receive ACTION_DOWN.
+        // We temporarily force the buttons to be VISIBLE so they can receive the click event.
+        boolean isDown = event.getActionMasked() == MotionEvent.ACTION_DOWN;
+        List<ActionButtonView> temporarilyVisibleButtons = new ArrayList<>();
+        if (isDown && event.getSource() == android.view.InputDevice.SOURCE_MOUSE) {
+            for (ActionButtonView button : mActionButtons) {
+                if (button.getVisibility() == View.INVISIBLE) {
+                    temporarilyVisibleButtons.add(button);
+                    button.setVisibility(View.VISIBLE);
+                }
+            }
+        }
+        // Deliver the touch event.
+        boolean handled = super.dispatchTouchEvent(event);
+
+        // Restore visibility.
+        if (isDown) {
+            for (ActionButtonView button : temporarilyVisibleButtons) {
+                button.setVisibility(View.INVISIBLE);
+            }
+        }
+        return handled;
     }
 
     /**

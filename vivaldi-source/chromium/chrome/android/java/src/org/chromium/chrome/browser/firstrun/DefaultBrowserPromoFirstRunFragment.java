@@ -254,8 +254,22 @@ public class DefaultBrowserPromoFirstRunFragment extends Fragment implements Fir
         }
 
         var pageDelegate = assumeNonNull(getPageDelegate());
-        view.getContinueButtonView().setOnClickListener(v -> triggerRoleManagerDialog());
-        view.getDismissButtonView().setOnClickListener(v -> pageDelegate.advanceToNextPage());
+        view.getContinueButtonView()
+                .setOnClickListener(
+                        v -> {
+                            // Record that the user accepted the promo.
+                            pageDelegate.recordFreProgressHistogram(
+                                    MobileFreProgress.DEFAULT_BROWSER_PROMO_ACCEPTED);
+                            triggerRoleManagerDialog();
+                        });
+        view.getDismissButtonView()
+                .setOnClickListener(
+                        v -> {
+                            // Record that the user rejected the promo.
+                            pageDelegate.recordFreProgressHistogram(
+                                    MobileFreProgress.DEFAULT_BROWSER_PROMO_REJECTED);
+                            pageDelegate.advanceToNextPage();
+                        });
     }
 
     // These promotional rows are only visible in arm 3.

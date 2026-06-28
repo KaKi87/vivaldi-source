@@ -141,9 +141,6 @@
 [submodule "third_party/ink/src"]
 	path = third_party/ink/src
 	url = ../../external/github.com/google/ink.git
-[submodule "third_party/ink_stroke_modeler/src"]
-	path = third_party/ink_stroke_modeler/src
-	url = ../../external/github.com/google/ink-stroke-modeler.git
 [submodule "third_party/emoji-segmenter/src"]
 	path = third_party/emoji-segmenter/src
 	url = ../../external/github.com/google/emoji-segmenter.git
@@ -153,10 +150,6 @@
 [submodule "third_party/libgav1/src"]
 	path = third_party/libgav1/src
 	url = ../../codecs/libgav1.git
-[submodule "third_party/google_toolbox_for_mac/src"]
-	path = third_party/google_toolbox_for_mac/src
-	url = ../../external/github.com/google/google-toolbox-for-mac.git
-	gclient-condition = checkout_ios or checkout_mac
 [submodule "third_party/googletest/src"]
 	path = third_party/googletest/src
 	url = ../../external/github.com/google/googletest.git
@@ -215,8 +208,8 @@
 	path = third_party/liblouis/src
 	url = ../../external/liblouis-github.git
 	gclient-condition = checkout_linux
-[submodule "third_party/libphonenumber/dist"]
-	path = third_party/libphonenumber/dist
+[submodule "third_party/libphonenumber/src"]
+	path = third_party/libphonenumber/src
 	url = ../../external/libphonenumber.git
 [submodule "third_party/libsrtp"]
 	path = third_party/libsrtp
@@ -292,6 +285,9 @@
 [submodule "third_party/ruy/src"]
 	path = third_party/ruy/src
 	url = ../../external/github.com/google/ruy.git
+[submodule "third_party/sframe/src"]
+	path = third_party/sframe/src
+	url = ../../external/github.com/cisco/sframe.git
 [submodule "third_party/skia"]
 	path = third_party/skia
 	url = ../../skia/skia.git

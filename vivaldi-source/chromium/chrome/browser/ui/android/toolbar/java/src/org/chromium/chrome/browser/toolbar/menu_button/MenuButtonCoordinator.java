@@ -17,6 +17,7 @@ import android.view.View;
 
 import androidx.annotation.DrawableRes;
 import androidx.annotation.IdRes;
+import androidx.core.graphics.Insets;
 
 import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.supplier.OneshotSupplier;
@@ -251,7 +252,7 @@ public class MenuButtonCoordinator extends ToolbarChildButton {
     /**
      * @param insets The insets to apply to the background.
      */
-    public void setBackgroundInsets(androidx.core.graphics.Insets insets) {
+    public void setBackgroundInsets(Insets insets) {
         if (mMediator == null) return;
         mMediator.setBackgroundInsets(insets);
     }
@@ -398,8 +399,6 @@ public class MenuButtonCoordinator extends ToolbarChildButton {
         ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) menuWrapper.getLayoutParams();
         params.width = (int) menuWrapper.getResources().getDimension(
                 org.chromium.chrome.browser.toolbar.R.dimen.toolbar_button_width);
-        params.rightMargin = (int) menuWrapper.getResources().getDimension(
-                org.chromium.chrome.browser.toolbar.R.dimen.toolbar_buttons_offset_padding);
         return params;
     }
     // End Vivaldi

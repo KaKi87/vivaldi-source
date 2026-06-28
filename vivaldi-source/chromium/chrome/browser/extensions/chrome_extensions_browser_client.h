@@ -103,6 +103,8 @@ class ChromeExtensionsBrowserClient : public ExtensionsBrowserClient {
       content::BrowserContext* context) override;
   content::BrowserContext* GetContextRedirectedToOriginal(
       content::BrowserContext* context) override;
+  content::BrowserContext* GetContextRedirectedToOriginalWithoutAshInternals(
+      content::BrowserContext* context) override;
   content::BrowserContext* GetContextOwnInstance(
       content::BrowserContext* context) override;
   content::BrowserContext* GetContextForOriginalOnly(
@@ -117,6 +119,9 @@ class ChromeExtensionsBrowserClient : public ExtensionsBrowserClient {
   bool IsGuestSession(content::BrowserContext* context) const override;
   bool IsExtensionIncognitoEnabled(
       const ExtensionId& extension_id,
+      content::BrowserContext* context) const override;
+  bool IsExtensionIncognitoEnabled(
+      const Extension* extension,
       content::BrowserContext* context) const override;
   bool CanExtensionCrossIncognito(
       const Extension* extension,
@@ -136,14 +141,12 @@ class ChromeExtensionsBrowserClient : public ExtensionsBrowserClient {
       const network::ResourceRequest& request,
       network::mojom::RequestDestination destination,
       ui::PageTransition page_transition,
-      int child_id,
+      content::ChildProcessId child_id,
       bool is_incognito,
       const Extension* extension,
       const ExtensionSet& extensions,
       const ProcessMap& process_map,
       const GURL& upstream_url) override;
-  PrefService* GetPrefServiceForContext(
-      content::BrowserContext* context) override;
   void GetEarlyExtensionPrefsObservers(
       content::BrowserContext* context,
       std::vector<EarlyExtensionPrefsObserver*>* observers) const override;
@@ -211,6 +214,9 @@ class ChromeExtensionsBrowserClient : public ExtensionsBrowserClient {
   void SignalContentScriptsLoaded(content::BrowserContext* context) override;
   bool ShouldSchemeBypassNavigationChecks(
       const std::string& scheme) const override;
+  bool IsDefaultSearchEngineRedirect(content::BrowserContext* context,
+                                     const GURL& request_url,
+                                     const GURL& redirect_url) const override;
   base::FilePath GetSaveFilePath(content::BrowserContext* context) override;
   void SetLastSaveFilePath(content::BrowserContext* context,
                            const base::FilePath& path) override;
@@ -319,6 +325,15 @@ class ChromeExtensionsBrowserClient : public ExtensionsBrowserClient {
   scoped_refptr<CrxInstaller> CreateCrxInstallerFromDownloadItem(
       content::BrowserContext* context,
       const download::DownloadItem& download) override;
+  std::unique_ptr<image_fetcher::ImageDecoder> CreateImageDecoder() override;
+  bool CanUseNonComponentExtensions(content::BrowserContext* context) override;
+  void CanInstallExtensionByPolicy(
+      content::BrowserContext* context,
+      const ExtensionId& extension_id,
+      const base::Version& extension_version,
+      base::OnceCallback<void(bool, std::u16string)> callback) override;
+
+  void SetAPIClientForTest(std::unique_ptr<ExtensionsAPIClient> client);
 
   static void set_did_chrome_update_for_testing(bool did_update);
 

@@ -48,6 +48,7 @@ import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.base.test.util.Matchers;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.app.metrics.LaunchCauseMetrics;
 import org.chromium.chrome.browser.app.tabmodel.TabModelOrchestrator;
@@ -193,10 +194,7 @@ public class TabPersistentStoreTest {
             TabModelInternal regularTabModel = new MockTabModel(profile, null);
             Profile incognitoProfile = profileProviderSupplier.get().getOffTheRecordProfile(true);
             IncognitoTabModelInternal incognitoTabModel = new MockTabModel(incognitoProfile, null);
-            initialize(
-                    TabModelHolderFactory.createTabModelHolderForTesting(regularTabModel),
-                    TabModelHolderFactory.createIncognitoTabModelHolderForTesting(
-                            incognitoTabModel));
+            initialize(regularTabModel, incognitoTabModel);
         }
 
         @Override
@@ -205,6 +203,11 @@ public class TabPersistentStoreTest {
         @Override
         public boolean isTabModelRestored() {
             return true;
+        }
+
+        @Override
+        public @Nullable Profile getProfile(boolean offTheRecord) {
+            return getModel(offTheRecord).getProfile();
         }
     }
 
@@ -268,7 +271,8 @@ public class TabPersistentStoreTest {
                         ModalDialogManager modalDialogManager,
                         OneshotSupplier<ProfileProvider> profileProviderSupplier,
                         TabCreatorManager tabCreatorManager,
-                        NextTabPolicySupplier nextTabPolicySupplier) {
+                        NextTabPolicySupplier nextTabPolicySupplier,
+                        int supportedProfileType) {
                     try {
                         return new TestTabModelSelector(
                                 context, profileProviderSupplier, tabCreatorManager);
@@ -442,7 +446,10 @@ public class TabPersistentStoreTest {
         return ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     return new TabbedModeTabPersistencePolicy(
-                            selectorIndex, mergeTabs, tabMergingEnabled);
+                            selectorIndex,
+                            mergeTabs,
+                            tabMergingEnabled,
+                            ObservableSuppliers.createNonNull(false));
                 });
     }
 
@@ -478,7 +485,8 @@ public class TabPersistentStoreTest {
                     assertNull(store.getPrefetchTabStateActiveTabTaskForTesting());
 
                     // Make sure the metadata file loads properly and in order.
-                    store.loadState(/* ignoreIncognitoFiles= */ false);
+                    store.loadState(
+                            /* ignoreIncognitoFiles= */ false, /* ignoreRegularFiles= */ false);
                 });
 
         mockObserver.initializedCallback.waitForCallback(0, 1);
@@ -604,7 +612,8 @@ public class TabPersistentStoreTest {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     store.addObserver(mockObserver);
-                    store.loadState(/* ignoreIncognitoFiles= */ false);
+                    store.loadState(
+                            /* ignoreIncognitoFiles= */ false, /* ignoreRegularFiles= */ false);
                 });
         mockObserver.initializedCallback.waitForCallback(0, 1);
         mockObserver.detailsReadCallback.waitForCallback(0, numExpectedTabs);
@@ -980,7 +989,8 @@ public class TabPersistentStoreTest {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     firstStore.addObserver(firstObserver);
-                    firstStore.loadState(/* ignoreIncognitoFiles= */ false);
+                    firstStore.loadState(
+                            /* ignoreIncognitoFiles= */ false, /* ignoreRegularFiles= */ false);
                 });
         firstObserver.initializedCallback.waitForCallback(0, 1);
         assertEquals(numExpectedTabs, firstObserver.mTabCountAtStartup);
@@ -1016,7 +1026,8 @@ public class TabPersistentStoreTest {
                     // Make sure that all of the Tabs appear in the new one -- even though the new
                     // file was written before the first TabPersistentStore loaded any TabState
                     // files and added them to the TabModels.
-                    secondStore.loadState(/* ignoreIncognitoFiles= */ false);
+                    secondStore.loadState(
+                            /* ignoreIncognitoFiles= */ false, /* ignoreRegularFiles= */ false);
                 });
         secondObserver.initializedCallback.waitForCallback(0, 1);
         assertEquals(numExpectedTabs, secondObserver.mTabCountAtStartup);
@@ -1089,7 +1100,8 @@ public class TabPersistentStoreTest {
                     store.addObserver(mockObserver);
 
                     // Make sure the metadata file loads properly and in order.
-                    store.loadState(/* ignoreIncognitoFiles= */ false);
+                    store.loadState(
+                            /* ignoreIncognitoFiles= */ false, /* ignoreRegularFiles= */ false);
                 });
         mockObserver.initializedCallback.waitForCallback(0, 1);
         assertEquals(numExpectedTabs, mockObserver.mTabCountAtStartup);
@@ -1147,7 +1159,8 @@ public class TabPersistentStoreTest {
                     store.addObserver(mockObserver);
 
                     // Load the TabModel metadata.
-                    store.loadState(/* ignoreIncognitoFiles= */ false);
+                    store.loadState(
+                            /* ignoreIncognitoFiles= */ false, /* ignoreRegularFiles= */ false);
                 });
         mockObserver.initializedCallback.waitForCallback(0, 1);
         assertEquals(numExpectedTabs, mockObserver.mTabCountAtStartup);
@@ -1270,7 +1283,8 @@ public class TabPersistentStoreTest {
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    store.loadState(/* ignoreIncognitoFiles= */ false);
+                    store.loadState(
+                            /* ignoreIncognitoFiles= */ false, /* ignoreRegularFiles= */ false);
                     store.restoreTabs(true);
                 });
 
@@ -1411,7 +1425,8 @@ public class TabPersistentStoreTest {
                                                     tabCreatorManager,
                                                     null,
                                                     mismatchedIndicesHandler,
-                                                    windowId)
+                                                    windowId,
+                                                    SupportedProfileType.MIXED)
                                             .second;
                         });
 
@@ -1421,7 +1436,10 @@ public class TabPersistentStoreTest {
         // Load up the TabModel metadata.
         int numExpectedTabs = info.numRegularTabs + (restoreIncognito ? info.numIncognitoTabs : 0);
         ThreadUtils.runOnUiThreadBlocking(
-                () -> store.loadState(/* ignoreIncognitoFiles= */ !restoreIncognito));
+                () ->
+                        store.loadState(
+                                /* ignoreIncognitoFiles= */ !restoreIncognito,
+                                /* ignoreRegularFiles= */ false));
         mockObserver.initializedCallback.waitForCallback(0, 1);
         assertEquals(numExpectedTabs, mockObserver.mTabCountAtStartup);
         mockObserver.detailsReadCallback.waitForCallback(0, numExpectedTabs);

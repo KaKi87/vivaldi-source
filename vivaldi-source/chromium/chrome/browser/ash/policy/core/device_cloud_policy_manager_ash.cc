@@ -10,6 +10,8 @@
 #include <utility>
 
 #include "ash/constants/ash_paths.h"
+#include "ash/constants/ash_policy_pref_names.h"
+#include "ash/constants/ash_pref_names.h"
 #include "ash/constants/ash_switches.h"
 #include "base/command_line.h"
 #include "base/feature_list.h"
@@ -25,7 +27,6 @@
 #include "chrome/browser/ash/login/reporting/lock_unlock_reporter.h"
 #include "chrome/browser/ash/login/reporting/login_logout_reporter.h"
 #include "chrome/browser/ash/policy/core/device_cloud_policy_store_ash.h"
-#include "chrome/browser/ash/policy/core/policy_pref_names.h"
 #include "chrome/browser/ash/policy/core/reporting_user_tracker.h"
 #include "chrome/browser/ash/policy/enrollment/auto_enrollment_type_checker.h"
 #include "chrome/browser/ash/policy/networking/euicc_status_uploader.h"
@@ -40,7 +41,6 @@
 #include "chrome/browser/ash/policy/server_backed_state/server_backed_state_keys_broker.h"
 #include "chrome/browser/ash/policy/status_collector/device_status_collector.h"
 #include "chrome/browser/ash/policy/status_collector/managed_session_service.h"
-#include "chrome/browser/ash/policy/uploading/heartbeat_scheduler.h"
 #include "chrome/browser/ash/policy/uploading/status_uploader.h"
 #include "chrome/browser/ash/policy/uploading/system_log_uploader.h"
 #include "chrome/browser/browser_process.h"
@@ -148,7 +148,6 @@ void DeviceCloudPolicyManagerAsh::Shutdown() {
   lock_unlock_reporter_.reset();
   login_logout_reporter_.reset();
   user_added_removed_reporter_.reset();
-  heartbeat_scheduler_.reset();
   syslog_uploader_.reset();
   status_uploader_.reset();
   crd_delegate_ = nullptr;
@@ -169,8 +168,8 @@ void DeviceCloudPolicyManagerAsh::RegisterPrefs(PrefRegistrySimple* registry) {
   ReportingUserTracker::RegisterPrefs(registry);
 
   registry->RegisterDictionaryPref(::prefs::kServerBackedDeviceState);
-  registry->RegisterBooleanPref(::prefs::kRemoveUsersRemoteCommand, false);
-  registry->RegisterStringPref(::prefs::kLastRsuDeviceIdUploaded,
+  registry->RegisterBooleanPref(ash::prefs::kRemoveUsersRemoteCommand, false);
+  registry->RegisterStringPref(ash::prefs::kLastRsuDeviceIdUploaded,
                                std::string());
   registry->RegisterListPref(prefs::kStoreLogStatesAcrossReboots);
   registry->RegisterDictionaryPref(
@@ -255,15 +254,6 @@ void DeviceCloudPolicyManagerAsh::StartConnection(
     CreateStatusUploader(managed_session_service_.get());
     syslog_uploader_ =
         std::make_unique<SystemLogUploader>(nullptr, task_runner_);
-    if (base::FeatureList::IsEnabled(
-            chromeos::features::kKioskHeartbeatsViaERP)) {
-      // Do nothing as heartbeats go over ERP.
-    } else {
-      // Initialize legacy GCM heartbeat (default behaviour)
-      heartbeat_scheduler_ = std::make_unique<HeartbeatScheduler>(
-          g_browser_process->gcm_driver(), client(), device_store_.get(),
-          install_attributes->GetDeviceId(), task_runner_);
-    }
     metric_reporting_manager_ = reporting::MetricReportingManager::Create(
         managed_session_service_.get());
     os_updates_reporter_ = reporting::OsUpdatesReporter::Create();
@@ -416,7 +406,7 @@ void DeviceCloudPolicyManagerAsh::CreateManagedSessionServiceAndReporters() {
 
   managed_session_service_ = std::make_unique<ManagedSessionService>();
   login_logout_reporter_ = ash::reporting::LoginLogoutReporter::Create(
-      managed_session_service_.get());
+      local_state_, managed_session_service_.get());
 
   user_added_removed_reporter_ = ::reporting::UserAddedRemovedReporter::Create(
       std::move(users_to_be_removed_), managed_session_service_.get());
@@ -434,11 +424,6 @@ void DeviceCloudPolicyManagerAsh::CreateManagedSessionServiceAndReporters() {
         reporting::UserSessionActivityReporter::Create(
             managed_session_service_.get(), user_manager);
   }
-}
-
-HeartbeatScheduler*
-DeviceCloudPolicyManagerAsh::GetHeartbeatSchedulerForTesting() const {
-  return heartbeat_scheduler_.get();
 }
 
 reporting::OsUpdatesReporter*

@@ -21,7 +21,6 @@ export const TEST_RANDOM_VALUE_SETTINGS: SettingsPrefs = {
   speechRate: 104,
   font: 'font',
   highlightGranularity: 105,
-  lineFocus: 106,
   linksEnabled: true,
   imagesEnabled: false,
 };
@@ -40,7 +39,8 @@ export function mockMetrics(): TestMetricsBrowserProxy {
   return metrics;
 }
 
-export function emitEvent(app: AppElement, name: string, options?: any): void {
+export function emitEvent(
+    app: AppElement, name: string, options?: CustomEventInit): void {
   app.$.toolbar.dispatchEvent(new CustomEvent(name, options));
 }
 
@@ -164,4 +164,21 @@ export function setContent(
 
 export function assertTestSettingsAreNotDefaultSettings() {
   assertNotDeepEquals(DEFAULT_SETTINGS, TEST_RANDOM_VALUE_SETTINGS);
+}
+
+export function setWindowSize(height: number, width: number) {
+  if (Object.getOwnPropertyDescriptor(window, 'innerHeight')?.configurable !==
+      false) {
+    Object.defineProperty(window, 'innerHeight', {
+      value: height,
+      configurable: true,
+    });
+  }
+  if (Object.getOwnPropertyDescriptor(window, 'innerWidth')?.configurable !==
+      false) {
+    Object.defineProperty(window, 'innerWidth', {
+      value: width,
+      configurable: true,
+    });
+  }
 }

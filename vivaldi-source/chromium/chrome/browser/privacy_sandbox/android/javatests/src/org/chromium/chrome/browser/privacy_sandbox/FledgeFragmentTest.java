@@ -46,9 +46,9 @@ import org.junit.runner.RunWith;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.UserActionTester;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
@@ -61,6 +61,7 @@ import org.chromium.chrome.test.util.ChromeRenderTestRule;
 import org.chromium.components.policy.test.annotations.Policies;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.user_prefs.UserPrefs;
+import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.test.util.RenderTestRule;
 import org.chromium.ui.test.util.ViewUtils;
 
@@ -434,6 +435,7 @@ public final class FledgeFragmentTest {
 
     @Test
     @SmallTest
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/511288134
     public void unblockSitesV2() {
         setFledgePrefEnabled(true);
         mFakePrivacySandboxBridge.setBlockedFledgeSites(SITE_NAME_1, SITE_NAME_2);
@@ -511,10 +513,7 @@ public final class FledgeFragmentTest {
 
     @Test
     @SmallTest
-    @Policies.Add({
-        @Policies.Item(key = "PrivacySandboxSiteEnabledAdsEnabled", string = "false"),
-        @Policies.Item(key = "PrivacySandboxPromptEnabled", string = "false")
-    })
+    @Policies.Add({@Policies.Item(key = "PrivacySandboxSiteEnabledAdsEnabled", string = "false")})
     public void testFledgeManaged() {
         startFledgeSettings();
 
@@ -547,26 +546,7 @@ public final class FledgeFragmentTest {
     @Test
     @SmallTest
     // TODO(crbug.com/433576895): Re-enable containment feature once the test is fixed.
-    @DisableFeatures({
-        ChromeFeatureList.PRIVACY_SANDBOX_AD_TOPICS_CONTENT_PARITY,
-        ChromeFeatureList.ANDROID_SETTINGS_CONTAINMENT
-    })
-    public void testFooterTopicsLink() throws IOException {
-        setFledgePrefEnabled(true);
-        startFledgeSettings();
-        // Open a Topics settings activity.
-        onView(withText(containsString("ad topics"))).perform(clickOnClickableSpan(0));
-        onViewWaiting(withText(R.string.settings_topics_page_toggle_sub_label_v2))
-                .check(matches(isDisplayed()));
-        // Close the additional activity by navigating back.
-        pressBack();
-    }
-
-    @Test
-    @SmallTest
-    // TODO(crbug.com/433576895): Re-enable containment feature once the test is fixed.
     @DisableFeatures(ChromeFeatureList.ANDROID_SETTINGS_CONTAINMENT)
-    @EnableFeatures(ChromeFeatureList.PRIVACY_SANDBOX_AD_TOPICS_CONTENT_PARITY)
     public void testFooterTopicsLinkAdTopicsContentParity() throws IOException {
         setFledgePrefEnabled(true);
         startFledgeSettings();

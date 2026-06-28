@@ -12,10 +12,10 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/renderer_host/chrome_navigation_ui_data.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
-#include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/common/webui_url_constants.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/site_instance.h"
@@ -28,7 +28,6 @@
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #endif
 
@@ -39,6 +38,8 @@ namespace extensions {
 namespace {
 
 #if !BUILDFLAG(IS_ANDROID)
+// This variant is only available on non-Android platforms. On Android, window
+// creation / initialization is an async process.
 BrowserWindowInterface* CreateAndShowBrowser(Profile* profile,
                                              bool user_gesture) {
   if (Browser::GetCreationStatusForProfile(profile) !=
@@ -49,8 +50,6 @@ BrowserWindowInterface* CreateAndShowBrowser(Profile* profile,
   BrowserWindowCreateParams params(BrowserWindowInterface::TYPE_NORMAL,
                                    *profile, user_gesture);
 
-  // TODO(https://crbug.com/430344931): When this is ported to android
-  // platforms, this window isn't guaranteed to be fully initialized.
   BrowserWindowInterface* browser = CreateBrowserWindow(std::move(params));
   if (!browser) {
     return nullptr;
@@ -107,7 +106,7 @@ OpenTabHelper::FindOrCreateBrowser(const GURL& validated_url,
   bool fallback_to_tabbed_browser = false;
 
   // Vivaldi, VB-109262
-  if (browser->GetBrowserForMigrationOnly()->is_delete_scheduled())
+  if (browser->GetBrowserForMigrationOnly()->IsDeleteScheduled())
     return base::unexpected(ExtensionTabUtil::kNoCurrentWindowError);
 
   // Check if the browser is valid. If it isn't, reset `browser` and possibly
@@ -195,9 +194,6 @@ base::expected<content::WebContents*, std::string> OpenTabHelper::OpenTab(
   navigate_params.tabstrip_index = index;
   navigate_params.user_gesture = false;
 
-  // TODO(https://crbug.com/430344931): `NavigateParams::tabstrip_add_types`
-  // isn't supported on android builds yet.
-#if !BUILDFLAG(IS_ANDROID)
   // Default to not pinning the tab. Setting the 'pinned' property to true
   // will override this default.
   bool pinned = params.pinned.value_or(false);
@@ -208,7 +204,6 @@ base::expected<content::WebContents*, std::string> OpenTabHelper::OpenTab(
     add_types |= AddTabTypes::ADD_PINNED;
   }
   navigate_params.tabstrip_add_types = add_types;
-#endif
 
   // Ensure that this navigation will not get 'captured' into PWA windows, as
   // this means that `browser` could be ignored. It may be useful/desired in
@@ -222,6 +217,7 @@ base::expected<content::WebContents*, std::string> OpenTabHelper::OpenTab(
   // Vivaldi
   navigate_params.viv_ext_data = params.viv_ext_data.value_or("");
   navigate_params.ignore_link_routing = params.ignore_link_routing.value_or(false);
+  navigate_params.positioning_params = params.positioning_params; // VB-128442
   // End Vivaldi
 
   base::WeakPtr<content::NavigationHandle> handle = Navigate(&navigate_params);

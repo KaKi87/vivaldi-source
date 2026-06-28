@@ -18,6 +18,7 @@
 //#include "chrome/browser/glic/glic_pref_names.h"
 //#include "chrome/browser/glic/public/glic_keyed_service.h"
 //#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
+//#include "chrome/browser/glic/public/service/glic_instance_coordinator.h"
 //#include "chrome/browser/glic/test_support/glic_test_environment.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_window.h"
@@ -33,10 +34,9 @@
 #include "chrome/browser/translate/translate_test_utils.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/profiles/profile_picker.h"
 #include "chrome/browser/ui/profiles/profile_ui_test_utils.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry_key.h"
@@ -84,7 +84,6 @@
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
 #include "chrome/common/chrome_features.h"
 #endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
-
 
 namespace chrome {
 
@@ -212,7 +211,7 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandControllerBrowserTest,
 #if !BUILDFLAG(IS_CHROMEOS)
 IN_PROC_BROWSER_TEST_F(BrowserCommandControllerBrowserTest,
                        NewAvatarMenuEnabledInGuestMode) {
-  EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
 
   Browser* browser = CreateGuestBrowser();
   EXPECT_TRUE(browser);
@@ -464,8 +463,13 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandControllerBrowserTestRefreshOnly,
   EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_CLOSE_PROFILE));
 }
 
+#if BUILDFLAG(IS_MAC)
+#define MAYBE_ExecuteShowSyncSettings DISABLED_ExecuteShowSyncSettings
+#else
+#define MAYBE_ExecuteShowSyncSettings ExecuteShowSyncSettings
+#endif
 IN_PROC_BROWSER_TEST_F(BrowserCommandControllerBrowserTestRefreshOnly,
-                       ExecuteShowSyncSettings) {
+                       MAYBE_ExecuteShowSyncSettings) {
   EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_SHOW_SYNC_SETTINGS));
   content::WebContents* web_contents =
       browser()->tab_strip_model()->GetActiveWebContents();
@@ -758,14 +762,15 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandControllerBrowserTestGlic,
       ::prefs::kGeminiSettings,
       static_cast<int>(glic::prefs::SettingsPolicyState::kEnabled));
   // Bypass fre.
-  profile_prefs->SetInteger(
-      glic::prefs::kGlicCompletedFre,
-      static_cast<int>(glic::prefs::FreStatus::kCompleted));
+  glic::GlicKeyedService::Get(browser()->profile())
+      ->enabling()
+      .SetCompletedFre(glic::prefs::FreStatus::kCompleted);
 
   EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_OPEN_GLIC));
   ASSERT_TRUE(
       glic::GlicKeyedServiceFactory::GetGlicKeyedService(browser()->profile())
-          ->IsWindowShowing());
+          ->instance_coordinator()
+          .IsAnyPanelShowing());
   // Open command is disabled because Glic is now open.
   ASSERT_TRUE(base::test::RunUntil(
       [&]() { return !chrome::IsCommandEnabled(browser(), IDC_OPEN_GLIC); }));

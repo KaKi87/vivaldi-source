@@ -18,6 +18,7 @@ import android.graphics.Rect;
 import android.view.View;
 import android.widget.ListView;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -32,6 +33,8 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.glic.GlicEnabling;
+import org.chromium.chrome.browser.glic.GlicPrefNames;
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.multiwindow.UiUtils.NameWindowDialogSource;
@@ -43,7 +46,11 @@ import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModel.RecentlyClosedEntryType;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.tab_ui.R;
+import org.chromium.components.prefs.PrefService;
+import org.chromium.components.user_prefs.UserPrefs;
+import org.chromium.components.user_prefs.UserPrefsJni;
 import org.chromium.ui.base.WindowAndroid;
+import org.chromium.ui.listmenu.ListItemType;
 import org.chromium.ui.listmenu.ListMenuItemProperties;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import org.chromium.ui.modelutil.ModelListAdapter;
@@ -52,11 +59,11 @@ import org.chromium.ui.widget.AnchoredPopupWindow;
 import org.chromium.ui.widget.RectProvider;
 
 import java.lang.ref.WeakReference;
+import java.util.Collections;
 
 /** Unit tests for {@link TabStripContextMenuCoordinator}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
-@EnableFeatures(ChromeFeatureList.TAB_STRIP_EMPTY_SPACE_CONTEXT_MENU_ANDROID)
 @DisableFeatures(ChromeFeatureList.GLIC)
 public class TabStripContextMenuCoordinatorUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -68,6 +75,8 @@ public class TabStripContextMenuCoordinatorUnitTest {
     @Mock private Runnable mOnNewTabClick;
     @Mock private RectProvider mRectProvider;
     @Mock private Profile mProfile;
+    @Mock private PrefService mPrefService;
+    @Mock private UserPrefs.Natives mUserPrefsJniMock;
 
     private Activity mActivity;
     private TabStripContextMenuCoordinator mCoordinator;
@@ -77,6 +86,7 @@ public class TabStripContextMenuCoordinatorUnitTest {
 
     @Before
     public void setUp() {
+        GlicEnabling.setEnabledForTesting(ChromeFeatureList.isEnabled(ChromeFeatureList.GLIC));
         mActivity = Robolectric.buildActivity(Activity.class).setup().get();
         mActivity.setTheme(R.style.Theme_BrowserUI_DayNight);
 
@@ -85,9 +95,7 @@ public class TabStripContextMenuCoordinatorUnitTest {
         when(mTabModel.getCount()).thenReturn(2);
         when(mTabModel.getProfile()).thenReturn(mProfile);
 
-        doAnswer(invocation -> java.util.Collections.emptyIterator())
-                .when((TabList) mTabModel)
-                .iterator();
+        doAnswer(invocation -> Collections.emptyIterator()).when((TabList) mTabModel).iterator();
 
         mCoordinator =
                 TabStripContextMenuCoordinator.createContextMenuCoordinator(
@@ -97,8 +105,52 @@ public class TabStripContextMenuCoordinatorUnitTest {
                         mSnackbarManager,
                         mOnNewTabClick);
 
+        UserPrefsJni.setInstanceForTesting(mUserPrefsJniMock);
+        when(mUserPrefsJniMock.get(mProfile)).thenReturn(mPrefService);
+
         when(mRectProvider.getRect())
                 .thenReturn(new Rect(10, 10, mActivity.getWindow().getDecorView().getWidth(), 50));
+    }
+
+    @After
+    public void tearDown() {
+        ChromeSharedPreferences.getInstance().removeKey(ChromePreferenceKeys.VERTICAL_TABS_ENABLED);
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
+    @Config(qualifiers = "sw600dp")
+    public void showMenu_verifyVerticalTabsEntryPoint() {
+        MultiWindowUtils.setMultiInstanceApi31EnabledForTesting(true);
+        ChromeSharedPreferences.getInstance()
+                .writeBoolean(ChromePreferenceKeys.VERTICAL_TABS_ENABLED, false);
+
+        // Act.
+        mCoordinator.showMenu(mRectProvider, false, mActivity);
+
+        // Verify: Baseline items (4) + divider (1) + "Show tabs vertically" (1) = 6 items.
+        verifyMenuState(/* expectedNumItems= */ 6);
+
+        // Index 4 is the divider.
+        ListItem dividerItem = (ListItem) mListView.getAdapter().getItem(4);
+        assertEquals(ListItemType.DIVIDER, dividerItem.type);
+
+        // Index 5 is "Show tabs vertically".
+        PropertyModel verticalTabsItemModel = getItemModelAtPosition(5);
+        assertEquals(
+                R.id.show_tabs_vertically_menu_id,
+                verticalTabsItemModel.get(ListMenuItemProperties.MENU_ITEM_ID));
+        assertEquals(
+                R.string.show_tabs_vertically,
+                verticalTabsItemModel.get(ListMenuItemProperties.TITLE_ID));
+
+        // Act: Select "Show tabs vertically".
+        mCoordinator
+                .getListMenuDelegate(mContentView)
+                .onItemSelected(verticalTabsItemModel, mListView);
+
+        // TODO: Test click logic here.
+        assertFalse(mMenuWindow.isShowing());
     }
 
     @Test
@@ -229,8 +281,7 @@ public class TabStripContextMenuCoordinatorUnitTest {
     public void showMenu_verifyPinGlicOption() {
         // Arrange.
         MultiWindowUtils.setMultiInstanceApi31EnabledForTesting(true);
-        ChromeSharedPreferences.getInstance()
-                .writeBoolean(ChromePreferenceKeys.GLIC_BUTTON_PINNED, false);
+        when(mPrefService.getBoolean(GlicPrefNames.GLIC_PINNED_TO_TABSTRIP)).thenReturn(false);
         mCoordinator.showMenu(mRectProvider, false, mActivity);
         verifyMenuState(/* expectedNumItems= */ 6);
         assertEquals(
@@ -242,9 +293,7 @@ public class TabStripContextMenuCoordinatorUnitTest {
                 .onItemSelected(getItemModelAtPosition(5), mListView);
 
         // Verify.
-        assertTrue(
-                ChromeSharedPreferences.getInstance()
-                        .readBoolean(ChromePreferenceKeys.GLIC_BUTTON_PINNED, false));
+        verify(mPrefService).setBoolean(GlicPrefNames.GLIC_PINNED_TO_TABSTRIP, true);
         assertFalse(mMenuWindow.isShowing());
     }
 
@@ -253,8 +302,7 @@ public class TabStripContextMenuCoordinatorUnitTest {
     public void showMenu_verifyUnpinGlicOption() {
         // Arrange.
         MultiWindowUtils.setMultiInstanceApi31EnabledForTesting(true);
-        ChromeSharedPreferences.getInstance()
-                .writeBoolean(ChromePreferenceKeys.GLIC_BUTTON_PINNED, true);
+        when(mPrefService.getBoolean(GlicPrefNames.GLIC_PINNED_TO_TABSTRIP)).thenReturn(true);
         mCoordinator.showMenu(mRectProvider, false, mActivity);
         verifyMenuState(/* expectedNumItems= */ 6);
         assertEquals(
@@ -267,9 +315,7 @@ public class TabStripContextMenuCoordinatorUnitTest {
                 .onItemSelected(getItemModelAtPosition(5), mListView);
 
         // Verify.
-        assertFalse(
-                ChromeSharedPreferences.getInstance()
-                        .readBoolean(ChromePreferenceKeys.GLIC_BUTTON_PINNED, true));
+        verify(mPrefService).setBoolean(GlicPrefNames.GLIC_PINNED_TO_TABSTRIP, false);
         assertFalse(mMenuWindow.isShowing());
     }
 

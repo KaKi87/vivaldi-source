@@ -321,7 +321,7 @@ void MenuStorage::OnModelWillBeDeleted() {
   // We need to save now as otherwise by the time SaveNow is invoked
   // the model is gone.
   if (writer_.HasPendingWrite())
-    SaveNow();
+    SaveNow(false);
 
   model_ = nullptr;
 }
@@ -357,8 +357,8 @@ void MenuStorage::OnLoadFinished(std::unique_ptr<MenuLoadDetails> details) {
   }
 }
 
-bool MenuStorage::SaveNow() {
-  if (!model_ || !model_->loaded()) {
+bool MenuStorage::SaveNow(bool on_reset) {
+  if (!model_ || (!model_->loaded() && !on_reset)) {
     // We should only get here if we have a valid model and it's finished
     // loading.
     NOTREACHED();

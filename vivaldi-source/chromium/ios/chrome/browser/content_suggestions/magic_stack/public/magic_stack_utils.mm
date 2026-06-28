@@ -24,13 +24,9 @@
 
 CGFloat ModuleNarrowerWidthToAllowPeekingForTraitCollection(
     UITraitCollection* traitCollection) {
-  BOOL isLandscape = [[UIDevice currentDevice] orientation] ==
-                         UIDeviceOrientationLandscapeRight ||
-                     [[UIDevice currentDevice] orientation] ==
-                         UIDeviceOrientationLandscapeLeft;
   BOOL isLargerWidthLayout =
       traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassRegular ||
-      isLandscape;
+      traitCollection.verticalSizeClass == UIUserInterfaceSizeClassCompact;
   // For the narrow width layout, make the module just slightly narrower than
   // the inter-module spacing so the UICollectionView renders the adjacent
   // module(s).
@@ -41,8 +37,7 @@ CGFloat ModuleNarrowerWidthToAllowPeekingForTraitCollection(
 bool IsPriceTrackingPromoCardEnabled(commerce::ShoppingService* service,
                                      AuthenticationService* auth_service,
                                      PrefService* pref_service) {
-  id<SystemIdentity> identity =
-      auth_service->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
+  id<SystemIdentity> identity = auth_service->GetPrimaryIdentity();
   return GetApplicationContext()->GetApplicationLocaleStorage()->Get() ==
              "en-US" &&
          !push_notification_settings::

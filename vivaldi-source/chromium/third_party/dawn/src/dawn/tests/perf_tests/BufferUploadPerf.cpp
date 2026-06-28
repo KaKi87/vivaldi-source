@@ -25,10 +25,15 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <vector>
 
-#include "dawn/tests/perf_tests/DawnPerfTest.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/tests/perf_tests/DawnPerfTest.h"
+#include "src/dawn/utils/WGPUHelpers.h"
 
 namespace dawn {
 namespace {
@@ -206,6 +211,11 @@ void BufferMapExtendedUsagesPerf::SetUpPerfTest() {
     // Skip all tests if the BufferMapExtendedUsages feature is not supported.
     DAWN_TEST_UNSUPPORTED_IF(GetParam().uploadMethod == UploadMethod::MapWithExtendedUsages &&
                              !device.HasFeature(wgpu::FeatureName::BufferMapExtendedUsages));
+
+    // TODO(crbug.com/501291263): Causes an OOM on Win/AMD RX 5500 XT.
+    DAWN_SUPPRESS_TEST_IF(IsWindows11() && IsAMD() && IsVulkan() &&
+                          GetParam().uploadMethod == UploadMethod::MapWithExtendedUsages &&
+                          GetParam().uploadSize == UploadSize::BufferSize_16MB);
 
     for (auto& buffer : buffers) {
         wgpu::BufferDescriptor desc = {};

@@ -45,9 +45,6 @@ import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.chrome.browser.feed.webfeed.WebFeedBridge;
-import org.chromium.chrome.browser.feed.webfeed.WebFeedBridgeJni;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.new_tab_url.DseNewTabUrlManager;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
@@ -69,15 +66,13 @@ import org.chromium.components.signin.identitymanager.IdentityManager;
 /** Tests for {@link FeedSurfaceMediator}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
-@EnableFeatures({ChromeFeatureList.WEB_FEED_SORT, SigninFeatures.ENABLE_SEAMLESS_SIGNIN})
+@EnableFeatures(SigninFeatures.ENABLE_SEAMLESS_SIGNIN)
 public class FeedSurfaceMediatorTest {
     static final @Px int TOOLBAR_HEIGHT = 10;
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     // Mocked JNI.
     @Mock private FeedServiceBridge.Natives mFeedServiceBridgeJniMock;
-    @Mock private WebFeedBridge.Natives mWebFeedBridgeJniMock;
-
     @Mock private FeedSurfaceCoordinator mFeedSurfaceCoordinator;
     @Mock private IdentityServicesProvider mIdentityService;
     @Mock private PrefChangeRegistrar mPrefChangeRegistrar;
@@ -91,6 +86,7 @@ public class FeedSurfaceMediatorTest {
     @Mock private ListLayoutHelper mListLayoutHelper;
     @Mock private FeedSurfaceLifecycleManager mFeedSurfaceLifecycleManager;
     @Mock private FeedReliabilityLogger mReliabilityLogger;
+    @Mock private RecyclerView mRecyclerView;
     @Captor private ArgumentCaptor<TemplateUrlServiceObserver> mTemplateUrlServiceObserverCaptor;
     private final Context mContext = RuntimeEnvironment.application;
     private Activity mActivity;
@@ -103,7 +99,6 @@ public class FeedSurfaceMediatorTest {
 
         mActivity = Robolectric.buildActivity(Activity.class).get();
         FeedServiceBridgeJni.setInstanceForTesting(mFeedServiceBridgeJniMock);
-        WebFeedBridgeJni.setInstanceForTesting(mWebFeedBridgeJniMock);
 
         ApplicationStatus.onStateChangeForTesting(mActivity, ActivityState.CREATED);
 
@@ -112,9 +107,10 @@ public class FeedSurfaceMediatorTest {
                 .thenAnswer(invocation -> mPrefService.getBoolean(Pref.ENABLE_SNIPPETS));
         when(mIdentityService.getSigninManager(any(Profile.class))).thenReturn(mSigninManager);
         when(mSigninManager.getIdentityManager()).thenReturn(mIdentityManager);
-        when(mIdentityManager.hasPrimaryAccount(anyInt())).thenReturn(true);
+        when(mIdentityManager.hasPrimaryAccount()).thenReturn(true);
         when(mFeedSurfaceCoordinator.isActive()).thenReturn(true);
-        when(mFeedSurfaceCoordinator.getRecyclerView()).thenReturn(new RecyclerView(mActivity));
+        when(mFeedSurfaceCoordinator.getRecyclerView()).thenReturn(mRecyclerView);
+        when(mFeedSurfaceCoordinator.getView()).thenReturn(mRecyclerView);
         when(mFeedSurfaceCoordinator.createFeedStream(
                         eq(StreamKind.FOR_YOU), any(Stream.StreamsMediator.class)))
                 .thenReturn(mForYouStream);
@@ -319,6 +315,33 @@ public class FeedSurfaceMediatorTest {
         verify(mFeedSurfaceCoordinator).nonSwipeRefresh();
     }
 
+
+    @Test
+    public void testScrollListenerRegisteredOnCreation() {
+        mFeedSurfaceMediator = createMediator();
+
+        // Verify scroll listener is added to the RecyclerView during creation.
+        verify(mRecyclerView).addOnScrollListener(any(RecyclerView.OnScrollListener.class));
+    }
+
+    @Test
+    public void testScrollListenerNotToggledWithFeed() {
+        mFeedSurfaceMediator = createMediator();
+        when(mPrefService.getBoolean(Pref.ENABLE_SNIPPETS_BY_DSE)).thenReturn(true);
+
+        // 1. Turn feed on.
+        when(mPrefService.getBoolean(Pref.ENABLE_SNIPPETS)).thenReturn(true);
+        mFeedSurfaceMediator.updateContent();
+
+        // 2. Turn feed off.
+        when(mPrefService.getBoolean(Pref.ENABLE_SNIPPETS)).thenReturn(false);
+        mFeedSurfaceMediator.updateContent();
+
+        // Verify scroll listener is not added again or removed.
+        verify(mRecyclerView).addOnScrollListener(any(RecyclerView.OnScrollListener.class));
+        verify(mRecyclerView, never())
+                .removeOnScrollListener(any(RecyclerView.OnScrollListener.class));
+    }
     private FeedSurfaceMediator createMediator() {
         return new FeedSurfaceMediator(
                 mFeedSurfaceCoordinator, mActivity, null, /* actionDelegate= */ null, mProfileMock);

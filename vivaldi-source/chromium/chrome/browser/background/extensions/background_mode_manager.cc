@@ -29,7 +29,7 @@
 #include "chrome/browser/background/extensions/background_application_list_model.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/extension_service.h"
-#include "chrome/browser/glic/public/glic_enabling.h"
+//#include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/lifetime/application_lifetime_desktop.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/lifetime/termination_notification.h"
@@ -43,8 +43,8 @@
 #include "chrome/browser/status_icons/status_tray.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/extensions/app_launch_params.h"
@@ -189,8 +189,8 @@ void BackgroundModeManager::BackgroundModeData::BuildProfileMenu(
           base::RetainedRef(application)));
       menu->AddItem(command_id, base::UTF8ToUTF16(name));
       if (!icon.isNull()) {
-        menu->SetIcon(menu->GetItemCount() - 1,
-                      ui::ImageModel::FromImageSkia(icon));
+        menu->SetIconForCommandId(command_id,
+                                  ui::ImageModel::FromImageSkia(icon));
       }
 
       // Component extensions with background that do not have an options page
@@ -429,7 +429,8 @@ void BackgroundModeManager::LaunchBackgroundApplication(
 // static
 BrowserWindowInterface* BackgroundModeManager::GetBrowserWindowForProfile(
     Profile* profile) {
-  Browser* browser = chrome::FindLastActiveWithProfile(profile);
+  BrowserWindowInterface* browser =
+      ProfileBrowserCollection::GetForProfile(profile)->GetLastActiveBrowser();
   return browser ? browser : chrome::OpenEmptyWindow(profile);
 }
 
@@ -977,7 +978,7 @@ void BackgroundModeManager::UpdateStatusTrayIconContextMenu() {
   menu->AddSeparator(ui::NORMAL_SEPARATOR);
   bool use_background_setting = false;
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
-  use_background_setting = glic::GlicEnabling::IsEnabledByFlags();
+  use_background_setting = glic::GlicEnabling::IsEnabledByGlobalCriteria();
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)  // Vivaldi keep disabled
   if (use_background_setting) {
     menu->AddCheckItemWithStringId(

@@ -217,6 +217,24 @@ public class UrlBarCoordinator
         setAllowMultilineInput(false);
     }
 
+    /** Sets whether this {@link UrlBar} should enable bounds ellipsis. */
+    public void setBoundsEllipsisEnabled(boolean enabled) {
+        mUrlBar.setBoundsEllipsisEnabled(enabled);
+    }
+
+    /** Sets the accessibility warning text. */
+    public void setAccessibilityWarning(@Nullable String warning) {
+        mMediator.setAccessibilityWarning(warning);
+    }
+
+    /**
+     * Clears text selection, which also has the side effect of dismissing the Android selection
+     * handles and context menu if showing.
+     */
+    public void clearTextSelection() {
+        mUrlBar.clearTextSelection();
+    }
+
     @Override
     public int getSelectionStart() {
         return mUrlBar.getSelectionStart();
@@ -286,7 +304,6 @@ public class UrlBarCoordinator
 
     /* package */ void clearFocus() {
         mUrlBar.clearFocus();
-        restartImfInput();
     }
 
     /* package */ void requestAccessibilityFocus() {
@@ -405,15 +422,29 @@ public class UrlBarCoordinator
     }
 
     /**
-     * Restarts Android input method framework on the UrlBar, resetting any existing input
-     * connection.
+     * Tell the UrlBar that it is being relocated to a new parent. Focus change notifications are
+     * dropped while this process is ongoing.
      */
-    void restartImfInput() {
-        InputMethodManager imm =
-                (InputMethodManager)
-                        mUrlBar.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-        if (imm != null) {
-            imm.restartInput(mUrlBar);
+    public void startReparenting() {
+        mMediator.startReparenting();
+    }
+
+    /**
+     * Tell the UrlBar that it has been relocated to a new parent and set its new focus state.
+     *
+     * @param postReparentingFocus Whether the UrlBar should be focused now that the reparenting
+     *     process has completed.
+     */
+    public void finishReparenting(boolean postReparentingFocus) {
+        mMediator.finishReparenting();
+        if (postReparentingFocus) {
+            mUrlBar.requestFocus();
+        } else {
+            mUrlBar.clearFocus();
         }
+        // The above call may not actually trigger a focus change, e.g. if focus was lost during
+        // reparenting and the target post-reparenting focus is false, there is no apparent change
+        // from the View's point of view, but the mediator still needs to know.
+        mMediator.onUrlFocusChange(postReparentingFocus);
     }
 }

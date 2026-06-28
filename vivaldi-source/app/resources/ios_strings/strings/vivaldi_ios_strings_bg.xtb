@@ -30,15 +30,16 @@
 <translation id="3463990832590571933">Отвори в нов частен раздел</translation>
 <translation id="3473652525653758699">Създай частен прозорец</translation>
 <translation id="3501504415290398157">Ползвайте <ph name="BIOMETRIC_AUTHENITCATION_TYPE" />, за да отключите частните раздели.</translation>
-<translation id="353418192940651934">Пази купа</translation>
+<translation id="353418192940651934">Запази купа</translation>
 <translation id="3607792383367580513">Преведи</translation>
 <translation id="3692650606013198282">Отвори в частен режим</translation>
+<translation id="3812085181789967792">Частен раздел по мрежа</translation>
 <translation id="3873885181515160073">Създаване на нов куп с раздели с име и цвят</translation>
 <translation id="3922395466317605522">Нагласяване на менюто</translation>
 <translation id="3981599532037327317">Отвори ${url} в частен режим</translation>
 <translation id="398477389655464998">Копирай препратката от засветения текст</translation>
 <translation id="3993429087389909418">Разделите ще останат отворени на това устройство, но купът ще бъде изтрит от всички устройства, на които сте вписани чрез <ph name="USER_EMAIL" />.</translation>
-<translation id="4216644171369573466">Куп с раздели, <ph name="GROUP_TITLE" />, меню.</translation>
+<translation id="4216644171369573466">Куп с раздели „<ph name="GROUP_TITLE" />“, меню.</translation>
 <translation id="4304713468139749426">Диспечер на пароли</translation>
 <translation id="4439281775431634915">Тук са вашите купове с раздели</translation>
 <translation id="4569525137269575065">Затвори купа</translation>
@@ -90,14 +91,14 @@
 <translation id="6708694844902784277">Изтрий купа</translation>
 <translation id="6827597288286078054">Частно търсене</translation>
 <translation id="6851516051005285358">Заяви настолна версия</translation>
-<translation id="6890907822330704077">Куп с раздели, <ph name="GROUP_TITLE" />, <ph name="TABS_NUMBER" /> раздела.</translation>
+<translation id="6890907822330704077">Куп с раздели „<ph name="GROUP_TITLE" />“, <ph name="TABS_NUMBER" /> раздела.</translation>
 <translation id="7004032350256606903">Вашата организация изисква да сърфирате поверително.
 <ph name="BEGIN_LINK" />Повече<ph name="END_LINK" /></translation>
 <translation id="7307970171564921489">Отключи Частни раздели чрез <ph name="BIOMETRIC_AUTHENITCATION_TYPE" /></translation>
 <translation id="7347289093190902150">Отваряне в частен режим?</translation>
 <translation id="7363285031331302144">Създаване на купове за обединяване на отворените раздели</translation>
 <translation id="7395230742578757172">Отвори в нов куп</translation>
-<translation id="7424676799308869002">Пазене на купа?</translation>
+<translation id="7424676799308869002">Запазване на купа с раздели?</translation>
 <translation id="7460698861522306757">Заяви мобилна версия</translation>
 <translation id="7498234416455752244">Продължи редактирането</translation>
 <translation id="7549299604720382000">Създай частен раздел</translation>

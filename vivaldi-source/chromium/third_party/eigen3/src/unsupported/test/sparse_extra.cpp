@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include <cstdlib>
 #include <string>
@@ -74,8 +75,8 @@ void sparse_extra(const SparseMatrixType& ref) {
   // test coeff and coeffRef
   for (int i = 0; i < (int)zeroCoords.size(); ++i) {
     VERIFY_IS_MUCH_SMALLER_THAN(m.coeff(zeroCoords[i].x(), zeroCoords[i].y()), eps);
-    if (internal::is_same<SparseMatrixType, SparseMatrix<Scalar, Flags> >::value)
-      VERIFY_RAISES_ASSERT(m.coeffRef(zeroCoords[0].x(), zeroCoords[0].y()) = 5);
+    EIGEN_IF_CONSTEXPR((std::is_same<SparseMatrixType, SparseMatrix<Scalar, Flags> >::value))
+    VERIFY_RAISES_ASSERT(m.coeffRef(zeroCoords[0].x(), zeroCoords[0].y()) = 5);
   }
   VERIFY_IS_APPROX(m, refMat);
 
@@ -173,6 +174,7 @@ void check_marketio_dense() {
 template <typename Scalar>
 void check_sparse_inverse() {
   typedef SparseMatrix<Scalar> MatrixType;
+  typedef SparseMatrix<Scalar, RowMajor> RowMatrixType;
 
   Matrix<Scalar, -1, -1> A;
   A.resize(1000, 1000);
@@ -210,6 +212,12 @@ void check_sparse_inverse() {
   }
 
   VERIFY_IS_APPROX_OR_LESS_THAN(sumdiff, 1e-10);
+
+  RowMatrixType DU = slu.matrixU().toSparse();
+  Matrix<Scalar, Dynamic, 1> invD = DU.diagonal().cwiseInverse();
+  RowMatrixType scaled_before_view = (invD.asDiagonal() * DU).template triangularView<StrictlyUpper>();
+  RowMatrixType view_before_scaled = invD.asDiagonal() * DU.template triangularView<StrictlyUpper>();
+  VERIFY_IS_APPROX(scaled_before_view, view_before_scaled);
 }
 
 EIGEN_DECLARE_TEST(sparse_extra) {

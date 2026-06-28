@@ -277,6 +277,37 @@ TEST(SearchSuggestionParserTest, ParseSuggestResults) {
   ASSERT_EQ(expected, results.gws_event_id_hashes[0]);
 }
 
+TEST(SearchSuggestionParserTest, ParseSuggestResultsRejectsInvalidSchemes) {
+  std::string json_data =
+      R"json([
+      "query",
+      ["javascript:alert(1)", "https://example.com"],
+      ["Sign in to continue", "Valid description"],
+      [],
+      {
+        "google:suggesttype": ["NAVIGATION", "NAVIGATION"]
+      }])json";
+  std::optional<base::ListValue> root_val = base::JSONReader::ReadList(
+      json_data, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
+  ASSERT_TRUE(root_val);
+
+  TestSchemeClassifier scheme_classifier;
+  AutocompleteInput input(u"query", metrics::OmniboxEventProto::NTP,
+                          scheme_classifier);
+  SearchSuggestionParser::Results results;
+  ASSERT_TRUE(SearchSuggestionParser::ParseSuggestResults(
+      *root_val, input, scheme_classifier,
+      /*default_result_relevance=*/400,
+      /*is_keyword_result=*/false, &results));
+
+  // The javascript URL should be rejected, and only the valid HTTPS URL
+  // accepted.
+  EXPECT_THAT(results.navigation_results,
+              testing::ElementsAre(testing::Property(
+                  &SearchSuggestionParser::NavigationResult::url,
+                  testing::Eq(GURL("https://example.com/")))));
+}
+
 // Tests that prerender hints can be parsed correctly.
 TEST(SearchSuggestionParserTest, ParsePrerenderSuggestion) {
   std::string json_data = R"([
@@ -1649,8 +1680,16 @@ TEST(SearchSuggestionParserTest, ParseSuggestTemplateFromSuggestResults) {
     suggest_template_info.set_style(omnibox::SuggestTemplateInfo::DEFAULT);
     suggest_template_info.set_type_icon(
         omnibox::SuggestTemplateInfo_IconType_SEARCH_LOOP_WITH_SPARKLE);
-    suggest_template_info.mutable_primary_text()->set_text(
-        "Washington Wizards");
+    auto* primary_text = suggest_template_info.mutable_primary_text();
+    primary_text->set_text("Washington Wizards");
+    auto* frag1 = primary_text->add_fragments();
+    frag1->set_start_index(0);
+    frag1->set_text("Washington ");
+    frag1->set_is_bolded(true);
+    auto* frag2 = primary_text->add_fragments();
+    frag2->set_start_index(11);
+    frag2->set_text("Wizards");
+    frag2->set_is_bolded(false);
     suggest_template_info.mutable_secondary_text()->set_text("MIA");
     omnibox::SuggestTemplateInfo::Image* image =
         suggest_template_info.mutable_image();
@@ -1726,6 +1765,15 @@ TEST(SearchSuggestionParserTest, ParseSuggestTemplateFromSuggestResults) {
     ASSERT_EQ(u"Washington Wizards",
               results.suggest_results[1].match_contents());
     ASSERT_EQ(u"MIA", results.suggest_results[1].annotation());
+
+    // Verify classifications derived from suggest template fragments.
+    const auto& classifications =
+        results.suggest_results[1].match_contents_class();
+    ASSERT_EQ(2U, classifications.size());
+    EXPECT_EQ(0U, classifications[0].offset);
+    EXPECT_EQ(ACMatchClassification::MATCH, classifications[0].style);
+    EXPECT_EQ(11U, classifications[1].offset);
+    EXPECT_EQ(ACMatchClassification::NONE, classifications[1].style);
   }
   // Parse EntityInfo data from garbled proto field.
   {

@@ -25,6 +25,7 @@ ci/Dawn Win11 arm64 DEPS Builder
 ci/GPU FYI Android arm64 Builder
 ci/GPU FYI Mac arm64 Builder
 ci/GPU Linux Builder
+ci/GPU Mac Builder
 ci/GPU Mac arm64 Builder
 ci/GPU Win x64 Builder
 ci/Libfuzzer Upload Linux ASan
@@ -42,6 +43,8 @@ ci/Linux Tests (dbg)(1)
 ci/Mac Builder
 ci/Mac Builder (dbg)
 ci/Mac FYI Retina Release (Apple M2)
+ci/Mac Release (Intel)
+ci/Mac Retina Release (AMD)
 ci/Mac Retina Release (Apple M2)
 ci/Mac12 Tests
 ci/Mac13 Tests
@@ -166,6 +169,7 @@ try/linux_chromium_asan_rel_ng
 try/linux_chromium_compile_dbg_ng
 try/linux_chromium_dbg_ng
 try/linux_chromium_tsan_rel_ng
+try/mac-gpu-rel
 try/mac-official
 try/mac-rel
 try/mac-x64-compile-dbg

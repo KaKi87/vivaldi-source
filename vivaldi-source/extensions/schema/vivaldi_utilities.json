@@ -2399,6 +2399,28 @@
             "type": "integer"
           }
         ]
+      },
+      {
+        "name": "stripUrlTracking",
+        "type": "function",
+        "description": "Removes known tracking query parameters from a URL.",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "The URL to process.",
+            "name": "url"
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "cleaned_url",
+              "type": "string",
+              "description": "The cleaned URL with tracking parameters removed. Returns the original URL unchanged if no parameters were stripped or if the input is not a valid URL."
+            }
+          ]
+        }
       }
     ],
     "events": [

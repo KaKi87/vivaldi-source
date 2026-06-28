@@ -10,6 +10,7 @@
 #include "base/types/strong_alias.h"
 #include "chrome/browser/ui/views/frame/custom_corners.h"
 #include "third_party/skia/include/core/SkPath.h"
+#include "ui/base/interaction/safe_castable.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_variant.h"
 #include "ui/views/background.h"
@@ -24,6 +25,8 @@ class BrowserView;
 // browser's corners or providing nice curved interfaces between elements.
 class CustomCornersBackground : public views::Background, public CustomCorners {
  public:
+  DECLARE_SAFE_CAST_TARGET()
+
   // Specifies how a corner should be painted.
   enum class CornerType {
     // Paint all the way to the corner.
@@ -79,6 +82,7 @@ class CustomCornersBackground : public views::Background, public CustomCorners {
 
   // Sets the color to paint the primary area of the view.
   void SetPrimaryColor(ColorChoice primary_color);
+  ColorChoice primary_color() const { return primary_color_; }
 
   // Sets the color to paint behind corners of type `kRoundedWithBackground`;
   // default is `FrameColor`.
@@ -90,10 +94,16 @@ class CustomCornersBackground : public views::Background, public CustomCorners {
   // Sets the outline strokes to use.
   void SetOutline(const Outline& outline);
 
+  // Value in [0,1] for saving an alpha layer on the canvas before paint.
+  void SetAlpha(float alpha) { alpha_ = alpha; }
+  float alpha() { return alpha_; }
+
   // Returns an appropriate window corner for the current platform.
   // Specify `upper` to switch between upper (true) and lower (false) corners,
   // as they may be different on some platforms.
   Corner GetWindowCorner(bool upper) const;
+
+  bool visible_for_testing() const { return visible_; }
 
   // views::Background:
   void Paint(gfx::Canvas* canvas, views::View* view) const override;
@@ -118,6 +128,7 @@ class CustomCornersBackground : public views::Background, public CustomCorners {
   Outline GetMirroredOutline() const;
 
   bool visible_ = true;
+  float alpha_ = 1.0f;
   ColorChoice primary_color_;
   ColorChoice corner_color_;
   int default_radius_;

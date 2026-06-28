@@ -12,14 +12,10 @@
 #include <memory>
 #include <string>
 
-#include "base/base_paths.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
-#include "base/files/important_file_writer.h"
 #include "base/logging.h"
-#include "base/numerics/safe_conversions.h"
-#include "base/path_service.h"
 #include "base/process/launch.h"
 #include "base/strings/strcat.h"
 #include "base/strings/strcat_win.h"
@@ -460,7 +456,7 @@ void RegisterChromeOnMachine(const InstallerState& installer_state,
 // Run a child process that will create/update a shortcut for an
 // install. This is done in a child process to avoid crashing the main
 // install process if we crash in Windows shell functions. For more info,
-// see crbug.com/1276348.
+// see crbug.com/40058114.
 void RunShortcutCreationInChildProc(
     const InstallerState& installer_state,
     const base::FilePath& setup_path,
@@ -676,13 +672,6 @@ void HandleOsUpgradeForBrowser(const InstallerState& installer_state,
 void HandleActiveSetupForBrowser(const InstallerState& installer_state,
                                  const base::FilePath& setup_path,
                                  bool force) {
-  std::unique_ptr<WorkItemList> cleanup_list(WorkItem::CreateWorkItemList());
-  cleanup_list->set_log_message("Cleanup deprecated per-user registrations");
-  cleanup_list->set_rollback_enabled(false);
-  cleanup_list->set_best_effort(true);
-  AddCleanupDeprecatedPerUserRegistrationsWorkItems(cleanup_list.get());
-  cleanup_list->Do();
-
   // Only create shortcuts on Active Setup if the first run sentinel is not
   // present for this user (as some shortcuts used to be installed on first
   // run and this could otherwise re-install shortcuts for users that have

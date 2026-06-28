@@ -155,6 +155,15 @@
         "properties":{
           "dummy": {"$ref": "history.TransitionType"}
         }
+      },
+      {
+        "id": "VivaldiInvokedBy",
+        "type": "string",
+        "description": "Vivaldi: how the tab was created",
+        "enum": [
+          "mainStrip", "subStrip", "keyboard", "accordion", "tabBarButton",
+          "emailUi", "bookmarks", "speedDial", "command"
+        ]
       }
     ],
     "properties": {
@@ -427,6 +436,16 @@
                 "type": "boolean",
                 "optional": true,
                 "description": "Vivaldi addition: Do not apply workspace link routing rules on this tab."
+              },
+              "invokedBy": {
+                "$ref": "VivaldiInvokedBy",
+                "optional": true,
+                "description": "Vivaldi addition: who invoked tab creation"
+              },
+              "invokedByExtraArg": {
+                "type": "string",
+                "optional": true,
+                "description": "Vivaldi addition: add extra argument for invokedBy"
               },
               "vivExtData": {
                 "type": "string",

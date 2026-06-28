@@ -121,6 +121,7 @@ class AutocompleteResultForTesting : public AutocompleteResult {
   using AutocompleteResult::matches_;
   using AutocompleteResult::max_url_matches_;
   using AutocompleteResult::MaybeCullTailSuggestions;
+  using AutocompleteResult::UndedupeTopSearchEntityMatch;
 };
 
 class AutocompleteResultTest : public testing::Test {
@@ -2268,6 +2269,37 @@ TEST_F(AutocompleteResultTest, ConvertOpenTabMatches_AttachTabSwitchAction) {
       action_in_suggest->template_action.action_type(),
       omnibox::SuggestTemplateInfo_TemplateAction_ActionType_CHROME_TAB_SWITCH);
 }
+
+TEST_F(AutocompleteResultTest,
+       ConvertOpenTabMatches_DoNotAttachTabSwitchActionInKeywordMode) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeatureWithParameters(
+      omnibox::kOmniboxImprovementForLFF,
+      {{OmniboxFieldTrial::kOmniboxImprovementForLFFSwitchToTabChip.name,
+        "true"}});
+
+  AutocompleteResult result;
+  ACMatches matches;
+  AutocompleteMatch match;
+  match.destination_url = GURL("http://this-site-matches.com");
+  match.type = AutocompleteMatchType::OPEN_TAB;
+  match.from_keyword = true;
+  matches.push_back(match);
+  result.AppendMatches(matches);
+
+  // Have IsTabOpenWithURL() return true for the URL.
+  FakeAutocompleteProviderClient client;
+  static_cast<FakeTabMatcher&>(const_cast<TabMatcher&>(client.GetTabMatcher()))
+      .set_url_substring_match("matches");
+
+  AutocompleteInput input(u"query", metrics::OmniboxEventProto::OTHER,
+                          TestSchemeClassifier());
+  result.ConvertOpenTabMatches(&client, &input);
+
+  ASSERT_TRUE(result.match_at(0)->has_tab_match.value_or(false));
+  // Should NOT attach the action because it's OPEN_TAB in keyword mode.
+  EXPECT_EQ(result.match_at(0)->actions.size(), 0u);
+}
 #endif
 
 TEST_F(AutocompleteResultTest, AttachesPedals) {
@@ -3282,7 +3314,7 @@ TEST_F(AutocompleteResultTest, Android_UndedupTopSearch) {
   // matches we want to see.
   for (const auto& test_case : test_cases) {
     auto result = test_case.input;
-    AutocompleteResult::UndedupTopSearchEntityMatch(&result);
+    AutocompleteResultForTesting::UndedupeTopSearchEntityMatch(&result);
 
     EXPECT_EQ(result.size(), test_case.expected_result.size());
     for (size_t index = 0u; index < result.size(); ++index) {
@@ -3367,6 +3399,7 @@ TEST_F(AutocompleteResultTest, Mobile_TrimOmniboxActions) {
     std::vector<std::vector<OmniboxActionId>> result_matches_and_actions_zps;
     std::vector<std::vector<OmniboxActionId>> result_matches_and_actions_typed;
     bool include_url = false;
+    bool use_tab_switch = false;
   } test_cases[]{
       {"No actions attached to matches",
        {{}, {}, {}, {}},
@@ -3379,6 +3412,37 @@ TEST_F(AutocompleteResultTest, Mobile_TrimOmniboxActions) {
        // Typed
        {{PEDAL}, {PEDAL}, {PEDAL}, {}}},
       {"Actions are shown only in first position",
+       {{ACTION_IN_SUGGEST}, {}, {ACTION_IN_SUGGEST}, {ACTION_IN_SUGGEST}},
+#if BUILDFLAG(IS_ANDROID)
+       // ZPS
+       {{ACTION_IN_SUGGEST}, {}, {}, {}},
+       // Typed
+       {{ACTION_IN_SUGGEST}, {}, {}, {}}
+#else
+       // ZPS
+       {{}, {}, {}, {}},
+       // Typed
+       {{ACTION_IN_SUGGEST}, {}, {}, {}}
+#endif
+      },
+      {"Actions are promoted over Pedals; positions dictate preference",
+       {{ACTION_IN_SUGGEST, PEDAL},
+        {PEDAL},
+        {ACTION_IN_SUGGEST, PEDAL},
+        {ACTION_IN_SUGGEST, PEDAL}},
+#if BUILDFLAG(IS_ANDROID)
+       // ZPS
+       {{ACTION_IN_SUGGEST}, {PEDAL}, {}, {}},
+       // Typed
+       {{ACTION_IN_SUGGEST}, {PEDAL}, {}, {}}
+#else
+       // ZPS
+       {{PEDAL}, {PEDAL}, {PEDAL}, {}},
+       // Typed
+       {{ACTION_IN_SUGGEST}, {PEDAL}, {PEDAL}, {}}
+#endif
+      },
+      {"Tab Switch actions can appear at any index on Android",
        {{ACTION_IN_SUGGEST},
         {ACTION_IN_SUGGEST},
         {ACTION_IN_SUGGEST},
@@ -3400,30 +3464,9 @@ TEST_F(AutocompleteResultTest, Mobile_TrimOmniboxActions) {
        // Typed
        {{ACTION_IN_SUGGEST}, {}, {}, {}}
 #endif
-      },
-      {"Actions are promoted over Pedals; positions dictate preference",
-       {{ACTION_IN_SUGGEST, PEDAL},
-        {ACTION_IN_SUGGEST, PEDAL},
-        {ACTION_IN_SUGGEST, PEDAL},
-        {ACTION_IN_SUGGEST, PEDAL}},
-#if BUILDFLAG(IS_ANDROID)
-       // ZPS
-       {{ACTION_IN_SUGGEST},
-        {ACTION_IN_SUGGEST},
-        {ACTION_IN_SUGGEST},
-        {ACTION_IN_SUGGEST}},
-       // Typed
-       {{ACTION_IN_SUGGEST},
-        {ACTION_IN_SUGGEST},
-        {ACTION_IN_SUGGEST},
-        {ACTION_IN_SUGGEST}}
-#else
-       // ZPS
-       {{PEDAL}, {PEDAL}, {PEDAL}, {}},
-       // Typed
-       {{ACTION_IN_SUGGEST}, {PEDAL}, {PEDAL}, {}}
-#endif
-      },
+       ,
+       false,
+       true},
   };
 
   // Crete matches following the `input_matches_and_actions` input.
@@ -3444,8 +3487,11 @@ TEST_F(AutocompleteResultTest, Mobile_TrimOmniboxActions) {
         if (action_id == OmniboxActionId::ACTION_IN_SUGGEST) {
           omnibox::SuggestTemplateInfo::TemplateAction action;
           action.set_action_type(
-              omnibox::
-                  SuggestTemplateInfo_TemplateAction_ActionType_DIRECTIONS);
+              data.use_tab_switch
+                  ? omnibox::
+                        SuggestTemplateInfo_TemplateAction_ActionType_CHROME_TAB_SWITCH
+                  : omnibox::
+                        SuggestTemplateInfo_TemplateAction_ActionType_DIRECTIONS);
           match.actions.push_back(base::MakeRefCounted<OmniboxActionInSuggest>(
               std::move(action), std::nullopt));
         } else {

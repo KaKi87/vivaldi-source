@@ -1,18 +1,25 @@
-SKIP: FAILED
+#include <metal_stdlib>
+using namespace metal;
 
-$B1: {  # root
-  %v:ptr<storage, buffer<128>, read_write> = var undef @binding_point(0, 0)
+template<typename T, size_t N>
+struct tint_array {
+  const constant T& operator[](size_t i) const constant { return elements[i]; }
+  device T& operator[](size_t i) device { return elements[i]; }
+  const device T& operator[](size_t i) const device { return elements[i]; }
+  thread T& operator[](size_t i) thread { return elements[i]; }
+  const thread T& operator[](size_t i) const thread { return elements[i]; }
+  threadgroup T& operator[](size_t i) threadgroup { return elements[i]; }
+  const threadgroup T& operator[](size_t i) const threadgroup { return elements[i]; }
+  T elements[N];
+};
+
+struct tint_module_vars_struct {
+  device tint_array<uchar, 128>* v;
+};
+
+[[max_total_threads_per_threadgroup(1)]]
+kernel void v_1(device tint_array<uchar, 128>* v [[buffer(0)]]) {
+  tint_module_vars_struct const tint_module_vars = tint_module_vars_struct{.v=v};
+  device tint_array<uint, 1>* const p = reinterpret_cast<device tint_array<uint, 1>*>(reinterpret_cast<device char*>(tint_module_vars.v) + 0u);
+  (*p)[min(uint(0), (((128u - 0u) / 4u) - 1u))] = 2u;
 }
-
-%main = @compute @workgroup_size(1i, 1i, 1i) func():void {
-  $B2: {
-    %3:ptr<storage, array<u32>, read_write> = bufferView<array<u32>> %v, 0i
-    %p:ptr<storage, array<u32>, read_write> = let %3
-    %5:ptr<storage, u32, read_write> = access %p, 0i
-    store %5, 2u
-    ret
-  }
-}
-Failed to generate: buffers are not supported by the MSL backend
-
-tint executable returned error: exit status 1

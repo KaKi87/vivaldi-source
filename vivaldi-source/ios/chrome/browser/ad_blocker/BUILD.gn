@@ -2,13 +2,11 @@
 
 source_set("ad_blocker") {
   sources = [
-    "adblock_rule_service_factory.mm",
     "adblock_rule_service_factory.h",
+    "adblock_rule_service_factory.mm",
   ]
 
-  public_deps= [
-    "//vivaldi/components/ad_blocker/public/ios",
-  ]
+  public_deps = [ "//vivaldi/components/ad_blocker/public/ios" ]
 
   deps = [
     "//base",

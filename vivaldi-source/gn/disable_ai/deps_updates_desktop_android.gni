@@ -1,35 +1,38 @@
-
 deps_desk_andr_update_deps_list = [
   "//chrome/browser:browser",
+  "//chrome/browser:core",
   "//chrome/browser/actor:impl",
   "//chrome/browser/ai:ai",
   "//chrome/browser/contextual_tasks:impl",
   "//chrome/browser/contextual_tasks:ui_impl",
   "//chrome/browser/enterprise/data_controls:data_controls",
+  "//chrome/browser/metrics:impl",
   "//chrome/browser/password_manager/actor_login/internal:internal",
+  "//chrome/browser/password_manager:impl",
+  "//chrome/browser/performance_manager:impl",
+  "//chrome/browser/policy:impl",
   "//chrome/browser/prefs:impl",
   "//chrome/browser/profiles:profiles_extra_parts_impl",
+  "//chrome/browser/sessions:impl",
   "//chrome/browser/sessions:sessions",
+  "//chrome/browser/sharing:impl",
   "//chrome/browser/skills:skills",
   "//chrome/browser/sync:sync",
   "//chrome/browser/task_manager:impl",
+  "//chrome/browser/ui/autofill:impl",
   "//chrome/browser/ui:tab_search_feature",
   "//chrome/browser/ui:ui",
   "//chrome/browser/ui/webui:configs",
 ]
 
-deps_desk_andr_update_deps_templ_list = [
-  "//chrome/browser/media/webrtc:webrtc",
-]
+deps_desk_andr_update_deps_templ_list =
+    [ "//chrome/browser/media/webrtc:webrtc" ]
 
 update_target("//chrome/browser/resources:resources") {
-  public_deps -= [
-    "glic:resources",
-    "glic/fre:resources",
-    "glic/shared:resources",
-  ]
+  public_deps -= [ "glic:resources" ]
   if (!is_android) {
     public_deps -= [
+      "glic/experimental_opt_in:resources",
       "glic/selection_overlay:resources",
     ]
   }

@@ -6,14 +6,14 @@ AXWebArea AXTitle='Material Web Dialog Events'
 AXFocusedUIElementChanged on AXButton AXTitle='OK'
 === Accessibility tree after go() pass 1 ===
 AXWebArea AXTitle='Material Web Dialog Events'
-++AXGroup AXSubrole=AXApplicationDialog AXTitle='Test'
+++AXGroup AXSubrole=AXApplicationDialog AXDescription='Test' AXTitle='Test'
 ++++AXGroup
 ++++++AXGroup
 ++++++++AXHeading AXTitle='Test' AXValue=2
 ++++++++++AXStaticText AXValue='Test'
 ++++++AXGroup
 ++++++++AXGroup
-++++++++AXGroup
+++++++++AXGroup AXSubrole=AXLandmarkForm
 ++++++++++AXGroup
 ++++++++++++AXStaticText AXValue='Test'
 ++++++++AXGroup

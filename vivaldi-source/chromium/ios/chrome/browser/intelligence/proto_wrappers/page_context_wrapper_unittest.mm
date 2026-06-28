@@ -10,9 +10,9 @@
 #import <vector>
 
 #import "base/base64.h"
+#import "base/containers/extend.h"
 #import "base/containers/span.h"
 #import "base/files/scoped_temp_dir.h"
-#import "base/memory/raw_ptr.h"
 #import "base/no_destructor.h"
 #import "base/run_loop.h"
 #import "base/strings/strcat.h"
@@ -27,15 +27,32 @@
 #import "base/test/ios/wait_util.h"
 #import "base/test/metrics/histogram_tester.h"
 #import "base/test/scoped_feature_list.h"
+#import "base/test/test_future.h"
 #import "base/test/values_test_util.h"
 #import "base/time/time.h"
+#import "components/autofill/core/browser/foundations/browser_autofill_manager.h"
+#import "components/autofill/core/browser/foundations/test_autofill_client.h"
+#import "components/autofill/core/browser/foundations/test_autofill_manager_waiter.h"
+#import "components/autofill/core/browser/foundations/test_browser_autofill_manager.h"
 #import "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #import "components/autofill/core/common/autofill_features.h"
+#import "components/autofill/core/common/form_data.h"
+#import "components/autofill/core/common/form_field_data.h"
 #import "components/autofill/core/common/unique_ids.h"
+#import "components/autofill/ios/browser/autofill_agent.h"
+#import "components/autofill/ios/browser/autofill_driver_ios.h"
+#import "components/autofill/ios/browser/autofill_java_script_feature.h"
+#import "components/autofill/ios/browser/autofill_util.h"
 #import "components/autofill/ios/browser/test_autofill_client_ios.h"
+#import "components/autofill/ios/browser/test_autofill_manager_injector.h"
 #import "components/autofill/ios/common/features.h"
+#import "components/autofill/ios/form_util/autofill_form_features_java_script_feature.h"
 #import "components/autofill/ios/form_util/child_frame_registrar.h"
+#import "components/autofill/ios/form_util/form_handlers_java_script_feature.h"
 #import "components/autofill/ios/form_util/remote_frame_registration_java_script_feature.h"
+#import "components/optimization_guide/core/optimization_guide_features.h"
+#import "components/optimization_guide/proto/features/common_quality_data.pb.h"
+#import "components/prefs/testing_pref_service.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/page_context_extractor_java_script_feature.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/page_context_utils.h"
@@ -96,6 +113,44 @@ class FakeWebStateForFailureTest : public web::FakeWebState {
   }
 };
 
+// Helper to verify geometry existence and basic validity.
+testing::AssertionResult VerifyGeometry(
+    const optimization_guide::proto::ContentNode& node,
+    bool expect_visible = true) {
+  if (!node.content_attributes().geometry().has_outer_bounding_box()) {
+    return testing::AssertionFailure() << "Node is missing outer bounding box.";
+  }
+  if (node.content_attributes().geometry().outer_bounding_box().width() <= 0) {
+    return testing::AssertionFailure()
+           << "Node outer bounding box width should be positive and above 0.";
+  }
+  if (node.content_attributes().geometry().outer_bounding_box().height() <= 0) {
+    return testing::AssertionFailure()
+           << "Node outer bounding box height should be positive and above 0.";
+  }
+
+  if (expect_visible) {
+    if (!node.content_attributes().geometry().has_visible_bounding_box()) {
+      return testing::AssertionFailure()
+             << "Node is missing visible bounding box.";
+    }
+    if (node.content_attributes().geometry().visible_bounding_box().width() <=
+        0) {
+      return testing::AssertionFailure()
+             << "Node visible bounding box width should be positive and above "
+                "0.";
+    }
+    if (node.content_attributes().geometry().visible_bounding_box().height() <=
+        0) {
+      return testing::AssertionFailure()
+             << "Node visible bounding box height should be positive and "
+                "above 0.";
+    }
+  }
+
+  return testing::AssertionSuccess();
+}
+
 }  // namespace
 
 // A fake snapshot generator delegate that can be controlled to simulate
@@ -119,6 +174,39 @@ class FakeWebStateForFailureTest : public web::FakeWebState {
 }
 @end
 
+// Version of AutofillManager that caches the FormData it receives so we can
+// examine them. The public API deals with FormStructure, the post-parsing
+// data structure, but we want to intercept the FormData and ensure we're
+// providing the right inputs to the parsing process.
+class TestAutofillManager : public autofill::TestBrowserAutofillManager {
+ public:
+  explicit TestAutofillManager(autofill::AutofillDriverIOS* driver)
+      : autofill::TestBrowserAutofillManager(driver) {}
+
+  [[nodiscard]] testing::AssertionResult WaitForFormsSeen(
+      int min_num_awaited_calls) {
+    return forms_seen_waiter_.Wait(min_num_awaited_calls);
+  }
+
+  void OnFormsSeen(std::vector<autofill::FormData> updated_forms,
+                   std::vector<autofill::FormGlobalId> removed_forms) override {
+    base::Extend(seen_forms_, updated_forms);
+    autofill::BrowserAutofillManager::OnFormsSeen(std::move(updated_forms),
+                                                  std::move(removed_forms));
+  }
+
+  const std::vector<autofill::FormData>& seen_forms() { return seen_forms_; }
+
+  void ResetTestState() { seen_forms_.clear(); }
+
+ private:
+  std::vector<autofill::FormData> seen_forms_;
+
+  autofill::TestAutofillManagerWaiter forms_seen_waiter_{
+      *this,
+      {autofill::AutofillManagerEvent::kFormsSeen}};
+};
+
 struct PrintToStringParamName {
   std::string operator()(const testing::TestParamInfo<bool>& info) const {
     return info.param ? "NewRefactoredVersion" : "OldVersion";
@@ -141,8 +229,10 @@ class PageContextWrapperTest : public PlatformTest,
   void SetUp() override {
     PlatformTest::SetUp();
 
-    std::vector<base::test::FeatureRef> enabled_features;
+    // Set up standard Chrome Autofill preferences.
+    prefs_ = autofill::test::PrefServiceForTesting();
     std::vector<base::test::FeatureRef> disabled_features;
+    std::vector<base::test::FeatureRef> enabled_features;
     enabled_features.push_back(kPageActionMenu);
     enabled_features.push_back(autofill::features::kAutofillAcrossIframesIos);
     if (IsRefactored()) {
@@ -180,7 +270,22 @@ class PageContextWrapperTest : public PlatformTest,
         web::FindInPageJavaScriptFeature::GetInstance(),
         extractor_feature(),
         PageContextWrapperTestJavaScriptFeature::GetInstance(),
+        autofill::AutofillFormFeaturesJavaScriptFeature::GetInstance(),
+        autofill::AutofillJavaScriptFeature::GetInstance(),
+        autofill::FormHandlersJavaScriptFeature::GetInstance(),
     });
+
+    // We need an AutofillAgent to exist or else the form will never get parsed.
+    autofill_agent_ =
+        [[AutofillAgent alloc] initWithPrefService:prefs_.get()
+                                          webState:web_state_.get()];
+
+    autofill_client_ = std::make_unique<autofill::TestAutofillClientIOS>(
+        web_state_.get(), autofill_agent_);
+
+    autofill_manager_injector_ = std::make_unique<
+        autofill::TestAutofillManagerInjector<TestAutofillManager>>(
+        web_state_.get());
 
     // Set the fake env used for testing errors.
     profile2_ = TestProfileIOS::Builder().Build();
@@ -275,6 +380,11 @@ class PageContextWrapperTest : public PlatformTest,
   TestProfileIOS* profile2() { return profile2_.get(); }
   web::FakeWebState* fake_web_state() { return fake_web_state_.get(); }
 
+  void TearDown() override {
+    autofill_manager_injector_.reset();
+    PlatformTest::TearDown();
+  }
+
   web::WebTaskEnvironment task_environment_;
   ScopedKeyWindow scoped_window_;
   web::ScopedTestingWebClient web_client_;
@@ -291,6 +401,11 @@ class PageContextWrapperTest : public PlatformTest,
   std::unique_ptr<TestProfileIOS> profile2_;
   std::unique_ptr<web::FakeWebState> fake_web_state_;
   std::unique_ptr<PageContext> page_helper_;
+  std::unique_ptr<PrefService> prefs_;
+  std::unique_ptr<autofill::TestAutofillClientIOS> autofill_client_;
+  AutofillAgent* autofill_agent_;
+  std::unique_ptr<autofill::TestAutofillManagerInjector<TestAutofillManager>>
+      autofill_manager_injector_;
 };
 
 // TODO(crbug.com/485298671): Remove PopulatePageContext prefixes from test
@@ -1118,8 +1233,8 @@ TEST_P(PageContextWrapperTest,
   web::test::LoadHtml(@"<html></html>", GURL("http://example.com/"),
                       web_state());
 
-  // Capture pointer to web_state_ to allow binding in the block.
   auto* web_state_ptr = &web_state_;
+  auto* autofill_injector_ptr = &autofill_manager_injector_;
   PageContextWrapperCallbackResponse captured_response =
       RunPageContextWrapper(web_state(), ^(PageContextWrapper* wrapper) {
         wrapper.shouldGetSnapshot = YES;
@@ -1135,11 +1250,15 @@ TEST_P(PageContextWrapperTest,
         // Destroy the web state immediately after the async work has started
         // (by posting a task to run after the wrapper's method returns).
         base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-            FROM_HERE, base::BindOnce(
-                           [](std::unique_ptr<web::WebState>* web_state) {
-                             web_state->reset();
-                           },
-                           web_state_ptr));
+            FROM_HERE,
+            base::BindOnce(
+                [](std::unique_ptr<autofill::TestAutofillManagerInjector<
+                       TestAutofillManager>>* injector,
+                   std::unique_ptr<web::WebState>* web_state) {
+                  injector->reset();
+                  web_state->reset();
+                },
+                autofill_injector_ptr, web_state_ptr));
       });
 
   // Verify that the callback was called with a generic error because the
@@ -1150,6 +1269,7 @@ TEST_P(PageContextWrapperTest,
 
 // Tests that the wrapper correctly handles a destroyed WebState.
 TEST_P(PageContextWrapperTest, PopulatePageContext_WebStateDestroyed) {
+  auto* autofill_injector_ptr = &autofill_manager_injector_;
   PageContextWrapperCallbackResponse captured_response =
       RunPageContextWrapper(web_state(), ^(PageContextWrapper* wrapper) {
         wrapper.shouldGetSnapshot = YES;
@@ -1158,6 +1278,7 @@ TEST_P(PageContextWrapperTest, PopulatePageContext_WebStateDestroyed) {
         wrapper.shouldGetFullPagePDF = YES;
 
         // Destroy the web state after initializing the wrapper.
+        autofill_injector_ptr->reset();
         web_state_.reset();
       });
 
@@ -3165,14 +3286,19 @@ TEST_P(PageContextWrapperTest, PopulatePageContext_ApcV2_FrameInteractionInfo) {
                .size() == 3;
   }));
 
-  // Helper to select text in a frame
+  // Helper to select and focus text in a frame
   auto select_text = [](web::WebFrame* frame, const std::string& text) {
     NSString* script =
         [NSString stringWithFormat:
-                      @"(() => {"
+                      @"(function() {"
+                      // Mock hasFocus() because the test web view isn't truly
+                      // focused by the OS. This avoids test flakiness.
+                      @"  Document.prototype.hasFocus = () => true;"
                       @"  const p = Array.from(document.querySelectorAll('p'))"
                       @"    .find(p => p.innerText.includes('%s'));"
                       @"  if (!p) return;"
+                      @"  p.tabIndex = 0;"
+                      @"  p.focus();"
                       @"  const range = document.createRange();"
                       @"  const node = p.firstChild;"
                       @"  range.selectNode(node);"
@@ -3222,6 +3348,7 @@ TEST_P(PageContextWrapperTest, PopulatePageContext_ApcV2_FrameInteractionInfo) {
   EXPECT_EQ(
       main_frame_data.frame_interaction_info().selection().selected_text(),
       "Main frame text");
+  EXPECT_TRUE(main_frame_data.frame_interaction_info().has_focused_node_id());
 
   const optimization_guide::proto::ContentNode* same_origin_iframe_node =
       &root_node.children_nodes(1);
@@ -3241,6 +3368,11 @@ TEST_P(PageContextWrapperTest, PopulatePageContext_ApcV2_FrameInteractionInfo) {
                 .selection()
                 .selected_text(),
             "Cross origin text");
+  EXPECT_TRUE(cross_iframe_node->content_attributes()
+                  .iframe_data()
+                  .frame_data()
+                  .frame_interaction_info()
+                  .has_focused_node_id());
 
   ASSERT_TRUE(same_origin_iframe_node);
   EXPECT_TRUE(same_origin_iframe_node->content_attributes()
@@ -3255,6 +3387,114 @@ TEST_P(PageContextWrapperTest, PopulatePageContext_ApcV2_FrameInteractionInfo) {
                 .selection()
                 .selected_text(),
             "Same origin text");
+  EXPECT_TRUE(same_origin_iframe_node->content_attributes()
+                  .iframe_data()
+                  .frame_data()
+                  .frame_interaction_info()
+                  .has_focused_node_id());
+}
+
+// Tests focus extraction across frame boundaries.
+TEST_P(PageContextWrapperTest,
+       PopulatePageContext_ApcV2_FrameData_FocusedNodeIdsMultipleFrames) {
+  if (!IsRefactored()) {
+    GTEST_SKIP() << "ApcV2 not supported for the non-refactored APC wrapper";
+  }
+
+  // Create a page where focusing an element in an iframe should also make
+  // that iframe the focused element in the main frame.
+  auto page_structure = HtmlPage(
+      "Main", Paragraph("Main frame text"),
+      Iframe(TestOrigin::kCrossA,
+             HtmlPage("Child Cross Origin",
+                      RawHtml("<p id='cross_p'>Cross origin text</p>")),
+             "iframe_cross"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  ASSERT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(base::Seconds(10), ^{
+    return web_state()
+               ->GetWebFramesManager(web::ContentWorld::kIsolatedWorld)
+               ->GetAllWebFrames()
+               .size() == 2;
+  }));
+
+  web::WebFramesManager* frames_manager =
+      web_state()->GetWebFramesManager(web::ContentWorld::kIsolatedWorld);
+
+  GURL iframe_cross_url = page_helper_->GetUrlForId("iframe_cross");
+
+  web::WebFrame* main_frame = frames_manager->GetMainWebFrame();
+  web::WebFrame* cross_frame = nullptr;
+
+  for (web::WebFrame* frame : frames_manager->GetAllWebFrames()) {
+    if (frame->GetUrl() == iframe_cross_url) {
+      cross_frame = frame;
+    }
+  }
+
+  ASSERT_TRUE(main_frame);
+  ASSERT_TRUE(cross_frame);
+
+  // Focus the paragraph inside the cross-origin iframe.
+  // This should:
+  // 1. Set cross_frame.activeElement = paragraph
+  // 2. Set main_frame.activeElement = <iframe>
+  NSString* script = @"(function() { "
+                     // Mock hasFocus() because the test web view isn't truly
+                     // focused by the OS. This avoids test flakiness.
+                     @"  Document.prototype.hasFocus = () => true; "
+                     @"  const p = document.getElementById('cross_p');"
+                     @"  if (!p) return;"
+                     @"  p.tabIndex = 0;"
+                     @"  p.focus();"
+                     @"  window.focus();"
+                     @"})()";
+  cross_frame->ExecuteJavaScript(base::SysNSStringToUTF16(script));
+  main_frame->ExecuteJavaScript(
+      base::SysNSStringToUTF16(@"(function() { Document.prototype.hasFocus = "
+                               @"() => true; })();"));
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder().SetUseRichExtraction(true).Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+
+  const auto& annotated_page_content = page_context->annotated_page_content();
+  const auto& root_node = annotated_page_content.root_node();
+  const auto& main_frame_data = annotated_page_content.main_frame_data();
+
+  // 1. Verify Main Frame Focus (should be the iframe node)
+  EXPECT_TRUE(main_frame_data.frame_interaction_info().has_focused_node_id());
+  const optimization_guide::proto::ContentNode* iframe_node =
+      &root_node.children_nodes(1);
+  EXPECT_EQ(main_frame_data.frame_interaction_info().focused_node_id(),
+            iframe_node->content_attributes().common_ancestor_dom_node_id());
+
+  // 2. Verify Cross Origin Iframe Focus (should be the paragraph)
+  EXPECT_TRUE(iframe_node->content_attributes()
+                  .iframe_data()
+                  .frame_data()
+                  .frame_interaction_info()
+                  .has_focused_node_id());
+  const auto& cross_origin_root = iframe_node->children_nodes(0);
+  const auto& cross_origin_p_node = cross_origin_root.children_nodes(0);
+  EXPECT_EQ(
+      iframe_node->content_attributes()
+          .iframe_data()
+          .frame_data()
+          .frame_interaction_info()
+          .focused_node_id(),
+      cross_origin_p_node.content_attributes().common_ancestor_dom_node_id());
 }
 
 // Tests that the page interaction info is correctly populated for the main
@@ -3933,7 +4173,10 @@ TEST_P(PageContextWrapperTest,
   EXPECT_TRUE(fc_checkbox.is_checked());
 
   ASSERT_TRUE(select_node);
+  EXPECT_EQ(select_node->children_nodes_size(), 0);
   const auto& fc_select = select_node->content_attributes().form_control_data();
+  EXPECT_EQ(fc_select.form_control_type(),
+            optimization_guide::proto::FORM_CONTROL_TYPE_SELECT_ONE);
   EXPECT_EQ(fc_select.field_name(), "s1");
   ASSERT_EQ(fc_select.select_options_size(), 2);
   EXPECT_EQ(fc_select.select_options(0).value(), "o1");
@@ -4156,6 +4399,232 @@ TEST_P(PageContextWrapperTest,
   EXPECT_EQ(form_control_data.redaction_decision(),
             static_cast<optimization_guide::proto::RedactionDecision>(2));
   EXPECT_EQ(form_control_data.field_value(), "");
+}
+
+// Tests that Autofill metadata is correctly identified and populated in the
+// FormControlData when an APC extraction occurs on a page with a recognized
+// Autofill form.
+TEST_P(PageContextWrapperTest,
+       PopulatePageContext_RichExtraction_FormControlData_Autofill) {
+  if (!IsRefactored()) {
+    GTEST_SKIP() << "ApcV2 not supported for the non-refactored APC wrapper";
+  }
+
+  auto page_structure = HtmlPage(
+      "Forms",
+      RawHtml(
+          "<html><body><form name=\"f1\" action='/submit'>"
+          "  <input type=\"text\" name=\"t1\" value=\"v1\" "
+          "required placeholder=\"p1\">"
+          "  <input type=\"text\" name=\"t2\" value=\"v2\" "
+          "readonly>"
+          "  <input type=\"checkbox\" checked>"
+          "  <select name=\"s1\">"
+          "    <option value=\"o1\" selected>O1</option>"
+          "    <option disabled>O2</option>"
+          "  </select>"
+          "  <button type=\"submit\">Submit</button>"
+          "  <textarea name=\"texta\">text contents</textarea>"
+          "  <input type=\"text\" name=\"cc\" "
+          "autocomplete=\"cc-number\" value=\"1234\">"  // Field intended for
+                                                        // Autofill testing
+          "</form></body></html>"));
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  PageContextWrapperConfigBuilder builder;
+  builder.SetUseRichExtraction(true);
+  builder.SetExtractAutofill(true);
+  builder.SetExtractAutofillCreditCardRedactions(true);
+  PageContextWrapperConfig config = builder.Build();
+
+  web::WebFrame* main_frame =
+      autofill::GetWebFramesManagerForAutofill(web_state())->GetMainWebFrame();
+  autofill::AutofillDriverIOS* driver =
+      autofill::AutofillDriverIOS::FromWebStateAndWebFrame(web_state(),
+                                                           main_frame);
+  TestAutofillManager* test_autofill_manager =
+      static_cast<TestAutofillManager*>(&driver->GetAutofillManager());
+
+  ASSERT_TRUE(test_autofill_manager->WaitForFormsSeen(1));
+  ASSERT_EQ(test_autofill_manager->seen_forms().size(), 1u);
+
+  const autofill::FormData& form = test_autofill_manager->seen_forms()[0];
+  autofill::FormStructure* form_structure =
+      const_cast<autofill::FormStructure*>(
+          test_autofill_manager->FindCachedFormById(form.global_id()));
+  ASSERT_TRUE(form_structure);
+
+  // Manually set the field type of 'cc' to CREDIT_CARD_NUMBER to trigger
+  // redaction.
+  for (auto& field : *form_structure) {
+    if (field->name() == u"cc") {
+      field->SetTypeTo(autofill::AutofillType(autofill::CREDIT_CARD_NUMBER),
+                       /*source=*/std::nullopt);
+    }
+  }
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+
+  ASSERT_TRUE(page_context);
+  ASSERT_TRUE(page_context->has_annotated_page_content());
+
+  const auto& annotated_page_content = page_context->annotated_page_content();
+  const auto& root_node = annotated_page_content.root_node();
+
+  ASSERT_EQ(root_node.children_nodes_size(), 1);
+  const auto& form_node = root_node.children_nodes(0);
+
+  EXPECT_TRUE(form_node.content_attributes().has_form_data());
+  EXPECT_EQ(form_node.content_attributes().form_data().form_name(), "f1");
+  EXPECT_TRUE(base::EndsWith(
+      form_node.content_attributes().form_data().action_url(), "/submit"));
+
+  ASSERT_EQ(form_node.children_nodes_size(), 7);
+  const auto* input_cc_node = &form_node.children_nodes(6);
+  ASSERT_TRUE(input_cc_node);
+
+  const auto& fc_cc = input_cc_node->content_attributes().form_control_data();
+  EXPECT_EQ(fc_cc.field_name(), "cc");
+
+  // Verify Autofill metadata is populated.
+  EXPECT_TRUE(fc_cc.has_autofill_section_id());
+  EXPECT_EQ(fc_cc.autofill_section_id(), 2u);
+  ASSERT_EQ(fc_cc.coarse_autofill_field_type_size(), 1);
+  EXPECT_EQ(fc_cc.coarse_autofill_field_type(0),
+            optimization_guide::proto::COARSE_AUTOFILL_FIELD_TYPE_CREDIT_CARD);
+
+  // The field value should be cleared because it is a CREDIT_CARD field and
+  // SetExtractAutofillCreditCardRedactions evaluates to true.
+  EXPECT_FALSE(fc_cc.has_field_value());
+
+  EXPECT_TRUE(fc_cc.has_redaction_decision());
+  EXPECT_EQ(fc_cc.redaction_decision(),
+            optimization_guide::proto::
+                REDACTION_DECISION_REDACTED_IS_SENSITIVE_PAYMENT_FIELD);
+}
+
+// Tests that Autofill section mapping is shared across frames, resulting in
+// consistent and sequential section IDs.
+TEST_P(
+    PageContextWrapperTest,
+    PopulatePageContext_RichExtraction_FormControlData_Autofill_SharedSectionMap) {
+  if (!IsRefactored()) {
+    GTEST_SKIP() << "ApcV2 not supported for the non-refactored APC wrapper";
+  }
+
+  auto page_structure = HtmlPage(
+      "Forms",
+      RawHtml("<html><body>"
+              "  <form name=\"f1\">"
+              "    <input type=\"text\" name=\"t1\" value=\"v1\" "
+              "autocomplete=\"address-line1\">"
+              "  </form>"
+              "  <iframe id=\"child_frame\" srcdoc=\""
+              "    <html><body>"
+              "      <form name=&quot;f2&quot;>"
+              "        <input type=&quot;text&quot; name=&quot;t2&quot; "
+              "value=&quot;v2&quot; autocomplete=&quot;address-line2&quot;>"
+              "      </form>"
+              "    </body></html>\">"
+              "  </iframe>"
+              "</body></html>"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  // Wait for frames to be registered.
+  ASSERT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(base::Seconds(10), ^{
+    return autofill::GetWebFramesManagerForAutofill(web_state())
+               ->GetAllWebFrames()
+               .size() == 2;
+  }));
+
+  PageContextWrapperConfigBuilder builder;
+  builder.SetUseRichExtraction(true);
+  builder.SetExtractAutofill(true);
+  PageContextWrapperConfig config = builder.Build();
+
+  // Mock Autofill data for both frames.
+  web::WebFramesManager* frames_manager =
+      autofill::GetWebFramesManagerForAutofill(web_state());
+
+  for (web::WebFrame* frame : frames_manager->GetAllWebFrames()) {
+    autofill::AutofillDriverIOS* driver =
+        autofill::AutofillDriverIOS::FromWebStateAndWebFrame(web_state(),
+                                                             frame);
+    TestAutofillManager* test_autofill_manager =
+        static_cast<TestAutofillManager*>(&driver->GetAutofillManager());
+
+    ASSERT_TRUE(test_autofill_manager->WaitForFormsSeen(1));
+    const autofill::FormData& form = test_autofill_manager->seen_forms()[0];
+    autofill::FormStructure* form_structure =
+        const_cast<autofill::FormStructure*>(
+            test_autofill_manager->FindCachedFormById(form.global_id()));
+    ASSERT_TRUE(form_structure);
+
+    // Assign a section to the field.
+    for (auto& field : *form_structure) {
+      std::string section_name =
+          frame->IsMainFrame() ? "main-section" : "child-section";
+      field->set_section(
+          autofill::Section::FromAutocomplete({.section = section_name}));
+      field->SetTypeTo(autofill::AutofillType(autofill::ADDRESS_HOME_LINE1),
+                       /*source=*/std::nullopt);
+    }
+  }
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+
+  ASSERT_TRUE(response.has_value());
+  const auto& page_context = *response.value();
+  const auto& root_node = page_context.annotated_page_content().root_node();
+
+  // Root should have form (f1) and iframe (child_frame).
+  ASSERT_GE(root_node.children_nodes_size(), 2);
+
+  const auto& form_node = root_node.children_nodes(0);
+
+  ASSERT_GE(form_node.children_nodes_size(), 1);
+  const auto& fc_main =
+      form_node.children_nodes(0).content_attributes().form_control_data();
+
+  // Verify section ID for main frame field.
+  EXPECT_TRUE(fc_main.has_autofill_section_id());
+  uint32_t main_section_id = fc_main.autofill_section_id();
+
+  // Access the child frame's input field directly by index.
+  // Root (0) -> Form f1
+  // Root (1) -> Iframe child_frame
+  const auto& iframe_node = root_node.children_nodes(1);
+  ASSERT_GE(iframe_node.children_nodes_size(), 1);
+  const auto& child_root = iframe_node.children_nodes(0);
+  ASSERT_GE(child_root.children_nodes_size(), 1);
+  const auto& child_form = child_root.children_nodes(0);
+  ASSERT_GE(child_form.children_nodes_size(), 1);
+  const auto& child_input = child_form.children_nodes(0);
+
+  const auto& fc_child = child_input.content_attributes().form_control_data();
+  EXPECT_EQ(fc_child.field_name(), "t2");
+  EXPECT_TRUE(fc_child.has_autofill_section_id());
+  uint32_t child_section_id = fc_child.autofill_section_id();
+
+  // Verify that the section IDs are sequential across frames, proving the map
+  // is shared.
+  EXPECT_EQ(main_section_id, 0u);
+  EXPECT_EQ(child_section_id, 1u);
 }
 
 // Tests that Canvas Metadata is extracted correctly.
@@ -4518,12 +4987,9 @@ TEST_P(PageContextWrapperTest, PopulatePageContext_AutofillInformation) {
   web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
                       test_server_.GetURL(kMainPagePath), web_state());
 
-  // Setup the TestAutofillClientIOS.
-  autofill::TestAutofillClientIOS autofill_client(web_state(), /*bridge=*/nil);
-
   autofill::TestPersonalDataManager& pdm =
       static_cast<autofill::TestPersonalDataManager&>(
-          autofill_client.GetPersonalDataManager());
+          autofill_client_->GetPersonalDataManager());
 
   // Add an address profile to the AddressDataManager.
   autofill::AutofillProfile profile = autofill::test::GetFullProfile();
@@ -4580,9 +5046,6 @@ TEST_P(PageContextWrapperTest, PopulatePageContext_AutofillInformation_Empty) {
   std::string main_html = page_helper_->Build(page_structure);
   web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
                       test_server_.GetURL(kMainPagePath), web_state());
-
-  // Setup the TestAutofillClientIOS.
-  autofill::TestAutofillClientIOS autofill_client(web_state(), /*bridge=*/nil);
 
   // Note: We deliberately do NOT add any profiles or credit cards to the
   // PersonalDataManager.
@@ -4809,6 +5272,53 @@ TEST_P(PageContextWrapperTest,
           optimization_guide::proto::CLICKABILITY_REASON_ARIA_EXPANDED_FALSE));
 }
 
+// Tests that anchor tags are correctly evaluated for focusability
+// based on the presence of the href attribute.
+TEST_P(PageContextWrapperTest,
+       PopulatePageContext_ApcV2_NodeInteraction_AnchorFocus) {
+  if (!IsRefactored()) {
+    return;
+  }
+
+  auto page_structure = HtmlPage(
+      "Anchor Focus Test",
+      RawHtml("<a href='http://foo.com' id='link_a'>Anchor With Href</a>"
+              "<a id='no_href_a'>Anchor Without Href</a>"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder()
+          .SetUseRichExtraction(true)
+          .SetUseRichExtractionWithActionable(true)
+          .Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+  ASSERT_TRUE(page_context);
+  const auto& root = page_context->annotated_page_content().root_node();
+
+  ASSERT_EQ(2, root.children_nodes_size());
+
+  // Verify anchor with href is focusable.
+  const auto& link_a = root.children_nodes(0);
+  EXPECT_TRUE(link_a.content_attributes().has_interaction_info());
+  EXPECT_TRUE(link_a.content_attributes().interaction_info().is_focusable());
+
+  // Verify anchor without href is not focusable.
+  const auto& no_href_a = root.children_nodes(1);
+  EXPECT_FALSE(
+      no_href_a.content_attributes().interaction_info().is_focusable());
+}
+
 // Tests extraction and mapping of elements that are functionally or visually
 // disabled, ensuring appropriate disabled reasons are captured.
 TEST_P(PageContextWrapperTest,
@@ -5005,11 +5515,11 @@ TEST_P(PageContextWrapperTest, PopulatePageContext_RichExtraction_Text_Color) {
             "Green Text");
 
   // Check Color
-  // Green: (0, 255, 0) -> (0 << 24) | (255 << 16) | (0 << 8) | 255
-  // = 0 | 16711680 | 0 | 255 = 16711935
+  // Green: (0, 255, 0) -> (255 << 24) | (0 << 16) | (255 << 8) | 0
+  // = 4278190080 | 0 | 65280 | 0 = 4278255360
   ASSERT_TRUE(p_text_node.content_attributes().text_data().has_text_style());
   EXPECT_EQ(p_text_node.content_attributes().text_data().text_style().color(),
-            16711935u);
+            4278255360u);
 }
 
 // Tests the extraction of paid content metadata based on ld+json.
@@ -5496,6 +6006,571 @@ TEST_P(PageContextWrapperTest, PopulatePageContext_AriaRole_ActionableMode) {
             optimization_guide::proto::AX_ROLE_UNKNOWN);
 }
 
+// Tests extraction of geometry for fragmented elements (e.g. multi-line text).
+TEST_P(PageContextWrapperTest,
+       PopulatePageContext_ApcV2_Geometry_Fragmentation) {
+  if (!IsRefactored()) {
+    GTEST_SKIP() << "ApcV2 not supported for the non-refactored APC wrapper";
+  }
+
+  // Create HTML with a wrapping inline element to trigger fragmentation.
+  // We use a small container (50px) and large font (40px) to force wrapping.
+  auto page_structure =
+      HtmlPage("Fragmentation Test",
+               RawHtml("<div style='width: 50px; font-size: 40px; word-break: "
+                       "break-all;'>"
+                       "<a href='#'>LINKS THAT WRAP MANY TIMES</a>"
+                       "</div>"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder()
+          .SetUseRichExtraction(true)
+          .SetUseRichExtractionWithActionable(true)
+          .Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+  ASSERT_TRUE(response.has_value());
+
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+  ASSERT_TRUE(page_context);
+
+  const auto& actual_apc = page_context->annotated_page_content();
+  const auto& root = actual_apc.root_node();
+
+  ASSERT_GE(root.children_nodes_size(), 1);
+  const auto& anchor = root.children_nodes(0);
+  EXPECT_EQ(anchor.content_attributes().attribute_type(),
+            optimization_guide::proto::CONTENT_ATTRIBUTE_ANCHOR);
+
+  EXPECT_TRUE(VerifyGeometry(anchor));
+  const auto& geometry = anchor.content_attributes().geometry();
+
+  // Check for fragmentation.
+  // The text "LINKS THAT WRAP MANY TIMES" in a 50px container with 40px font
+  // will wrap across multiple lines, creating multiple fragments.
+  EXPECT_GT(geometry.fragment_visible_bounding_boxes_size(), 1);
+  for (const auto& rect : geometry.fragment_visible_bounding_boxes()) {
+    EXPECT_GT(rect.width(), 0);
+    EXPECT_GT(rect.height(), 0);
+  }
+}
+
+// Tests that the getClientRects heuristic correctly skips calls for single-line
+// elements and includes them for multi-line elements.
+TEST_P(PageContextWrapperTest,
+       PopulatePageContext_ApcV2_Geometry_Fragmentation_LineHeuristic) {
+  if (!IsRefactored()) {
+    GTEST_SKIP() << "ApcV2 not supported for the non-refactored APC wrapper";
+  }
+
+  // Div is 50px to force the width of the inner elements so that we can
+  // reliably determine if they are single or multiple lines.
+  // Heuristic is multiple line if height >= font_size * 1.5.
+  // 1. Single: Height will be ~20px (1 line), font-size=20px.
+  //    Heuristic: 20 < (20 * 1.5) -> No fragments.
+  // 2. Multi: Height will be at least ~24px (2 lines), font-size=12px.
+  //    Heuristic: 24 >= (12 * 1.5) -> Has fragments.
+  auto page_structure =
+      HtmlPage("Heuristic Test",
+               RawHtml("<div role='button' style='width: 50px;'>"
+                       "<a href='#' id='single' style='display: inline; "
+                       "font-size: 20px; line-height: 1.0;'>tiny</a>"
+                       "<br>"
+                       "<a href='#' id='multi' style='display: inline; "
+                       "font-size: 12px; line-height: 1.0; word-break: "
+                       "break-all;'>This is a longer text that wraps</a>"
+                       "</div>"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder()
+          .SetUseRichExtraction(true)
+          .SetUseRichExtractionWithActionable(true)
+          .Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+  ASSERT_TRUE(response.has_value());
+
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+  ASSERT_TRUE(page_context);
+
+  const auto& actual_apc = page_context->annotated_page_content();
+  const auto& root = actual_apc.root_node();
+
+  // Find the nodes by the structure.
+  // The structure should be: Root -> Container Div -> [Anchor 'single', BR,
+  // Anchor 'multi']
+  ASSERT_GE(root.children_nodes_size(), 1);
+  const auto& container = root.children_nodes(0);
+  ASSERT_GE(container.children_nodes_size(), 2);
+
+  const auto& single_node = container.children_nodes(0);
+  const auto& multi_node = container.children_nodes(1);
+
+  // Verify 'single' has no fragments.
+  EXPECT_EQ(single_node.content_attributes()
+                .geometry()
+                .fragment_visible_bounding_boxes_size(),
+            0);
+
+  // Verify 'multi' has fragments.
+  EXPECT_GT(multi_node.content_attributes()
+                .geometry()
+                .fragment_visible_bounding_boxes_size(),
+            1);
+}
+
+// Tests extraction of geometry for inline-block, inline-grid and inline-flex
+// elements that have no fragment.
+TEST_P(PageContextWrapperTest,
+       PopulatePageContext_ApcV2_Geometry_Fragmentation_InlineTypes) {
+  if (!IsRefactored()) {
+    GTEST_SKIP() << "ApcV2 not supported for the non-refactored APC wrapper";
+  }
+
+  auto page_structure = HtmlPage(
+      "Single Fragment Test",
+      RawHtml("<div role='button' style='display: inline-block; width: 50px; "
+              "word-break: break-all;' id='ib'>LONG TEXT THAT WRAPS</div>"
+              "<div role='button' style='display: inline-grid; width: 50px; "
+              "word-break: break-all;' id='ig'>LONG TEXT THAT WRAPS</div>"
+              "<div role='button' style='display: inline-flex; width: 50px; "
+              "word-break: break-all;' id='if'>LONG TEXT THAT WRAPS</div>"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder()
+          .SetUseRichExtraction(true)
+          .SetUseRichExtractionWithActionable(true)
+          .Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+  ASSERT_TRUE(response.has_value());
+
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+  ASSERT_TRUE(page_context);
+
+  const auto& actual_apc = page_context->annotated_page_content();
+  const auto& root = actual_apc.root_node();
+
+  ASSERT_GE(root.children_nodes_size(), 3);
+
+  const auto& ib_node = root.children_nodes(0);
+  EXPECT_TRUE(VerifyGeometry(ib_node));
+  EXPECT_EQ(ib_node.content_attributes()
+                .geometry()
+                .fragment_visible_bounding_boxes_size(),
+            0);
+
+  const auto& ig_node = root.children_nodes(1);
+  EXPECT_TRUE(VerifyGeometry(ig_node));
+  EXPECT_EQ(ig_node.content_attributes()
+                .geometry()
+                .fragment_visible_bounding_boxes_size(),
+            0);
+
+  const auto& if_node = root.children_nodes(2);
+  EXPECT_TRUE(VerifyGeometry(if_node));
+  EXPECT_EQ(if_node.content_attributes()
+                .geometry()
+                .fragment_visible_bounding_boxes_size(),
+            0);
+}
+
+// Checks that zero-width or zero-height fragments are filtered out.
+TEST_P(PageContextWrapperTest,
+       PopulatePageContext_ApcV2_Geometry_Fragmentation_ZeroSizeFilter) {
+  if (!IsRefactored()) {
+    GTEST_SKIP() << "ApcV2 not supported for the non-refactored APC wrapper";
+  }
+
+  auto page_structure =
+      HtmlPage("Zero Size Filter Test",
+               RawHtml("<span role='button' id='target'>Target Text</span>"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  // Override `getClientRects()` with deterministic values to test
+  // `addNodeGeometry` fragmentation filtering logic: only the non zero-width
+  // and non-zero-height rects should be accepted. The bounding client rect
+  // need to be override so that the line heuristic consider it multi-line.
+  CallJavascript(R"(
+    (function() {
+      const span = document.getElementById('target');
+      span.getBoundingClientRect = function() {
+        return { x: 10, y: 10, width: 100, height: 100 };
+      };
+      span.getClientRects = function() {
+        return [
+          { x: 10, y: 10, width: 100, height: 20 }, // Valid
+          { x: 10, y: 30, width: 0, height: 20 },   // Zero width
+          { x: 10, y: 50, width: 100, height: 0 },   // Zero height
+          { x: 10, y: 70, width: 50, height: 20 }   // Valid
+        ];
+      };
+    })()
+  )");
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder()
+          .SetUseRichExtraction(true)
+          .SetUseRichExtractionWithActionable(true)
+          .Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+  ASSERT_TRUE(response.has_value());
+
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+  ASSERT_TRUE(page_context);
+
+  const auto& actual_apc = page_context->annotated_page_content();
+  const auto& root = actual_apc.root_node();
+
+  ASSERT_GE(root.children_nodes_size(), 1);
+  const auto& node = root.children_nodes(0);
+
+  // The zero-width and zero-height rects are filtered out.
+  EXPECT_EQ(node.content_attributes()
+                .geometry()
+                .fragment_visible_bounding_boxes_size(),
+            2);
+
+  const auto& rect0 =
+      node.content_attributes().geometry().fragment_visible_bounding_boxes(0);
+  EXPECT_EQ(rect0.width(), 100);
+  EXPECT_EQ(rect0.height(), 20);
+
+  const auto& rect1 =
+      node.content_attributes().geometry().fragment_visible_bounding_boxes(1);
+  EXPECT_EQ(rect1.width(), 50);
+  EXPECT_EQ(rect1.height(), 20);
+}
+
+// Tests that only fragments that are visible in the clip rect are added.
+TEST_P(PageContextWrapperTest,
+       PopulatePageContext_ApcV2_Geometry_Fragmentation_ClipFilter) {
+  if (!IsRefactored()) {
+    GTEST_SKIP() << "ApcV2 not supported for the non-refactored APC wrapper";
+  }
+
+  // Create a container with overflow: hidden and target span inside.
+  auto page_structure = HtmlPage(
+      "Clip Filter Test",
+      RawHtml("<div style='width: 100px; height: 50px; overflow: hidden; "
+              "position: relative;' id='clipper'>"
+              "  <span role='button' style='display: inline;' "
+              "id='target'>Target</span>"
+              "</div>"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  // Override `getClientRects()` with deterministic values to test
+  // `addNodeGeometry` fragmentation filtering logic: with the div's height
+  // defined earlier, the third row should be clipped. The bounding client rect
+  // need to be override so that the line heuristic consider it multi-line.
+  CallJavascript(R"(
+    (function() {
+      const span = document.getElementById('target');
+      span.getBoundingClientRect = function() {
+        return { x: 10, y: 10, width: 100, height: 100 };
+      };
+      span.getClientRects = function() {
+        return [
+          { x: 10, y: 10, width: 50, height: 20 }, // Visible (within Y 0-50)
+          { x: 10, y: 30, width: 50, height: 20 }, // Visible (within Y 0-50)
+          { x: 10, y: 60, width: 50, height: 20 }  // Clipped (outside Y 0-50)
+        ];
+      };
+    })()
+  )");
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder()
+          .SetUseRichExtraction(true)
+          .SetUseRichExtractionWithActionable(true)
+          .Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+  ASSERT_TRUE(response.has_value());
+
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+  ASSERT_TRUE(page_context);
+
+  const auto& actual_apc = page_context->annotated_page_content();
+  const auto& root = actual_apc.root_node();
+
+  ASSERT_GE(root.children_nodes_size(), 1);
+  const auto& clipper_node = root.children_nodes(0);
+  ASSERT_GE(clipper_node.children_nodes_size(), 1);
+  const auto& node = clipper_node.children_nodes(0);
+
+  // We expect exactly 2 fragments (the visible ones). The clipped one should be
+  // filtered out.
+  EXPECT_EQ(node.content_attributes()
+                .geometry()
+                .fragment_visible_bounding_boxes_size(),
+            2);
+
+  const auto& rect0_clip =
+      node.content_attributes().geometry().fragment_visible_bounding_boxes(0);
+  EXPECT_EQ(rect0_clip.y(), 10);
+
+  const auto& rect1_clip =
+      node.content_attributes().geometry().fragment_visible_bounding_boxes(1);
+  EXPECT_EQ(rect1_clip.y(), 30);
+}
+
+// Tests extraction of geometry with complex clipping (scrollable containers).
+TEST_P(PageContextWrapperTest, PopulatePageContext_ApcV2_Geometry_Clipping) {
+  if (!IsRefactored()) {
+    return;
+  }
+
+  // Layout:
+  // Div (100x100, overflow:hidden)
+  //   -> Div (Content, 200x200)
+  //      -> Target Element (positioned at 150,150 - should be clipped
+  //      out/invisible)
+  //      -> Visible Element (positioned at 10,10)
+  auto page_structure = HtmlPage(
+      "Clipping Test",
+      RawHtml(
+          "<style>body { margin: 0; }</style>"
+          "<div style='width: 100px; height: 100px; overflow: hidden; "
+          "position: "
+          "relative;' id='clipper'>"
+          "  <div style='position: absolute; top: 0; left: 0; width: 200px; "
+          "height: 200px;'>"
+          "     <p id='visible' style='position: absolute; top: 10px; left: "
+          "10px; width: 50px; height: 50px;'>Visible</p>"
+          "     <p id='clipped' style='position: absolute; top: 150px; left: "
+          "150px; width: 50px; height: 50px;'>Clipped</p>"
+          "  </div>"
+          "</div>"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder()
+          .SetUseRichExtraction(true)
+          .SetUseRichExtractionWithActionable(true)
+          .Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+  ASSERT_TRUE(page_context);
+
+  const auto& actual_apc = page_context->annotated_page_content();
+  const auto& root = actual_apc.root_node();
+
+  ASSERT_GE(root.children_nodes_size(), 1);
+  const auto& clipper_div = root.children_nodes(0);
+  EXPECT_EQ(clipper_div.content_attributes().attribute_type(),
+            optimization_guide::proto::CONTENT_ATTRIBUTE_CONTAINER);
+
+  ASSERT_GE(clipper_div.children_nodes_size(), 2);
+
+  const auto& visible_p = clipper_div.children_nodes(0);
+  EXPECT_EQ(visible_p.content_attributes().attribute_type(),
+            optimization_guide::proto::CONTENT_ATTRIBUTE_PARAGRAPH);
+  ASSERT_GE(visible_p.children_nodes_size(), 1);
+  EXPECT_EQ(visible_p.children_nodes(0)
+                .content_attributes()
+                .text_data()
+                .text_content(),
+            "Visible");
+
+  EXPECT_TRUE(VerifyGeometry(visible_p));
+  const auto& vis_geo = visible_p.content_attributes().geometry();
+  EXPECT_GT(vis_geo.visible_bounding_box().width(), 0);
+  EXPECT_GT(vis_geo.visible_bounding_box().height(), 0);
+
+  const auto& clipped_p = clipper_div.children_nodes(1);
+  EXPECT_EQ(clipped_p.content_attributes().attribute_type(),
+            optimization_guide::proto::CONTENT_ATTRIBUTE_PARAGRAPH);
+  ASSERT_GE(clipped_p.children_nodes_size(), 1);
+  EXPECT_EQ(clipped_p.children_nodes(0)
+                .content_attributes()
+                .text_data()
+                .text_content(),
+            "Clipped");
+
+  // The 'clipped' paragraph is fully outside the parent's clip rect.
+  // visible_bounding_box should be empty or zero-sized.
+  EXPECT_TRUE(VerifyGeometry(clipped_p, /*expect_visible=*/false));
+  const auto& clipped_geo = clipped_p.content_attributes().geometry();
+
+  // Expect visible bounding box to be effectively empty (width/height 0)
+  // because intersection is empty.
+  EXPECT_EQ(clipped_geo.visible_bounding_box().width(), 0);
+  EXPECT_EQ(clipped_geo.visible_bounding_box().height(), 0);
+
+  // Outer bounding box should still reflect dimensions (unclipped).
+  // Relational geometry assertions (100% deterministic regardless of
+  // screen/rendering engine).
+  EXPECT_EQ(clipped_geo.outer_bounding_box().width(), 50);
+  EXPECT_EQ(clipped_geo.outer_bounding_box().height(), 50);
+  // It is positioned at 150, 150 but relative to its containing block.
+  // We can assure it is mathematically rendered past the 100x100 parent
+  // boundaries.
+  EXPECT_GE(clipped_geo.outer_bounding_box().x(), 100);
+  EXPECT_GE(clipped_geo.outer_bounding_box().y(), 100);
+}
+
+// Tests extraction of geometry for an average case with both visible and outer
+// bounding boxes.
+TEST_P(PageContextWrapperTest, PopulatePageContext_ApcV2_Geometry_AverageCase) {
+  if (!IsRefactored()) {
+    return;
+  }
+
+  // Layout:
+  // Div (200x200, overflow:hidden)
+  //   -> Target Element (positioned at -50,-50, size 100x100)
+  //      This means the outer bounding box is 100x100,
+  //      but the visible bounding box is only the part within the 200x200 div
+  //      (i.e. x:0, y:0, w:50, h:50)
+  auto page_structure = HtmlPage(
+      "Average Geometry Test",
+      RawHtml(
+          "<style>body, p { margin: 0; }</style>"
+          "<div style='width: 200px; height: 200px; overflow: hidden; "
+          "position: relative;' id='clipper'>"
+          "     <p id='target' style='position: absolute; top: -50px; left: "
+          "-50px; width: 100px; height: 100px;'>Target</p>"
+          "</div>"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder()
+          .SetUseRichExtraction(true)
+          .SetUseRichExtractionWithActionable(true)
+          .Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+  ASSERT_TRUE(page_context);
+
+  const auto& actual_apc = page_context->annotated_page_content();
+  const auto& root = actual_apc.root_node();
+
+  ASSERT_GE(root.children_nodes_size(), 1);
+  const auto& clipper_div = root.children_nodes(0);
+  EXPECT_EQ(clipper_div.content_attributes().attribute_type(),
+            optimization_guide::proto::CONTENT_ATTRIBUTE_CONTAINER);
+
+  ASSERT_GE(clipper_div.children_nodes_size(), 1);
+
+  const auto& target_p = clipper_div.children_nodes(0);
+  EXPECT_EQ(target_p.content_attributes().attribute_type(),
+            optimization_guide::proto::CONTENT_ATTRIBUTE_PARAGRAPH);
+  ASSERT_GE(target_p.children_nodes_size(), 1);
+
+  EXPECT_TRUE(VerifyGeometry(target_p));
+  const auto& target_geo = target_p.content_attributes().geometry();
+
+  // The outer bounding box is size 100x100, located around -50, -50.
+  // We use ASSERT_GE since rendering engines can vary slightly.
+  // Left side: -50ish, width: 100ish, height: 100ish
+  EXPECT_LE(target_geo.outer_bounding_box().x(), -40);
+  EXPECT_LE(target_geo.outer_bounding_box().y(), -40);
+  EXPECT_GE(target_geo.outer_bounding_box().width(), 90);
+  EXPECT_GE(target_geo.outer_bounding_box().height(), 90);
+
+  // The visible bounding box should be clipped by the parent.
+  // It should be around x: 0, y: 0, width: 50, height: 50.
+  EXPECT_GE(target_geo.visible_bounding_box().x(), 0);
+  EXPECT_LE(target_geo.visible_bounding_box().x(), 10);
+  EXPECT_GE(target_geo.visible_bounding_box().y(), 0);
+  EXPECT_LE(target_geo.visible_bounding_box().y(), 10);
+  EXPECT_GE(target_geo.visible_bounding_box().width(), 40);
+  EXPECT_LE(target_geo.visible_bounding_box().width(), 60);
+  EXPECT_GE(target_geo.visible_bounding_box().height(), 40);
+  EXPECT_LE(target_geo.visible_bounding_box().height(), 60);
+
+  // Relational geometry assertions (100% deterministic regardless of
+  // screen/rendering engine).
+
+  // 1. The visible box MUST be strictly smaller than the outer box because it's
+  // clipped.
+  EXPECT_LT(target_geo.visible_bounding_box().width(),
+            target_geo.outer_bounding_box().width());
+  EXPECT_LT(target_geo.visible_bounding_box().height(),
+            target_geo.outer_bounding_box().height());
+
+  // 2. The visible box MUST be constrained by the parent's boundaries.
+  // In this test setup, the parent starts at 0,0 and is 200x200.
+  // The child is 100x100 but positioned at -50,-50.
+  // So it should be clipped at exactly x=0, y=0.
+  EXPECT_EQ(target_geo.visible_bounding_box().x(), 0);
+  EXPECT_EQ(target_geo.visible_bounding_box().y(), 0);
+
+  // Since it started at -50 and was 100 wide/high, it should only extend to 50.
+  // We use the relational logic: visible_width = outer_width -
+  // clipped_left_amount; clipped_left_amount = 0 - outer_x (which is negative).
+  int clipped_width = target_geo.outer_bounding_box().width() -
+                      (0 - target_geo.outer_bounding_box().x());
+  int clipped_height = target_geo.outer_bounding_box().height() -
+                       (0 - target_geo.outer_bounding_box().y());
+
+  // Since layout subpixels can vary slightly, we assert that the computed
+  // intersection perfectly matches the extracted visible bounding box without
+  // relying on hardcoded numbers.
+  EXPECT_EQ(target_geo.visible_bounding_box().width(), clipped_width);
+  EXPECT_EQ(target_geo.visible_bounding_box().height(), clipped_height);
+}
+
 // Tests that the extraction pipeline prunes the entire subtree of rejected
 // nodes, leaving no descendants.
 TEST_P(PageContextWrapperTest,
@@ -5555,6 +6630,542 @@ TEST_P(PageContextWrapperTest,
                 .text_data()
                 .text_content(),
             "Accept 2");
+}
+
+// Tests that the focused frame on cross origin is correctly identified and its
+// token is populated in the PageInteractionInfo.
+TEST_P(PageContextWrapperTest,
+       PopulatePageContext_ApcV2_FocusedFrame_CrossOrigin) {
+  if (!IsRefactored()) {
+    GTEST_SKIP() << "ApcV2 not supported for the non-refactored APC wrapper";
+  }
+
+  auto page_structure =
+      HtmlPage("Main", Paragraph("Main frame text"),
+               Iframe(TestOrigin::kCrossA,
+                      HtmlPage("Child", RawHtml("<input id='i1' type='text'>")),
+                      "iframe_cross"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  ASSERT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(base::Seconds(10), ^{
+    return web_state()
+               ->GetWebFramesManager(web::ContentWorld::kIsolatedWorld)
+               ->GetAllWebFrames()
+               .size() == 2;
+  }));
+
+  web::WebFramesManager* frames_manager =
+      web_state()->GetWebFramesManager(web::ContentWorld::kIsolatedWorld);
+  GURL iframe_url = page_helper_->GetUrlForId("iframe_cross");
+  web::WebFrame* main_frame = frames_manager->GetMainWebFrame();
+  web::WebFrame* child_frame = nullptr;
+  for (web::WebFrame* frame : frames_manager->GetAllWebFrames()) {
+    if (frame->GetUrl() == iframe_url) {
+      child_frame = frame;
+      break;
+    }
+  }
+  ASSERT_TRUE(main_frame);
+  ASSERT_TRUE(child_frame);
+
+  // Focus the input in the iframe and mock hasFocus() to return true.
+  [scoped_window_.Get() makeKeyAndVisible];
+  base::test::TestFuture<const base::Value*> js_call_future;
+  child_frame->ExecuteJavaScript(
+      base::SysNSStringToUTF16(@"(function() {"
+                               @"  Document.prototype.hasFocus = () => true;"
+                               @"  document.getElementById('i1').focus();"
+                               @"  window.focus();"
+                               @"})();"),
+      js_call_future.GetCallback());
+  ASSERT_TRUE(js_call_future.Wait());
+
+  base::test::TestFuture<const base::Value*> main_future;
+  main_frame->ExecuteJavaScript(
+      base::SysNSStringToUTF16(@"(function() {"
+                               @"  Document.prototype.hasFocus = () => true;"
+                               @"})();"),
+      main_future.GetCallback());
+  ASSERT_TRUE(main_future.Wait());
+
+  [web_state_->GetView() becomeFirstResponder];
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder().SetUseRichExtraction(true).Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+
+  const auto& apc = page_context->annotated_page_content();
+  EXPECT_TRUE(apc.has_page_interaction_info());
+  EXPECT_TRUE(apc.page_interaction_info().has_focused_frame());
+
+  const std::string& focused_frame_token =
+      apc.page_interaction_info().focused_frame().serialized_token();
+
+  // Find the iframe node and its token.
+  const auto& root = apc.root_node();
+  // root has children: [paragraph, iframe]
+  ASSERT_GE(root.children_nodes_size(), 2);
+  const auto& iframe_node = root.children_nodes(1);
+  const std::string& iframe_token = iframe_node.content_attributes()
+                                        .iframe_data()
+                                        .frame_data()
+                                        .document_identifier()
+                                        .serialized_token();
+
+  EXPECT_EQ(focused_frame_token, iframe_token);
+}
+
+// Tests that the focused frame on the same origin as the main frame is
+// correctly identified and its token is populated in the PageInteractionInfo
+// when focus is in a same-origin iframe.
+TEST_P(PageContextWrapperTest,
+       PopulatePageContext_ApcV2_FocusedFrame_SameOrigin) {
+  if (!IsRefactored()) {
+    GTEST_SKIP() << "ApcV2 not supported for the non-refactored APC wrapper";
+  }
+
+  auto page_structure =
+      HtmlPage("Main", Paragraph("Main frame text"),
+               Iframe(TestOrigin::kMain,
+                      HtmlPage("Child", RawHtml("<input id='i1' type='text'>")),
+                      "iframe_same"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  ASSERT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(base::Seconds(10), ^{
+    return web_state()
+               ->GetWebFramesManager(web::ContentWorld::kIsolatedWorld)
+               ->GetAllWebFrames()
+               .size() == 2;
+  }));
+
+  web::WebFramesManager* frames_manager =
+      web_state()->GetWebFramesManager(web::ContentWorld::kIsolatedWorld);
+  GURL iframe_url = page_helper_->GetUrlForId("iframe_same");
+  web::WebFrame* main_frame = frames_manager->GetMainWebFrame();
+  web::WebFrame* child_frame = nullptr;
+  for (web::WebFrame* frame : frames_manager->GetAllWebFrames()) {
+    if (frame->GetUrl() == iframe_url) {
+      child_frame = frame;
+      break;
+    }
+  }
+  ASSERT_TRUE(main_frame);
+  ASSERT_TRUE(child_frame);
+
+  // Focus the input in the iframe and mock hasFocus() to return true.
+  [scoped_window_.Get() makeKeyAndVisible];
+  base::test::TestFuture<const base::Value*> js_call_future;
+  child_frame->ExecuteJavaScript(
+      base::SysNSStringToUTF16(@"(function() {"
+                               @"  Document.prototype.hasFocus = () => true;"
+                               @"  document.getElementById('i1').focus();"
+                               @"  window.focus();"
+                               @"})();"),
+      js_call_future.GetCallback());
+  ASSERT_TRUE(js_call_future.Wait());
+
+  base::test::TestFuture<const base::Value*> main_future;
+  main_frame->ExecuteJavaScript(
+      base::SysNSStringToUTF16(@"(function() {"
+                               @"  Document.prototype.hasFocus = () => true;"
+                               @"})();"),
+      main_future.GetCallback());
+  ASSERT_TRUE(main_future.Wait());
+
+  [web_state_->GetView() becomeFirstResponder];
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder().SetUseRichExtraction(true).Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+
+  const auto& apc = page_context->annotated_page_content();
+  EXPECT_TRUE(apc.has_page_interaction_info());
+  EXPECT_TRUE(apc.page_interaction_info().has_focused_frame());
+
+  const std::string& focused_frame_token =
+      apc.page_interaction_info().focused_frame().serialized_token();
+
+  // Find the iframe node and its token.
+  const auto& root = apc.root_node();
+  // root has children: [paragraph, iframe]
+  ASSERT_GE(root.children_nodes_size(), 2);
+  const auto& iframe_node = root.children_nodes(1);
+  const std::string& iframe_token = iframe_node.content_attributes()
+                                        .iframe_data()
+                                        .frame_data()
+                                        .document_identifier()
+                                        .serialized_token();
+
+  EXPECT_EQ(focused_frame_token, iframe_token);
+}
+
+// Tests that the main frame is correctly identified as the focused frame.
+TEST_P(PageContextWrapperTest, PopulatePageContext_ApcV2_FocusedFrame_Main) {
+  if (!IsRefactored()) {
+    GTEST_SKIP() << "ApcV2 not supported for the non-refactored APC wrapper";
+  }
+
+  auto page_structure =
+      HtmlPage("Main", RawHtml("<input id='i1' type='text'>"),
+               Iframe(TestOrigin::kCrossA,
+                      HtmlPage("Child", Paragraph("Child text")), "iframe_1"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  ASSERT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(base::Seconds(10), ^{
+    return web_state()
+               ->GetWebFramesManager(web::ContentWorld::kIsolatedWorld)
+               ->GetAllWebFrames()
+               .size() == 2;
+  }));
+
+  web::WebFramesManager* frames_manager =
+      web_state()->GetWebFramesManager(web::ContentWorld::kIsolatedWorld);
+  web::WebFrame* main_frame = frames_manager->GetMainWebFrame();
+  ASSERT_TRUE(main_frame);
+
+  // Focus the input in the main frame and mock hasFocus() to return true.
+  [scoped_window_.Get() makeKeyAndVisible];
+  base::test::TestFuture<const base::Value*> main_future;
+  main_frame->ExecuteJavaScript(
+      base::SysNSStringToUTF16(@"(function() {"
+                               @"  Document.prototype.hasFocus = () => true;"
+                               @"  document.getElementById('i1').focus();"
+                               @"  window.focus();"
+                               @"})();"),
+      main_future.GetCallback());
+  ASSERT_TRUE(main_future.Wait());
+
+  [web_state_->GetView() becomeFirstResponder];
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder().SetUseRichExtraction(true).Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+
+  const auto& apc = page_context->annotated_page_content();
+  EXPECT_TRUE(apc.has_page_interaction_info());
+  EXPECT_TRUE(apc.page_interaction_info().has_focused_frame());
+
+  const std::string& focused_frame_token =
+      apc.page_interaction_info().focused_frame().serialized_token();
+
+  // The focused frame token should match the main frame token.
+  const auto& main_frame_data = apc.main_frame_data();
+  EXPECT_EQ(focused_frame_token,
+            main_frame_data.document_identifier().serialized_token());
+}
+
+// Tests extraction of document scoped z-order for actionable elements.
+TEST_P(PageContextWrapperTest, PopulatePageContext_ApcV2_ZOrder) {
+  if (!IsRefactored()) {
+    return;
+  }
+
+  // Layout and Expected Z-Order (Painting Order):
+  //
+  // +-----------------------------------+ (0. Background)     Y-axis
+  // |                                   |                       | 0px
+  // |  [=========] (1. Button 1)        |                       | 10px
+  // |                                   |                       |
+  // |                                   |                       |
+  // | +-----------------------+ - - - - |                       | 90px
+  // | |///////////////////////|         |                       |
+  // | |//[=========]//////////|         |                       | 100px
+  // | |//(2. Button 2)////////|         |                       |
+  // | |///////////////////////|         |                       |
+  // | +-----------------------+         |                       | 190px
+  // | (3. Red Overlay - z-index: 999)   |                       |
+  // |                                   |                       v
+  // +-----------------------------------+
+  //
+  // Legend:
+  // - "/": Area covered by the "opaque" overlay where the elements
+  //        underneath are not reachable.
+  //
+  // Expectations:
+  // - Background and Overlay are generic containers/divs and are thus not
+  //   considered "actionable". They will not receive a Z-order in the output.
+  // - Button 1 and Button 2 are actionable elements.
+  // - In Z-order mode, because both buttons possess valid
+  //   geometry and interaction info, they will both be processed and sorted
+  //   relative to each other based on their visual stacking. Button 1 receives
+  //   Z-order 1, and Button 2 receives Z-order 2.
+  auto page_structure = HtmlPage(
+      "Z-Order Test",
+      RawHtml(
+          "<style>body { margin: 0; padding: 0; }</style>"
+          "<div style='width: 100vw; height: 100vh; position: absolute; top: "
+          "0; left: 0; background: white;'></div>"
+          "<input type='button' id='btn1' value='Click Me' style='position: "
+          "absolute; top: 10px; left: 10px; width: 100px; height: 50px;'/>"
+          "<input type='button' id='btn2' value='Hidden' style='position: "
+          "absolute; top: 100px; left: 10px; width: 100px; height: 50px;'/>"
+          "<div id='overlay' style='position: absolute; top: 90px; left: 0; "
+          "width: 200px; height: 100px; background: red; z-index: "
+          "999;'>Overlay</div>"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder()
+          .SetUseRichExtraction(true)
+          .SetUseRichExtractionWithActionable(true)
+          .Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+  ASSERT_TRUE(page_context);
+
+  const auto& actual_apc = page_context->annotated_page_content();
+  const auto& root = actual_apc.root_node();
+
+  ASSERT_GE(root.children_nodes_size(), 3);
+  const auto& btn1 = root.children_nodes(0);
+  const auto& btn2 = root.children_nodes(1);
+
+  EXPECT_EQ(btn1.content_attributes().attribute_type(),
+            optimization_guide::proto::CONTENT_ATTRIBUTE_FORM_CONTROL);
+  EXPECT_EQ(btn1.content_attributes().form_control_data().field_value(),
+            "Click Me");
+
+  EXPECT_EQ(btn2.content_attributes().attribute_type(),
+            optimization_guide::proto::CONTENT_ATTRIBUTE_FORM_CONTROL);
+  EXPECT_EQ(btn2.content_attributes().form_control_data().field_value(),
+            "Hidden");
+
+  // Button 1 is visible and actionable.
+  EXPECT_TRUE(btn1.content_attributes()
+                  .interaction_info()
+                  .has_document_scoped_z_order());
+  EXPECT_EQ(
+      btn1.content_attributes().interaction_info().document_scoped_z_order(),
+      1);
+
+  // Button 2 is obscured by the overlay, but in accurate Z-order mode it
+  // receives a Z-order based on its visual stacking relative to other
+  // actionable nodes.
+  EXPECT_TRUE(btn2.content_attributes()
+                  .interaction_info()
+                  .has_document_scoped_z_order());
+  EXPECT_EQ(
+      btn2.content_attributes().interaction_info().document_scoped_z_order(),
+      2);
+
+  // The overlay is non-actionable. It should not receive a Z-order.
+  const auto& overlay = root.children_nodes(2);
+  EXPECT_FALSE(overlay.content_attributes()
+                   .interaction_info()
+                   .has_document_scoped_z_order());
+}
+
+// Tests that common attributes (ARIA label, role, and interaction info) are
+// correctly extracted for the root node (body element).
+TEST_P(PageContextWrapperTest, PopulatePageContext_RootNodeAttributes) {
+  if (!IsRefactored()) {
+    return;
+  }
+
+  web::test::LoadHtml(@"<html><body aria-label=\"RootLabel\" role=\"button\" "
+                      @"onclick=\"void(0)\"></body></html>",
+                      web_state());
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder()
+          .SetUseRichExtraction(true)
+          .SetUseRichExtractionWithActionable(true)
+          .Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+  ASSERT_TRUE(page_context);
+
+  const auto& root = page_context->annotated_page_content().root_node();
+
+  EXPECT_EQ(root.content_attributes().label(), "RootLabel");
+  EXPECT_TRUE(root.content_attributes().has_interaction_info());
+  EXPECT_THAT(
+      root.content_attributes().interaction_info().clickability_reasons(),
+      testing::Contains(
+          optimization_guide::proto::CLICKABILITY_REASON_CLICK_HANDLER));
+  EXPECT_EQ(root.content_attributes().aria_role(),
+            optimization_guide::proto::AX_ROLE_BUTTON);
+}
+
+// Tests extraction of geometry for sensitive payment fields when the
+// configuration is enabled, even if actionable mode is off.
+TEST_P(PageContextWrapperTest,
+       PopulatePageContext_SensitivePaymentRedactionGeometry) {
+  if (!IsRefactored()) {
+    return;
+  }
+
+  auto page_structure =
+      HtmlPage("Sensitive Payment Geometry Test",
+               RawHtml("<form>"
+                       "  <input type='checkbox' id='normal_checkbox'>"
+                       "  <input type='password' id='password_field'>"
+                       "</form>"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder()
+          .SetUseRichExtraction(true)
+          // Intentionally disable actionable mode to test the override.
+          .SetUseRichExtractionWithActionable(false)
+          .SetIncludeSensitivePaymentsForRedaction(true)
+          .Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+  ASSERT_TRUE(page_context);
+
+  const auto& actual_apc = page_context->annotated_page_content();
+  const auto& root = actual_apc.root_node();
+
+  ASSERT_GE(root.children_nodes_size(), 1);
+  const auto& form = root.children_nodes(0);
+  EXPECT_EQ(form.content_attributes().attribute_type(),
+            optimization_guide::proto::CONTENT_ATTRIBUTE_FORM);
+  ASSERT_EQ(form.children_nodes_size(), 2);
+
+  const auto& checkbox_input = form.children_nodes(0);
+  const auto& password_input = form.children_nodes(1);
+
+  // Normal checkbox input should NOT have geometry since actionable mode is off
+  // and it's not considered sensitive payment data.
+  EXPECT_FALSE(
+      checkbox_input.content_attributes().geometry().has_outer_bounding_box());
+  EXPECT_FALSE(checkbox_input.content_attributes()
+                   .geometry()
+                   .has_visible_bounding_box());
+
+  // Password input SHOULD have geometry because it is considered sensitive
+  // and the config is enabled.
+  EXPECT_TRUE(
+      password_input.content_attributes().geometry().has_outer_bounding_box());
+  EXPECT_TRUE(password_input.content_attributes()
+                  .geometry()
+                  .has_visible_bounding_box());
+  // Basic validation that the geometry was indeed extracted and is non-zero.
+  EXPECT_GT(password_input.content_attributes()
+                .geometry()
+                .outer_bounding_box()
+                .width(),
+            0);
+  EXPECT_GT(password_input.content_attributes()
+                .geometry()
+                .outer_bounding_box()
+                .height(),
+            0);
+}
+
+// Tests that geometry is NOT extracted for sensitive payment fields when the
+// configuration is disabled and actionable mode is off.
+TEST_P(PageContextWrapperTest,
+       PopulatePageContext_SensitivePaymentRedactionGeometry_Disabled) {
+  if (!IsRefactored()) {
+    return;
+  }
+
+  auto page_structure =
+      HtmlPage("Sensitive Payment Geometry Disabled Test",
+               RawHtml("<form>"
+                       "  <input type='text' id='normal_text'>"
+                       "  <input type='password' id='password_field'>"
+                       "</form>"));
+
+  std::string main_html = page_helper_->Build(page_structure);
+  web::test::LoadHtml(base::SysUTF8ToNSString(main_html),
+                      test_server_.GetURL(kMainPagePath), web_state());
+
+  PageContextWrapperConfig config =
+      PageContextWrapperConfigBuilder()
+          .SetUseRichExtraction(true)
+          .SetUseRichExtractionWithActionable(false)
+          // Explicitly disable the feature.
+          .SetIncludeSensitivePaymentsForRedaction(false)
+          .Build();
+
+  PageContextWrapperCallbackResponse response = RunPageContextWrapperWithConfig(
+      web_state(), config, ^(PageContextWrapper* wrapper) {
+        wrapper.shouldGetAnnotatedPageContent = YES;
+      });
+
+  ASSERT_TRUE(response.has_value());
+  std::unique_ptr<optimization_guide::proto::PageContext> page_context =
+      std::move(response.value());
+  ASSERT_TRUE(page_context);
+
+  const auto& actual_apc = page_context->annotated_page_content();
+  const auto& root = actual_apc.root_node();
+
+  ASSERT_GE(root.children_nodes_size(), 1);
+  const auto& form = root.children_nodes(0);
+  ASSERT_EQ(form.children_nodes_size(), 2);
+
+  const auto& checkbox_input = form.children_nodes(0);
+  const auto& password_input = form.children_nodes(1);
+
+  // Neither should have geometry.
+  EXPECT_FALSE(
+      checkbox_input.content_attributes().geometry().has_outer_bounding_box());
+  EXPECT_FALSE(
+      password_input.content_attributes().geometry().has_outer_bounding_box());
 }
 
 INSTANTIATE_TEST_SUITE_P(,

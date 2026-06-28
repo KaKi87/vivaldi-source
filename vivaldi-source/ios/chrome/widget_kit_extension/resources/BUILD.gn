@@ -8,13 +8,24 @@ bundle_data_xcassets("resources") {
     "Assets.xcassets/Contents.json",
 
     # Colorsets
+    "Assets.xcassets/widget_background_color.colorset/Contents.json",
+    "Assets.xcassets/widget_button_background_color.colorset/Contents.json",
     "Assets.xcassets/widget_search_bar_color.colorset/Contents.json",
     "Assets.xcassets/widget_separator_color.colorset/Contents.json",
     "Assets.xcassets/widget_text_color.colorset/Contents.json",
-    "Assets.xcassets/widget_background_color.colorset/Contents.json",
-    "Assets.xcassets/widget_button_background_color.colorset/Contents.json",
 
     # Imagesets
+    "Assets.xcassets/widget_incognito_icon.imageset/Contents.json",
+    "Assets.xcassets/widget_incognito_icon.imageset/widget_incognito_icon.pdf",
+    "Assets.xcassets/widget_lock_screen_private_search.imageset/Contents.json",
+    "Assets.xcassets/widget_lock_screen_private_search.imageset/widget_lock_screen_private_search.pdf",
+    "Assets.xcassets/widget_lock_screen_search.imageset/Contents.json",
+    "Assets.xcassets/widget_lock_screen_search.imageset/widget_lock_screen_search.pdf",
+    "Assets.xcassets/widget_password_manager_logo.imageset/Contents.json",
+    "Assets.xcassets/widget_password_manager_logo.imageset/widget_password_manager_logo@2x.png",
+    "Assets.xcassets/widget_password_manager_logo.imageset/widget_password_manager_logo@3x.png",
+    "Assets.xcassets/widget_qr_icon.imageset/Contents.json",
+    "Assets.xcassets/widget_qr_icon.imageset/widget_qr_icon.pdf",
     "Assets.xcassets/widget_vivaldi_logo.imageset/Contents.json",
     "Assets.xcassets/widget_vivaldi_logo.imageset/widget_vivaldi_logo.png",
     "Assets.xcassets/widget_vivaldi_logo.imageset/widget_vivaldi_logo@2x.png",
@@ -22,21 +33,5 @@ bundle_data_xcassets("resources") {
     "Assets.xcassets/widget_vivaldi_logo.imageset/widget_vivaldi_logo_dark.png",
     "Assets.xcassets/widget_vivaldi_logo.imageset/widget_vivaldi_logo_dark@2x.png",
     "Assets.xcassets/widget_vivaldi_logo.imageset/widget_vivaldi_logo_dark@3x.png",
-
-    "Assets.xcassets/widget_incognito_icon.imageset/Contents.json",
-    "Assets.xcassets/widget_incognito_icon.imageset/widget_incognito_icon.pdf",
-
-    "Assets.xcassets/widget_qr_icon.imageset/Contents.json",
-    "Assets.xcassets/widget_qr_icon.imageset/widget_qr_icon.pdf",
-
-    "Assets.xcassets/widget_lock_screen_search.imageset/Contents.json",
-    "Assets.xcassets/widget_lock_screen_search.imageset/widget_lock_screen_search.pdf",
-
-    "Assets.xcassets/widget_lock_screen_private_search.imageset/Contents.json",
-    "Assets.xcassets/widget_lock_screen_private_search.imageset/widget_lock_screen_private_search.pdf",
-
-    "Assets.xcassets/widget_password_manager_logo.imageset/Contents.json",
-    "Assets.xcassets/widget_password_manager_logo.imageset/widget_password_manager_logo@2x.png",
-    "Assets.xcassets/widget_password_manager_logo.imageset/widget_password_manager_logo@3x.png",
   ]
 }

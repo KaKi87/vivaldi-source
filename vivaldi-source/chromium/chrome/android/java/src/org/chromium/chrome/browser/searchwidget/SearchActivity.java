@@ -20,6 +20,7 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.ColorRes;
+import androidx.annotation.IdRes;
 import androidx.annotation.IntDef;
 import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
@@ -84,7 +85,7 @@ import org.chromium.chrome.browser.ui.system.StatusBarColorController;
 import org.chromium.components.browser_ui.modaldialog.AppModalPresenter;
 import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
 import org.chromium.components.omnibox.AutocompleteInput;
-import org.chromium.components.omnibox.OmniboxFeatures;
+import org.chromium.ui.AsyncViewStub;
 import org.chromium.ui.base.ActivityKeyboardVisibilityDelegate;
 import org.chromium.ui.base.ActivityWindowAndroid;
 import org.chromium.ui.edge_to_edge.EdgeToEdgeSystemBarColorHelper;
@@ -286,11 +287,11 @@ public class SearchActivity extends AsyncInitializationActivity
         return new ActivityWindowAndroid(
                 this,
                 /* listenToActivityState= */ true,
-                new ActivityKeyboardVisibilityDelegate(new WeakReference(this)),
+                new ActivityKeyboardVisibilityDelegate(new WeakReference<>(this)),
                 /* activityTopResumedSupported= */ false,
                 getIntentRequestTracker(),
                 getInsetObserver(),
-                /* trackOcclusion= */ true) {
+                /* occlusionTrackingAllowed= */ true) {
             @Override
             public @Nullable ModalDialogManager getModalDialogManager() {
                 return SearchActivity.this.getModalDialogManager();
@@ -348,7 +349,7 @@ public class SearchActivity extends AsyncInitializationActivity
                         /* backKeyBehavior= */ this,
                         /* pageInfoAction= */ (tab, pageInfoHighlight) -> {},
                         this::bringTabGroupToFront,
-                        /*omniboxUma*/ (url, transition, isNtp) -> {},
+                        /* omniboxUma= */ (url, transition, isNtp) -> {},
                         /* bookmarkState= */ (url) -> false,
                         VoiceToolbarButtonController::isToolbarMicEnabled,
                         new OmniboxActionDelegateImpl(
@@ -391,10 +392,21 @@ public class SearchActivity extends AsyncInitializationActivity
                         /* omniboxSuggestionsDropdownScrollListener= */ null,
                         /* tabModelSelectorSupplier= */ ObservableSuppliers.createMonotonic(),
                         /* topInsetProvider= */ new NoOpTopInsetProvider(),
-                        new LocationBarEmbedder() {},
+                        new LocationBarEmbedder() {
+                            @Override
+                            public @Nullable AsyncViewStub getSuggestionsContainerStub() {
+                                return contentView.findViewById(
+                                        R.id.search_activity_suggestions_container_stub);
+                            }
+
+                            @Override
+                            public @IdRes int getSuggestionsContainerInflatedViewId() {
+                                return R.id.search_activity_suggestions_container;
+                            }
+                        },
                         mLocationBarUiOverrides,
                         findViewById(R.id.control_container),
-                        /* bottomWindowPaddingSupplier */ () -> 0,
+                        /* bottomWindowPaddingSupplier= */ () -> 0,
                         /* onLongClickListener= */ null,
                         /* browserControlsStateProvider= */ null,
                         /* isToolbarPositionCustomizationEnabled= */ false,
@@ -402,7 +414,9 @@ public class SearchActivity extends AsyncInitializationActivity
                         TabFavicon::getBitmap,
                         mSnackbarManager,
                         findViewById(R.id.bottom_container),
-                        /* omniboxChipManager= */ null);
+                        /* omniboxChipManager= */ null,
+                        /* scrimHandler= */ null,
+                        /* userEducationHelper= */ null);
         mLocationBarCoordinator.setUrlBarFocusable(true);
         mLocationBarCoordinator.setShouldShowMicButtonWhenUnfocused(true);
         assumeNonNull(mLocationBarCoordinator.getOmniboxStub()).addUrlFocusChangeListener(this);
@@ -722,11 +736,7 @@ public class SearchActivity extends AsyncInitializationActivity
 
     private void setHubSearchBoxUrlBarElements() {
         boolean isIncognito = mSearchBoxDataProvider.isIncognitoBranded();
-        @StringRes
-        int regularHintTextRes =
-                OmniboxFeatures.sAndroidHubSearchEnableTabGroupStrings.getValue()
-                        ? R.string.hub_search_empty_hint_with_tab_groups
-                        : R.string.hub_search_empty_hint;
+        @StringRes int regularHintTextRes = R.string.hub_search_empty_hint;
         @StringRes
         int hintTextRes =
                 isIncognito ? R.string.hub_search_empty_hint_incognito : regularHintTextRes;
@@ -799,9 +809,18 @@ public class SearchActivity extends AsyncInitializationActivity
                     this, R.color.toolbar_background_primary_dark));
         }
 
-        GradientDrawable anchorViewBackground = (GradientDrawable) mAnchorView.getBackground();
-        anchorViewBackground.setColor(getColor(anchorViewBackgroundColorRes));
         searchBoxBackground.setBackgroundColor(getColor(searchBoxColorRes));
+
+        int anchorViewColor = getColor(anchorViewBackgroundColorRes);
+        GradientDrawable anchorViewBackground = (GradientDrawable) mAnchorView.getBackground();
+        anchorViewBackground.setColor(anchorViewColor);
+
+        // SearchActivity is full screen, and omnibox dropdown leaves a bottom margin to avoid
+        // covered by system nav bar. Keep same color for both SearchActivity and omnibox dropdown
+        // to fix a bottom color margin.
+        View controlContainer = findViewById(R.id.control_container);
+        controlContainer.setBackgroundColor(anchorViewColor);
+
         setStatusAndNavBarColors();
     }
 

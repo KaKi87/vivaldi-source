@@ -10,19 +10,21 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
+#include "base/notimplemented.h"
 #include "base/path_service.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/glic/fre/fre_util.h"
-#include "chrome/browser/glic/fre/glic_fre_dialog_view.h"
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/host/glic_features.mojom.h"
 #include "chrome/browser/glic/host/guest_util.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
 #include "chrome/browser/glic/public/service/glic_instance_coordinator.h"
+#include "chrome/browser/glic/service/glic_instance_coordinator_impl.h"
+#include "chrome/browser/glic/service/glic_instance_impl.h"
 #include "chrome/browser/glic/suggestions/contextual_cueing_features.h"
 #include "chrome/browser/glic/test_support/glic_test_util.h"
 #include "chrome/browser/glic/test_support/interactive_test_util.h"
@@ -60,8 +62,10 @@ namespace {
 using glic::test::internal::kGlicFreShowingDialogState;
 using glic::test::internal::kGlicInstanceCoordinatorState;
 
+#if !BUILDFLAG(IS_WIN)
 constexpr base::FilePath::StringViewType kRecordingDirectoryPath =
     FILE_PATH_LITERAL("chrome/browser/glic/e2e_test/internal/wpr_recordings");
+#endif
 
 const char kGlicE2ETestModeSwitch[] = "glic-e2e-test-mode";
 const char kHostResolverRulesValue[] =
@@ -80,20 +84,29 @@ const char kIgnoreCertificateErrorsSPKIListValue[] =
     "PoNnQAwghMiLUPg1YNFtvTfGreNT8r9oeLEyzgNCJWc=";
 }  // namespace
 
-GlicE2ETest::GlicE2ETest() {
+GlicE2ETest::GlicE2ETest(
+    const std::vector<base::test::FeatureRef>& additional_enabled_features,
+    const std::vector<base::test::FeatureRef>& additional_disabled_features) {
   // TODO(crbug.com/440578183): ZeroStateSuggestionsV2 is enabled here
   // due to the associated bug and should be removed here once fixed.
-  scoped_feature_list_.InitWithFeatures(
-      /*enabled_features=*/{features::kGlic,
-                            features::kGlicKeyboardShortcutNewBadge,
-                            features::kGlicRollout, kContextualCueing,
-                            mojom::features::kZeroStateSuggestionsV2},
-      /*disabled_features=*/{
-          syncer::kReplaceSyncPromosWithSignInPromos,
-          // Don't disable glic based on country/locale.
-          features::kGlicCountryFiltering,
-          features::kGlicLocaleFiltering,
-      });
+  std::vector<base::test::FeatureRef> enabled = {
+      features::kGlic, features::kGlicKeyboardShortcutNewBadge,
+      features::kGlicRollout, kContextualCueing,
+      mojom::features::kZeroStateSuggestionsV2};
+  enabled.insert(enabled.end(), additional_enabled_features.begin(),
+                 additional_enabled_features.end());
+
+  std::vector<base::test::FeatureRef> disabled = {
+      syncer::kReplaceSyncPromosWithSignInPromos,
+      syncer::kReplaceSyncPromosWithSigninPromosNewSignin,
+      // Don't disable glic based on country/locale.
+      features::kGlicCountryFiltering,
+      features::kGlicLocaleFiltering,
+  };
+  disabled.insert(disabled.end(), additional_disabled_features.begin(),
+                  additional_disabled_features.end());
+
+  scoped_feature_list_.InitWithFeatures(enabled, disabled);
 }
 
 GlicE2ETest::~GlicE2ETest() = default;
@@ -236,22 +249,8 @@ void GlicE2ETest::TearDownOnMainThread() {
 }
 
 ui::test::InteractiveTestApi::MultiStep GlicE2ETest::WaitForAndInstrumentFre() {
-  MultiStep steps(Steps(
-      UninstrumentWebContents(kGlicFreContentsElementId, false),
-      UninstrumentWebContents(kGlicFreHostElementId, false),
-      InAnyContext(
-          ObserveState(kGlicFreShowingDialogState, std::ref(fre_controller())),
-          WaitForState(kGlicFreShowingDialogState, true),
-          Steps(InstrumentNonTabWebView(
-                    kGlicFreHostElementId,
-                    GlicFreDialogView::kWebViewElementIdForTesting),
-                InstrumentInnerWebContents(kGlicFreContentsElementId,
-                                           kGlicFreHostElementId, 0),
-                WaitForWebContentsReady(kGlicFreContentsElementId)),
-          StopObservingState(kGlicFreShowingDialogState))));
-
-  AddDescriptionPrefix(steps, "WaitForAndInstrumentFre");
-  return steps;
+  NOTIMPLEMENTED();
+  return MultiStep();
 }
 
 ui::test::InteractiveTestApi::MultiStep
@@ -262,8 +261,7 @@ GlicE2ETest::WaitForAndInstrumentGlic() {
       InAnyContext(
           ObserveState(kGlicInstanceCoordinatorState,
                        std::ref(instance_coordinator()), active_tab()),
-          WaitForState(kGlicInstanceCoordinatorState,
-                       GlicInstanceCoordinator::State::kOpen),
+          WaitForState(kGlicInstanceCoordinatorState, GlicPanelState::kOpen),
           Steps(InstrumentNonTabWebView(kGlicHostElementId, kGlicViewElementId),
                 InstrumentInnerWebContents(kGlicContentsElementId,
                                            kGlicHostElementId, 0),
@@ -276,6 +274,10 @@ GlicE2ETest::WaitForAndInstrumentGlic() {
 
 void GlicE2ETest::MaybeStartWebPageReplayForRecordingPath(
     const std::string recording_filename) {
+#if BUILDFLAG(IS_WIN)
+  GTEST_SKIP() << "(crbug.com/517199038) WPR tests are temporarily skipped on "
+                  "Windows due to WPR process failure";
+#else
   if (test_mode_ == kRealBackend && !use_wpr_for_real_backend_) {
     return;
   }
@@ -292,6 +294,7 @@ void GlicE2ETest::MaybeStartWebPageReplayForRecordingPath(
   }
 
   ASSERT_TRUE(web_page_replay_server_wrapper()->Start(recording_path));
+#endif
 }
 
 GlicKeyedService* GlicE2ETest::glic_service() {
@@ -348,15 +351,13 @@ void GlicE2ETest::ThrottleWebContentsNetwork(
 }
 
 void GlicE2ETest::ThrottleGlicNetwork() {
-  auto* glic_service =
-      glic::GlicKeyedServiceFactory::GetGlicKeyedService(browser()->profile());
-  for (auto* host : glic_service->host_manager().GetAllHosts()) {
-    auto* webui_contents = host->webui_contents();
-    if (webui_contents) {
-      content::WebContents* inner_contents =
-          webui_contents->GetInnerWebContents()[0];
-      CHECK(inner_contents);
-      ThrottleWebContentsNetwork(inner_contents);
+  auto& coordinator =
+      static_cast<GlicInstanceCoordinatorImpl&>(instance_coordinator());
+  for (GlicInstanceImpl* instance : coordinator.GetInstancesForTesting()) {
+    content::WebContents* guest_contents =
+        instance->host().web_client_contents();
+    if (guest_contents) {
+      ThrottleWebContentsNetwork(guest_contents);
     }
   }
 }

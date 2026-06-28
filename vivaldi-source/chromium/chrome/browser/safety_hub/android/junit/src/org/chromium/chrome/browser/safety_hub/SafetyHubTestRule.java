@@ -29,8 +29,7 @@ import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.browser.signin.services.SigninManager;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
 import org.chromium.components.prefs.PrefService;
-import org.chromium.components.signin.base.CoreAccountInfo;
-import org.chromium.components.signin.identitymanager.ConsentLevel;
+import org.chromium.components.signin.base.AccountInfo;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.sync.SyncService;
 import org.chromium.components.user_prefs.UserPrefs;
@@ -102,12 +101,12 @@ public class SafetyHubTestRule implements TestRule {
     }
 
     public void setSignedInState(boolean isSignedIn) {
-        when(mIdentityManager.hasPrimaryAccount(ConsentLevel.SIGNIN)).thenReturn(isSignedIn);
-        when(mIdentityManager.getPrimaryAccountInfo(ConsentLevel.SIGNIN))
+        when(mIdentityManager.hasPrimaryAccount()).thenReturn(isSignedIn);
+        when(mIdentityManager.getPrimaryAccountInfo())
                 .thenReturn(
                         isSignedIn
-                                ? CoreAccountInfo.createFromEmailAndGaiaId(
-                                        TEST_EMAIL_ADDRESS, new GaiaId("0"))
+                                ? new AccountInfo.Builder(TEST_EMAIL_ADDRESS, new GaiaId("0"))
+                                        .build()
                                 : null);
     }
 

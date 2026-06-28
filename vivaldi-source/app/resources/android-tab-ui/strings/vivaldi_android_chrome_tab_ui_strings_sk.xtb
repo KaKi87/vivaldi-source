@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="sk">
+<translation id="1049697408958544531">{NUM_WEEKS, plural,
+          =1 {Vytvorená <ph name="NUM_WEEKS_ONE" /> pred týždňom}
+          other {Vytvorené/Vytvorených <ph name="NUM_WEEKS_MANY" /> pred niekoľkými týždňami}
+        }</translation>
 <translation id="1062777154504442433">Nové zoskupenie listov</translation>
+<translation id="1092908249939127748">{NUM_MONTHS, plural,
+          =1 {Vytvorená <ph name="NUM_YEARS_ONE" /> pred rokom}
+          other {Vytvorené/Vytvorených <ph name="NUM_YEARS_MANY" /> pred niekoľkými rokmi}
+        }</translation>
 <translation id="1329584516321524826">Aktualizovaný práve teraz</translation>
 <translation id="149054111719651807">{NUM_MINS, plural,
           =1 {Vytvorená <ph name="NUM_MINS_ONE" /> pred minútou}
@@ -13,7 +21,10 @@
           few {Uložiť listy ako záložky}
           many {Uložiť listy ako záložky}
           other {Uložiť listy ako záložky}}</translation>
-<translation id="2498435670446402865">Premenovať skupinu listov</translation>
+<translation id="2734252994837336591">{NUM_WEEKS, plural,
+          =1 {Aktualizovaná <ph name="NUM_WEEKS_ONE" /> pred týždňom}
+          other {Aktualizované/Aktualizovaných <ph name="NUM_WEEKS_MANY" /> pred niekoľkými týždňami}
+        }</translation>
 <translation id="2753877351161418426">{NUM_HOURS, plural,
           =1 {Aktualizovaná <ph name="NUM_HOURS_ONE" /> pred hodinou}
           other {Aktualizovaná <ph name="NUM_HOURS_MANY" /> pred niekoľkými hodinami}
@@ -41,9 +52,23 @@
 <translation id="750227952939161636">Vaše zoskupenia listov sa automaticky ukladajú a aktualizujú na všetkých zariadeniach, na ktorých ste prihlásený</translation>
 <translation id="7640137753339219124">Vymazať zoskupenie</translation>
 <translation id="7653857400289671414">Vaše zoskupenia listov sa automaticky ukladajú</translation>
-<translation id="7825973332242257878">Skupiny listov</translation>
+<translation id="775668479044571025">{NUM_MONTHS, plural,
+          =1 {Aktualizovaná <ph name="NUM_YEARS_ONE" /> pred rokom}
+          other {Aktualizované/Aktualizovaných <ph name="NUM_YEARS_MANY" /> pred niekoľkými rokmi}
+        }</translation>
+<translation id="8207688828622594111">{NUM_MINS, plural,
+          =1 {Aktualizovaná <ph name="NUM_MINS_ONE" /> pred minútou}
+          other {Aktualizované/ Aktualizovaných <ph name="NUM_MINS_MANY" /> pred niekoľkými minútami}
+        }</translation>
+<translation id="8374451057714760401">{NUM_MONTHS, plural,
+          =1 {Aktualizovaná <ph name="NUM_MONTHS_ONE" /> pred mesiacom}
+          other {Aktualizované/Aktualizovaných <ph name="NUM_MONTHS_MANY" /> pred niekoľkými mesiacmi}
+        }</translation>
 <translation id="8440938071054361204">Upraviť názov zoskupenia</translation>
 <translation id="8602902357364871325">Zavrieť zoskupenie</translation>
+<translation id="875848103419578654">{NUM_MONTHS, plural,
+          =1 {Vytvorená <ph name="NUM_MONTHS_ONE" /> pred mesiacom}
+          other {Vytvorené/ Vytvorených <ph name="NUM_MONTHS_MANY" /> pred niekoľkými mesiacmi}
+        }</translation>
 <translation id="8851621822786801079">Odobrať zo zoskupenia</translation>
-<translation id="8887921976452567404">Zatvorené listy a skupiny môžete znovu otvoriť v časti Nedávne listy a v časti Skupiny listov.</translation>
 </translationbundle>

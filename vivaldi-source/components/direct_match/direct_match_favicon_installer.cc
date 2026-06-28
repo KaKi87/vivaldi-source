@@ -6,6 +6,7 @@
 
 #include "base/barrier_callback.h"
 #include "base/files/file_util.h"
+#include "base/logging.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "chrome/browser/history/history_service_factory.h"

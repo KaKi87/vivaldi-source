@@ -7,12 +7,13 @@
 #include "base/notimplemented.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
-#include "chrome/browser/glic/common/application_hotkey_delegate.h"
-#include "chrome/browser/glic/common/glic_panel_hotkey_delegate.h"
+#include "chrome/browser/glic/common/panel_focus_dependent_hotkey_manager.h"
+#include "chrome/browser/glic/common/panel_visibility_dependent_hotkey_manager.h"
 #include "chrome/browser/glic/public/glic_instance.h"
 #include "chrome/browser/glic/selection/selection_overlay_controller.h"
 #include "chrome/browser/glic/service/glic_ui_embedder.h"
 #include "chrome/browser/glic/service/metrics/glic_instance_metrics.h"
+#include "chrome/browser/glic/widget/conversions.h"
 #include "chrome/browser/glic/widget/glic_inactive_side_panel_ui.h"
 #include "chrome/browser/glic/widget/glic_view.h"
 #include "chrome/browser/glic/widget/glic_widget.h"
@@ -46,10 +47,12 @@ GlicSidePanelUi::GlicSidePanelUi(Profile* profile,
     return;
   }
 
-  application_hotkey_manager_ =
-      MakeApplicationHotkeyManager(weak_ptr_factory_.GetWeakPtr());
-  glic_panel_hotkey_manager_ =
-      MakeGlicWindowHotkeyManager(weak_ptr_factory_.GetWeakPtr());
+  panel_visibility_dependent_hotkey_manager_ =
+      std::make_unique<PanelVisibilityDependentHotkeyManager>(
+          profile_, weak_ptr_factory_.GetWeakPtr());
+  panel_focus_dependent_hotkey_manager_ =
+      std::make_unique<PanelFocusDependentHotkeyManager>(
+          weak_ptr_factory_.GetWeakPtr());
 
   panel_visibility_subscription_ =
       glic_side_panel_coordinator->AddStateCallback(
@@ -78,9 +81,9 @@ GlicSidePanelUi::GlicSidePanelUi(Profile* profile,
 }
 
 std::unique_ptr<views::View> GlicSidePanelUi::CreateView(Profile* profile) {
-  auto glic_view =
-      std::make_unique<GlicView>(profile, GlicWidget::GetInitialSize(),
-                                 glic_panel_hotkey_manager_->GetWeakPtr());
+  auto glic_view = std::make_unique<GlicView>(
+      profile, GlicWidget::GetInitialSize(),
+      panel_focus_dependent_hotkey_manager_->GetAcceleratorTargetWeakPtr());
   glic_view->SetWebContents(delegate_->host().webui_contents());
   glic_view->UpdateBackgroundColor();
   glic_view_ = glic_view->GetWeakPtr();
@@ -142,12 +145,11 @@ void GlicSidePanelUi::SetMinimumWidgetSize(const gfx::Size& size) {
 }
 
 bool GlicSidePanelUi::IsShowing() const {
-  auto* glic_side_panel_coordinator = GetGlicSidePanelCoordinator();
-  if (!glic_side_panel_coordinator) {
-    return false;
-  }
-  return glic_side_panel_coordinator->state() !=
-         GlicSidePanelCoordinator::State::kClosed;
+  return GlicSidePanelCoordinator::IsShowing(tab_.get());
+}
+
+bool GlicSidePanelUi::IsShowingOrBackgrounded() const {
+  return GlicSidePanelCoordinator::IsShowingOrBackgrounded(tab_.get());
 }
 
 void GlicSidePanelUi::Focus() {
@@ -178,8 +180,12 @@ void GlicSidePanelUi::SidePanelStateChanged(
     instance_metrics_->OnSidePanelClosed(tab_.get(), reason);
     panel_state_.kind = mojom::PanelStateKind::kHidden;
     delegate_->NotifyPanelStateChanged();
+    EmbedderCloseReason close_reason =
+        state == GlicSidePanelCoordinator::State::kBackgrounded
+            ? EmbedderCloseReason::kBackgrounded
+            : EmbedderCloseReason::kExplicitlyClosed;
     // NOTE: `this` will be destroyed after this call.
-    delegate_->WillCloseFor(tab_.get());
+    delegate_->DidCloseFor(tab_.get(), close_reason);
   }
 }
 
@@ -215,15 +221,11 @@ void GlicSidePanelUi::Show(const ShowOptions& options) {
   panel_state_.kind = mojom::PanelStateKind::kAttached;
   delegate_->NotifyPanelStateChanged();
   delegate_->host().FloatingPanelCanAttachChanged(false);
-  application_hotkey_manager_->InitializeAccelerators();
-  glic_panel_hotkey_manager_->InitializeAccelerators();
+  panel_visibility_dependent_hotkey_manager_->InitializeAccelerators();
+  panel_focus_dependent_hotkey_manager_->InitializeAccelerators();
 
-  bool suppress_animations = false;
-  if (const auto* side_panel_options =
-          std::get_if<SidePanelShowOptions>(&options.embedder_options)) {
-    suppress_animations = side_panel_options->suppress_opening_animation;
-  }
-  glic_side_panel_coordinator->Show(suppress_animations);
+  glic_side_panel_coordinator->Show(ConvertToCoordinatorShowOptions(
+      options, glic_side_panel_coordinator->SupportsPeek()));
 }
 
 void GlicSidePanelUi::Close(const CloseOptions& options) {

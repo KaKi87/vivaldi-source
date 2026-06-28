@@ -1,8 +1,7 @@
-
 static_library("app_helper") {
   deps = [
-    "//content/public/browser:browser",
     "//components/services/filesystem/public/mojom",
+    "//content/public/browser",
   ]
   sources = [
     "../helper/vivaldi_app_helper.cc",
@@ -12,22 +11,24 @@ static_library("app_helper") {
 
 static_library("helper") {
   deps = [
-    "//content/public/browser:browser",
-    "//chrome/common:buildflags",
     "//chrome/browser/ui/webui/tab_search:mojo_bindings",
+    "//chrome/common:buildflags",
     "//components/paint_preview/buildflags",
     "//components/translate/content/common",
+    "//content/public/browser",
     "//extensions/common:mojom",
     "//pdf:buildflags",
     "//vivaldi/components:panel",
     "//vivaldi/extensions/schema",
   ]
-  public_deps = [
-    "//vivaldi/renderer/mojo:frame_host_service",
-  ]
+  public_deps = [ "//vivaldi/renderer/mojo:frame_host_service" ]
   sources = [
+    "ext_data_helper.cc",
+    "ext_data_helper.h",
     "file_selection_options.cc",
     "file_selection_options.h",
+    "mail_attachments_utils.cc",
+    "mail_attachments_utils.h",
     "vivaldi_frame_host_service_impl.cc",
     "vivaldi_frame_host_service_impl.h",
     "vivaldi_frame_observer.cc",

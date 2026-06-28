@@ -51,6 +51,16 @@ public final class EventConstants {
     public static final String ADAPTIVE_TOOLBAR_PAGE_SUMMARY_WEB_USED =
             "adaptive_toolbar_page_summary_web_used";
 
+    /** The user interacted with the GLIC button on the new bottom bar. */
+    public static final String ANDROID_BOTTOM_BAR_GLIC_USED = "android_bottom_bar_glic_used";
+
+    /** The user interacted with the New Tab button on the new bottom bar. */
+    public static final String ANDROID_BOTTOM_BAR_NEW_TAB_USED = "android_bottom_bar_new_tab_used";
+
+    /** The user interacted with the promo dialog for the new bottom bar. */
+    public static final String ANDROID_BOTTOM_BAR_PROMO_DIALOG_USED =
+            "android_bottom_bar_promo_dialog_used";
+
     /** A generic event that any startup promo should notify when it is shown. */
     public static final String ANDROID_STARTUP_PROMO_SHOWN = "android_startup_promo_shown";
 
@@ -110,6 +120,10 @@ public final class EventConstants {
     /** The user clicked on the extensions menu button in the toolbar. */
     public static final String EXTENSIONS_MENU_BUTTON_CLICKED = "extensions_menu_button_clicked";
 
+    /** The user clicked on the extensions row in the Chrome app menu button. */
+    public static final String EXTENSIONS_ROW_IN_APP_MENU_CLICKED =
+            "extensions_row_in_app_menu_clicked";
+
     /** The feed swipe refresh event. */
     public static final String FEED_SWIPE_REFRESHED = "feed_swipe_refresh_shown";
 
@@ -134,6 +148,10 @@ public final class EventConstants {
     /** User has tapped on Identity Disc. */
     public static final String IDENTITY_DISC_USED = "identity_disc_used";
 
+    /** The user tapped the Incognito indicator. */
+    public static final String INCOGNITO_INDICATOR_CLOSE_ALL_WINDOWS_USED =
+            "incognito_indicator_close_all_windows_used";
+
     /** 'Manage windows' menu for multi-instance support feature was tapped. */
     public static final String INSTANCE_SWITCHER_IPH_USED = "instance_switcher_iph_used";
 
@@ -147,6 +165,9 @@ public final class EventConstants {
     /** The keyboard accessory was used to fill address data into a form. */
     public static final String KEYBOARD_ACCESSORY_ADDRESS_AUTOFILLED =
             "keyboard_accessory_address_suggestion_accepted";
+
+    /** The keyboard accessory At Memory feature was used. */
+    public static final String KEYBOARD_ACCESSORY_AT_MEMORY_USED = "autofill_at_memory_iph_used";
 
     /** The keyboard accessory was used to fill autofill valuables data into a form. */
     public static final String KEYBOARD_ACCESSORY_AUTOFILL_AI_VALUABLES_AUTOFILLED =
@@ -174,10 +195,6 @@ public final class EventConstants {
     /** The keyboard accessory was used to fill card info retrieval data into a form. */
     public static final String KEYBOARD_ACCESSORY_PAYMENT_CARD_INFO_RETRIEVAL_AUTOFILLED =
             "autofill_card_info_retrieval_suggestion_accepted";
-
-    /** The keyboard accessory was used to create a new plus address. */
-    public static final String KEYBOARD_ACCESSORY_PLUS_ADDRESS_CREATE_SUGGESTION =
-            "plus_address_create_suggestion_feature_used";
 
     /** Voice search button click on NTP. */
     public static final String NTP_VOICE_SEARCH_BUTTON_CLICKED = "ntp_voice_search_button_clicked";
@@ -219,9 +236,6 @@ public final class EventConstants {
 
     public static final String RESTORE_TABS_PROMO_USED = "restore_tabs_promo_used";
 
-    /** Appearance in Settings was opened by the user. */
-    public static final String SETTINGS_APPEARANCE_OPENED = "settings_appearance_opened";
-
     /** Screenshot events */
     public static final String SHARE_SCREENSHOT_SELECTED = "share_screenshot_clicked";
 
@@ -231,6 +245,9 @@ public final class EventConstants {
     /** The option to track the price of a product was selected from the main menu. */
     public static final String SHOPPING_LIST_PRICE_TRACK_FROM_MENU =
             "shopping_list_track_price_from_menu";
+
+    /** The user clicked the site controls item in the app menu. */
+    public static final String SITE_CONTROLS_MENU_ITEM_CLICKED = "site_controls_menu_item_clicked";
 
     /** Reengagement events. */
     public static final String STARTED_FROM_MAIN_INTENT = "started_from_main_intent";

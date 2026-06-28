@@ -13,7 +13,6 @@ import static org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarButton
 
 import android.app.Activity;
 import android.app.ActivityManager;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
@@ -25,7 +24,6 @@ import android.os.Bundle;
 import android.provider.Browser;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -40,13 +38,14 @@ import org.chromium.base.ResettersForTesting;
 import org.chromium.base.TimeUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
+import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.LaunchIntentDispatcher;
 import org.chromium.chrome.browser.app.metrics.LaunchCauseMetrics;
-import org.chromium.chrome.browser.app.tab_activity_glue.PopupCreator;
+import org.chromium.chrome.browser.app.tab_activity_glue.PopupCreatorImpl;
 import org.chromium.chrome.browser.auxiliary_search.AuxiliarySearchController;
 import org.chromium.chrome.browser.auxiliary_search.AuxiliarySearchControllerFactory;
 import org.chromium.chrome.browser.auxiliary_search.AuxiliarySearchMetrics;
@@ -61,7 +60,7 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.history.HistoryManager;
 import org.chromium.chrome.browser.history.HistoryManagerUtils;
 import org.chromium.chrome.browser.history.HistoryTabHelper;
-import org.chromium.chrome.browser.infobar.InfoBarContainer;
+import org.chromium.chrome.browser.merchant_viewer.PageInfoStoreInfoController.StoreInfoActionHandler;
 import org.chromium.chrome.browser.night_mode.NightModeStateProvider;
 import org.chromium.chrome.browser.page_info.ChromePageInfo;
 import org.chromium.chrome.browser.page_info.ChromePageInfoHighlight;
@@ -79,6 +78,10 @@ import org.chromium.ui.base.PageTransition;
 import org.chromium.ui.util.ColorUtils;
 
 // Vivaldi
+import android.content.ComponentName;
+import android.view.ViewGroup;
+
+import org.chromium.base.DeviceInfo;
 import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.customtabs.features.ImmersiveModeController;
 import org.chromium.chrome.browser.dom_distiller.DomDistillerTabUtils;
@@ -93,7 +96,7 @@ public class CustomTabActivity extends BaseCustomTabActivity {
     private final CustomTabsConnection mConnection = CustomTabsConnection.getInstance();
     private int mNumOmniboxNavigationEventsPerSession;
 
-    /** Prevents Tapjacking on T-. See crbug.com/1430867 */
+    /** Prevents Tapjacking on T-. See crbug.com/40063907 */
     private static final boolean sPreventTouches =
             Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU;
 
@@ -203,15 +206,6 @@ public class CustomTabActivity extends BaseCustomTabActivity {
 
         mRootUiCoordinator.getStatusBarColorController().updateStatusBarColor();
 
-        // Properly attach tab's InfoBarContainer to the view hierarchy if the tab is already
-        // attached to a ChromeActivity, as the main tab might have been initialized prior to
-        // inflation.
-        if (getCustomTabActivityTabProvider().getTab() != null) {
-            ViewGroup bottomContainer = findViewById(R.id.bottom_container);
-            InfoBarContainer.get(getCustomTabActivityTabProvider().getTab())
-                    .setParentView(bottomContainer);
-        }
-
         int toolbarColor = getIntentDataProvider().getColorProvider().getToolbarColor();
         // Not setting the task title and icon or setting them to null (pre-Android T) will preserve
         // the client app's title and icon.
@@ -239,8 +233,15 @@ public class CustomTabActivity extends BaseCustomTabActivity {
         }
 
         getCustomTabBottomBarDelegate().showBottomBarIfNecessary();
+        // Only enter the transparency-while-loading path when the intent actually carries
+        // EXTRA_TRANSLUCENT_BACKGROUND. Subclasses of BrowserServicesIntentDataProvider that
+        // do not override getTranslucentBackgroundColor() inherit the base implementation
+        // that always returns 0, which would otherwise spuriously trigger the !=defBg
+        // branch and leave the compositor view hidden indefinitely for navigations that
+        // never emit FCP.
         int bg = getIntentDataProvider().getTranslucentBackgroundColor(this);
-        if (bg != SemanticColorUtils.getDefaultBgColor(this)) {
+        if (CustomTabIntentDataProvider.hasTranslucentBackgroundColor(getIntent())
+                && bg != SemanticColorUtils.getDefaultBgColor(this)) {
             setContentVisibility(false);
             getWindow().setBackgroundDrawable(new ColorDrawable(bg));
             PageLoadMetrics.addObserver(
@@ -260,10 +261,14 @@ public class CustomTabActivity extends BaseCustomTabActivity {
 
         // Vivaldi AUTO-340
         if (getIntentDataProvider().isCinemaMode()) {
-            ImmersiveModeController cinemaModeController = new ImmersiveModeController(
-                    this, getWindowAndroid(), getLifecycleDispatcher());
-            cinemaModeController.enterImmersiveMode(
-                    0 /* LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT */, true /* sticky */);
+            // Vivaldi AUTO-344: Skip on AAOS. setDecorFitsSystemWindows(false)
+            // shifts layout behind the status bar, causing a touch offset.
+            if (!DeviceInfo.isAutomotive()) {
+                ImmersiveModeController cinemaModeController = new ImmersiveModeController(
+                        this, getWindowAndroid(), getLifecycleDispatcher());
+                cinemaModeController.enterImmersiveMode(
+                        0 /* LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT */, true /* sticky */);
+            }
 
             if (!BuildConfig.IS_OEM_MERCEDES_BUILD) {
                 ViewGroup coordinator = findViewById(R.id.coordinator);
@@ -307,10 +312,8 @@ public class CustomTabActivity extends BaseCustomTabActivity {
         // features requested in the Intent as they should apply only for the initial launch of the
         // Activity.
         if (getIntentDataProvider().getUiType() == CustomTabsUiType.POPUP
-                && getSavedInstanceState() == null
-                && ChromeFeatureList.isEnabled(
-                        ChromeFeatureList.ANDROID_WINDOW_POPUP_RESIZE_AFTER_SPAWN)) {
-            PopupCreator.adjustWindowBoundsToRequested(
+                && getSavedInstanceState() == null) {
+            PopupCreatorImpl.adjustWindowBoundsToRequested(
                     this, getIntentDataProvider().getRequestedWindowFeatures());
         }
         // Vivaldi VAB-12829
@@ -470,7 +473,10 @@ public class CustomTabActivity extends BaseCustomTabActivity {
 
     @Override
     public boolean onMenuOrKeyboardAction(
-            int id, boolean fromMenu, @Nullable MotionEventInfo triggeringMotion) {
+            int id,
+            boolean fromMenu,
+            @Nullable Bundle menuItemData,
+            @Nullable MotionEventInfo triggeringMotion) {
         if (id == R.id.bookmark_this_page_id) {
             mTabBookmarkerSupplier.get().addOrEditBookmark(getActivityTab());
             RecordUserAction.record("MobileMenuAddToBookmarks");
@@ -495,7 +501,9 @@ public class CustomTabActivity extends BaseCustomTabActivity {
                             getModalDialogManagerSupplier(),
                             publisher,
                             OpenedFromSource.MENU,
-                            mRootUiCoordinator.getMerchantTrustSignalsCoordinatorSupplier()::get,
+                            SupplierUtils.upcast(
+                                    mRootUiCoordinator.getMerchantTrustSignalsCoordinatorSupplier(),
+                                    StoreInfoActionHandler.class),
                             mRootUiCoordinator.getEphemeralTabCoordinatorSupplier(),
                             getTabCreator(getCurrentTabModel().isIncognito()));
             boolean isTWA = getIntentDataProvider().isTrustedWebActivity();
@@ -538,9 +546,9 @@ public class CustomTabActivity extends BaseCustomTabActivity {
             } else {
                 DomDistillerTabUtils.distillCurrentPageAndViewIfSuccessful(
                         tab.getWebContents(), (success) -> {}); // Vivaldi VAB-12678
-        }
+            }
         } // End Vivaldi VAB-11445
-        return super.onMenuOrKeyboardAction(id, fromMenu, triggeringMotion);
+        return super.onMenuOrKeyboardAction(id, fromMenu, menuItemData, triggeringMotion);
     }
 
     @Override
@@ -684,7 +692,6 @@ public class CustomTabActivity extends BaseCustomTabActivity {
         mIsEnterAnimationCompleted = true;
     }
 
-    @VisibleForTesting
     public static void setOnFinishCallbackForTesting(Runnable callback) {
         sOnFinishCallbackForTesting = callback;
         ResettersForTesting.register(() -> sOnFinishCallbackForTesting = null);

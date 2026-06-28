@@ -24,11 +24,11 @@
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 
 #if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/content_settings/host_content_settings_map_factory.h"  // nogncheck crbug.com/1125897
+#include "chrome/browser/content_settings/host_content_settings_map_factory.h"  // nogncheck crbug.com/40147906
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/speech/on_device_speech_recognition_util.h"
-#include "components/content_settings/core/browser/host_content_settings_map.h"  // nogncheck crbug.com/1125897
+#include "components/content_settings/core/browser/host_content_settings_map.h"  // nogncheck crbug.com/40147906
 #include "components/optimization_guide/core/model_execution/model_broker_client.h"
 #include "components/optimization_guide/public/mojom/model_broker.mojom-shared.h"
 #include "components/soda/soda_util.h"
@@ -90,6 +90,13 @@ void OnDeviceSpeechRecognitionImpl::Available(
     return;
   }
 
+  if (quality == media::mojom::SpeechRecognitionQuality::kDictation &&
+      !base::FeatureList::IsEnabled(
+          media::kOnDeviceWebSpeechSmallExpertModel)) {
+    std::move(callback).Run(media::mojom::AvailabilityStatus::kUnavailable);
+    return;
+  }
+
   media::mojom::AvailabilityStatus overall_status =
       media::mojom::AvailabilityStatus::kAvailable;
   for (std::string_view language : languages) {
@@ -106,8 +113,8 @@ void OnDeviceSpeechRecognitionImpl::Available(
     //   'downloading' if all languages are either downloading or available
     //   'downloadable' if all languages are either available, downloading, or
     //   downloadable 'unavailable' in if one or more language is unavailable
-    media::mojom::AvailabilityStatus status =
-        GetMaskedAvailabilityStatus(language_config.value().language_name);
+    media::mojom::AvailabilityStatus status = GetMaskedAvailabilityStatus(
+        language_config.value().language_name, quality);
     if (status < overall_status) {
       overall_status = status;
     }
@@ -129,8 +136,20 @@ void OnDeviceSpeechRecognitionImpl::Install(
     return;
   }
 
+  if (languages.empty()) {
+    std::move(callback).Run(false);
+    return;
+  }
+
   if (quality == media::mojom::SpeechRecognitionQuality::kConversation &&
       !base::FeatureList::IsEnabled(media::kOnDeviceWebSpeechGeminiNano)) {
+    std::move(callback).Run(false);
+    return;
+  }
+
+  if (quality == media::mojom::SpeechRecognitionQuality::kDictation &&
+      !base::FeatureList::IsEnabled(
+          media::kOnDeviceWebSpeechSmallExpertModel)) {
     std::move(callback).Run(false);
     return;
   }
@@ -162,7 +181,8 @@ void OnDeviceSpeechRecognitionImpl::Install(
     return;
   }
 
-  if (base::FeatureList::IsEnabled(media::kOnDeviceWebSpeechGeminiNano)) {
+  if (quality == media::mojom::SpeechRecognitionQuality::kConversation ||
+      quality == media::mojom::SpeechRecognitionQuality::kDictation) {
     OptimizationGuideKeyedService* optimization_guide_keyed_service =
         OptimizationGuideKeyedServiceFactory::GetForProfile(
             Profile::FromBrowserContext(
@@ -178,19 +198,44 @@ void OnDeviceSpeechRecognitionImpl::Install(
     model_broker_client_ =
         optimization_guide_keyed_service->CreateModelBrokerClient();
 
+    optimization_guide::mojom::OnDeviceFeature feature =
+        quality == media::mojom::SpeechRecognitionQuality::kDictation
+            ? optimization_guide::mojom::OnDeviceFeature::
+                  kSpeechRecognitionSmallExpertModel
+            : optimization_guide::mojom::OnDeviceFeature::
+                  kOnDeviceSpeechRecognition;
+
     // Call `RequestAssetsFor()` to trigger the download and installation of
     // the model.
-    model_broker_client_->RequestAssetsFor(
-        optimization_guide::mojom::OnDeviceFeature::kOnDeviceSpeechRecognition);
+    model_broker_client_->RequestAssetsFor(feature);
 
-    model_broker_client_
-        ->GetSubscriber(optimization_guide::mojom::OnDeviceFeature::
-                            kOnDeviceSpeechRecognition)
-        .WaitForClient(base::BindOnce(
-            &OnDeviceSpeechRecognitionImpl::OnModelClientAvailable,
-            weak_ptr_factory_.GetWeakPtr()));
+    model_broker_client_->GetSubscriber(feature).WaitForClient(
+        base::BindOnce(&OnDeviceSpeechRecognitionImpl::OnModelClientAvailable,
+                       weak_ptr_factory_.GetWeakPtr()));
   } else {
-    language_installation_callbacks_[language_names_key].push_back(
+    std::set<std::string> pending_languages;
+
+    const bool binary_installed =
+        speech::SodaInstaller::GetInstance()->IsSodaBinaryInstalled();
+    const std::set<speech::LanguageCode> installed_languages =
+        speech::SodaInstaller::GetInstance()->InstalledLanguages();
+
+    for (std::string_view language : language_names_key) {
+      if (!binary_installed ||
+          !installed_languages.contains(speech::GetLanguageCode(language))) {
+        pending_languages.insert(std::string(language));
+      }
+    }
+
+    if (pending_languages.empty()) {
+      for (std::string_view language : language_names_key) {
+        SetOnDeviceLanguageDownloaded(language);
+      }
+      std::move(callback).Run(true);
+      return;
+    }
+
+    language_installation_callbacks_[pending_languages].push_back(
         std::move(callback));
 
     // `InstallSoda` will only install the SODA binary if it is not already
@@ -256,6 +301,17 @@ void OnDeviceSpeechRecognitionImpl::ProcessLanguageInstallationUpdate(
   for (auto it = language_installation_callbacks_.begin();
        it != language_installation_callbacks_.end();) {
     std::set<std::string> pending_languages_key = it->first;
+
+    // If the SODA binary (empty language string) failed, fail all pending
+    // installations.
+    if (language.empty() && !installation_success) {
+      std::list<InstallCallback> moved_callbacks = std::move(it->second);
+      it = language_installation_callbacks_.erase(it);
+      for (auto& callback : moved_callbacks) {
+        std::move(callback).Run(false);
+      }
+      continue;
+    }
 
     if (pending_languages_key.count(std::string(language))) {
       // This callback group was waiting for the processed `language`.
@@ -323,10 +379,11 @@ void OnDeviceSpeechRecognitionImpl::
 
 media::mojom::AvailabilityStatus
 OnDeviceSpeechRecognitionImpl::GetMaskedAvailabilityStatus(
-    std::string_view language) {
+    std::string_view language,
+    media::mojom::SpeechRecognitionQuality quality) {
   media::mojom::AvailabilityStatus availability_status =
       GetOnDeviceSpeechRecognitionAvailabilityStatus(
-          render_frame_host().GetBrowserContext(), language);
+          render_frame_host().GetBrowserContext(), language, quality);
   if (availability_status == media::mojom::AvailabilityStatus::kAvailable &&
       !HasOnDeviceLanguageDownloaded(language)) {
     return media::mojom::AvailabilityStatus::kDownloadable;

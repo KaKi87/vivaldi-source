@@ -42,7 +42,7 @@ bool AutocompleteController::VivaldiShouldRunProvider(
   }
 #endif
 
-  if (input_.InKeywordMode()) {
+  if (input_.in_keyword_mode()) {
     AutocompleteInput keyword_input = input_;
     const TemplateURL* keyword_turl =
         AutocompleteInput::GetSubstitutingTemplateURLForInput(

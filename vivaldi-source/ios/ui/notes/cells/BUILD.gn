@@ -11,12 +11,12 @@ source_set("cells") {
     "note_table_cell_title_edit_delegate.h",
     "note_table_cell_title_editing.h",
     "table_view_note_cell.h",
-    "table_view_note_cell.mm"
+    "table_view_note_cell.mm",
   ]
 
   deps = [
-    "//base:i18n",
     "//base",
+    "//base:i18n",
     "//ios/chrome/app/strings",
     "//ios/chrome/browser/authentication/ui_bundled",
     "//ios/chrome/browser/authentication/ui_bundled/cells",
@@ -27,4 +27,3 @@ source_set("cells") {
     "//vivaldi/ios/ui/notes/resources:notes_assets",
   ]
 }
-

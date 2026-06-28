@@ -6,20 +6,18 @@ static_library("ios") {
     "adblock_content_rule_list_provider.mm",
     "adblock_organized_rules_manager.cc",
     "adblock_organized_rules_manager.h",
+    "adblock_rule_service_impl.cc",
+    "adblock_rule_service_impl.h",
     "adblock_rules_organizer.cc",
     "adblock_rules_organizer.h",
-    "adblock_rule_service_impl.h",
-    "adblock_rule_service_impl.cc",
   ]
 
-  public_deps = [
-    "//vivaldi/components/ad_blocker/public/ios"
-  ]
+  public_deps = [ "//vivaldi/components/ad_blocker/public/ios" ]
 
   deps = [
-    ":utils",
     ":rules_compiler",
-    "//base:base",
+    ":utils",
+    "//base",
     "//components/keyed_service/core",
     "//ios/web/public",
     "//ios/web/web_state/ui:wk_web_view_configuration_provider",
@@ -29,17 +27,14 @@ static_library("ios") {
 
 source_set("utils") {
   sources = [
+    "ios_rule_utils.cc",
+    "ios_rule_utils.h",
     "utils.cc",
     "utils.h",
-    "ios_rule_utils.h",
-    "ios_rule_utils.cc",
   ]
 
-  deps = [
-    "//base:base",
-  ]
+  deps = [ "//base" ]
 }
-
 
 source_set("rules_compiler") {
   sources = [
@@ -47,13 +42,11 @@ source_set("rules_compiler") {
     "ios_rules_compiler.h",
   ]
 
-  public_deps= [
-    "//vivaldi/components/ad_blocker/core/parser",
-  ]
+  public_deps = [ "//vivaldi/components/ad_blocker/core/parser" ]
 
   deps = [
     ":utils",
-    "//base:base",
+    "//base",
   ]
 }
 
@@ -61,8 +54,8 @@ source_set("unit_tests") {
   testonly = true
 
   sources = [
-    "ios_rules_compiler_unittest.cc",
     "adblock_rules_organizer_unittest.cc",
+    "ios_rules_compiler_unittest.cc",
   ]
 
   deps = [

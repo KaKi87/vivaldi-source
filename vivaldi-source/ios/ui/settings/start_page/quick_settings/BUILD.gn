@@ -7,7 +7,7 @@ source_set("quick_settings") {
     "vivaldi_start_page_quick_settings_coordinator.h",
     "vivaldi_start_page_quick_settings_coordinator.mm",
     "vivaldi_start_page_quick_settings_mediator.h",
-    "vivaldi_start_page_quick_settings_mediator.mm"
+    "vivaldi_start_page_quick_settings_mediator.mm",
   ]
   deps = [
     ":quick_settings_swift",
@@ -15,8 +15,8 @@ source_set("quick_settings") {
     "//components/prefs",
     "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
     "//ios/chrome/browser/shared/model/browser",
-    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/prefs",
+    "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ui/base",
     "//vivaldi/ios/ui/settings/start_page:start_page_constants",
     "//vivaldi/ios/ui/settings/start_page/wallpaper_settings:wallpaper_notification_constants",
@@ -24,18 +24,18 @@ source_set("quick_settings") {
 
   frameworks = [
     "Foundation.framework",
-    "UIKit.framework"
+    "UIKit.framework",
   ]
 }
 
 swift_source_set("quick_settings_swift") {
   bridge_header = "vivaldi_start_page_quick_settings_swift_bridge.h"
   sources = [
-    "vivaldi_start_page_quick_settings_view_provider.swift",
-    "vivaldi_start_page_quick_settings_view.swift",
-    "vivaldi_start_page_quick_settings_state.swift",
-    "vivaldi_start_page_quick_settings_constant.swift",
     "view_toggle_style.swift",
+    "vivaldi_start_page_quick_settings_constant.swift",
+    "vivaldi_start_page_quick_settings_state.swift",
+    "vivaldi_start_page_quick_settings_view.swift",
+    "vivaldi_start_page_quick_settings_view_provider.swift",
   ]
 
   deps = [
@@ -51,7 +51,7 @@ swift_source_set("quick_settings_swift") {
     "//vivaldi/ios/ui/settings/start_page/layout_settings",
     "//vivaldi/ios/ui/settings/start_page/layout_settings:layout_settings_swift",
     "//vivaldi/ios/ui/settings/start_page/wallpaper_settings",
-    "//vivaldi/ios/ui/settings/start_page/wallpaper_settings:wallpaper_settings_swift"
+    "//vivaldi/ios/ui/settings/start_page/wallpaper_settings:wallpaper_settings_swift",
   ]
 
   frameworks = [

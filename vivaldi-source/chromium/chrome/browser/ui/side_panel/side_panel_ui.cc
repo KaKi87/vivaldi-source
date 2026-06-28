@@ -1,25 +1,19 @@
-// Copyright 2023 The Chromium Authors
+// Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/side_panel/side_panel_ui.h"
-#include "chrome/browser/ui/browser.h"
 
-const int SidePanelUI::kUserDataKey;
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 
-SidePanelUI* SidePanelUI::GetSidePanelUIForBrowser(Browser* browser) {
-  CHECK(browser);
-  return static_cast<SidePanelUI*>(browser->GetUserData(&kUserDataKey));
+DEFINE_USER_DATA(SidePanelUI);
+
+// static
+SidePanelUI* SidePanelUI::From(BrowserWindowInterface* browser) {
+  return Get(browser->GetUnownedUserDataHost());
 }
 
-void SidePanelUI::SetSidePanelUIForBrowser(
-    Browser* browser,
-    std::unique_ptr<SidePanelUI> side_panel_ui) {
-  CHECK(browser);
-  browser->SetUserData(&kUserDataKey, std::move(side_panel_ui));
-}
-
-void SidePanelUI::RemoveSidePanelUIForBrowser(Browser* browser) {
-  CHECK(browser);
-  browser->RemoveUserData(&kUserDataKey);
+// static
+const SidePanelUI* SidePanelUI::From(const BrowserWindowInterface* browser) {
+  return Get(browser->GetUnownedUserDataHost());
 }

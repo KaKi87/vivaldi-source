@@ -14,6 +14,7 @@
 #include "chrome/browser/tab_contents/web_contents_collection.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 
 class Browser;
 class TabStripModel;
@@ -25,7 +26,12 @@ class WebContents;
 class UnloadController : public WebContentsCollection::Observer,
                          public TabStripModelObserver {
  public:
-  explicit UnloadController(Browser* browser);
+  DECLARE_USER_DATA(UnloadController);
+
+  explicit UnloadController(BrowserWindowInterface* browser);
+
+  static UnloadController* From(BrowserWindowInterface* browser);
+  static const UnloadController* From(const BrowserWindowInterface* browser);
 
   UnloadController(const UnloadController&) = delete;
   UnloadController& operator=(const UnloadController&) = delete;
@@ -88,6 +94,22 @@ class UnloadController : public WebContentsCollection::Observer,
   // events since the user cancelled closing the window.
   void CancelWindowClose();
 
+  bool ShouldRunUnloadListenerBeforeClosing(content::WebContents* web_contents);
+
+  bool RunUnloadListenerBeforeClosing(content::WebContents* web_contents);
+
+  void BeforeUnloadFired(content::WebContents* web_contents,
+                         bool proceed,
+                         bool* proceed_to_fire_unload);
+
+  void set_force_skip_warning_user_on_close(
+      bool force_skip_warning_user_on_close) {
+    force_skip_warning_user_on_close_ = force_skip_warning_user_on_close;
+  }
+  bool force_skip_warning_user_on_close() const {
+    return force_skip_warning_user_on_close_;
+  }
+
  private:
   typedef std::set<raw_ptr<content::WebContents, SetExperimental>>
       UnloadListenerSet;
@@ -138,6 +160,8 @@ class UnloadController : public WebContentsCollection::Observer,
 
   const raw_ptr<Browser> browser_;
 
+  ui::ScopedUnownedUserData<UnloadController> scoped_unowned_user_data_;
+
   WebContentsCollection web_contents_collection_;
 
   // Tracks tabs that need their beforeunload event fired before we can
@@ -163,6 +187,9 @@ class UnloadController : public WebContentsCollection::Observer,
   // multiple browser windows are being closed together. See
   // BrowserList::TryToCloseBrowserList.
   base::RepeatingCallback<void(bool)> on_close_confirmed_;
+
+  // Tells if the browser should skip warning the user when closing the window.
+  bool force_skip_warning_user_on_close_ = false;
 
   base::WeakPtrFactory<UnloadController> weak_factory_{this};
 };

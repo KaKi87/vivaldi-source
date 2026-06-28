@@ -223,6 +223,7 @@ public class SwipeRefreshHandler extends TabWebContentsUserData
     @SuppressLint("NewApi")
     @Override
     public void cleanupWebContents(WebContents webContents) {
+        webContents.setOverscrollRefreshHandler(null);
         detachSwipeRefreshLayoutIfNecessary();
         mContainerView = null;
         mNavigationCoordinator = null;
@@ -284,12 +285,13 @@ public class SwipeRefreshHandler extends TabWebContentsUserData
     }
 
     /** Sets {@link HistoryNavigationCoordinator} object. */
-    public void setNavigationCoordinator(HistoryNavigationCoordinator navigationHandler) {
+    public void setNavigationCoordinator(@Nullable HistoryNavigationCoordinator navigationHandler) {
         mNavigationCoordinator = navigationHandler;
     }
 
     /** Sets {@link BottomOverscrollHandler} instance to handle pull from bottom edge. */
-    public void setBottomOverscrollHandler(BottomOverscrollHandler bottomOverscrollHandler) {
+    public void setBottomOverscrollHandler(
+            @Nullable BottomOverscrollHandler bottomOverscrollHandler) {
         mBottomOverscrollHandler = bottomOverscrollHandler;
     }
 

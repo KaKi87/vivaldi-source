@@ -417,12 +417,9 @@ IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
 #endif  // BUILDFLAG(IS_ANDROID)
 IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        MAYBE_CommitLocalDevice_TransportOnly) {
-  ASSERT_TRUE(SetupClients());
-
   // Setup a primary account, but don't actually enable Sync-the-feature (so
   // that Sync will start in transport mode).
-  ASSERT_TRUE(GetClient(0)->SignInPrimaryAccount());
-  ASSERT_TRUE(GetClient(0)->AwaitSyncTransportActive());
+  ASSERT_TRUE(SignIn());
 
   ASSERT_FALSE(GetSyncService(0)->IsSyncFeatureEnabled());
   ASSERT_TRUE(GetSyncService(0)->GetActiveDataTypes().Has(syncer::DEVICE_INFO));
@@ -446,12 +443,9 @@ IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
   InjectDeviceInfoEntityToServer(/*suffix=*/1);
   InjectDeviceInfoEntityToServer(/*suffix=*/2);
 
-  ASSERT_TRUE(SetupClients());
-
   // Setup a primary account, but don't actually enable Sync-the-feature (so
   // that Sync will start in transport mode).
-  ASSERT_TRUE(GetClient(0)->SignInPrimaryAccount());
-  ASSERT_TRUE(GetClient(0)->AwaitSyncTransportActive());
+  ASSERT_TRUE(SignIn());
 
   ASSERT_FALSE(GetSyncService(0)->IsSyncFeatureEnabled());
   ASSERT_TRUE(GetSyncService(0)->GetActiveDataTypes().Has(syncer::DEVICE_INFO));
@@ -711,13 +705,27 @@ IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
 
 // PRE_* tests aren't supported on Android browser tests.
 #if !BUILDFLAG(IS_ANDROID)
+
+// TODO(crbug.com/40846416): Re-enable this test on Windows.
+#if BUILDFLAG(IS_WIN)
+#define MAYBE_PRE_ShouldNotSendDeviceInfoAfterBrowserRestart \
+  DISABLED_PRE_ShouldNotSendDeviceInfoAfterBrowserRestart
+#define MAYBE_ShouldNotSendDeviceInfoAfterBrowserRestart \
+  DISABLED_ShouldNotSendDeviceInfoAfterBrowserRestart
+#else
+#define MAYBE_PRE_ShouldNotSendDeviceInfoAfterBrowserRestart \
+  PRE_ShouldNotSendDeviceInfoAfterBrowserRestart
+#define MAYBE_ShouldNotSendDeviceInfoAfterBrowserRestart \
+  ShouldNotSendDeviceInfoAfterBrowserRestart
+#endif
+
 IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
-                       PRE_ShouldNotSendDeviceInfoAfterBrowserRestart) {
+                       MAYBE_PRE_ShouldNotSendDeviceInfoAfterBrowserRestart) {
   ASSERT_TRUE(SetupSync());
 }
 
 IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
-                       ShouldNotSendDeviceInfoAfterBrowserRestart) {
+                       MAYBE_ShouldNotSendDeviceInfoAfterBrowserRestart) {
   const std::vector<sync_pb::SyncEntity> entities_before =
       fake_server_->GetSyncEntitiesByDataType(syncer::DEVICE_INFO);
   ASSERT_TRUE(SetupClients());
@@ -849,19 +857,8 @@ IN_PROC_BROWSER_TEST_P(
   ASSERT_TRUE(SetupSync());
 }
 
-// TODO(crbug.com/465716865): Figure out why this test sometimes times out on
-// ASan, and consistently times out on Win Arm64 Debug.
-#if defined(ADDRESS_SANITIZER) || \
-    (BUILDFLAG(IS_WIN) && !defined(NDEBUG) && defined(ARCH_CPU_ARM64))
-#define MAYBE_ShouldRecordDeviceStatisticsMetricsWithPrimaryAccount \
-  DISABLED_ShouldRecordDeviceStatisticsMetricsWithPrimaryAccount
-#else
-#define MAYBE_ShouldRecordDeviceStatisticsMetricsWithPrimaryAccount \
-  ShouldRecordDeviceStatisticsMetricsWithPrimaryAccount
-#endif
-IN_PROC_BROWSER_TEST_P(
-    SingleClientDeviceInfoWithDeviceStatisticsSyncTest,
-    MAYBE_ShouldRecordDeviceStatisticsMetricsWithPrimaryAccount) {
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoWithDeviceStatisticsSyncTest,
+                       ShouldRecordDeviceStatisticsMetricsWithPrimaryAccount) {
   // Note: On Android 10 (API level 29), setting the metrics consent override
   // causes the test setup to time out, see crbug.com/483394870, so this test
   // cannot run.
@@ -874,19 +871,15 @@ IN_PROC_BROWSER_TEST_P(
 
   ASSERT_TRUE(SetupClients());
 
-  // Wait for the statistics requests to finish and metrics be recorded. (This
-  // is not tied to a sync cycle.)
-  // Note that the DeviceStatisticsTracker also gets instantiated in the default
-  // profile (which is not used in SyncTests except on Android), so there will
-  // be two samples in total.
+  // Wait for the test profile's statistics request to complete. Only check
+  // the specific bucket rather than total sample count, since the default
+  // profile may also record a sample but with unreliable timing.
   EXPECT_TRUE(base::test::RunUntil([&]() {
-#if BUILDFLAG(IS_ANDROID)
-    constexpr size_t kExpectedCount = 1;
-#else   // BUILDFLAG(IS_ANDROID)
-    constexpr size_t kExpectedCount = 2;
-#endif  // BUILDFLAG(IS_ANDROID)
-    return histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall2")
-               .size() == kExpectedCount;
+    return histograms_.GetBucketCount(
+               "Sync.DeviceStatistics.Outcome.Overall2",
+               syncer::DeviceStatisticsTracker::
+                   AccountsHaveOtherDevicesSummary::kPrimaryYesNonPrimaryNA) >=
+           1;
   }));
 
   // Note: Since the default profile doesn't have any signed-in accounts, it
@@ -905,27 +898,11 @@ IN_PROC_BROWSER_TEST_P(
       syncer::DeviceStatisticsTracker::RequestsCompletedSuccess::kAllSucceeded,
       /*expected_bucket_count=*/1, FROM_HERE);
 
-#if BUILDFLAG(IS_ANDROID)
-  histograms_.ExpectUniqueSample(
+  histograms_.ExpectBucketCount(
       "Sync.DeviceStatistics.Outcome.Overall2",
       syncer::DeviceStatisticsTracker::AccountsHaveOtherDevicesSummary::
           kPrimaryYesNonPrimaryNA,
-      /*expected_bucket_count=*/1, FROM_HERE);
-#else
-  // Note: We'd expect a single sample in the `kPrimaryYesNonPrimaryNA` bucket
-  // here, but since this histogram also gets recorded in the (unused) default
-  // profile, there is an additional `kNoAccounts` sample.
-  EXPECT_THAT(
-      histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall2"),
-      ElementsAre(
-          base::Bucket(
-              syncer::DeviceStatisticsTracker::AccountsHaveOtherDevicesSummary::
-                  kPrimaryYesNonPrimaryNA,
-              1),
-          base::Bucket(syncer::DeviceStatisticsTracker::
-                           AccountsHaveOtherDevicesSummary::kNoAccounts,
-                       1)));
-#endif
+      /*expected_count=*/1, FROM_HERE);
 
   histograms_.ExpectUniqueSample(
       "Sync.DeviceStatistics.Outcome.PrimaryAccount.NumberOfAdditionalClients2",
@@ -958,13 +935,9 @@ IN_PROC_BROWSER_TEST_P(
                                    SyncTestAccount::kDefaultAccount)));
 }
 
-// TODO(crbug.com/465716865): Figure out why this test sometimes times out on
-// ASan, and consistently times out on Win Arm64 Debug.
 // TODO(crbug.com/483936092): signin::MakeAccountAvailable() (needed by the PRE_
 // test) doesn't work on Android.
-#if defined(ADDRESS_SANITIZER) ||                                         \
-    (BUILDFLAG(IS_WIN) && !defined(NDEBUG) && defined(ARCH_CPU_ARM64)) || \
-    BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #define MAYBE_ShouldRecordDeviceStatisticsMetricsWithoutPrimaryAccount \
   DISABLED_ShouldRecordDeviceStatisticsMetricsWithoutPrimaryAccount
 #else
@@ -986,18 +959,15 @@ IN_PROC_BROWSER_TEST_P(
 
   ASSERT_TRUE(SetupClients());
 
-  // Wait for the statistics requests to finish and metrics be recorded.
-  // Note that the DeviceStatisticsTracker also gets instantiated in the default
-  // profile (which is not used in SyncTests except on Android), so there will
-  // be two samples in total.
+  // Wait for the test profile's statistics request to complete. Only check
+  // the specific bucket rather than total sample count, since the default
+  // profile may also record a sample but with unreliable timing.
   EXPECT_TRUE(base::test::RunUntil([&]() {
-#if BUILDFLAG(IS_ANDROID)
-    constexpr size_t kExpectedCount = 1;
-#else   // BUILDFLAG(IS_ANDROID)
-    constexpr size_t kExpectedCount = 2;
-#endif  // BUILDFLAG(IS_ANDROID)
-    return histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall2")
-               .size() == kExpectedCount;
+    return histograms_.GetBucketCount(
+               "Sync.DeviceStatistics.Outcome.Overall2",
+               syncer::DeviceStatisticsTracker::
+                   AccountsHaveOtherDevicesSummary::kPrimaryNANonPrimaryYes) >=
+           1;
   }));
 
   // Note: Since the default profile doesn't have any signed-in accounts, it
@@ -1016,27 +986,11 @@ IN_PROC_BROWSER_TEST_P(
       syncer::DeviceStatisticsTracker::RequestsCompletedSuccess::kAllSucceeded,
       /*expected_bucket_count=*/1, FROM_HERE);
 
-#if BUILDFLAG(IS_ANDROID)
-  histograms_.ExpectUniqueSample(
+  histograms_.ExpectBucketCount(
       "Sync.DeviceStatistics.Outcome.Overall2",
       syncer::DeviceStatisticsTracker::AccountsHaveOtherDevicesSummary::
           kPrimaryNANonPrimaryYes,
-      /*expected_bucket_count=*/1, FROM_HERE);
-#else
-  // Note: We'd expect a single sample in the `kPrimaryYesNonPrimaryNA` bucket
-  // here, but since this histogram also gets recorded in the (unused) default
-  // profile, there is an additional `kNoAccounts` sample.
-  EXPECT_THAT(
-      histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall2"),
-      ElementsAre(
-          base::Bucket(
-              syncer::DeviceStatisticsTracker::AccountsHaveOtherDevicesSummary::
-                  kPrimaryNANonPrimaryYes,
-              1),
-          base::Bucket(syncer::DeviceStatisticsTracker::
-                           AccountsHaveOtherDevicesSummary::kNoAccounts,
-                       1)));
-#endif
+      /*expected_count=*/1, FROM_HERE);
 
   histograms_.ExpectUniqueSample(
       "Sync.DeviceStatistics.Outcome.NonPrimaryAccount."

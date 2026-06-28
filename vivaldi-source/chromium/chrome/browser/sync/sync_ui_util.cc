@@ -11,6 +11,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/chrome_signin_client_factory.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/signin_util.h"
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/ui/sync/sync_passphrase_dialog.h"
@@ -18,6 +19,7 @@
 #include "chrome/grit/generated_resources.h"
 #include "components/prefs/pref_service.h"
 #include "components/signin/public/base/signin_switches.h"
+#include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/sync/base/features.h"
 #include "components/sync/service/sync_service.h"
@@ -35,7 +37,8 @@
 #include "chrome/browser/search_engines/ui_thread_search_terms_data.h"
 #include "chrome/browser/trusted_vault/trusted_vault_encryption_keys_tab_helper.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_navigator.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/singleton_tabs.h"
 #include "content/public/browser/navigation_handle.h"
 #endif
@@ -45,7 +48,7 @@ namespace {
 #if !BUILDFLAG(IS_ANDROID)
 
 void OpenTabForSyncTrustedVaultUserAction(
-    Browser* browser,
+    BrowserWindowInterface* browser,
     const GURL& url,
     std::optional<trusted_vault::TrustedVaultUserActionTriggerForUMA> trigger) {
   DCHECK(browser);
@@ -64,6 +67,22 @@ void OpenTabForSyncTrustedVaultUserAction(
       encryption_keys_tab_helper->SetUserActionTrigger(*trigger);
     }
   }
+}
+
+size_t GetAccountIndexForPrimaryAccount(BrowserWindowInterface* browser) {
+  if (!browser) {
+    return 0u;
+  }
+  Profile* profile = browser->GetProfile();
+  if (!profile) {
+    return 0u;
+  }
+  signin::IdentityManager* identity_manager =
+      IdentityManagerFactory::GetForProfile(profile);
+  if (!identity_manager) {
+    return 0u;
+  }
+  return identity_manager->GetSessionIndexForPrimaryAccount().value_or(0u);
 }
 
 #endif  // !BUILDFLAG(IS_ANDROID)
@@ -86,7 +105,9 @@ SyncStatusLabels GetSyncStatusLabelsForSettings(
   }
 
 #if BUILDFLAG(IS_CHROMEOS)
-  if (service->GetUserSettings()->IsSyncFeatureDisabledViaDashboard()) {
+  if (service->GetUserSettings()->IsSyncFeatureDisabledViaDashboard() &&
+      (service->HasSyncConsent() ||
+       !syncer::IsReplaceSyncPromosWithSignInPromosEnabled())) {
     return {SyncStatusMessageType::kSyncError,
             IDS_SIGNED_IN_WITH_SYNC_STOPPED_VIA_DASHBOARD,
             IDS_SYNC_EMPTY_STRING, IDS_SYNC_EMPTY_STRING,
@@ -183,11 +204,15 @@ SyncStatusLabels GetAvatarSyncErrorLabelsForSettings(
           button_string_id, IDS_PROFILES_ACCOUNT_REMOVAL_TITLE,
           SyncStatusActionType::kRetrieveTrustedVaultKeys};
 
-    case syncer::SyncService::UserActionableError::kNeedsPassphrase:
+    case syncer::SyncService::UserActionableError::kNeedsPassphrase: {
+#if BUILDFLAG(IS_CHROMEOS)
+      syncer::SyncService* service = SyncServiceFactory::GetForProfile(profile);
+#endif
       return {
           SyncStatusMessageType::kSyncError,
 #if BUILDFLAG(IS_CHROMEOS)
-          syncer::IsReplaceSyncPromosWithSignInPromosEnabled()
+          (syncer::IsReplaceSyncPromosWithSignInPromosEnabled() && service &&
+           !service->HasSyncConsent())
               ? IDS_SETTINGS_ERROR_PASSPHRASE_USER_ERROR_DESCRIPTION_WITH_EMAIL
               : IDS_SETTINGS_ERROR_PASSPHRASE_USER_ERROR_DESCRIPTION,
 #else
@@ -198,6 +223,7 @@ SyncStatusLabels GetAvatarSyncErrorLabelsForSettings(
               ? IDS_SETTINGS_PEOPLE_SIGN_OUT
               : IDS_SETTINGS_SIGN_OUT,
           SyncStatusActionType::kEnterPassphrase};
+    }
 
     case syncer::SyncService::UserActionableError::
         kTrustedVaultRecoverabilityDegradedForEverything:
@@ -306,7 +332,7 @@ bool ShouldShowSyncPassphraseError(const syncer::SyncService* service) {
   return settings->IsPassphraseRequiredForPreferredDataTypes();
 }
 
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
+#if !BUILDFLAG(IS_ANDROID)
 void ShowSyncPassphraseDialogAndDecryptData(Browser& browser) {
   syncer::SyncService* sync_service =
       SyncServiceFactory::GetForProfile(browser.profile());
@@ -326,17 +352,20 @@ void ShowSyncPassphraseDialogAndDecryptData(Browser& browser) {
           },
           browser.profile()->GetWeakPtr()));
 }
-#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 #if !BUILDFLAG(IS_ANDROID)
 void OpenTabForSyncKeyRetrieval(
-    Browser* browser,
+    BrowserWindowInterface* browser,
     trusted_vault::TrustedVaultUserActionTriggerForUMA trigger) {
   syncer::RecordKeyRetrievalTrigger(trigger);
   const GURL continue_url =
       GURL(UIThreadSearchTermsData().GoogleBaseURLValue());
+
+  size_t account_index = GetAccountIndexForPrimaryAccount(browser);
+
   GURL retrieval_url =
-      GaiaUrls::GetInstance()->signin_chrome_sync_keys_retrieval_url();
+      GaiaUrls::GetInstance()->SigninChromeSyncKeysRetrievalUrl(account_index);
   if (continue_url.is_valid()) {
     retrieval_url = net::AppendQueryParameter(retrieval_url, "continue",
                                               continue_url.spec());
@@ -345,13 +374,17 @@ void OpenTabForSyncKeyRetrieval(
 }
 
 void OpenTabForSyncKeyRecoverabilityDegraded(
-    Browser* browser,
+    BrowserWindowInterface* browser,
     trusted_vault::TrustedVaultUserActionTriggerForUMA trigger) {
   syncer::RecordRecoverabilityDegradedFixTrigger(trigger);
   const GURL continue_url =
       GURL(UIThreadSearchTermsData().GoogleBaseURLValue());
-  GURL url = GaiaUrls::GetInstance()
-                 ->signin_chrome_sync_keys_recoverability_degraded_url();
+
+  size_t account_index = GetAccountIndexForPrimaryAccount(browser);
+
+  GURL url =
+      GaiaUrls::GetInstance()->SigninChromeSyncKeysRecoverabilityDegradedUrl(
+          account_index);
   if (continue_url.is_valid()) {
     url = net::AppendQueryParameter(url, "continue", continue_url.spec());
   }
@@ -359,7 +392,7 @@ void OpenTabForSyncKeyRecoverabilityDegraded(
 }
 
 void ShowBookmarksLimitExceededHelp(
-    Browser* browser,
+    BrowserWindowInterface* browser,
     syncer::SyncService* sync_service,
     syncer::SyncService::BookmarksLimitExceededHelpClickedSource source) {
   CHECK(browser);

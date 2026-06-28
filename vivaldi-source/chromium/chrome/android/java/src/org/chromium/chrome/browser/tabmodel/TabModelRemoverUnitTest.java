@@ -54,7 +54,6 @@ import org.chromium.components.browser_ui.widget.ActionConfirmationResult;
 import org.chromium.components.collaboration.CollaborationService;
 import org.chromium.components.data_sharing.DataSharingService;
 import org.chromium.components.data_sharing.member_role.MemberRole;
-import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.test.util.TestAccounts;
 import org.chromium.components.tab_group_sync.LocalTabGroupId;
@@ -80,7 +79,6 @@ public class TabModelRemoverUnitTest {
     @Mock private Profile mProfile;
     @Mock private IdentityServicesProvider mIdentityServicesProvider;
     @Mock private IdentityManager mIdentityManager;
-    @Mock private TabGroupModelFilterInternal mTabGroupModelFilter;
     @Mock private TabModelRemoverFlowHandler mHandler;
     @Mock private ModalDialogManager mModalDialogManager;
     @Mock private TabCreator mTabCreator;
@@ -110,8 +108,7 @@ public class TabModelRemoverUnitTest {
 
         IdentityServicesProvider.setInstanceForTests(mIdentityServicesProvider);
         when(mIdentityServicesProvider.getIdentityManager(mProfile)).thenReturn(mIdentityManager);
-        when(mIdentityManager.getPrimaryAccountInfo(ConsentLevel.SIGNIN))
-                .thenReturn(TestAccounts.ACCOUNT1);
+        when(mIdentityManager.getPrimaryAccountInfo()).thenReturn(TestAccounts.ACCOUNT1);
 
         DataSharingServiceFactory.setForTesting(mDataSharingService);
         CollaborationServiceFactory.setForTesting(mCollaborationService);
@@ -125,10 +122,9 @@ public class TabModelRemoverUnitTest {
         mTabModel.setActive(true);
 
         when(mTabModel.isIncognitoBranded()).thenReturn(false);
-        when(mTabGroupModelFilter.getTabModel()).thenReturn(mTabModel);
-        when(mTabGroupModelFilter.tabGroupExists(TAB_GROUP_1.tabGroupId)).thenReturn(true);
-        when(mTabGroupModelFilter.tabGroupExists(TAB_GROUP_2.tabGroupId)).thenReturn(true);
-        when(mTabGroupModelFilter.getTabGroupTitle(any(Token.class))).thenReturn(TAB_GROUP_TITLE);
+        when(mTabModel.tabGroupExists(TAB_GROUP_1.tabGroupId)).thenReturn(true);
+        when(mTabModel.tabGroupExists(TAB_GROUP_2.tabGroupId)).thenReturn(true);
+        when(mTabModel.getTabGroupTitle(any(Token.class))).thenReturn(TAB_GROUP_TITLE);
 
         doAnswer(
                         invocation -> {
@@ -141,9 +137,7 @@ public class TabModelRemoverUnitTest {
 
         mTabModelRemover =
                 new TabModelRemover(
-                        RuntimeEnvironment.application,
-                        mModalDialogManager,
-                        () -> mTabGroupModelFilter);
+                        RuntimeEnvironment.application, mModalDialogManager, () -> mTabModel);
         mHandlerInOrder = inOrder(mHandler);
 
         mSavedTabGroup1 = new SavedTabGroup();
@@ -169,8 +163,8 @@ public class TabModelRemoverUnitTest {
     }
 
     @Test
-    public void testGetTabGroupModelFilter() {
-        assertEquals(mTabGroupModelFilter, mTabModelRemover.getTabGroupModelFilter());
+    public void testGetTabModelInternal() {
+        assertEquals(mTabModel, mTabModelRemover.getTabModelInternal());
     }
 
     @Test

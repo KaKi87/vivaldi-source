@@ -104,7 +104,7 @@ public class WebApkIntegrationTest {
 
     /**
      * Tests that Chrome will trampoline out to WebAPKs if they exist but are not verified. See
-     * https://crbug.com/1232514
+     * https://crbug.com/40191153
      */
     @Test
     @LargeTest
@@ -141,7 +141,7 @@ public class WebApkIntegrationTest {
     @Test
     @LargeTest
     @Feature({"Webapps"})
-    @DisabledTest(message = "https://crbug.com/1112352")
+    @DisabledTest(message = "https://crbug.com/40709668")
     public void testShare() throws TimeoutException {
         final String sharedSubject = "Fun tea parties";
         final String sharedText = "Boston";
@@ -175,7 +175,7 @@ public class WebApkIntegrationTest {
     @Test
     @LargeTest
     @Feature({"Webapps"})
-    @DisableIf.Device(DeviceFormFactor.ONLY_TABLET) // crbug.com/362218524
+    @DisableIf.Device(DeviceFormFactor.TABLET_OR_DESKTOP) // crbug.com/362218524
     public void testWebApkServiceIntegration() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
 

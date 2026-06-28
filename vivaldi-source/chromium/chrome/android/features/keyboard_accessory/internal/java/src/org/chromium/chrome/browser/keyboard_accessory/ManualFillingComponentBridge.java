@@ -52,6 +52,25 @@ class ManualFillingComponentBridge {
         mNativeView = nativeView;
         mWindowAndroid = windowAndroid;
         mWebContents = webContents;
+
+        initializeAtMemoryCallback();
+    }
+
+    private void initializeAtMemoryCallback() {
+        if (getManualFillingComponent() != null) {
+            getManualFillingComponent()
+                    .setAtMemoryCallback(
+                            () -> {
+                                if (mNativeView != 0) {
+                                    ManualFillingMetricsRecorder.recordActionSelected(
+                                            AccessoryAction.SHOW_AT_MEMORY_BOTTOMSHEET);
+                                    ManualFillingComponentBridgeJni.get()
+                                            .onOptionSelected(
+                                                    mNativeView,
+                                                    AccessoryAction.SHOW_AT_MEMORY_BOTTOMSHEET);
+                                }
+                            });
+        }
     }
 
     Provider<AccessorySheetData> getOrCreateProvider(@AccessoryTabType int tabType) {
@@ -73,6 +92,25 @@ class ManualFillingComponentBridge {
     private static ManualFillingComponentBridge create(
             long nativeView, WindowAndroid windowAndroid, WebContents webContents) {
         return new ManualFillingComponentBridge(nativeView, windowAndroid, webContents);
+    }
+
+    @CalledByNative
+    private static boolean isLargeFormFactor(WebContents webContents) {
+        if (webContents == null) {
+            return false;
+        }
+        WindowAndroid windowAndroid = webContents.getTopLevelNativeWindow();
+        if (windowAndroid == null) {
+            return false;
+        }
+
+        android.app.Activity activity = windowAndroid.getActivity().get();
+        if (activity == null) {
+            return false;
+        }
+
+        return KeyboardAccessoryUtils.isLargeFormFactor(
+                activity, windowAndroid.getKeyboardDelegate());
     }
 
     @CalledByNative
@@ -129,6 +167,7 @@ class ManualFillingComponentBridge {
     private void destroy() {
         if (getManualFillingComponent() != null) {
             getManualFillingComponent().removeObserver(mDestructionObserver);
+            getManualFillingComponent().setAtMemoryCallback(null);
         }
         for (int i = 0; i < mProviders.size(); ++i) {
             mProviders.valueAt(i).notifyObservers(null);

@@ -24,6 +24,7 @@ import detect_host_arch
 from gclient_scm import CipdRoot, GcsRoot
 from gclient_utils import SplitUrlRevision, ExecutionQueue, freeze
 from third_party.repo.progress import Progress
+import gclient_eval
 
 def ProcessGNDefinesItems(items):
   """Converts a list of strings to a list of key-value pairs."""
@@ -113,7 +114,8 @@ def get_variables(a_checkout_os=None, a_target_cpu=None):
     "checkout_pgo_profiles": False,
     "build_with_chromium": True,
     "checkout_remote_toolchain": IsSisoEnabled(host_os),
-    "clangd_compdb": IsClangdCompDBEnabled()
+    "clangd_compdb": IsClangdCompDBEnabled(),
+    "checkout_openxr": False,
   }
   for x in checkout_cpu:
     global_vars["checkout_"+x] = True
@@ -243,6 +245,28 @@ class VivaldiBaseDeps(gclient.GitDependency):
                               preloaded_content=(self._preloaded_subdeps or {}).get(subname, None))
         sub_dep.Load(recurse=False)
         self._sub_deps[subname] = sub_dep
+    if isinstance(self, ChromiumDeps):
+      #print("====================================================")
+      gclient_gn_args_file = os.path.join(SRC, "chromium/build/config/gclient_args.gni")
+      gclient_gn_args = self._gn_args
+
+      def format(x):
+          #print(repr(x))
+          if isinstance(x, bool):
+            return str(x).lower()
+          if isinstance(x, int):
+            return x
+          if isinstance(x, str):
+            return format(gclient_eval.EvaluateCondition(x, self.get_vars()))
+
+          return f'"{x}"'
+      gclient_gni_content = "\n".join(f"{x}={format(self.get_vars().get(x,''))}" for x in self._gn_args)
+      #print(gclient_gni_content)
+      if not os.access(gclient_gn_args_file, os.F_OK) or open(gclient_gn_args_file, "r").read() != gclient_gni_content:
+        with open(gclient_gn_args_file, "w") as f:
+          f.write(gclient_gni_content)
+      #print("====================================================")
+
 
   def _deps_to_objects(self, deps, use_relative_paths):
     new_deps = {}

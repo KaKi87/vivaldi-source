@@ -7,9 +7,13 @@ import 'chrome://new-tab-page/new_tab_page.js';
 import type {NtpSearchboxElement} from 'chrome://new-tab-page/new_tab_page.js';
 import {BrowserProxyImpl, MetricsReporterImpl, SearchboxBrowserProxy} from 'chrome://new-tab-page/new_tab_page.js';
 import {ContextType} from 'chrome://resources/cr_components/composebox/common.js';
+import type {ComposeboxState, DriveUpload, FileUpload, TabUpload} from 'chrome://resources/cr_components/composebox/common.js';
+import type {ContextualEntrypointAndMenuElement} from 'chrome://resources/cr_components/composebox/contextual_entrypoint_and_menu.js';
+import type {SearchAnimatedGlowElement} from 'chrome://resources/cr_components/search/animated_glow.js';
 import {createAutocompleteResultForTesting, createSearchMatchForTesting} from 'chrome://resources/cr_components/searchbox/searchbox_browser_proxy.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {PageMetricsCallbackRouter} from 'chrome://resources/js/metrics_reporter.mojom-webui.js';
+import {DriveDisclaimerStatus} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
 import {InputType, ModelMode, ToolMode} from 'chrome://resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
 import {assertDeepEquals, assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {assertStyle, MockInputState} from 'chrome://webui-test/cr_components/searchbox/searchbox_test_utils.js';
@@ -29,6 +33,7 @@ const SAMPLE_INPUT_STATE = new MockInputState({
       chipLabel: '',
       hintText: '',
       aimUrlParams: [],
+      menuTooltip: '',
     },
     {
       tool: ToolMode.kImageGen,
@@ -37,6 +42,7 @@ const SAMPLE_INPUT_STATE = new MockInputState({
       chipLabel: '',
       hintText: '',
       aimUrlParams: [],
+      menuTooltip: '',
     },
   ],
   toolsSectionConfig: {header: ''},
@@ -47,12 +53,14 @@ const SAMPLE_INPUT_STATE = new MockInputState({
       menuLabel: 'Gemini Regular',
       hintText: '',
       aimUrlParams: [],
+      menuTooltip: '',
     },
     {
       model: ModelMode.kGeminiPro,
       menuLabel: 'Gemini Pro',
       hintText: '',
       aimUrlParams: [],
+      menuTooltip: '',
     },
   ],
   modelSectionConfig: {header: ''},
@@ -134,7 +142,6 @@ suite('NewTabPageRealboxTabsTest', () => {
     await microtasksFinished();
 
     assertEquals(testProxy.handler.getCallCount('getRecentTabs'), 1);
-    assertDeepEquals((realbox as any).tabSuggestions_, sampleTabs);
 
     // Once the context menu is closed again, getRecentTabs should not be called
     // on tab strip changes.
@@ -145,6 +152,21 @@ suite('NewTabPageRealboxTabsTest', () => {
     testProxy.callbackRouterRemote.onTabStripChanged();
     await microtasksFinished();
     assertEquals(testProxy.handler.getCallCount('getRecentTabs'), 0);
+  });
+
+  test('NtpRealboxMountDisableAutoReposition', async () => {
+    const entrypointAndMenu =
+        realbox.shadowRoot.querySelector<ContextualEntrypointAndMenuElement>(
+            'cr-composebox-contextual-entrypoint-and-menu');
+    assertTrue(!!entrypointAndMenu);
+    await entrypointAndMenu.updateComplete;
+    assertTrue(entrypointAndMenu.disableAutoReposition);
+
+    const contextualActionMenu = entrypointAndMenu.$.menu;
+    await contextualActionMenu.updateComplete;
+    const crActionMenu = contextualActionMenu.$.menu;
+    assertFalse(crActionMenu.autoReposition);
+    assertFalse(crActionMenu.hasAttribute('auto-reposition'));
   });
 });
 
@@ -160,6 +182,7 @@ suite('NewTabPageRealboxNextTest', () => {
       reportMetrics: true,
       searchboxCyclingPlaceholders: false,
       searchboxDefaultIcon: 'search.svg',
+      searchboxLensSearch: true,
       searchboxSeparator: ' - ',
       searchboxVoiceSearch: true,
     });
@@ -198,7 +221,8 @@ suite('NewTabPageRealboxNextTest', () => {
     assertTrue(!!contextElement);
 
     // Act & Assert.
-    const whenOpenComposeBox = eventToPromise('open-composebox', realbox);
+    const whenOpenComposeBox = eventToPromise<CustomEvent<ComposeboxState>>(
+        'open-composebox', realbox);
     contextElement.dispatchEvent(new CustomEvent('add-tab-context', {
       detail: {id: 1, title: 'title'},
       bubbles: true,
@@ -206,8 +230,75 @@ suite('NewTabPageRealboxNextTest', () => {
     }));
     const event = await whenOpenComposeBox;
     assertEquals(event.detail.files.length, 1);
-    assertEquals(event.detail.files[0].tabId, 1);
-    assertEquals(event.detail.files[0].title, 'title');
+    const tabUpload = event.detail.files[0] as TabUpload;
+    assertEquals(tabUpload.tabId, 1);
+    assertEquals(tabUpload.title, 'title');
+  });
+
+  test('selecting drive upload opens composebox', async () => {
+    testProxy.handler.setResultFor('getDriveDisclaimerStatus', Promise.resolve({
+      status: DriveDisclaimerStatus.kAccepted,
+    }));
+    const sampleToken = {high: BigInt(123), low: BigInt(456)};
+    testProxy.handler.setResultFor('onDriveUploadClicked', Promise.resolve({
+      response: {
+        files: [{
+          token: sampleToken,
+          mimeType: 'application/pdf',
+          fileName: 'sample.pdf',
+          thumbnailUrl: null,
+          iconUrl: null,
+        }],
+        error: null,
+      },
+    }));
+
+    const contextElement = realbox.shadowRoot.querySelector(
+        'cr-composebox-contextual-entrypoint-and-menu');
+    assertTrue(!!contextElement);
+
+    // Act & Assert.
+    const whenOpenComposeBox = eventToPromise<CustomEvent<ComposeboxState>>(
+        'open-composebox', realbox);
+    contextElement.dispatchEvent(new CustomEvent('open-drive-upload', {
+      bubbles: true,
+      composed: true,
+    }));
+    const event = await whenOpenComposeBox;
+    assertEquals(event.detail.files.length, 1);
+    const driveUpload = event.detail.files[0] as DriveUpload;
+    assertDeepEquals(sampleToken, driveUpload.token);
+    assertEquals('application/pdf', driveUpload.mimeType);
+    assertEquals('sample.pdf', driveUpload.fileName);
+    assertEquals(null, driveUpload.thumbnailUrl);
+  });
+
+  test('selecting drive upload opens composebox with error', async () => {
+    testProxy.handler.setResultFor('getDriveDisclaimerStatus', Promise.resolve({
+      status: DriveDisclaimerStatus.kAccepted,
+    }));
+    testProxy.handler.setResultFor(
+        'onDriveUploadClicked', Promise.resolve({
+          response: {
+            files: [],
+            error: 1,
+          },
+        }));
+
+    const contextElement = realbox.shadowRoot.querySelector(
+        'cr-composebox-contextual-entrypoint-and-menu');
+    assertTrue(!!contextElement);
+
+    // Act & Assert.
+    const whenOpenComposeBox = eventToPromise<CustomEvent<ComposeboxState>>(
+        'open-composebox', realbox);
+    contextElement.dispatchEvent(new CustomEvent('open-drive-upload', {
+      bubbles: true,
+      composed: true,
+    }));
+    const event = await whenOpenComposeBox;
+    assertEquals(event.detail.files.length, 0);
+    assertEquals(1, event.detail.error);
   });
 
   test('clicking deep search button opens composebox', async () => {
@@ -219,7 +310,8 @@ suite('NewTabPageRealboxNextTest', () => {
     assertTrue(!!contextMenuEntrypoint, 'contextual entrypoint button');
 
     // Act.
-    const whenOpenComposeBox = eventToPromise('open-composebox', realbox);
+    const whenOpenComposeBox = eventToPromise<CustomEvent<ComposeboxState>>(
+        'open-composebox', realbox);
 
     const entrypointButton =
         contextMenuEntrypoint.shadowRoot.querySelector<HTMLElement>(
@@ -256,7 +348,8 @@ suite('NewTabPageRealboxNextTest', () => {
     assertTrue(!!contextMenuEntrypoint, 'contextual-entrypoint-button');
 
     // Act.
-    const whenOpenComposeBox = eventToPromise('open-composebox', realbox);
+    const whenOpenComposeBox = eventToPromise<CustomEvent<ComposeboxState>>(
+        'open-composebox', realbox);
 
     const entrypointButton =
         contextMenuEntrypoint.shadowRoot.querySelector<HTMLElement>(
@@ -296,23 +389,23 @@ suite('NewTabPageRealboxNextTest', () => {
       composed: true,
     });
 
-    const whenOpenComposeBox = eventToPromise('open-composebox', realbox);
+    const whenOpenComposeBox = eventToPromise<CustomEvent<ComposeboxState>>(
+        'open-composebox', realbox);
     realbox.$.input.inputElement.dispatchEvent(pasteEvent);
     await microtasksFinished();
     const event = await whenOpenComposeBox;
 
     assertTrue(!!event);
     assertEquals(event.detail.files.length, 2);
-    const file1 = event.detail.files[0];
+    const file1 = event.detail.files[0] as FileUpload;
     assertEquals('pasted.png', file1.file.name);
     assertEquals('image/png', file1.file.type);
-    const file2 = event.detail.files[1];
+    const file2 = event.detail.files[1] as FileUpload;
     assertEquals('pasted.pdf', file2.file.name);
     assertEquals('application/pdf', file2.file.type);
-    assertFalse((realbox.$.input as any).pastedInInput_);
   });
 
-  test('pasting text sets pastedInInput flag', async () => {
+  test('pasting text affects preventInlineAutocomplete', async () => {
     // Re-create realbox to pick up new loadTimeData.
     realbox = await createAndAppendRealbox({ntpRealboxNextEnabled: true});
 
@@ -335,7 +428,7 @@ suite('NewTabPageRealboxNextTest', () => {
 
     assertFalse(pasteEvent.defaultPrevented);
     assertFalse(openComposeboxCalled);
-    assertTrue((realbox.$.input as any).pastedInInput_);
+    assertTrue(realbox.$.input.preventInlineAutocomplete(''));
   });
 
   test('useWebKitSearchboxIcons with compose button enabled', async () => {
@@ -367,7 +460,8 @@ suite('NewTabPageRealboxNextTest', () => {
   });
 
   test('clicking composebox button emits an event.', async () => {
-    const whenOpenComposeBox = eventToPromise('open-composebox', realbox);
+    const whenOpenComposeBox = eventToPromise<CustomEvent<ComposeboxState>>(
+        'open-composebox', realbox);
 
     const composeButton =
         realbox.shadowRoot.querySelector<HTMLElement>('#composeButton');
@@ -653,6 +747,37 @@ suite('NewTabPageRealboxNextTest', () => {
     assertEquals(1, metrics.count(metricName, ContextType.PRO_NO_GEN_UI_MODEL));
   });
 
+  test('metrics are recorded for drive uploads', async () => {
+    loadTimeData.overrideValues({
+      composeboxSource: 'TestSource',
+    });
+    realbox = createAndAppendRealbox({
+      composeButtonEnabled: true,
+      composeboxEnabled: true,
+      ntpRealboxNextEnabled: true,
+    });
+    await microtasksFinished();
+
+    const entrypointAndMenu = realbox.shadowRoot.querySelector(
+        'cr-composebox-contextual-entrypoint-and-menu');
+    assertTrue(!!entrypointAndMenu);
+
+    const metricName =
+        'TestSource.AimEntrypoint.ClassicPopup.ContextualElement.Clicked';
+
+    testProxy.handler.setResultFor('getDriveDisclaimerStatus', Promise.resolve({
+      status: DriveDisclaimerStatus.kAccepted,
+    }));
+
+    entrypointAndMenu.dispatchEvent(new CustomEvent('open-drive-upload', {
+      bubbles: true,
+      composed: true,
+    }));
+    await testProxy.handler.whenCalled('onDriveUploadClicked');
+    await microtasksFinished();
+    assertEquals(1, metrics.count(metricName, ContextType.DRIVE));
+  });
+
   test('metrics are recorded for file uploads', async () => {
     loadTimeData.overrideValues({
       composeboxSource: 'TestSource',
@@ -763,7 +888,6 @@ suite('NewTabPageRealboxNextTest', () => {
     await microtasksFinished();
 
     assertEquals(testProxy.handler.getCallCount('getRecentTabs'), 1);
-    assertDeepEquals((realbox as any).tabSuggestions_, sampleTabs);
 
     // Verify shown metrics for input types based on SAMPLE_INPUT_STATE
     assertEquals(1, metrics.count(metricName, ContextType.IMAGE));
@@ -807,8 +931,8 @@ suite('NewTabPageRealboxNextTest', () => {
             realbox.shadowRoot.querySelector<HTMLElement>('#composeButton');
         assertTrue(!!composeButton);
 
-        const whenOpenComposeBox =
-            eventToPromise('open-composebox', realbox);
+        const whenOpenComposeBox = eventToPromise<CustomEvent<ComposeboxState>>(
+            'open-composebox', realbox);
 
         composeButton.dispatchEvent(new CustomEvent('compose-click', {
           detail: {
@@ -869,4 +993,12 @@ suite('NewTabPageRealboxNextTest', () => {
         const args = testProxy.handler.getArgs('submitQuery')[0];
         assertEquals('', args.queryText);
       });
+
+  test('sets darkThemeColorsEnabled as false on search-animated-glow', () => {
+    const animatedGlow =
+        realbox.shadowRoot.querySelector<SearchAnimatedGlowElement>(
+            'search-animated-glow');
+    assertTrue(!!animatedGlow);
+    assertFalse(animatedGlow.darkThemeColorsEnabled);
+  });
 });

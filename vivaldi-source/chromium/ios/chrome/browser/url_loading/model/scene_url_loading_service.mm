@@ -4,6 +4,8 @@
 
 #import "ios/chrome/browser/url_loading/model/scene_url_loading_service.h"
 
+#import <algorithm>
+
 #import "ios/chrome/browser/policy/model/policy_util.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
@@ -14,7 +16,30 @@
 #import "ios/chrome/browser/url_loading/model/url_loading_browser_agent.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_params.h"
 
+namespace {
+
+// Finds the registered and active interceptor matching `incoming_url` by
+// checking if the incoming spec starts with any registered spec.
+URLInterceptor* GetActiveInterceptorForUrl(
+    const std::unordered_map<std::string, std::unique_ptr<URLInterceptor>>&
+        interceptors,
+    const GURL& incoming_url) {
+  const std::string& incoming_spec = incoming_url.spec();
+
+  for (const auto& [registered_spec, interceptor] : interceptors) {
+    if (incoming_spec.starts_with(registered_spec) && interceptor->active()) {
+      return interceptor.get();
+    }
+  }
+
+  return nullptr;
+}
+
+}  // namespace
+
 SceneUrlLoadingService::SceneUrlLoadingService() {}
+
+SceneUrlLoadingService::~SceneUrlLoadingService() = default;
 
 void SceneUrlLoadingService::SetDelegate(
     id<SceneURLLoadingServiceDelegate> delegate) {
@@ -104,4 +129,41 @@ Browser* SceneUrlLoadingService::GetCurrentBrowser() {
 UrlLoadingBrowserAgent* SceneUrlLoadingService::GetBrowserAgent(
     bool incognito) {
   return [delegate_ browserAgentForIncognito:incognito];
+}
+
+bool SceneUrlLoadingService::AddInterceptor(
+    const GURL& url,
+    std::unique_ptr<URLInterceptor> interceptor) {
+  const std::string& new_spec = url.spec();
+
+  auto overlapping_entry =
+      std::ranges::find_if(interceptors_, [&](const auto& pair) {
+        const std::string& registered_spec = pair.first;
+        return new_spec.starts_with(registered_spec) ||
+               registered_spec.starts_with(new_spec);
+      });
+
+  if (overlapping_entry != interceptors_.end()) {
+    return false;
+  }
+
+  interceptors_.insert({new_spec, std::move(interceptor)});
+  return true;
+}
+
+void SceneUrlLoadingService::RemoveInterceptor(const GURL& url) {
+  interceptors_.erase(url.spec());
+}
+
+bool SceneUrlLoadingService::OnIntercept(const UrlLoadParams& params) {
+  URLInterceptor* matched_interceptor =
+      GetActiveInterceptorForUrl(interceptors_, params.web_params.url);
+  if (matched_interceptor && matched_interceptor->OnIntercept(params)) {
+    if (matched_interceptor->deactivates_on_match()) {
+      matched_interceptor->set_active(false);
+    }
+    return matched_interceptor->prevent_normal_flow();
+  }
+
+  return false;
 }

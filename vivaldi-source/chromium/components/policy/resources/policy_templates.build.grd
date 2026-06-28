@@ -55,7 +55,8 @@ generated manually.
     <structures fallback_to_english="true">
       <!-- List of policies and placeholder texts. This item should precede any
       message definitions. -->
-      <structure name="IDD_POLICY_SOURCE_FILE" file="policy_templates.py" type="policy_template_metafile" encoding="utf-8" />
+      <!-- VB-125639 - Use Vivaldi wrapper -->
+      <structure name="IDD_POLICY_SOURCE_FILE" file="../../../../components/policy/vivaldi_generate_policy_templates.py" type="policy_template_metafile" encoding="utf-8" />
     </structures>
   </release>
 </grit>

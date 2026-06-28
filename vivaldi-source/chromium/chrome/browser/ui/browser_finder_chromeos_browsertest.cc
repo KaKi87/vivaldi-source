@@ -2,14 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/browser_finder.h"
-
 #include "ash/wm/desks/desk.h"
 #include "ash/wm/desks/desks_controller.h"
 #include "ash/wm/desks/desks_test_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/test/browser_test.h"
@@ -60,7 +59,9 @@ IN_PROC_BROWSER_TEST_F(BrowserFinderWithDesksTest, FindAnyBrowser) {
   CloseBrowserSynchronously(browser());
   SetBrowser(browser_1);
   auto* window_1 = browser_1->GetWindow()->GetNativeWindow();
-  EXPECT_EQ(1u, chrome::GetBrowserCount(browser()->profile()));
+  EXPECT_EQ(
+      1u,
+      ProfileBrowserCollection::GetForProfile(browser()->profile())->GetSize());
   EXPECT_TRUE(desk_1->is_active());
   EXPECT_TRUE(desks_controller->BelongsToActiveDesk(window_1));
   EXPECT_EQ(browser_1, ui_test_utils::FindAnyBrowser(browser()->profile()));
@@ -70,7 +71,9 @@ IN_PROC_BROWSER_TEST_F(BrowserFinderWithDesksTest, FindAnyBrowser) {
   EXPECT_TRUE(desk_2->is_active());
   Browser* browser_2 = CreateTestBrowser();
   auto* window_2 = browser_2->window()->GetNativeWindow();
-  EXPECT_EQ(2u, chrome::GetBrowserCount(browser()->profile()));
+  EXPECT_EQ(
+      2u,
+      ProfileBrowserCollection::GetForProfile(browser()->profile())->GetSize());
   EXPECT_FALSE(desks_controller->BelongsToActiveDesk(window_1));
   EXPECT_TRUE(desks_controller->BelongsToActiveDesk(window_2));
 
@@ -99,48 +102,4 @@ IN_PROC_BROWSER_TEST_F(BrowserFinderWithDesksTest, FindAnyBrowser) {
   ash::ActivateDesk(desk_3);
   EXPECT_TRUE(desk_3->is_active());
   EXPECT_EQ(browser_1, ui_test_utils::FindAnyBrowser(browser()->profile()));
-}
-
-IN_PROC_BROWSER_TEST_F(BrowserFinderWithDesksTest, FindTabbedBrowser) {
-  auto* desks_controller = ash::DesksController::Get();
-  ASSERT_EQ(3u, desks_controller->desks().size());
-  auto* desk_1 = desks_controller->desks()[0].get();
-  auto* desk_2 = desks_controller->desks()[1].get();
-  auto* desk_3 = desks_controller->desks()[2].get();
-
-  BrowserWindowInterface* const browser_1 = CreateTestBrowser();
-  CloseBrowserSynchronously(browser());
-  SetBrowser(browser_1);
-  auto* window_1 = browser_1->GetWindow()->GetNativeWindow();
-  EXPECT_EQ(1u, chrome::GetBrowserCount(browser()->profile()));
-  EXPECT_TRUE(desk_1->is_active());
-  EXPECT_TRUE(desks_controller->BelongsToActiveDesk(window_1));
-  EXPECT_EQ(browser_1, chrome::FindTabbedBrowser(browser()->profile(), true));
-
-  // Switch to desk_2, expect that FindTabbedBrowser() favors the current desk.
-  ash::ActivateDesk(desk_2);
-  EXPECT_TRUE(desk_2->is_active());
-  EXPECT_FALSE(chrome::FindTabbedBrowser(browser()->profile(), true));
-
-  // Create a browser on desk_2, and expect that FindTabbedBrowser() to find it.
-  Browser* browser_2 = CreateTestBrowser();
-  EXPECT_EQ(browser_2, chrome::FindTabbedBrowser(browser()->profile(), true));
-
-  // Switch to desk_3, and expect there is no tabbed browser.
-  ash::ActivateDesk(desk_3);
-  EXPECT_TRUE(desk_3->is_active());
-  EXPECT_FALSE(chrome::FindTabbedBrowser(browser()->profile(), true));
-
-  // Create a browser on desk_3
-  Browser* browser_3 = CreateTestBrowser();
-  EXPECT_EQ(browser_3, chrome::FindTabbedBrowser(browser()->profile(), true,
-                                                 display::kInvalidDisplayId));
-
-  // Start closing the browser
-  CloseBrowserAsynchronously(browser_3);
-
-  // Since browser_3 is closing and has been scheduled for deletion at this
-  // point, FindTabbedBrowser should return nullptr.
-  EXPECT_EQ(nullptr, chrome::FindTabbedBrowser(browser()->profile(), true,
-                                               display::kInvalidDisplayId));
 }

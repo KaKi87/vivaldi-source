@@ -14,6 +14,7 @@
 #import "base/files/file_path.h"
 #import "base/functional/bind.h"
 #import "base/functional/callback_helpers.h"
+#import "base/memory/memory_pressure_listener_registry.h"
 #import "base/memory/ptr_util.h"
 #import "base/metrics/histogram_functions.h"
 #import "base/path_service.h"
@@ -106,7 +107,9 @@ ApplicationContextImpl::ApplicationContextImpl(
     const std::string& locale,
     const std::string& country)
     : application_locale_storage_(std::make_unique<ApplicationLocaleStorage>()),
-      local_state_task_runner_(local_state_task_runner) {
+      local_state_task_runner_(local_state_task_runner),
+      memory_pressure_listener_registry_(
+          std::make_unique<base::MemoryPressureListenerRegistry>()) {
   DCHECK(!GetApplicationContext());
   SetApplicationContext(this);
 
@@ -132,7 +135,7 @@ void ApplicationContextImpl::PreCreateThreads() {
 }
 
 void ApplicationContextImpl::PostCreateThreads() {
-  // Delegate all encryption calls to OSCrypt.
+  // Initialize OSCryptAsync with a KeychainKeyProvider.
   auto key_provider = std::make_unique<os_crypt_async::KeychainKeyProvider>();
   std::vector<std::pair<size_t, std::unique_ptr<os_crypt_async::KeyProvider>>>
       key_providers;

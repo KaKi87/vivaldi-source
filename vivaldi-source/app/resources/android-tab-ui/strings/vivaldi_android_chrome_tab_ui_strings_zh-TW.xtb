@@ -16,11 +16,11 @@
           other {建立於 <ph name="NUM_MINS_MANY" /> 分鐘前}
         }</translation>
 <translation id="1625440863545383011">移除分頁並離開堆疊</translation>
+<translation id="2221077170275765262">分頁堆疊「<ph name="TAB_GROUP_NAME" />」已無法使用</translation>
 <translation id="2330212241471632770">{TABS_COUNT, plural,
           =1 {將分頁加入書籤}
           other {將分頁加入書籤}
         }</translation>
-<translation id="2498435670446402865">重新命名分頁群組</translation>
 <translation id="2734252994837336591">{NUM_WEEKS, plural,
           =1 {於 <ph name="NUM_WEEKS_ONE" /> 週前更新}
           other {於 <ph name="NUM_WEEKS_MANY" /> 週前更新}
@@ -56,7 +56,7 @@
           =1 {於 <ph name="NUM_YEARS_ONE" /> 年前更新}
           other {於 <ph name="NUM_YEARS_MANY" /> 年前更新}
         }</translation>
-<translation id="7825973332242257878">分頁群組</translation>
+<translation id="8176081848609891478">分頁堆疊「<ph name="TAB_GROUP_NAME_1" />」與「<ph name="TAB_GROUP_NAME_2" />」已無法使用</translation>
 <translation id="8207688828622594111">{NUM_MINS, plural,
           =1 {於 <ph name="NUM_MINS_ONE" /> 分鐘前更新}
           other {於 <ph name="NUM_MINS_MANY" /> 分鐘前更新}
@@ -72,5 +72,4 @@
                 other {建立於 <ph name="NUM_MONTHS_MANY" /> 個月前}
               }</translation>
 <translation id="8851621822786801079">從堆疊中移除</translation>
-<translation id="8887921976452567404">您可以從最近關閉的分頁與分頁群組中重新開啟已關閉的分頁與群組。</translation>
 </translationbundle>

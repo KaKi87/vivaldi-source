@@ -1,5 +1,5 @@
-import ("//vivaldi/testing/testing.gni")
 import("//extensions/buildflags/buildflags.gni")
+import("//vivaldi/testing/testing.gni")
 
 if (is_win) {
   if (vivaldi_build_tests) {
@@ -12,77 +12,55 @@ if (is_win) {
         "//vivaldi/installer/mini_installer/setup:lib",
         "//vivaldi/installer/mini_installer/util:strings",
       ]
-      libs += [ "d2d1.lib",
-                "Dwrite.lib",
-                "Ddraw.lib",
-                "gdiplus.lib"
+      libs += [
+        "d2d1.lib",
+        "Dwrite.lib",
+        "Ddraw.lib",
+        "gdiplus.lib",
       ]
     }
     update_target("//chrome/test:interactive_ui_tests") {
-      deps -= [
-        "//chrome/installer/util:strings",
-      ]
-      deps += [
-        "//vivaldi/installer/mini_installer/util:strings",
-      ]
+      deps -= [ "//chrome/installer/util:strings" ]
+      deps += [ "//vivaldi/installer/mini_installer/util:strings" ]
     }
   }
 }
 
 if (is_win) {
   update_target("//chrome:chrome_initial") {
-    deps -= [
-      "//chrome/installer/util:did_run_support",
-    ]
-    deps += [
-      "//vivaldi/installer/mini_installer/util:did_run_support",
-    ]
+    deps -= [ "//chrome/installer/util:did_run_support" ]
+    deps += [ "//vivaldi/installer/mini_installer/util:did_run_support" ]
   }
 
   update_target("//chrome/browser:browser") {
-    deps -= [
-       "//chrome/installer/util:isolation_support",
-    ]
-    deps += [
-      "//vivaldi/installer/mini_installer/util:isolation_support",
-    ]
+    deps -= [ "//chrome/installer/util:isolation_support" ]
+    deps += [ "//vivaldi/installer/mini_installer/util:isolation_support" ]
+  }
+
+  update_target("//chrome/browser:core") {
+    deps -= [ "//chrome/installer/util:isolation_support" ]
+    deps += [ "//vivaldi/installer/mini_installer/util:isolation_support" ]
   }
 
   update_target("//chrome/browser/win:isolated_browser_support") {
-    deps -= [
-       "//chrome/installer/util:isolation_support",
-    ]
-    deps += [
-      "//vivaldi/installer/mini_installer/util:isolation_support",
-    ]
+    deps -= [ "//chrome/installer/util:isolation_support" ]
+    deps += [ "//vivaldi/installer/mini_installer/util:isolation_support" ]
   }
 
   update_target("//chrome/elevation_service:lib") {
-    deps -= [
-       "//chrome/installer/util:isolation_support",
-    ]
-    deps += [
-      "//vivaldi/installer/mini_installer/util:isolation_support",
-    ]
+    deps -= [ "//chrome/installer/util:isolation_support" ]
+    deps += [ "//vivaldi/installer/mini_installer/util:isolation_support" ]
   }
 
   update_target("//chrome/updater:base") {
-    deps -= [
-      "//chrome/installer/util:metainstaller_utils",
-    ]
-    deps += [
-      "//vivaldi/installer/mini_installer/util:metainstaller_utils",
-    ]
+    deps -= [ "//chrome/installer/util:metainstaller_utils" ]
+    deps += [ "//vivaldi/installer/mini_installer/util:metainstaller_utils" ]
   }
 
   if (vivaldi_build_tests) {
     update_target("//chrome/test:browser_tests_runner") {
-      deps -= [
-        "//chrome/installer/util:strings",
-      ]
-      deps += [
-        "//vivaldi/installer/mini_installer/util:strings",
-      ]
+      deps -= [ "//chrome/installer/util:strings" ]
+      deps += [ "//vivaldi/installer/mini_installer/util:strings" ]
     }
   }
 }
@@ -91,15 +69,17 @@ if (is_win) {
 _targets = []
 if (is_win) {
   _targets += [
+    "//chrome/browser/diagnostics:impl",
     "//chrome/browser/downgrade:impl",
-    "//chrome/browser/media/router:router",
     "//chrome/browser/enterprise/connectors/device_trust/key_management/browser/commands:commands",
     "//chrome/browser/enterprise/connectors/device_trust/key_management/core/persistence:persistence",
     "//chrome/browser/google:google",
+    "//chrome/browser/media/router:router",
     "//chrome/browser/ui/dialogs:impl",
     "//chrome/browser/web_applications/chrome_pwa_launcher:util",
+    "//chrome/browser/win:impl",
     "//chrome/notification_helper:notification_helper_unittests",
-    "//chrome/browser/diagnostics:impl",
+
     #"//chrome/browser/updater:updater",
   ]
   if (vivaldi_build_tests) {
@@ -111,19 +91,20 @@ if (is_win) {
     ]
   }
 }
+if (vivaldi_build_tests) {
+  _targets += [ "//chrome/browser/first_run:unit_tests" ]
+}
 if (is_win || is_mac) {
   _targets += [
+    "//chrome/browser/component_updater:impl",
     "//chrome/browser/ui/pdf/infobar:infobar",
   ]
 }
 if (is_linux) {
-  _targets += [
-    "//chrome:chrome_initial",
-  ]
+  _targets += [ "//chrome:chrome_initial" ]
 }
 if (enable_extensions) {
-  _targets += [
-  ]
+  _targets += []
 }
 if (!is_ios) {
   _targets += [
@@ -134,9 +115,7 @@ if (!is_ios) {
 }
 
 if (!is_android && !is_ios) {
-  _targets += [
-    "//chrome/browser/ui/startup:impl",
-  ]
+  _targets += [ "//chrome/browser/ui/startup:impl" ]
   if (is_win) {
     _targets += [
       "//chrome/browser/startup:startup",
@@ -144,19 +123,14 @@ if (!is_android && !is_ios) {
     ]
   }
   if (vivaldi_build_tests) {
-    _targets += [
-    ]
+    _targets += []
   }
 }
 
-foreach (_target, _targets) {
+foreach(_target, _targets) {
   update_target(_target) {
-    deps -= [
-      "//chrome/installer/util:with_no_strings",
-    ]
-    deps += [
-      "//vivaldi/installer/mini_installer/util:with_no_strings",
-    ]
+    deps -= [ "//chrome/installer/util:with_no_strings" ]
+    deps += [ "//vivaldi/installer/mini_installer/util:with_no_strings" ]
   }
 }
 
@@ -164,28 +138,26 @@ foreach (_target, _targets) {
 _targets = []
 if (!is_ios) {
   _targets += [
+    "//chrome/browser/first_run:first_run",
     "//chrome/common:common_lib",
   ]
 }
 
-foreach (_target, _targets) {
-  update_target(_target) {
-    public_deps -= [
-      "//chrome/installer/util:with_no_strings",
-    ]
-    public_deps += [
-      "//vivaldi/installer/mini_installer/util:with_no_strings",
-    ]
-  }
+if (is_win) {
+  _targets += [ "//chrome/browser/metrics:metrics" ]
 }
 
+foreach(_target, _targets) {
+  update_target(_target) {
+    public_deps -= [ "//chrome/installer/util:with_no_strings" ]
+    public_deps += [ "//vivaldi/installer/mini_installer/util:with_no_strings" ]
+  }
+}
 
 # Replace "//chrome/installer/util:constants"
 _targets = []
 if (!is_android && !is_ios) {
-  _targets += [
-    "//chrome/browser/profile_resetter:impl",
-  ]
+  _targets += [ "//chrome/browser/profile_resetter:impl" ]
 }
 if (is_win) {
   _targets += [
@@ -202,23 +174,17 @@ if (is_win) {
   }
 }
 
-foreach (_target, _targets) {
+foreach(_target, _targets) {
   update_target(_target) {
-    deps -= [
-      "//chrome/installer/util:constants",
-    ]
-    deps += [
-      "//vivaldi/installer/mini_installer/util:constants",
-    ]
+    deps -= [ "//chrome/installer/util:constants" ]
+    deps += [ "//vivaldi/installer/mini_installer/util:constants" ]
   }
 }
 
 # Replace "//chrome/installer/util:work_item"
 _targets = []
 if (is_win) {
-  _targets += [
-    "//chrome/updater:base",
-  ]
+  _targets += [ "//chrome/updater:base" ]
   if (vivaldi_build_tests) {
     _targets += [
       "//chrome/windows_services/service_program/test_support:test_support",
@@ -226,13 +192,9 @@ if (is_win) {
   }
 }
 
-foreach (_target, _targets) {
+foreach(_target, _targets) {
   update_target(_target) {
-    deps -= [
-      "//chrome/installer/util:work_item",
-    ]
-    deps += [
-      "//vivaldi/installer/mini_installer/util:work_item",
-    ]
+    deps -= [ "//chrome/installer/util:work_item" ]
+    deps += [ "//vivaldi/installer/mini_installer/util:work_item" ]
   }
 }

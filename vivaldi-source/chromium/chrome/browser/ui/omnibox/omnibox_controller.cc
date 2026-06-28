@@ -133,10 +133,11 @@ void OmniboxController::OnResultChanged(AutocompleteController* controller,
       edit_model_->OnCurrentMatchChanged();
     } else {
       edit_model_->OnPopupResultChanged();
-      edit_model_->OnPopupDataChanged(
-          std::u16string(),
-          /*is_temporary_text=*/false, std::u16string(), std::u16string(),
-          std::u16string(), false, std::u16string(), AutocompleteMatch());
+      edit_model_->OnPopupDataChanged(std::u16string(),
+                                      /*is_temporary_text=*/false,
+                                      std::u16string(), std::u16string(),
+                                      std::u16string(), KeywordState::kNone,
+                                      std::u16string(), AutocompleteMatch());
     }
   } else {
     edit_model_->OnPopupResultChanged();
@@ -188,6 +189,10 @@ bool OmniboxController::IsSuggestionHidden(
 }
 
 bool OmniboxController::IsPopupOpen() const {
+  if (base::FeatureList::IsEnabled(omnibox::kWebUIOmniboxFullPopupV2)) {
+    return !autocomplete_controller()->result().empty();
+  }
+
   OmniboxPopupState state = popup_state_manager_->popup_state();
   if (popup_state_validation_callback_) {
     popup_state_validation_callback_.Run(state);

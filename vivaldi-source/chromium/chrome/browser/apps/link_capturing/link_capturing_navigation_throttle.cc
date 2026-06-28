@@ -11,10 +11,9 @@
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/apps/link_capturing/link_capturing_tab_data.h"
 #include "chrome/browser/preloading/prefetch/no_state_prefetch/chrome_no_state_prefetch_contents_delegate.h"
-#include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"  // nogncheck https://crbug.com/1474116
-#include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"  // nogncheck https://crbug.com/1474116
+#include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"  // nogncheck https://crbug.com/40279225
+#include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"  // nogncheck https://crbug.com/40279225
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_finder.h"  // nogncheck https://crbug.com/1474984
 #include "chrome/browser/ui/web_applications/navigation_capturing_process.h"  // nogncheck https://crbug.com/377760841
 #include "chrome/browser/web_applications/link_capturing_features.h"
 #include "chrome/browser/web_applications/web_app_ui_manager.h"
@@ -22,6 +21,7 @@
 #include "components/keep_alive_registry/keep_alive_types.h"
 #include "components/keep_alive_registry/scoped_keep_alive.h"
 #include "components/page_load_metrics/google/browser/google_url_util.h"
+#include "components/tabs/public/tab_interface.h"  // nogncheck https://crbug.com/40279479
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
@@ -173,10 +173,12 @@ bool LinkCapturingNavigationThrottle::MaybeCreateAndAdd(
     return false;
   }
 
-  // If there is no browser attached to this web-contents yet, this was a
+  // If this web-contents is not yet inserted into a tab strip, this was a
   // middle-mouse-click action, which should not be captured.
   // TODO(crbug.com/40279479): Find a better way to detect middle-clicks.
-  if (chrome::FindBrowserWithTab(web_contents) == nullptr) {
+  tabs::TabInterface* tab =
+      tabs::TabInterface::MaybeGetFromContents(web_contents);
+  if (!tab || !tab->GetParentCollection()) {
     return false;
   }
 
@@ -193,12 +195,6 @@ bool LinkCapturingNavigationThrottle::MaybeCreateAndAdd(
   registry.AddThrottle(base::WrapUnique(
       new LinkCapturingNavigationThrottle(registry, std::move(delegate))));
   return true;
-}
-
-LinkCapturingNavigationThrottle::LaunchCallbackForTesting&
-LinkCapturingNavigationThrottle::GetLinkCaptureLaunchCallbackForTesting() {
-  static base::NoDestructor<LaunchCallbackForTesting> callback;
-  return *callback;
 }
 
 LinkCapturingNavigationThrottle::~LinkCapturingNavigationThrottle() = default;
@@ -317,7 +313,6 @@ ThrottleCheckResult LinkCapturingNavigationThrottle::HandleRequest() {
   // if we wait until after the launch completes to close the tab, then it will
   // cause the old window to come to the front hiding the newly launched app
   // window.
-  bool closed_web_contents = false;
   std::unique_ptr<ScopedKeepAlive> browser_keep_alive;
   std::unique_ptr<ScopedProfileKeepAlive> profile_keep_alive;
   if (IsEmptyDanglingWebContentsAfterLinkCapture(handle)) {
@@ -328,22 +323,14 @@ ThrottleCheckResult LinkCapturingNavigationThrottle::HandleRequest() {
           profile, ProfileKeepAliveOrigin::kAppWindow);
     }
     web_contents->ClosePage();
-    closed_web_contents = true;
   }
 
   // Note: This callback currently serves to own the "keep alive" objects
   // until the launch is complete.
   base::OnceClosure launch_callback = base::BindOnce(
       [](std::unique_ptr<ScopedKeepAlive> browser_keep_alive,
-         std::unique_ptr<ScopedProfileKeepAlive> profile_keep_alive,
-         bool closed_web_contents) {
-        if (GetLinkCaptureLaunchCallbackForTesting()) {        // IN-TEST
-          std::move(GetLinkCaptureLaunchCallbackForTesting())  // IN-TEST
-              .Run(closed_web_contents);                       // IN-TEST
-        }
-      },
-      std::move(browser_keep_alive), std::move(profile_keep_alive),
-      closed_web_contents);
+         std::unique_ptr<ScopedProfileKeepAlive> profile_keep_alive) {},
+      std::move(browser_keep_alive), std::move(profile_keep_alive));
 
   // The tab may have been closed, which runs async and causes the browser
   // window to be refocused. Post a task to launch the app to ensure launching

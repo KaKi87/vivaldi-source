@@ -30,6 +30,8 @@ struct NativeWebKeyboardEvent;
 
 namespace glic {
 
+class GlicSharingManager;
+
 class SelectionOverlayController
     : public OverlayBaseController,
       public selection::SelectionOverlayPageHandler {
@@ -54,6 +56,9 @@ class SelectionOverlayController
   static SelectionOverlayController* FromTabWebContents(
       content::WebContents* tab_web_contents);
 
+  size_t GetSelectedRegionCount() const { return selected_regions_.size(); }
+  std::vector<int> GetPolylineCounts() const;
+
   // This method is used to set up communication between this instance and the
   // overlay WebUI. This is called by the WebUIController when the WebUI is
   // executing javascript and ready to bind.
@@ -65,12 +70,18 @@ class SelectionOverlayController
   // `capture_region_observer_`.
   void BindCaptureRegionObserver(
       mojo::PendingRemote<mojom::CaptureRegionObserver> observer);
+  static void CaptureRegion(
+      tabs::TabInterface* tab,
+      GlicSharingManager& sharing_manager,
+      mojo::PendingRemote<mojom::CaptureRegionObserver> observer,
+      mojom::GetTabContextOptionsPtr options);
 
-  void Show();
+  void Show(mojom::GetTabContextOptionsPtr options);
   void Close();
 
   // `selection::SelectionOverlayPageHandler`:
-  void DeleteRegion(const base::UnguessableToken& id) override;
+  void DeleteRegion(const base::UnguessableToken& id,
+                    bool is_using_keyboard) override;
 
  private:
   void WillDiscardContents(tabs::TabInterface* tab,
@@ -93,10 +104,10 @@ class SelectionOverlayController
   void NotifyOverlayClosing() override;
   bool IsResultsSidePanelShowing() override;
   GURL GetInitialURL() override;
-  void NotifyIsOverlayShowing(bool is_showing) override;
+  void NotifyIsOverlayShowing(bool is_showing) override {}
   int GetToolResourceId() override;
-  ui::ElementIdentifier GetViewContainerId() override;
-  SidePanelEntry::PanelType GetSidePanelType() override;
+  ui::ElementIdentifier GetViewContainerId() const override;
+  SidePanelType GetSidePanelType() override;
   bool ShouldCloseSidePanel() override;
   bool ShouldShowPreselectionBubble() override;
   bool UseOverlayBlur() override;
@@ -108,7 +119,8 @@ class SelectionOverlayController
 
   // `selection::SelectionOverlayPageHandler`:
   void DismissOverlay(selection::DismissOverlayReason reason) override;
-  void AdjustRegion(selection::SelectedRegionPtr target) override;
+  void AdjustRegion(selection::SelectedRegionPtr target,
+                    bool is_using_keyboard) override;
   void ClosePreselectionBubble() override;
   void AddBackgroundBlur() override;
   void SetLiveBlur(bool enabled) override;
@@ -124,11 +136,12 @@ class SelectionOverlayController
   void SetScreenshot(const SkBitmap& screenshot, SkBitmap rgb_screenshot);
 
   // Render all the `selected_regions_` on top of `redacted_screenshot_`.
-  void RenderRegions();
+  void RenderRegions(bool should_focus_panel);
 
   void Reset();
   glic::mojom::AdditionalContextPtr CreateAdditionalContext(
-      const std::vector<std::pair<base::UnguessableToken, gfx::Rect>>& regions);
+      std::vector<std::pair<base::UnguessableToken,
+                            glic::mojom::CapturedRegionPtr>> regions);
 
   // Connections to and from the overlay WebUI. Only valid while
   // `OverlayBaseController::overlay_view_` is showing and the underlying
@@ -146,6 +159,7 @@ class SelectionOverlayController
   SkBitmap initial_rgb_screenshot_;
   SkBitmap redacted_screenshot_;
   mojom::TabContextPtr tab_context_;
+  mojom::GetTabContextOptionsPtr options_;
   // Caches the user-selected region. To be renderer on top of
   // `initial_screenshot_`.
   base::flat_map<base::UnguessableToken, selection::SelectedRegionPtr>

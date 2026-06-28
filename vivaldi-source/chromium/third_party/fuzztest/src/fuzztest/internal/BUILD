@@ -37,7 +37,26 @@ cc_test(
     srcs = ["any_test.cc"],
     deps = [
         ":any",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "enum_reflection",
+    hdrs = ["enum_reflection.h"],
+    deps = [
+        ":meta",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:string_view",
+    ],
+)
+
+cc_test(
+    name = "enum_reflection_test",
+    srcs = ["enum_reflection_test.cc"],
+    deps = [
+        ":enum_reflection",
+        "@abseil-cpp//absl/strings:string_view",
         "@googletest//:gtest_main",
     ],
 )
@@ -78,7 +97,6 @@ cc_library(
         "@com_google_fuzztest//centipede:centipede_interface",
         "@com_google_fuzztest//centipede:centipede_runner_no_main",
         "@com_google_fuzztest//centipede:environment",
-        "@com_google_fuzztest//centipede:execution_metadata",
         "@com_google_fuzztest//centipede:fuzztest_mutator",
         "@com_google_fuzztest//centipede:mutation_data",
         "@com_google_fuzztest//centipede:runner_result",
@@ -144,7 +162,6 @@ cc_library(
         ":io",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
-        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -272,7 +289,6 @@ cc_test(
         "@com_google_fuzztest//common:defs",
         "@com_google_fuzztest//common:logging",
         "@com_google_fuzztest//common:temp_dir",
-        "@com_google_fuzztest//fuzztest:fuzztest_core",
         "@googletest//:gtest_main",
     ],
 )

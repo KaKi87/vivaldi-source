@@ -22,7 +22,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window_state.h"
-#include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/ui/unload_controller.h"
 #include "chrome/browser/ui/views/frame/browser_frame_view.h"
 #include "chrome/browser/ui/views/frame/browser_native_widget.h"
 #include "chrome/browser/ui/views/frame/browser_native_widget_factory.h"
@@ -38,6 +38,7 @@
 #include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/base/mojom/themes.mojom.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/color/color_provider_key.h"
 #include "ui/events/event_handler.h"
 #include "ui/views/controls/menu/menu_runner.h"
@@ -85,9 +86,9 @@ class ThemeChangedObserver : public views::WidgetObserver {
       widget_observation{this};
 };
 
-bool IsUsingLinuxSystemTheme(ThemeService* theme_service) {
+bool IsUsingLinuxSystemTheme(Profile* profile) {
 #if BUILDFLAG(IS_LINUX)
-  return theme_service->UsingSystemTheme();
+  return ThemeServiceFactory::GetForProfile(profile)->UsingSystemTheme();
 #else
   return false;
 #endif
@@ -115,15 +116,7 @@ BrowserWidget::BrowserWidget(BrowserView* browser_view)
     : browser_native_widget_(nullptr),
       root_view_(nullptr),
       browser_frame_view_(nullptr),
-      browser_view_(browser_view),
-      theme_service_(ThemeServiceFactory::GetForProfile(
-          browser_view_->browser()->GetProfile())) {
-  // theme_service_ can be cached since BrowserView::browser_ and
-  // Browser::profile_ are both const. The return value of
-  // `ThemeServiceFactory::GetForProfile(browser_view_->browser()->GetProfile()`
-  // will not change.
-  CHECK(theme_service_);
-
+      browser_view_(browser_view) {
   // Don't focus anything on creation, selecting a tab will set the focus.
   set_focus_on_creation(false);
 }
@@ -168,7 +161,7 @@ void BrowserWidget::InitBrowserWidget() {
     // On all platforms, except for Windows, this doesn't change anything
     // visually. If this is set for the Windows platform, the UI will be
     // affected. Specifically, the title bar will not render correctly, see
-    // https://crbug.com/1456231 for more details.
+    // https://crbug.com/40273014 for more details.
     params.remove_standard_frame = true;
 #endif  // !BUILDFLAG(IS_WIN)
   }
@@ -205,6 +198,10 @@ void BrowserWidget::InitBrowserWidget() {
             parsed_command_line.GetSwitchValueASCII(switches::kWindowWorkspace);
       }
     }
+  }
+
+  if (features::IsGlassFrameEnabled()) {
+    params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
   }
 
   Init(std::move(params));
@@ -311,12 +308,11 @@ bool BrowserWidget::GetAccelerator(int command_id,
 const ui::ThemeProvider* BrowserWidget::GetThemeProvider() const {
   Browser* browser = browser_view_->browser();
   auto* app_controller = browser->app_controller();
-  auto* theme_service = GetThemeService();
   // Ignore the system theme for web apps with window-controls-overlay as the
   // display_override so the web contents can blend with the overlay by using
   // the developer-provided theme color for a better experience. Context:
-  // https://crbug.com/1219073.
-  if (app_controller && (!IsUsingLinuxSystemTheme(theme_service) ||
+  // https://crbug.com/40771982.
+  if (app_controller && (!IsUsingLinuxSystemTheme(browser->profile()) ||
                          app_controller->AppUsesWindowControlsOverlay())) {
     return app_controller->GetThemeProvider();
   }
@@ -332,15 +328,15 @@ ui::ColorProviderKey::ThemeInitializerSupplier* BrowserWidget::GetCustomTheme()
 
   Browser* browser = browser_view_->browser();
   auto* app_controller = browser->app_controller();
-  auto* theme_service = GetThemeService();
   // Ignore the system theme for web apps with window-controls-overlay as the
   // display_override so the web contents can blend with the overlay by using
   // the developer-provided theme color for a better experience. Context:
-  // https://crbug.com/1219073.
-  if (app_controller && (!IsUsingLinuxSystemTheme(theme_service) ||
+  // https://crbug.com/40771982.
+  if (app_controller && (!IsUsingLinuxSystemTheme(browser->profile()) ||
                          app_controller->AppUsesWindowControlsOverlay())) {
     return app_controller->GetThemeSupplier();
   }
+  auto* theme_service = ThemeServiceFactory::GetForProfile(browser->profile());
   return theme_service->UsingDeviceTheme() ? nullptr
                                            : theme_service->GetThemeSupplier();
 }
@@ -361,7 +357,7 @@ void BrowserWidget::OnNativeWidgetDestroyed() {
   // destruction here.
   // TODO(crbug.com/413168662): Once clients have been migrated away from
   // closing Browsers via their NativeWidgets explore removing this completely.
-  browser->set_force_skip_warning_user_on_close(true);
+  UnloadController::From(browser)->set_force_skip_warning_user_on_close(true);
   browser->OnWindowClosing();
   Widget::OnNativeWidgetDestroyed();
   browser->SynchronouslyDestroyBrowser();
@@ -381,7 +377,7 @@ void BrowserWidget::ShowContextMenuForViewImpl(
     return;
   }
 
-  // Don't show a menu if a tab drag is active. https://crbug.com/1517709
+  // Don't show a menu if a tab drag is active. https://crbug.com/41490687
   if (tab_drag_kind_ != TabDragKind::kNone) {
     return;
   }
@@ -393,7 +389,8 @@ void BrowserWidget::ShowContextMenuForViewImpl(
   gfx::Point point_in_view_coords(p);
   views::View::ConvertPointFromScreen(non_client_view(), &point_in_view_coords);
   int hit_test = non_client_view()->NonClientHitTest(point_in_view_coords);
-  if (hit_test == HTCAPTION || hit_test == HTNOWHERE) {
+  if (source_type == ui::mojom::MenuSourceType::kKeyboard ||
+      hit_test == HTCAPTION || hit_test == HTNOWHERE) {
     menu_runner_ = std::make_unique<views::MenuRunner>(
         GetSystemMenuModel(),
         views::MenuRunner::HAS_MNEMONICS | views::MenuRunner::CONTEXT_MENU,
@@ -455,7 +452,9 @@ ui::ColorProviderKey BrowserWidget::GetColorProviderKey() const {
   }
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
-  auto* theme_service = GetThemeService();
+  const auto* theme_service =
+      ThemeServiceFactory::GetForProfile(browser_view_->browser()->profile());
+  CHECK(theme_service);
 
   // color_mode.
   [this, &key, theme_service]() {
@@ -547,7 +546,7 @@ void BrowserWidget::SelectNativeTheme() {
   // Ignore the system theme for web apps with window-controls-overlay as the
   // display_override so the web contents can blend with the overlay by using
   // the developer-provided theme color for a better experience. Context:
-  // https://crbug.com/1219073.
+  // https://crbug.com/40771982.
   const auto* linux_ui_theme =
       ui::LinuxUiTheme::GetForWindow(GetNativeWindow());
   SetNativeTheme(linux_ui_theme &&
@@ -562,7 +561,7 @@ void BrowserWidget::OnTouchUiChanged() {
 
   // For standard browser frame, if we do not invalidate the FrameView
   // the client window bounds will not be properly updated which could cause
-  // visual artifacts. See crbug.com/1035959 for details.
+  // visual artifacts. See crbug.com/40112464 for details.
   if (non_client_view()->frame_view()) {
     // Note that invalidating a view invalidates all of its ancestors, so it is
     // not necessary to also invalidate the NonClientView or RootView here.
@@ -585,7 +584,7 @@ bool BrowserWidget::RegenerateFrameOnThemeChange(
 #if BUILDFLAG(IS_WIN)
   // On Windows, DWM transition does not performed for a frame regeneration in
   // fullscreen mode, so do a lighweight theme change to refresh a bookmark bar
-  // on new tab. (see crbug/1002480)
+  // on new tab. (see crbug.com/40646694)
   // With Mica, toggling titlebar accent colors in the native theme needs a
   // frame regen to switch between the system-drawn and custom-drawn titlebars.
   need_regenerate |=
@@ -610,12 +609,4 @@ bool BrowserWidget::RegenerateFrameOnThemeChange(
 
 bool BrowserWidget::IsIncognitoBrowser() const {
   return browser_view_->browser()->profile()->IsIncognitoProfile();
-}
-
-ThemeService* BrowserWidget::GetThemeService() const {
-  if (base::FeatureList::IsEnabled(features::kBrowserWidgetCacheThemeService)) {
-    return theme_service_;
-  }
-  return ThemeServiceFactory::GetForProfile(
-      browser_view_->browser()->GetProfile());
 }

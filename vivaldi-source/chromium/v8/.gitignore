@@ -40,6 +40,8 @@
 .settings
 .torquelint-cache
 .vscode
+.agents
+.gemini
 
 # Directories added by standalone gclient setup.
 /.cipd
@@ -77,8 +79,6 @@
 !/third_party/antlr4
 !/third_party/colorama
 /third_party/colorama/src
-!/third_party/cpu_features
-/third_party/cpu_features/src
 !/third_party/dragonbox
 /third_party/dragonbox/src
 !/third_party/fast_float
@@ -147,3 +147,7 @@ bazel-testlogs
 bazel-v8
 launch.json
 MODULE.bazel.lock
+GEMINI.md
+AGENTS.md
+/worktrees
+/agents/shared/

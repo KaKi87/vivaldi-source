@@ -25,11 +25,17 @@ class PrefRegistrySimple;
 class PrefService;
 class PrefValueMap;
 
+namespace os_crypt_async {
+class Encryptor;
+}  // namespace os_crypt_async
+
 namespace sync_pb {
 class TrustedVaultAutoUpgradeExperimentGroup;
 }  // namespace sync_pb
 
 namespace syncer {
+
+class CustomPassphraseBootstrapToken;
 
 class SyncPrefObserver : public base::CheckedObserver {
  public:
@@ -218,10 +224,13 @@ class SyncPrefs {
   void ClearAllEncryptionBootstrapTokens();
   // The encryption bootstrap token per account. Used for explicit passphrase
   // users (usually custom passphrase) and represents a user-entered passphrase.
-  std::string GetEncryptionBootstrapTokenForAccount(
+  CustomPassphraseBootstrapToken GetEncryptionBootstrapTokenForAccount(
+      const os_crypt_async::Encryptor& encryptor,
       const GaiaId& gaia_id) const;
-  void SetEncryptionBootstrapTokenForAccount(const std::string& token,
-                                             const GaiaId& gaia_id);
+  void SetEncryptionBootstrapTokenForAccount(
+      const CustomPassphraseBootstrapToken& token,
+      const os_crypt_async::Encryptor& encryptor,
+      const GaiaId& gaia_id);
   void ClearEncryptionBootstrapTokenForAccount(const GaiaId& gaia_id);
 
   // Muting mechanism for passphrase prompts, used on Android.
@@ -264,18 +273,6 @@ class SyncPrefs {
   // signed-in.
   static void MigrateGlobalDataTypePrefsToAccount(PrefService* pref_service,
                                                   const GaiaId& gaia_id);
-
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
-  // Performs a one-off migration which ensures that, for a user who...
-  // ...enabled sync-the-feature, then...
-  // ...disabled an autofill data type, then...
-  // ...disabled sync-the-feature, then...
-  // ...signed-in with the same account (without sync-the-feture), the autofill
-  // data type is disabled.
-  // Internally this works by reading the global passwords setting and writing
-  // it to the account setting for kGoogleServicesLastSyncingGaiaId.
-  static void MaybeMigrateAutofillToPerAccountPref(PrefService* pref_service);
-#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
 
   // Returns whether a UserSelectableType is enabled by default in transport
   // mode, that is, without an explicit value stored in prefs.

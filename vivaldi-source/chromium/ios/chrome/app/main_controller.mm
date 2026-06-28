@@ -31,10 +31,10 @@
 #import "components/component_updater/component_updater_service.h"
 #import "components/component_updater/installer_policies/on_device_head_suggest_component_installer.h"
 #import "components/component_updater/installer_policies/optimization_hints_component_installer.h"
-#import "components/component_updater/installer_policies/plus_address_blocklist_component_installer.h"
 #import "components/component_updater/installer_policies/safety_tips_component_installer.h"
 #import "components/content_settings/core/browser/host_content_settings_map.h"
 #import "components/metrics/metrics_pref_names.h"
+#import "components/metrics/metrics_reporting_choice_service.h"
 #import "components/metrics/metrics_service.h"
 #import "components/password_manager/core/common/password_manager_features.h"
 #import "components/password_manager/core/common/passwords_directory_util_ios.h"
@@ -238,7 +238,6 @@ void RegisterComponentsForUpdate() {
       cus, GetApplicationContext()->GetApplicationLocaleStorage()->Get());
   RegisterSafetyTipsComponent(cus);
   RegisterOptimizationHintsComponent(cus);
-  RegisterPlusAddressBlocklistComponent(cus);
 }
 
 // The delay before beginning memory experimentation.
@@ -705,7 +704,7 @@ std::string GetProfileNameForChoice(ProfileChoice choice,
 
   CustomizeUIAppearance();
 
-  // Schedule the prefs observer init first to ensure kMetricsReportingEnabled
+  // Schedule the prefs observer init first to ensure the metrics reporting pref
   // is synced before starting uploads.
   [self schedulePrefObserverInitialization];
   [self scheduleCrashReportUpload];
@@ -1312,6 +1311,8 @@ std::string GetProfileNameForChoice(ProfileChoice choice,
   _localStatePrefObserverBridge->ObserveChangesForPreference(
       metrics::prefs::kMetricsReportingEnabled,
       &_localStatePrefChangeRegistrar);
+  _localStatePrefObserverBridge->ObserveChangesForPreference(
+      metrics::prefs::kMetricsReportingLevel, &_localStatePrefChangeRegistrar);
 
   // Calls the onPreferenceChanged function in case there was a change to the
   // observed preferences before the observer bridge was set up. However, if the
@@ -1326,9 +1327,14 @@ std::string GetProfileNameForChoice(ProfileChoice choice,
   // discarded, as would happen here if onPreferenceChanged was called while the
   // user was still on the welcome screen and did yet enable/disable metrics
   // reporting.
-  if (!localState->FindPreference(metrics::prefs::kMetricsReportingEnabled)
-           ->IsDefaultValue()) {
-    [self onPreferenceChanged:metrics::prefs::kMetricsReportingEnabled];
+  const std::string& prefName =
+      metrics::MetricsReportingChoiceService::
+              ShouldUseMetricsConsentRestructure(localState)
+          ? metrics::prefs::kMetricsReportingLevel
+          : metrics::prefs::kMetricsReportingEnabled;
+
+  if (!localState->FindPreference(prefName)->IsDefaultValue()) {
+    [self onPreferenceChanged:prefName];
   }
 }
 
@@ -1601,9 +1607,18 @@ std::string GetProfileNameForChoice(ProfileChoice choice,
 #pragma mark - Preferences Management
 
 - (void)onPreferenceChanged:(const std::string&)preferenceName {
-  // Turn on or off metrics & crash reporting when either preference changes.
-  if (preferenceName == metrics::prefs::kMetricsReportingEnabled) {
-    [_metricsMediator updateMetricsStateBasedOnPrefsUserTriggered:YES];
+  // Turn on or off metrics & crash reporting when the metrics reporting
+  // preference changes.
+  PrefService* localState = GetApplicationContext()->GetLocalState();
+  if (metrics::MetricsReportingChoiceService::
+          ShouldUseMetricsConsentRestructure(localState)) {
+    if (preferenceName == metrics::prefs::kMetricsReportingLevel) {
+      [_metricsMediator updateMetricsStateBasedOnPrefsUserTriggered:YES];
+    }
+  } else {
+    if (preferenceName == metrics::prefs::kMetricsReportingEnabled) {
+      [_metricsMediator updateMetricsStateBasedOnPrefsUserTriggered:YES];
+    }
   }
 }
 

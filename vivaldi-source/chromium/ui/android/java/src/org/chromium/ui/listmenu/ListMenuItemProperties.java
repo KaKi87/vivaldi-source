@@ -64,6 +64,12 @@ public class ListMenuItemProperties {
     public static final WritableObjectPropertyKey<@Nullable Bitmap> START_ICON_BITMAP =
             new WritableObjectPropertyKey<>();
 
+    /** The width for the start icon. */
+    public static final WritableIntPropertyKey START_ICON_WIDTH = new WritableIntPropertyKey();
+
+    /** The width for the end icon. */
+    public static final WritableIntPropertyKey END_ICON_WIDTH = new WritableIntPropertyKey();
+
     public static final WritableIntPropertyKey END_ICON_ID = new WritableIntPropertyKey();
     public static final WritableIntPropertyKey GROUP_ID = new WritableIntPropertyKey();
     public static final WritableIntPropertyKey MENU_ITEM_ID = new WritableIntPropertyKey();
@@ -83,6 +89,8 @@ public class ListMenuItemProperties {
             new ReadableBooleanPropertyKey();
     public static final ReadableBooleanPropertyKey KEEP_START_ICON_SPACING_WHEN_HIDDEN =
             new ReadableBooleanPropertyKey();
+    public static final WritableObjectPropertyKey<Boolean> SHOULD_TINT_END_ICON =
+            new WritableObjectPropertyKey<>();
 
     public static final WritableObjectPropertyKey<View.OnKeyListener> KEY_LISTENER =
             new WritableObjectPropertyKey<>();
@@ -102,6 +110,8 @@ public class ListMenuItemProperties {
         START_ICON_ID,
         START_ICON_DRAWABLE,
         START_ICON_BITMAP,
+        START_ICON_WIDTH,
+        END_ICON_WIDTH,
         END_ICON_ID,
         GROUP_ID,
         MENU_ITEM_ID,
@@ -114,6 +124,7 @@ public class ListMenuItemProperties {
         TEXT_APPEARANCE_ID,
         IS_TEXT_ELLIPSIZED_AT_END,
         KEEP_START_ICON_SPACING_WHEN_HIDDEN,
+        SHOULD_TINT_END_ICON,
         KEY_LISTENER,
         TOUCH_LISTENER,
         ORDER

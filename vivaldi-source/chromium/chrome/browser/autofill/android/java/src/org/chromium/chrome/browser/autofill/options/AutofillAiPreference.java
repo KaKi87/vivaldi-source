@@ -66,8 +66,7 @@ public class AutofillAiPreference extends ChromeSwitchPreference
         EntityDataManager manager =
                 mProfile != null ? EntityDataManagerFactory.getForProfile(mProfile) : null;
         boolean showLoggingInfo =
-                (manager != null)
-                        && manager.getIsAutofillAiEnabledByEnterprisePolicyWithoutLogging();
+                (manager != null) && !manager.getIsAutofillAiAllowedByEnterprisePolicy();
         if (showLoggingInfo) {
             TextView summaryView =
                     (TextView) thingsToConsider.findViewById(R.id.info_item_summary_2);
@@ -105,10 +104,10 @@ public class AutofillAiPreference extends ChromeSwitchPreference
             @StringRes int summaryId,
             @DrawableRes int iconId) {
         Context context = getContext();
-        TextView titleView = (TextView) infoItem.findViewById(R.id.info_item_title);
+        TextView titleView = infoItem.findViewById(R.id.info_item_title);
         titleView.setText(context.getString(titleId));
 
-        TextView summaryView = (TextView) infoItem.findViewById(R.id.info_item_summary);
+        TextView summaryView = infoItem.findViewById(R.id.info_item_summary);
         setTextAndIconToInfoDetails(summaryView, summaryId, iconId);
     }
 }

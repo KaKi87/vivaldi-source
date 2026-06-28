@@ -138,8 +138,8 @@ export enum PageContentAnnotatedRole {
 
 export interface PageContentGeometry {
   outerBoundingBox: Rect;
-  visibleBoundingBox: Rect;
-  fragmentVisibleBoundingBoxes: Rect[];
+  visibleBoundingBox?: Rect;
+  fragmentVisibleBoundingBoxes?: Rect[];
 }
 
 export interface PageContentSelection {
@@ -157,6 +157,7 @@ export interface PageContentPageInteractionInfo {
 }
 
 export interface PageContentFrameInteractionInfo {
+  focusedDomNodeId?: number;
   selection?: PageContentSelection;
 }
 
@@ -217,7 +218,9 @@ export enum PageContentTextSize {
 export interface PageContentTextStyle {
   textSize: PageContentTextSize;
   hasEmphasis: boolean;
-  color?: number;
+  // Color is passed as a string to avoid 32-bit signed integer overflow
+  // during bridge conversion (values can exceed INT_MAX).
+  color?: string;
 }
 
 export interface PageContentTextInfo {
@@ -294,6 +297,7 @@ export interface PageContentFrameData {
   // during iframe registration. Just populated for PageContentIframeContent.
   documentId?: string;
   mediaData?: PageContentMediaData;
+  isFocusedDocument?: boolean;
 }
 
 // The numbers are aligned with the RedactedFrameMetadata enum in
@@ -315,7 +319,11 @@ export interface PageContentIframeContent {
 }
 
 export interface PageContentIframeData {
-  frameToken: FrameToken;
+  // The token used by the browser to identify and graft this child frame.
+  remoteFrameToken: FrameToken;
+  // The frame's local and private token in the renderer context.
+  localFrameToken?: FrameToken;
+  // The grafted iframe content if same-origin.
   content?: PageContentIframeContent;
 }
 
@@ -365,6 +373,8 @@ export interface PageContentFormControlData {
   isRequired: boolean;
   isReadonly?: boolean;
   redactionDecision: PageContentRedactionDecision;
+  // Node ID assigned by Autofill if the node is handled by Autofill.
+  autofillNodeId?: number;
 }
 
 export interface PageContentAttributes {

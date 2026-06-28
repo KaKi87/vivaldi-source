@@ -12,11 +12,14 @@ declare_args() {
 if (vivaldi_enable_siso) {
   declare_overrides() {
     if (getenv("CHROME_HEADLESS") == "1") {
-      reclient_cfg_dir=rebase_path("//vivaldi/build/reclient_cfgs", root_build_dir)
+      reclient_cfg_dir =
+          rebase_path("//vivaldi/build/reclient_cfgs", root_build_dir)
       #siso_cfg_dir=rebase_path("//vivaldi/build/siso_cfgs", root_build_dir)
     } else {
-      reclient_cfg_dir=rebase_path("//vivaldi/build/reclient_main_cfgs", root_build_dir)
-      #siso_cfg_dir=rebase_path("//vivaldi/build/siso_main_cfgs", root_build_dir)
+      reclient_cfg_dir =
+          rebase_path("//vivaldi/build/reclient_main_cfgs", root_build_dir)
+      # #siso_cfg_dir=rebase_path("//vivaldi/build/siso_main_cfgs",
+      # root_build_dir)
     }
     rbe_exec_root = rebase_path("//vivaldi")
 
@@ -28,7 +31,7 @@ if (vivaldi_enable_siso) {
       reclient_cc_cfg_file = "${reclient_cfg_dir}/rewrapper_windows.cfg"
     } else if (is_mac || is_ios) {
       reclient_cc_cfg_file = "${reclient_cfg_dir}/rewrapper_mac.cfg"
-    } else{
+    } else {
       reclient_cc_cfg_file = "${reclient_cfg_dir}/rewrapper_linux.cfg"
     }
   }

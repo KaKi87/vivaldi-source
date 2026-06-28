@@ -15,7 +15,7 @@ void PageInfoBubbleView::ShowPopupAtPos(gfx::Point anchor_pos,
                                         gfx::NativeView parent) {
   gfx::Rect anchor_rect = gfx::Rect();
   PageInfoBubbleView* thispopup = new PageInfoBubbleView(
-      nullptr, anchor_rect, parent, web_contents, url, base::DoNothing(),
+      {}, anchor_rect, parent, web_contents, url, base::DoNothing(),
       base::BindOnce(&OnPageInfoBubbleClosed), false);
   thispopup->SetAnchorRect(gfx::Rect(anchor_pos, gfx::Size()));
   thispopup->GetWidget()->Show();

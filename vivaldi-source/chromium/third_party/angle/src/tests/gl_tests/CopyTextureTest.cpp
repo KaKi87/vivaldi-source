@@ -941,6 +941,10 @@ TEST_P(CopyTextureTest, CopyTextureInvalidTextureIds)
                           false, false);
     EXPECT_GL_ERROR(GL_INVALID_VALUE);
 
+    glCopyTextureCHROMIUM(mTextures[0], 0, GL_TEXTURE_2D, mTextures[0], 0, GL_RGBA,
+                          GL_UNSIGNED_BYTE, false, false, false);
+    EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+
     glCopyTextureCHROMIUM(mTextures[0], 0, GL_TEXTURE_2D, mTextures[1], 0, GL_RGBA,
                           GL_UNSIGNED_BYTE, false, false, false);
     EXPECT_GL_NO_ERROR();
@@ -1037,6 +1041,10 @@ TEST_P(CopyTextureTest, CopySubTextureInvalidTextureIds)
     glCopySubTextureCHROMIUM(99995, 0, GL_TEXTURE_2D, 99996, 0, 1, 1, 0, 0, 1, 1, false, false,
                              false);
     EXPECT_GL_ERROR(GL_INVALID_VALUE);
+
+    glCopySubTextureCHROMIUM(mTextures[0], 0, GL_TEXTURE_2D, mTextures[0], 0, 1, 1, 0, 0, 1, 1,
+                             false, false, false);
+    EXPECT_GL_ERROR(GL_INVALID_OPERATION);
 
     glCopySubTextureCHROMIUM(mTextures[0], 0, GL_TEXTURE_2D, mTextures[1], 0, 1, 1, 0, 0, 1, 1,
                              false, false, false);
@@ -2092,11 +2100,7 @@ TEST_P(CopyTextureTestES3, LuminanceWorkaroundTextureSwizzleBug)
 // Test to ensure that CopyTexture will fail with a non-zero level and NPOT texture in WebGL
 TEST_P(CopyTextureTestWebGL, NPOT)
 {
-    if (IsGLExtensionRequestable("GL_CHROMIUM_copy_texture"))
-    {
-        glRequestExtensionANGLE("GL_CHROMIUM_copy_texture");
-    }
-    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_CHROMIUM_copy_texture"));
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_CHROMIUM_copy_texture"));
 
     std::vector<GLColor> pixelData(10 * 10, GLColor::red);
 
@@ -2721,6 +2725,59 @@ TEST_P(CopyTextureTestES3, SwizzleOnSource)
     EXPECT_PIXEL_COLOR_EQ(0, 0, kSourceColor);
 }
 
+// Test that copies that trigger internal readbacks do not interfere with the frontend PBO state.
+TEST_P(CopyTextureTestES3, PBOSynchronization)
+{
+    ANGLE_SKIP_TEST_IF(!checkExtensions());
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_EXT_sRGB"));
+
+    GLTexture backbufferTex;
+    glBindTexture(GL_TEXTURE_2D, backbufferTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+    GLFramebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, backbufferTex, 0);
+
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    EXPECT_GL_NO_ERROR();
+
+    // Set the PBO and write some data to it. It will be synchronized in the backend
+    GLBuffer pbo;
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
+    glBufferData(GL_PIXEL_PACK_BUFFER, 4096, nullptr, GL_STATIC_DRAW);
+    glReadPixels(0, 0, 16, 16, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+
+    // Copy into an SRGB texture which does an internal readback
+    glBindTexture(GL_TEXTURE_2D, mTextures[1]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    EXPECT_GL_NO_ERROR();
+
+    glBindTexture(GL_TEXTURE_2D, mTextures[0]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB_ALPHA_EXT, 1, 1, 0, GL_SRGB_ALPHA_EXT, GL_UNSIGNED_BYTE,
+                 nullptr);
+    EXPECT_GL_NO_ERROR();
+
+    glCopySubTextureCHROMIUM(mTextures[1], 0, GL_TEXTURE_2D, mTextures[0], 0, 0, 0, 0, 0, 1, 1,
+                             false, false, false);
+    EXPECT_GL_NO_ERROR();
+
+    // Read pixels again, should still go to the PBO
+    glReadPixels(0, 0, 16, 16, GL_RGBA, GL_UNSIGNED_BYTE, reinterpret_cast<GLvoid *>(1024));
+
+    uint8_t *mappedPtr =
+        static_cast<uint8_t *>(glMapBufferRangeEXT(GL_PIXEL_PACK_BUFFER, 0, 4096, GL_MAP_READ_BIT));
+    EXPECT_GL_NO_ERROR();
+
+    EXPECT_EQ(GLColor::red, *reinterpret_cast<GLColor *>(mappedPtr));
+    EXPECT_EQ(GLColor::red, *reinterpret_cast<GLColor *>(mappedPtr + 1024));
+
+    glUnmapBufferOES(GL_PIXEL_PACK_BUFFER);
+    EXPECT_GL_NO_ERROR();
+}
+
 // Test that the right error type is triggered when
 // OES_EGL_image_external_essl3 is required but not supported
 TEST_P(CopyTextureTestES3, CopySubTextureMissingRequiredExtension)
@@ -3286,6 +3343,115 @@ TEST_P(CopyTextureTestES3, TextureCopyMultipleSlicesBetween2DArrayAnd3D)
     EXPECT_PIXEL_RECT32I_EQ(0, kTexHeight / 2, kTexWidth, kTexHeight / 2, kIntGreen);
 }
 
+// Test that glCopyTextureCHROMIUM and glCopySubTextureCHROMIUM fail validation if the source level
+// is outside the [BASE, MAX] range.
+TEST_P(CopyTextureTestES3, VerifySourceLevelInBaseMaxRange)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_CHROMIUM_copy_texture"));
+
+    // Define level 0 for src texture, but base it at level 2.
+    GLTexture src;
+    glBindTexture(GL_TEXTURE_2D, src);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 2, GL_RGBA8, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 3, GL_RGBA8, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 2);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 3);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    GLTexture dst;
+    glBindTexture(GL_TEXTURE_2D, dst);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    ASSERT_GL_NO_ERROR();
+
+    for (int32_t srcLevel = -1; srcLevel < 5; ++srcLevel)
+    {
+        // Copy from src at level -1 is invalid, it's negative
+        // Copy from src at level 0 is invalid, it's under the BASE level
+        // Copy from src at level 1 is invalid, it's never defined
+        // Copy from src at level 2 and 3 are valid, with or without mipmapping
+        // Copy from src at level 4+ are invalid, it's over the MAX level
+        bool valid = srcLevel >= 2 && srcLevel <= 3;
+
+        uint32_t size = srcLevel > 0 ? 64 >> srcLevel : 64;
+        glCopySubTextureCHROMIUM(src, srcLevel, GL_TEXTURE_2D, dst, 0, 0, 0, 0, 0, size, size,
+                                 GL_FALSE, GL_FALSE, GL_FALSE);
+        if (valid)
+        {
+            EXPECT_GL_NO_ERROR() << srcLevel;
+        }
+        else
+        {
+            EXPECT_GL_ERROR(GL_INVALID_OPERATION) << srcLevel;
+        }
+        glCopyTextureCHROMIUM(src, srcLevel, GL_TEXTURE_2D, dst, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                              GL_FALSE, GL_FALSE, GL_FALSE);
+        if (valid)
+        {
+            EXPECT_GL_NO_ERROR() << srcLevel;
+        }
+        else
+        {
+            EXPECT_GL_ERROR(GL_INVALID_OPERATION) << srcLevel;
+        }
+    }
+
+    // Enable mipmapping and copy from level 3.  Still valid.
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+    glCopySubTextureCHROMIUM(src, 3, GL_TEXTURE_2D, dst, 0, 0, 0, 0, 0, 8, 8, GL_FALSE, GL_FALSE,
+                             GL_FALSE);
+    EXPECT_GL_NO_ERROR();
+    glCopyTextureCHROMIUM(src, 3, GL_TEXTURE_2D, dst, 0, GL_RGBA, GL_UNSIGNED_BYTE, GL_FALSE,
+                          GL_FALSE, GL_FALSE);
+    EXPECT_GL_NO_ERROR();
+}
+
+// Test that glCopyTextureCHROMIUM and glCopySubTextureCHROMIUM fail validation if the source
+// texture is not framebuffer-attachment-complete.
+TEST_P(CopyTextureTestES3, VerifySourceTexturesComplete)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_CHROMIUM_copy_texture"));
+
+    // Incomplete because mipmapping is enabled but the 1+ levels are not defined
+    GLTexture incompleteSrc;
+    glBindTexture(GL_TEXTURE_2D, incompleteSrc);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 4, 3, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 4, 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 2, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+    GLTexture dst;
+    glBindTexture(GL_TEXTURE_2D, dst);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 10, 15, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    ASSERT_GL_NO_ERROR();
+
+    // glCopyTextureCHROMIUM with incomplete src, but from the base level is ok
+    glCopySubTextureCHROMIUM(incompleteSrc, 0, GL_TEXTURE_2D, dst, 0, 0, 0, 0, 0, 1, 1, GL_FALSE,
+                             GL_FALSE, GL_FALSE);
+    EXPECT_GL_NO_ERROR();
+
+    // glCopyTextureCHROMIUM with incomplete src, non-base level is not ok
+    glCopySubTextureCHROMIUM(incompleteSrc, 1, GL_TEXTURE_2D, dst, 0, 0, 0, 0, 0, 1, 1, GL_FALSE,
+                             GL_FALSE, GL_FALSE);
+    EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+    glCopySubTextureCHROMIUM(incompleteSrc, 2, GL_TEXTURE_2D, dst, 0, 0, 0, 0, 0, 1, 1, GL_FALSE,
+                             GL_FALSE, GL_FALSE);
+    EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+
+    // glCopySubTextureCHROMIUM with incomplete src, but from the base level is ok
+    glCopySubTextureCHROMIUM(incompleteSrc, 0, GL_TEXTURE_2D, dst, 0, 0, 0, 0, 0, 1, 1, GL_FALSE,
+                             GL_FALSE, GL_FALSE);
+    EXPECT_GL_NO_ERROR();
+
+    // glCopySubTextureCHROMIUM with incomplete src, non-base level is not ok
+    glCopySubTextureCHROMIUM(incompleteSrc, 1, GL_TEXTURE_2D, dst, 0, 0, 0, 0, 0, 1, 1, GL_FALSE,
+                             GL_FALSE, GL_FALSE);
+    EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+    glCopySubTextureCHROMIUM(incompleteSrc, 2, GL_TEXTURE_2D, dst, 0, 0, 0, 0, 0, 1, 1, GL_FALSE,
+                             GL_FALSE, GL_FALSE);
+    EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+}
+
 ANGLE_INSTANTIATE_TEST_ES2(CopyTextureTest);
 ANGLE_INSTANTIATE_TEST_COMBINE_6(CopyTextureVariationsTest,
                                  CopyTextureVariationsTestPrint,
@@ -3312,5 +3478,82 @@ ANGLE_INSTANTIATE_TEST(CopyTextureTestDest,
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(CopyTextureTestES3);
 ANGLE_INSTANTIATE_TEST_ES3(CopyTextureTestES3);
+
+class BasicCopyTextureTest : public ANGLETest<>
+{
+  protected:
+    BasicCopyTextureTest()
+    {
+        setWindowWidth(64);
+        setWindowHeight(64);
+        setConfigRedBits(8);
+        setConfigGreenBits(8);
+        setConfigBlueBits(8);
+        setConfigAlphaBits(8);
+    }
+};
+
+// Test that self-copying a cube map face with an OOB source rectangle doesn't cause lead to an OOB
+// write in texSubImage2D. See https:crbug.com/506377574
+TEST_P(BasicCopyTextureTest, SelfCopyOOBWrite)
+{
+    const int kSmallSize = 8;
+    const int kBigSize   = 4096;
+    GLenum faces[]       = {
+        GL_TEXTURE_CUBE_MAP_POSITIVE_X, GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
+        GL_TEXTURE_CUBE_MAP_POSITIVE_Y, GL_TEXTURE_CUBE_MAP_NEGATIVE_Y,
+        GL_TEXTURE_CUBE_MAP_POSITIVE_Z, GL_TEXTURE_CUBE_MAP_NEGATIVE_Z,
+    };
+    // Cube texture with all six faces at kSmallSize x kSmallSize.
+    // Initialize with data so each face's ImageDesc.initState == Initialized.
+    GLTexture tex;
+    glBindTexture(GL_TEXTURE_CUBE_MAP, tex);
+    std::vector<GLubyte> initData(kSmallSize * kSmallSize * 4, 0x11);
+    for (GLenum f : faces)
+    {
+        glTexImage2D(f, 0, GL_RGBA, kSmallSize, kSmallSize, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                     initData.data());
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    ASSERT_GL_NO_ERROR();
+
+    // Attach NEGATIVE_X as the read FBO color attachment.
+    GLFramebuffer fb;
+    glBindFramebuffer(GL_FRAMEBUFFER, fb);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
+                           tex, 0);
+    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
+    ASSERT_GL_NO_ERROR();
+
+    // Self-copy NEGATIVE_X -> NEGATIVE_X with source rect entirely outside
+    // the kSmallSize x kSmallSize framebuffer.
+    //
+    // The bug that was found was happening because when handleCopyImageSelfCopyRedefine was called,
+    // it would early return when 'ClipRectangle' returned false, without making sure to redefine
+    // the destination texture to fit the larger kBigSize x kBigSize, while 'setImageDesc' would get
+    // called and update it's supposed size to kBigSize x kBigSize, desyncing the values between the
+    // frontend and backend. When the call to glTexSubImage2D below would attempt to copy a kBigSize
+    // x kBigSize buffer to this texture via a memory-mapped buffer, it would map the smaller buffer
+    // and write beyond its bounds.
+    glCopyTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 0, GL_RGBA, 1000, 1000, kBigSize, kBigSize, 0);
+    ASSERT_GL_NO_ERROR();
+
+    // Force the Image11::loadData path: redefine a *different* face at a mismatched size. In the
+    // D3D11 backend, this releases the storage and marks all images as dirty. The stale NEGATIVE_X
+    // Image11 is not resized.
+    glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_RGBA, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 nullptr);
+    ASSERT_GL_NO_ERROR();
+
+    // Potential OOB write: this is where Image11::loadData would map the kSmallSize x kSmallSize
+    // staging texture, and memcpy kBigSize x kBigSize data to it, writing OOB.
+    std::vector<GLubyte> payload(kBigSize * kBigSize * 4, 0x41);
+    glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 0, 0, 0, kBigSize, kBigSize, GL_RGBA,
+                    GL_UNSIGNED_BYTE, payload.data());
+
+    ASSERT_GL_NO_ERROR();
+}
+ANGLE_INSTANTIATE_TEST_ES2_AND_ES3(BasicCopyTextureTest);
 
 }  // namespace angle

@@ -29,10 +29,14 @@ class BrowserViewLayoutImpl : public BrowserViewLayout {
   ~BrowserViewLayoutImpl() override;
 
   // BrowserViewLayout:
-  void Layout(views::View* host) override;
+  void Layout(views::View* host) final;
 
  protected:
   using WindowState = BrowserViewLayoutDelegate::WindowState;
+  static bool is_fullscreen(WindowState window_state) {
+    return window_state == WindowState::kFullscreen ||
+           window_state == WindowState::kFullscreenWithToolbar;
+  }
 
   // The overlap between a constrained dialog and the toolbar.
   static constexpr int kDialogToolbarOverlap = 3;
@@ -141,13 +145,29 @@ class BrowserViewLayoutImpl : public BrowserViewLayout {
       const BrowserLayoutParams& params,
       CustomCornersBackground* background);
 
+  // Called before any other layout code. Common calculations can be performed
+  // and their values stored here, to prevent repeating them across multiple
+  // calls.
+  //
+  // Note that this data may not be valid outside the layout pass, so it may not
+  // be safe to use in e.g. minimum size calculations.
+  virtual void DoPreLayoutComputations(const BrowserLayoutParams& params);
+
   // Applies additional visual adjustments to UI elements that are not handled
   // by the traditional layout process. This could include clipping, text
   // rendering, overlay configuration, etc.
-  virtual void DoPostLayoutVisualAdjustments(
-      const BrowserLayoutParams& params) {}
+  virtual void DoPostLayoutVisualAdjustments(const BrowserLayoutParams& params);
+
+  // Clear any transient values that are only valid during layout. This is
+  // performed last after all other layout steps.
+  virtual void DoPostLayoutCleanup();
 
  private:
+  // Does the actual layout. If the top container bounds are changed, may need
+  // to exit early, recalculate parameters, and do a second pass without the top
+  // container.
+  void DoLayout(views::View* host, bool include_top_container);
+
   // Retrieve dimensions of modal dialogs.
 
   // Gets the top of the dialog anchoring area, in local coordinates.
@@ -157,8 +177,12 @@ class BrowserViewLayoutImpl : public BrowserViewLayout {
   int GetDialogBottom(const ProposedLayout& layout) const;
 
   // BrowserViewLayout overrides:
-  gfx::Point GetDialogPosition(const gfx::Size& dialog_size) const override;
-  gfx::Size GetMaximumDialogSize() const override;
+  gfx::Point GetDialogPosition(const gfx::Size& dialog_size) const final;
+  gfx::Size GetMaximumDialogSize() const final;
+
+  int dialog_top_ = 0;
+  int dialog_bottom_ = 0;
+  bool reentrancy_guard_ = false;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_LAYOUT_BROWSER_VIEW_LAYOUT_IMPL_H_

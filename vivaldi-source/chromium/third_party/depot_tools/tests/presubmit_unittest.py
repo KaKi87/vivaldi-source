@@ -6,6 +6,7 @@
 
 # pylint: disable=no-member,E1103
 
+import fnmatch
 import functools
 import io
 import itertools
@@ -43,7 +44,8 @@ import subprocess2 as subprocess
 # Shortcut.
 presubmit_canned_checks = presubmit.presubmit_canned_checks
 
-RUNNING_PY_CHECKS_TEXT = ('Running presubmit upload checks ...\n')
+RUNNING_PY_CHECKS_TEXT = (
+    'Running presubmit upload checks on branch mychange ...\n')
 
 # Access to a protected member XXX of a client class
 # pylint: disable=protected-access
@@ -692,6 +694,76 @@ class PresubmitUnittest(PresubmitTestsBase):
         self.assertEqual(sys.stdout.getvalue().count('??'), 0)
         self.assertEqual(sys.stdout.getvalue().count(RUNNING_PY_CHECKS_TEXT), 1)
 
+    @mock.patch('scm.GIT.GetBranch', return_value='fallback-branch')
+    def testDoPresubmitChecksUsesProvidedBranchName(self, mock_get_branch):
+        """Verifies that DoPresubmitChecks uses the branch name provided."""
+        haspresubmit_path = os.path.join(self.fake_root_dir, 'haspresubmit',
+                                         'PRESUBMIT.py')
+        root_path = os.path.join(self.fake_root_dir, 'PRESUBMIT.py')
+
+        os.path.isfile.side_effect = lambda f: f in [
+            root_path, haspresubmit_path
+        ]
+        os.listdir.return_value = ['PRESUBMIT.py']
+
+        gclient_utils.FileRead.return_value = self.presubmit_text
+
+        # Makes a change with an explicitly provided branch name (e.g., from
+        # stacked branch).
+        change = self.ExampleChange(extra_lines=['STORY=http://tracker/123'])
+        # ExampleChange defaults to 'mychange', so we override it here.
+        change._name = 'explicit-branch'
+
+        self.assertEqual(
+            0,
+            presubmit.DoPresubmitChecks(change=change,
+                                        committing=False,
+                                        verbose=True,
+                                        default_presubmit=None,
+                                        may_prompt=False,
+                                        gerrit_obj=None,
+                                        json_output=None))
+        self.assertEqual(sys.stdout.getvalue().count('!!'), 0)
+        self.assertEqual(sys.stdout.getvalue().count('??'), 0)
+        count_upload_check_logs = sys.stdout.getvalue().count(
+            'Running presubmit upload checks on branch explicit-branch ...\n')
+        self.assertEqual(count_upload_check_logs, 1)
+        mock_get_branch.assert_not_called()
+
+    @mock.patch('scm.GIT.GetBranch', return_value='fallback-branch')
+    def testDoPresubmitChecksFallsBackToGitBranch(self, mock_get_branch):
+        """Verifies that DoPresubmitChecks falls back to git branch."""
+        haspresubmit_path = os.path.join(self.fake_root_dir, 'haspresubmit',
+                                         'PRESUBMIT.py')
+        root_path = os.path.join(self.fake_root_dir, 'PRESUBMIT.py')
+
+        os.path.isfile.side_effect = lambda f: f in [
+            root_path, haspresubmit_path
+        ]
+        os.listdir.return_value = ['PRESUBMIT.py']
+
+        gclient_utils.FileRead.return_value = self.presubmit_text
+
+        # Makes a change without a branch name.
+        change = self.ExampleChange(extra_lines=['STORY=http://tracker/123'])
+        change._name = presubmit._NO_BRANCH_NAME
+
+        self.assertEqual(
+            0,
+            presubmit.DoPresubmitChecks(change=change,
+                                        committing=False,
+                                        verbose=True,
+                                        default_presubmit=None,
+                                        may_prompt=False,
+                                        gerrit_obj=None,
+                                        json_output=None))
+        self.assertEqual(sys.stdout.getvalue().count('!!'), 0)
+        self.assertEqual(sys.stdout.getvalue().count('??'), 0)
+        count_upload_check_logs = sys.stdout.getvalue().count(
+            'Running presubmit upload checks on branch fallback-branch ...\n')
+        self.assertEqual(count_upload_check_logs, 1)
+        mock_get_branch.assert_called_once_with(change.RepositoryRoot())
+
     def testDoPresubmitChecksJsonOutput(self):
         fake_error = 'Missing LGTM'
         fake_error_items = '["!", "!!", "!!!"]'
@@ -931,6 +1003,8 @@ def CheckChangeOnCommit(input_api, output_api):
                 RUNNING_PY_CHECKS_TEXT + 'Warning, no PRESUBMIT.py found.\n'
                 'Running default presubmit script.\n'
                 '** Presubmit ERRORS: 1 **\n!!\n\n'
+                '** 0 Presubmit Messages, 0 Presubmit Warnings, '
+                '1 Presubmit ERRORS **\n\n'
                 'There were presubmit errors.\n'
                 'Was the presubmit check useful? If not, run "git cl presubmit -v"\n'
                 'to figure out which PRESUBMIT.py was run, then run "git blame"\n'
@@ -967,9 +1041,56 @@ def CheckChangeOnCommit(input_api, output_api):
                 RUNNING_PY_CHECKS_TEXT + 'Warning, no PRESUBMIT.py found.\n'
                 'Running default presubmit script.\n'
                 '** Presubmit ERRORS: 1 **\n!!\n\n'
+                '** 0 Presubmit Messages, 0 Presubmit Warnings, '
+                '1 Presubmit ERRORS **\n\n'
                 'There were presubmit errors.\n'
                 'Was the presubmit check useful? If not, view the file\'s\n'
                 'blame on Code Search to figure out who to ask for help.\n')
+            self.assertEqual(sys.stdout.getvalue(), text)
+
+    def testDoPresubmitChecksSummaryLine(self):
+        mixed_results_presubmit_script = ("""\n
+def CheckChangeOnUpload(input_api, output_api):
+  return [
+    output_api.PresubmitNotifyResult("N1"),
+    output_api.PresubmitNotifyResult("N2"),
+    output_api.PresubmitPromptWarning("W1"),
+    output_api.PresubmitError("E1"),
+  ]
+def CheckChangeOnCommit(input_api, output_api):
+  raise Exception("Test error")
+""")
+
+        os.path.isfile.return_value = False
+        os.listdir.side_effect = (
+            lambda d: [] if d == self.fake_root_dir else ['PRESUBMIT.py'])
+        random.randint.return_value = 0
+
+        change = self.ExampleChange(extra_lines=['STORY=http://tracker/123'])
+        with mock.patch('sys.stdin', StringIO('y\n')), \
+            mock.patch('gclient_utils.IsEnvCog', return_value=False):
+            self.assertEqual(
+                1,
+                presubmit.DoPresubmitChecks(
+                    change=change,
+                    committing=False,
+                    verbose=True,
+                    default_presubmit=mixed_results_presubmit_script,
+                    may_prompt=False,
+                    gerrit_obj=None,
+                    json_output=None))
+            text = (
+                RUNNING_PY_CHECKS_TEXT + 'Warning, no PRESUBMIT.py found.\n'
+                'Running default presubmit script.\n'
+                '** Presubmit Messages: 2 **\nN1\n\nN2\n\n'
+                '** Presubmit Warnings: 1 **\nW1\n\n'
+                '** Presubmit ERRORS: 1 **\nE1\n\n'
+                '** 2 Presubmit Messages, 1 Presubmit Warnings, '
+                '1 Presubmit ERRORS **\n\n'
+                'There were presubmit errors.\n'
+                'Was the presubmit check useful? If not, run "git cl presubmit -v"\n'
+                'to figure out which PRESUBMIT.py was run, then run "git blame"\n'
+                'on the file to figure out who to ask for help.\n')
             self.assertEqual(sys.stdout.getvalue(), text)
 
     def ExampleChange(self, extra_lines=None):
@@ -2208,18 +2329,6 @@ class CannedChecksUnittest(PresubmitTestsBase):
                 x, y), 'DO NOTSUBMIT', None, 'DO NOT ' + 'SUBMIT', None,
             presubmit.OutputApi.PresubmitError)
 
-    def testCannedCheckCorpLinksInDescription(self):
-        self.DescriptionTest(
-            presubmit_canned_checks.CheckCorpLinksInDescription,
-            'chromium.googlesource.com', 'chromium.git.corp.google.com',
-            presubmit.OutputApi.PresubmitPromptWarning, False)
-
-    def testCannedCheckCorpLinksInFiles(self):
-        self.ContentTest(presubmit_canned_checks.CheckCorpLinksInFiles,
-                         'chromium.googlesource.com', None,
-                         'chromium.git.corp.google.com', None,
-                         presubmit.OutputApi.PresubmitPromptWarning)
-
     def testCannedCheckLargeScaleChange(self):
         input_api = self.MockInputApi(
             presubmit.Change('foo', 'foo1', self.fake_root_dir, None, 0, 0,
@@ -2227,17 +2336,36 @@ class CannedChecksUnittest(PresubmitTestsBase):
         affected_files = []
         for i in range(100):
             affected_file = mock.MagicMock(presubmit.GitAffectedFile)
-            affected_file.LocalPath.return_value = f'foo{i}.cc'
+            affected_file.UnixLocalPath.return_value = f'foo{i}.cc'
             affected_files.append(affected_file)
-        input_api.AffectedFiles = lambda **_: affected_files
 
-        # Don't warn if less than or equal to 100 files.
+        def affected_files_mock(file_filter=None, **_):
+            if file_filter:
+                return [f for f in affected_files if file_filter(f)]
+            return affected_files
+
+        input_api.AffectedFiles = affected_files_mock
+        input_api.fnmatch = fnmatch
+
+        # Don't warn if less than or equal to 100 non-excluded files.
         results = presubmit_canned_checks.CheckLargeScaleChange(
             input_api, presubmit.OutputApi)
         self.assertEqual(len(results), 0)
 
-        # Warn if greater than 100 files.
-        affected_files.append('bar.cc')
+        # Adding files within the excluded directory shouldn't trigger the warn
+        # limit.
+        excluded_file = mock.MagicMock(presubmit.GitAffectedFile)
+        excluded_file.UnixLocalPath.return_value = 'infra/config/generated/foo'
+        affected_files.append(excluded_file)
+
+        results = presubmit_canned_checks.CheckLargeScaleChange(
+            input_api, presubmit.OutputApi)
+        self.assertEqual(len(results), 0)
+
+        # Warn if greater than 100 non-excluded files.
+        new_affected_file = mock.MagicMock(presubmit.GitAffectedFile)
+        new_affected_file.UnixLocalPath.return_value = 'bar.cc'
+        affected_files.append(new_affected_file)
 
         results = presubmit_canned_checks.CheckLargeScaleChange(
             input_api, presubmit.OutputApi)
@@ -2567,6 +2695,16 @@ class CannedChecksUnittest(PresubmitTestsBase):
         # Rust files should pass even with long lines.
         self.ContentTest(check, 'A ' * 100, 'foo.rs', 'A ' * 100, 'bar.txt',
                          presubmit.OutputApi.PresubmitPromptWarning)
+
+    def testCannedCheckMojomLongLines(self):
+        check = lambda x, y, _: presubmit_canned_checks.CheckLongLines(x, y, 80)
+        # Mojom files should pass with long LINT.ThenChange lines.
+        self.ContentTest(
+            check,
+            '// LINT.ThenChange(//chrome/browser/actor/tab_observation_strategy.h:ScreenshotPolicy)',
+            'foo.mojom',
+            'this is a very long line with many small words that exceeds eighty characters in total',
+            'foo.mojom', presubmit.OutputApi.PresubmitPromptWarning)
 
     def testCannedCheckSpecialJavaLongLines(self):
         check = lambda x, y, _: presubmit_canned_checks.CheckLongLines(x, y, 80)
@@ -2921,6 +3059,35 @@ the current line as well!
                            False,
                            presubmit.OutputApi.PresubmitPromptWarning,
                            new_file=True)
+
+    def testCheckLicenseNewFileWarnWrongYearNoGerrit(self):
+        # Check that we warn on uploading new files with wrong year when Gerrit is missing.
+        text = self._GetLicenseText(2006)
+        license_text = None
+
+        change = presubmit.Change(
+            'author',
+            'this is description',
+            '/path/root',
+            None,
+            12345,
+            0,
+            None,
+        )
+        input_api = self.MockInputApi(change, False)
+        affected_file = mock.MagicMock(presubmit.GitAffectedFile)
+        affected_file.Action.return_value = 'A'
+        affected_file.LocalPath.return_value = 'bleh'
+        input_api.AffectedSourceFiles.return_value = [affected_file]
+        input_api.ReadFile.return_value = text
+
+        result = presubmit_canned_checks.CheckLicense(input_api,
+                                                      presubmit.OutputApi,
+                                                      license_text,
+                                                      source_file_filter=42)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].__class__,
+                         presubmit.OutputApi.PresubmitPromptWarning)
 
     def testCheckLicenseNewFileErrorCommit(self):
         # Check that we error on committing new files with wrong year. Test with

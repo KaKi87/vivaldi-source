@@ -101,6 +101,11 @@ constexpr char kDataSourceName2[] = "dev.perfetto.example_data_source2";
 struct PerfettoDs data_source_2 = PERFETTO_DS_INIT();
 void* const kDataSource2UserArg = reinterpret_cast<void*>(0x555);
 
+constexpr char kDataSourceNameProtoVm[] =
+    "dev.perfetto.example_data_source_protovm";
+struct PerfettoDs data_source_protovm = PERFETTO_DS_INIT();
+constexpr uint8_t kProtoVmProgram[] = {0x08, 0x01};  // proto = { version: 1}
+
 #define TEST_CATEGORIES(C) \
   C(cat1, "cat1", "") C(cat2, "cat2", "") C(cat3, "cat3", "")
 PERFETTO_TE_CATEGORIES_DEFINE(TEST_CATEGORIES)
@@ -621,6 +626,7 @@ class SharedLibDataSourceTest : public testing::Test {
     PerfettoDsRegister(&data_source_1, kDataSourceName1,
                        PerfettoDsParamsDefault());
     RegisterDataSource2();
+    RegisterDataSourceProtoVm();
   }
 
   void TearDown() override {
@@ -631,6 +637,9 @@ class SharedLibDataSourceTest : public testing::Test {
     data_source_2.enabled = &perfetto_atomic_false;
     perfetto::shlib::DsImplDestroy(data_source_2.impl);
     data_source_2.impl = nullptr;
+    data_source_protovm.enabled = &perfetto_atomic_false;
+    perfetto::shlib::DsImplDestroy(data_source_protovm.impl);
+    data_source_protovm.impl = nullptr;
   }
 
   struct Ds2CustomState {
@@ -717,6 +726,13 @@ class SharedLibDataSourceTest : public testing::Test {
   void* Ds2ActualCustomState(void* ptr) {
     auto* state = static_cast<Ds2CustomState*>(ptr);
     return state->actual;
+  }
+
+  void RegisterDataSourceProtoVm() {
+    struct PerfettoDsParams params = PerfettoDsParamsDefault();
+    params.protovm_program = kProtoVmProgram;
+    params.protovm_program_size = sizeof(kProtoVmProgram);
+    PerfettoDsRegister(&data_source_protovm, kDataSourceNameProtoVm, params);
   }
 
   NiceMock<MockDs2Callbacks> ds2_callbacks_;
@@ -1313,6 +1329,46 @@ TEST_F(SharedLibDataSourceTest, GetInstanceLockedStopBeforeRelease) {
   fully_stopped.Notify();
   tracing_session.WaitForStopped();
   t.join();
+}
+
+TEST_F(SharedLibDataSourceTest, ProtoVm) {
+  TracingSession tracing_session =
+      TracingSession::Builder()
+          .set_data_source_name(kDataSourceNameProtoVm)
+          .enable_protovm_config()
+          .Build();
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+
+  bool found_protovms = false;
+  for (struct PerfettoPbDecoderField trace_field : FieldView(data)) {
+    if (trace_field.id == perfetto_protos_Trace_packet_field_number) {
+      IdFieldView protovms_view(
+          trace_field, perfetto_protos_TracePacket_protovms_field_number);
+      for (struct PerfettoPbDecoderField protovms_field : protovms_view) {
+        IdFieldView instance_view(
+            protovms_field,
+            perfetto_protos_TracePacket_ProtoVms_instance_field_number);
+        for (struct PerfettoPbDecoderField instance_field : instance_view) {
+          IdFieldView program_view(
+              instance_field,
+              perfetto_protos_TracePacket_ProtoVms_Instance_program_field_number);
+          for (struct PerfettoPbDecoderField program_field : program_view) {
+            std::string actual_bytes(reinterpret_cast<const char*>(
+                                         program_field.value.delimited.start),
+                                     program_field.value.delimited.len);
+            std::string expected_bytes(
+                reinterpret_cast<const char*>(kProtoVmProgram),
+                sizeof(kProtoVmProgram));
+            EXPECT_EQ(actual_bytes, expected_bytes);
+            found_protovms = true;
+          }
+        }
+      }
+    }
+  }
+  EXPECT_TRUE(found_protovms);
 }
 
 class SharedLibProducerTest : public testing::Test {
@@ -1952,7 +2008,7 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlRegisteredCounter) {
 
   PerfettoTeRegisteredTrack my_counter_track;
   PerfettoTeCounterTrackRegister(&my_counter_track, "MyCounter",
-                                 PerfettoTeProcessTrackUuid());
+                                 PerfettoTeProcessTrackUuid(), true);
 
   PERFETTO_TE(cat1, PERFETTO_TE_COUNTER(),
               PERFETTO_TE_REGISTERED_TRACK(&my_counter_track),
@@ -1975,8 +2031,9 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlRegisteredCounter) {
                   ElementsAre(MsgField(UnorderedElementsAre(
                       PbField(perfetto_protos_TrackDescriptor_uuid_field_number,
                               VarIntField(kExpectedUuid)),
-                      PbField(perfetto_protos_TrackDescriptor_name_field_number,
-                              StringField("MyCounter")),
+                      PbField(
+                          perfetto_protos_TrackDescriptor_static_name_field_number,
+                          StringField("MyCounter")),
                       PbField(
                           perfetto_protos_TrackDescriptor_parent_uuid_field_number,
                           VarIntField(PerfettoTeProcessTrackUuid())),
@@ -2391,7 +2448,7 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlNestedTrack) {
 
   PerfettoTeRegisteredTrack my_named_track;
   PerfettoTeNamedTrackRegister(&my_named_track, "registered_track1", 0,
-                               PerfettoTeProcessTrackUuid());
+                               PerfettoTeProcessTrackUuid(), false);
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event1"),
               PERFETTO_TE_NESTED_TRACKS(
@@ -2463,6 +2520,9 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlNestedTrack) {
             packet_field, perfetto_protos_TrackDescriptor_counter_field_number);
         IdFieldView name_field(
             packet_field, perfetto_protos_TrackDescriptor_name_field_number);
+        IdFieldView static_name_field(
+            packet_field,
+            perfetto_protos_TrackDescriptor_static_name_field_number);
         IdFieldView parent_uuid_field(
             packet_field,
             perfetto_protos_TrackDescriptor_parent_uuid_field_number);
@@ -2474,13 +2534,14 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlNestedTrack) {
 
           counter_uuid = uuid_field.front().value.integer64;
           counter_parent_uuid = parent_uuid_field.front().value.integer64;
-        } else if (name_field.size() == 1) {
+        } else if (name_field.size() == 1 || static_name_field.size() == 1) {
+          auto& field = name_field.size() == 1 ? name_field : static_name_field;
           ASSERT_THAT(parent_uuid_field, ElementsAre(VarIntField(_)));
-          ASSERT_THAT(name_field.front(), StringField(_));
+          ASSERT_THAT(field.front(), StringField(_));
 
           std::string_view name(reinterpret_cast<const char*>(
-                                    name_field.front().value.delimited.start),
-                                name_field.front().value.delimited.len);
+                                    field.front().value.delimited.start),
+                                field.front().value.delimited.len);
           if (name == "track_name1") {
             track_name1_uuid = uuid_field.front().value.integer64;
             track_name1_parent_uuid = parent_uuid_field.front().value.integer64;

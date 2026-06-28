@@ -205,6 +205,30 @@ fn animated_image_with_depth_and_metadata_source_set_to_primary_item() {
     assert!(decoder.next_image().is_err());
 }
 
+#[test]
+fn animated_image_seeking() {
+    let mut decoder = get_decoder("anim.avif");
+    let res = decoder.parse();
+    assert!(res.is_ok());
+    assert_eq!(decoder.compression_format(), CompressionFormat::Avif);
+    let image = decoder.image().expect("image was none");
+    assert!(!image.alpha_present);
+    assert!(image.image_sequence_track_present);
+    assert_eq!(decoder.image_count(), 150);
+    assert_eq!(decoder.repetition_count(), RepetitionCount::Infinite);
+    if !HAS_DECODER {
+        return;
+    }
+    assert!(decoder.nth_image(150).is_err());
+
+    assert!(decoder.next_image().is_ok());
+    assert!(decoder.next_image().is_ok());
+
+    assert!(decoder.nth_image(0).is_ok());
+    let res = decoder.nth_image(1);
+    assert!(res.is_ok());
+}
+
 // From avifkeyframetest.cc
 #[test]
 fn keyframes() {
@@ -1649,5 +1673,30 @@ fn b_497926602() -> AvifResult<()> {
     let res = decoder.next_image();
     assert!(res.is_err());
     assert!(!matches!(res, Err(AvifError::WaitingOnIo)));
+    Ok(())
+}
+
+#[test_case("white_iden_chain_with_imir.avif", false, false)]
+#[test_case("white_iden_chain_with_imir_primary.avif", false, true)]
+#[test_case("white_iden_irot.avif", true, false)]
+fn identity_derivation(filename: &str, has_irot: bool, has_imir: bool) -> AvifResult<()> {
+    let mut decoder = get_decoder(filename);
+    assert!(decoder.parse().is_ok());
+    let image = decoder.image().expect("image was none");
+    assert_eq!(image.irot_angle.is_some(), has_irot);
+    assert_eq!(image.imir_axis.is_some(), has_imir);
+    assert!(image.clap.is_none());
+    if !HAS_DECODER {
+        return Ok(());
+    }
+    assert!(decoder.next_image().is_ok());
+    Ok(())
+}
+
+#[test_case("white_iden_cycle.avif")]
+#[test_case("white_iden_self.avif")]
+fn identity_derivation_invalid(filename: &str) -> AvifResult<()> {
+    let mut decoder = get_decoder(filename);
+    assert!(decoder.parse().is_err());
     Ok(())
 }

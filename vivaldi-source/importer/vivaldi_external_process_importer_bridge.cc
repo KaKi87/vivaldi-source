@@ -2,6 +2,7 @@
 
 #include "chrome/utility/importer/external_process_importer_bridge.h"
 
+#include "importer/imported_raw_password_form.h"
 #include "importer/viv_importer.h"
 #include "importer/vivaldi_profile_import_process_messages.h"
 
@@ -13,6 +14,7 @@ const int kNumNotesToSend = 10;
 const int kNumSpeedDialToSend = 100;
 const int kNumExtensionsToSend = 100;
 const int kNumTabsToSend = 100;
+const int kNumPasswordsToSend = 50;
 
 }  // namespace
 
@@ -102,6 +104,28 @@ void ExternalProcessImporterBridge::AddOpenTabs(
     it = end_group;
   }
   DCHECK_EQ(0, tabs_left);
+}
+
+void ExternalProcessImporterBridge::AddRawPasswords(
+    const std::vector<ImportedRawPasswordForm>& passwords) {
+  observer_->OnRawPasswordsImportStart(passwords.size());
+
+  int passwords_left = passwords.end() - passwords.begin();
+  for (std::vector<ImportedRawPasswordForm>::const_iterator it =
+           passwords.begin();
+       it < passwords.end();)
+  {
+    std::vector<ImportedRawPasswordForm> pw_group;
+    std::vector<ImportedRawPasswordForm>::const_iterator end_group =
+        it + std::min(passwords_left, kNumPasswordsToSend);
+    pw_group.assign(it, end_group);
+
+    observer_->OnRawPasswordsImportGroup(pw_group);
+
+    passwords_left -= end_group - it;
+    it = end_group;
+  }
+  DCHECK_EQ(0, passwords_left);
 }
 
 void ExternalProcessImporterBridge::NotifyItemFailed(

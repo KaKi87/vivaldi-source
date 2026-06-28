@@ -23,7 +23,7 @@
 #include "core/fpdfapi/parser/cpdf_stream.h"
 #include "core/fpdfapi/parser/cpdf_stream_acc.h"
 #include "core/fpdfapi/parser/fpdf_parser_utility.h"
-#include "core/fxcodec/jbig2/JBig2_DocumentContext.h"
+#include "core/fxcodec/jbig2/jbig2_document_context.h"
 #include "core/fxcrt/check.h"
 #include "core/fxcrt/check_op.h"
 #include "core/fxcrt/containers/contains.h"
@@ -267,6 +267,9 @@ RetainPtr<CPDF_Dictionary> CPDF_Document::TraversePDFPages(int iPage,
   if (!pKidList) {
     tree_traversal_.pop_back();
     if (*nPagesToGo != 1) {
+      return nullptr;
+    }
+    if (GetNodeType(pPages) == NodeType::kBranch) {
       return nullptr;
     }
     page_list_[iPage] = pPages->GetObjNum();

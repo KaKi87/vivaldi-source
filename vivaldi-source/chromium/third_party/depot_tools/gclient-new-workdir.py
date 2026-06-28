@@ -40,8 +40,9 @@ def parse_options():
     parser.add_argument(
         '--use-git-worktree',
         action='store_true',
-        default=False,
-        help='''Use git worktree instead of using symlinks for .git folders.''',
+        default=True,
+        help=
+        '''Use git worktree instead of using symlinks for .git folders (default).''',
     )
     parser.add_argument(
         '--use-git-symlinks',
@@ -70,6 +71,13 @@ def parse_options():
         '''there is no limit. The default is 1 if copy-on-write is used, '''
         '''otherwise the default is -1.''')
     args = parser.parse_args()
+
+    if '--use-git-worktree' not in sys.argv and '--use-git-symlinks' not in sys.argv:
+        print(
+            'Warning: --use-git-worktree is now the default. If you experience\n'
+            'issues, you can use --use-git-symlinks and please file a bug:\n'
+            'https://issues.chromium.org/u/0/issues/new?component=1456102',
+            file=sys.stderr)
 
     if '--reflink' in sys.argv or '--no-reflink' in sys.argv:
         print(
@@ -284,7 +292,8 @@ def main():
         new_gclient = os.path.join(args.new_workdir, '.gclient')
 
         if args.copy_on_write is None:
-            args.copy_on_write = support_copy_on_write(gclient, new_gclient)
+            args.copy_on_write = support_copy_on_write(
+                os.path.realpath(gclient), new_gclient)
             if args.copy_on_write:
                 print('Copy-on-write support is detected.')
 
@@ -314,9 +323,9 @@ def main():
                 current_depth = rel_path.count(os.sep) + 1
 
             # Check if there's a .git directory before modifying dirs.
-            has_git = '.git' in dirs
+            has_git = os.path.exists(os.path.join(root, '.git'))
             # Don't descend into the .git directory.
-            if has_git:
+            if '.git' in dirs:
                 dirs.remove('.git')
 
             # If we've reached the max depth, remove all directories from the
@@ -337,12 +346,36 @@ def main():
                 if not os.path.exists(workdir):
                     print('Copying: %s' % workdir)
                     copy_on_write(root, workdir)
-                shutil.rmtree(os.path.join(workdir, '.git'))
+                workdir_git = os.path.join(workdir, '.git')
+                if os.path.exists(workdir_git):
+                    if os.path.isdir(workdir_git):
+                        shutil.rmtree(workdir_git)
+                    else:
+                        os.remove(workdir_git)
 
             if args.use_git_worktree:
                 if args.copy_on_write:
                     adopt_git_worktree(root, workdir)
                 else:
+                    # Parent checkouts can pre-populate nested submodule
+                    # directories. It is safe to remove these empty or
+                    # placeholder submodule directories since we are about to
+                    # check them out as separate worktrees.
+                    real_workdir = os.path.realpath(workdir)
+                    if real_workdir != args.new_workdir and os.path.exists(
+                            real_workdir):
+                        # Ensure workdir is strictly inside the new workspace
+                        # and is not the root itself
+                        if os.path.commonpath([args.new_workdir, real_workdir
+                                               ]) != args.new_workdir:
+                            raise ValueError(
+                                f'Target workdir {real_workdir} is not inside '
+                                f'the new workspace {args.new_workdir}.')
+
+                        # Only delete the directory if it contains a .git
+                        # file/directory.
+                        if os.path.exists(os.path.join(real_workdir, '.git')):
+                            shutil.rmtree(real_workdir)
                     create_git_worktree(root, workdir)
             else:
                 link_git_repo(root,

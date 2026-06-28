@@ -36,13 +36,12 @@ import android.widget.RelativeLayout.LayoutParams;
 import android.widget.Spinner;
 import android.widget.TextView;
 
-import androidx.annotation.DrawableRes;
+import androidx.annotation.LayoutRes;
 import androidx.annotation.StringRes;
 import androidx.core.view.MarginLayoutParamsCompat;
 
 import org.chromium.base.Callback;
 import org.chromium.base.ResettersForTesting;
-import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.autofill.R;
@@ -93,9 +92,6 @@ public abstract class EditorViewBase extends AlwaysDismissedDialog
 
     /** Duration of the animation to hide the UI. */
     private static final int DIALOG_EXIT_ANIMATION_MS = 195;
-
-    private static final String DELETION_CONFIRMATION_DIALOG_SHOWN_HISTOGRAM =
-            "Autofill.Deletion.Settings.ConfirmationDialogShown";
 
     protected @Nullable static EditorObserverForTest sObserverForTest;
 
@@ -156,6 +152,11 @@ public abstract class EditorViewBase extends AlwaysDismissedDialog
 
         mContainerView =
                 LayoutInflater.from(mContext).inflate(R.layout.autofill_editor_dialog, null);
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA)) {
+            // TODO: crbug.com/501305415 - Move to xml.
+            mContainerView.setBackgroundColor(
+                    SemanticColorUtils.getSettingsBackgroundColor(mContext));
+        }
         setContentView(mContainerView);
 
         mContentView = mContainerView.findViewById(R.id.contents);
@@ -163,6 +164,10 @@ public abstract class EditorViewBase extends AlwaysDismissedDialog
         prepareToolbar();
 
         mButtonBar = mContainerView.findViewById(R.id.button_bar);
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA)) {
+            // TODO: crbug.com/501305415 - Move to xml.
+            mButtonBar.setBackgroundColor(SemanticColorUtils.getSettingsBackgroundColor(mContext));
+        }
         mButtonBar.findViewById(R.id.button_primary).setId(R.id.editor_dialog_done_button);
         mButtonBar.findViewById(R.id.button_secondary).setId(R.id.payments_edit_cancel_button);
 
@@ -258,11 +263,10 @@ public abstract class EditorViewBase extends AlwaysDismissedDialog
         mDeleteCallback = deleteCallback;
     }
 
-    public void setBrandingIconDetails(
-            @DrawableRes int toolbarBrandingIconId, @StringRes int toolbarBrandingIconTitleId) {
+    public void setBrandingIcon(@LayoutRes int toolbarBrandingIconId) {
         EditorDialogToolbar toolbar =
                 (EditorDialogToolbar) mContainerView.findViewById(R.id.action_bar);
-        toolbar.setBrandingIconDetails(toolbarBrandingIconId, toolbarBrandingIconTitleId);
+        toolbar.setBrandingIcon(toolbarBrandingIconId);
     }
 
     public void setDoneRunnable(Runnable doneRunnable) {
@@ -409,7 +413,11 @@ public abstract class EditorViewBase extends AlwaysDismissedDialog
     private void prepareToolbar() {
         EditorDialogToolbar toolbar =
                 (EditorDialogToolbar) mContainerView.findViewById(R.id.action_bar);
-        toolbar.setBackgroundColor(SemanticColorUtils.getDefaultBgColor(toolbar.getContext()));
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.AUTOFILL_AI_WITH_DATA_SCHEMA)) {
+            toolbar.setBackgroundColor(SemanticColorUtils.getSettingsBackgroundColor(mContext));
+        } else {
+            toolbar.setBackgroundColor(SemanticColorUtils.getDefaultBgColor(mContext));
+        }
         toolbar.setTitleTextAppearance(
                 toolbar.getContext(), R.style.TextAppearance_Headline_Primary);
 
@@ -637,10 +645,10 @@ public abstract class EditorViewBase extends AlwaysDismissedDialog
 
     private void handleDeleteWithConfirmation(
             String confirmationTitle, CharSequence confirmationText, int primaryButtonText) {
-        boolean canShowConfirmation = mActivity instanceof ModalDialogManagerHolder;
-        RecordHistogram.recordBooleanHistogram(
-                DELETION_CONFIRMATION_DIALOG_SHOWN_HISTOGRAM, canShowConfirmation);
-        if (!canShowConfirmation) return;
+        assert mActivity instanceof ModalDialogManagerHolder
+                : "Activity hosting EditorViewBase must implement ModalDialogManagerHolder to show"
+                        + " confirmation dialogs.";
+        if (!(mActivity instanceof ModalDialogManagerHolder)) return;
 
         ModalDialogManager modalDialogManager =
                 ((ModalDialogManagerHolder) mActivity).getModalDialogManager();
@@ -660,12 +668,13 @@ public abstract class EditorViewBase extends AlwaysDismissedDialog
                 };
 
         confirmationDialog.show(
-                new ConfirmationDialogParams(mContext)
+                new ConfirmationDialogParams.Builder(mContext)
                         .withTitle(confirmationTitle)
                         .withDescription(confirmationText)
                         .withPositiveButton(primaryButtonText)
                         .withNegativeButton(R.string.cancel)
-                        .withSupportStopShowing(false),
+                        .withSupportStopShowing(false)
+                        .build(),
                 confirmationDialogHandler);
 
         if (sObserverForTest != null) {

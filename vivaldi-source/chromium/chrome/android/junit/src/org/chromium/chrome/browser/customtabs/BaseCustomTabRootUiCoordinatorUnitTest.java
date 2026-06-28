@@ -85,8 +85,9 @@ import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeController;
 import org.chromium.chrome.browser.ui.google_bottom_bar.GoogleBottomBarCoordinator;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.signin.BottomSheetSigninAndHistorySyncCoordinator;
+import org.chromium.chrome.browser.ui.signin.BottomSheetSigninAndHistorySyncCoordinatorSupplier;
+import org.chromium.chrome.browser.ui.signin.BottomSheetSigninAndHistorySyncCoordinatorSupplier.SupplierFlow;
 import org.chromium.chrome.browser.ui.signin.SigninAndHistorySyncActivityLauncher;
-import org.chromium.chrome.browser.ui.signin.WebSigninAndHistorySyncCoordinatorSupplier;
 import org.chromium.chrome.browser.ui.system.StatusBarColorController.StatusBarColorProvider;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
 import org.chromium.components.browser_ui.widget.MenuOrKeyboardActionController;
@@ -110,6 +111,7 @@ import java.util.function.Supplier;
 @RunWith(BaseRobolectricTestRunner.class)
 @Batch(Batch.UNIT_TESTS)
 @Config(manifest = Config.NONE)
+@EnableFeatures(ChromeFeatureList.CROSS_DEVICE_TASK_HANDOFF)
 public final class BaseCustomTabRootUiCoordinatorUnitTest {
 
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -130,11 +132,12 @@ public final class BaseCustomTabRootUiCoordinatorUnitTest {
     @Mock private Supplier<Integer> mActivityThemeColorSupplier;
     @Mock private AppMenuBlocker mAppMenuBlocker;
     @Mock private BooleanSupplier mSupportsAppMenuSupplier;
-    @Mock private Supplier<TabCreatorManager> mTabCreatorManagerSupplier;
+    private final MonotonicObservableSupplier<TabCreatorManager> mTabCreatorManagerSupplier =
+            ObservableSuppliers.alwaysNull();
     @Mock private FullscreenManager mFullscreenManager;
     @Mock private Supplier<TabContentManager> mTabContentManagerSupplier;
-    private final MonotonicObservableSupplier<SnackbarManager> mSnackbarManagerSupplier =
-            ObservableSuppliers.alwaysNull();
+    private final SettableMonotonicObservableSupplier<SnackbarManager> mSnackbarManagerSupplier =
+            ObservableSuppliers.createMonotonic();
     @Mock private Supplier<Boolean> mIsInOverviewModeSupplier;
     @Mock private AppMenuDelegate mAppMenuDelegate;
     @Mock private StatusBarColorProvider mStatusBarColorProvider;
@@ -153,9 +156,11 @@ public final class BaseCustomTabRootUiCoordinatorUnitTest {
     @Mock private EdgeToEdgeManager mEdgeToEdgeManager;
     @Mock private IdentityServicesProvider mIdentityServicesProvider;
     @Mock private DesktopWindowStateManager mDesktopWindowStateManager;
+    @Mock private TabModelSelector mTabModelSelector;
     @Mock private ModalDialogManager mModalDialogManager;
     @Mock private IdentityManager mIdentityManager;
     @Mock private Supplier<BrowserServicesThemeColorProvider> mBrowserServicesColorProviderSupplier;
+    @Mock private SnackbarManager mSnackbarManager;
 
     private final SettableMonotonicObservableSupplier<EphemeralTabCoordinator>
             mEphemeralTabCoordinatorSupplier = ObservableSuppliers.createMonotonic();
@@ -166,8 +171,6 @@ public final class BaseCustomTabRootUiCoordinatorUnitTest {
     private final MonotonicObservableSupplier<BookmarkModel> mBookmarkModelSupplier =
             ObservableSuppliers.alwaysNull();
     private final MonotonicObservableSupplier<TabBookmarker> mTabBookmarkerSupplier =
-            ObservableSuppliers.alwaysNull();
-    private final MonotonicObservableSupplier<TabModelSelector> mTabModelSelectorSupplier =
             ObservableSuppliers.alwaysNull();
     private final NonNullObservableSupplier<ModalDialogManager> mModalDialogManagerSupplier =
             ObservableSuppliers.createNonNull(mModalDialogManager);
@@ -209,6 +212,7 @@ public final class BaseCustomTabRootUiCoordinatorUnitTest {
                 .thenReturn(ObservableSuppliers.alwaysFalse());
 
         mProfileSupplier = ObservableSuppliers.createMonotonic();
+        mSnackbarManagerSupplier.set(mSnackbarManager);
 
         mBaseCustomTabRootUiCoordinator =
                 new BaseCustomTabRootUiCoordinator(
@@ -219,7 +223,7 @@ public final class BaseCustomTabRootUiCoordinatorUnitTest {
                         mProfileSupplier,
                         mBookmarkModelSupplier,
                         mTabBookmarkerSupplier,
-                        mTabModelSelectorSupplier,
+                        ObservableSuppliers.createNonNull(mTabModelSelector),
                         mBrowserControlsManager,
                         mWindowAndroid,
                         mActivityResultTracker,
@@ -260,6 +264,7 @@ public final class BaseCustomTabRootUiCoordinatorUnitTest {
                         return mGoogleBottomBarCoordinator;
                     }
                 };
+        mBaseCustomTabRootUiCoordinator.onPreInflationStartup();
     }
 
     @After
@@ -330,13 +335,13 @@ public final class BaseCustomTabRootUiCoordinatorUnitTest {
                 .thenReturn(coordinatorMock);
         SigninAndHistorySyncActivityLauncherImpl.setLauncherForTest(launcherMock);
 
-        mBaseCustomTabRootUiCoordinator.onPreInflationStartup();
         mBaseCustomTabRootUiCoordinator.initProfileDependentFeatures(mProfile);
 
         Assert.assertEquals(
                 "Coordinator retrieved from supplier should match the one created by the launcher",
                 coordinatorMock,
-                WebSigninAndHistorySyncCoordinatorSupplier.getValueOrNullFrom(mWindowAndroid));
+                BottomSheetSigninAndHistorySyncCoordinatorSupplier.getValueForFlow(
+                        mWindowAndroid, SupplierFlow.WEB_SIGNIN));
     }
 
     @Test

@@ -7,6 +7,9 @@
 #include <string>
 #include <vector>
 
+#include "base/functional/bind.h"
+#include "base/task/sequenced_task_runner.h"
+
 namespace test {
 
 using passage_embeddings::ComputeEmbeddingsStatus;
@@ -22,27 +25,31 @@ using TaskId = passage_embeddings::Embedder::TaskId;
 PassageEmbedderMock::PassageEmbedderMock() = default;
 PassageEmbedderMock::~PassageEmbedderMock() = default;
 
-PassageEmbedderMock::PassageEmbedderMock(const PassageEmbedderMock&) = default;
-PassageEmbedderMock& PassageEmbedderMock::operator=(
-    const PassageEmbedderMock&) = default;
-
-PassageEmbedderMock::PassageEmbedderMock(PassageEmbedderMock&&) = default;
-PassageEmbedderMock& PassageEmbedderMock::operator=(PassageEmbedderMock&&) =
-    default;
-
-TaskId PassageEmbedderMock::ComputePassagesEmbeddings(
+passage_embeddings::Embedder::Job
+PassageEmbedderMock::ComputePassagesEmbeddings(
     PassagePriority priority,
     std::vector<std::string> passages,
     ComputePassagesEmbeddingsCallback callback) {
   last_passages_ = passages;
+  const TaskId task_id = 1;
   if (status_ == ComputeEmbeddingsStatus::kSuccess) {
-    TestEmbedder::ComputePassagesEmbeddings(priority, std::move(passages),
-                                            std::move(callback));
-    return 0;
+    std::vector<passage_embeddings::Embedding> embeddings;
+    for (size_t i = 0; i < passages.size(); ++i) {
+      // The AIv4 test TFLite models are built with a fixed input tensor size
+      // of 768. We must provide embeddings of this exact size to avoid a
+      // dimension mismatch in the model executor.
+      std::vector<float> data(768, 0.0f);
+      data[0] = 1.0f;
+      embeddings.emplace_back(std::move(data));
+    }
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(std::move(callback), passages,
+                                  std::move(embeddings), task_id, status_));
+    return passage_embeddings::Embedder::Job(GetWeakPtr(), task_id);
   }
 
-  std::move(callback).Run(passages, {}, 0, status_);
-  return 0;
+  std::move(callback).Run(passages, {}, task_id, status_);
+  return passage_embeddings::Embedder::Job(GetWeakPtr(), task_id);
 }
 
 void PassageEmbedderMock::set_status(ComputeEmbeddingsStatus status) {
@@ -84,10 +91,12 @@ void DelayedPassageEmbedderMock::OnCallbackReleased(
                                                  std::move(callback));
 }
 
-TaskId DelayedPassageEmbedderMock::ComputePassagesEmbeddings(
+passage_embeddings::Embedder::Job
+DelayedPassageEmbedderMock::ComputePassagesEmbeddings(
     PassagePriority priority,
     std::vector<std::string> passages,
     ComputePassagesEmbeddingsCallback callback) {
+  const TaskId task_id = 1;
   compute_embeddings_callback_ = std::move(callback);
   execution_callback_ = base::BindOnce(
       &DelayedPassageEmbedderMock::OnCallbackReleased,
@@ -100,7 +109,7 @@ TaskId DelayedPassageEmbedderMock::ComputePassagesEmbeddings(
     std::move(on_callback_received_).Run();
   }
 
-  return 0;
+  return passage_embeddings::Embedder::Job(GetWeakPtr(), task_id);
 }
 
 void DelayedPassageEmbedderMock::WaitForEmbedderToBeTriggered() {

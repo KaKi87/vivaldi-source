@@ -21,7 +21,7 @@ import './sections/skills.js';
 import './sections/stress.js';
 
 import type {OpenSettingsOptions} from '/glic/glic_api/glic_api.js';
-import {SettingsPageField, WebClientMode} from '/glic/glic_api/glic_api.js';
+import {SbThreatType, SettingsPageField, WebClientMode} from '/glic/glic_api/glic_api.js';
 
 import {createGlicHostRegistryOnLoad} from '../api_boot.js';
 
@@ -130,6 +130,29 @@ $.detachpanelbn.addEventListener('click', () => {
 });
 $.refreshbn.addEventListener('click', () => {
   location.reload();
+});
+$.processCounterAbuseVerdictTestEngageBtn.addEventListener('click', () => {
+  const tabId = client.getFocusedTabId();
+  if (!tabId) {
+    logMessage('Cannot process verdict: No focused tab');
+    return;
+  }
+  const showInterstitial = $.counterAbuseShowInterstitial.checked;
+  const selectedThreatType =
+      $.counterAbuseThreatType.value as keyof typeof SbThreatType;
+  const threatType = SbThreatType[selectedThreatType];
+  const url = $.focusedUrlV2.value || 'https://www.google.com';
+
+  logMessage(`Triggering processCounterAbuseVerdict (threatType: ${
+      selectedThreatType}, showInterstitial: ${showInterstitial}, url: ${
+      url})`);
+  getBrowser()!.processCounterAbuseVerdict!(tabId, {
+    sbVerdictResult: {
+      url: url,
+      threatType: threatType,
+      showInterstitial: showInterstitial,
+    },
+  });
 });
 $.navigateWebviewUrl.addEventListener('keyup', ({key}) => {
   if (key === 'Enter') {

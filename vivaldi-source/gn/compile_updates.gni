@@ -1,4 +1,3 @@
-import("//build/config/chrome_build.gni")
 import("//vivaldi/gn/config/version.gni")
 import("//vivaldi/testing/testing.gni")
 
@@ -14,13 +13,16 @@ if (is_mac) {
   update_template_instance("//chrome:chrome_framework") {
     ldflags += [
       "-Wl,-rpath,@loader_path/../../../../Frameworks",
-      "-Wl,-rpath,@loader_path/../../../Vivaldi.app/Contents/Frameworks", # for unit tests
+      "-Wl,-rpath,@loader_path/../../../Vivaldi.app/Contents/Frameworks",  # for
+                                                                           # unit
+                                                                           # tests
     ]
   }
 
   update_template_instance("//chrome/installer/mac:sign_config") {
     extra_args += [
-      "-e", "GLOBAL_BUILDNUM=$GLOBAL_BUILDNUM",
+      "-e",
+      "GLOBAL_BUILDNUM=$GLOBAL_BUILDNUM",
     ]
   }
 
@@ -52,31 +54,46 @@ if (is_linux) {
     # failure when building packages.
     ldflags += [
       "-rpath",
-      "\$ORIGIN/lib/", # Linux packages use lib/libffmpeg.so
+      "\$ORIGIN/lib/",  # Linux packages use lib/libffmpeg.so
       "-rpath",
-      "\$ORIGIN/", # Local builds use libffmpeg.so
+      "\$ORIGIN/",  # Local builds use libffmpeg.so
       "-Wl,--enable-new-dtags",
     ]
   }
   update_target("//tools/v8_context_snapshot:v8_context_snapshot_generator") {
     ldflags = [
       "-rpath",
-      "\$ORIGIN/", # Find libffmpeg.so
+      "\$ORIGIN/",  # Find libffmpeg.so
     ]
-    deps += [ "//third_party/expat" ]
   }
   if (target_cpu == "arm64") {
-    update_template_instance("//third_party/swiftshader/third_party/llvm-10.0:swiftshader_llvm") {
+    update_template_instance(
+        "//third_party/swiftshader/third_party/llvm-10.0:swiftshader_llvm") {
       if (!defined(cflags)) {
         cflags = []
       }
       cflags += [ "-Wno-defaulted-function-deleted" ]
     }
-    update_template_instance("//third_party/swiftshader/src/Reactor:swiftshader_reactor") {
+    update_template_instance(
+        "//third_party/swiftshader/src/Reactor:swiftshader_reactor") {
       if (!defined(cflags)) {
         cflags = []
       }
       cflags += [ "-Wno-defaulted-function-deleted" ]
+    }
+  }
+}
+
+if (!is_ios) {
+  update_target("//services/webnn:webnn_service") {
+    if (is_win) {
+      deps += [ "//third_party/fp16" ]
+      if (!defined(cflags)) {
+        cflags = []
+      }
+      cflags += [ "-Wno-thread-safety-analysis" ]
+      configs -= [ "//build/config/compiler:chromium_code" ]
+      configs += [ "//build/config/compiler:no_chromium_code" ]
     }
   }
 }

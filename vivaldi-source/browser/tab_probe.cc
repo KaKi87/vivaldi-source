@@ -44,7 +44,23 @@ std::optional<std::string> GetParentExtId(const TabProbe& probe) {
 }
 
 std::optional<std::string> GetGroupId(const TabProbe& probe) {
-  return GetExtDataString(probe.contents, TabExtKey::kGroupId);
+  return GetExtDataString(probe.contents, TabExtKey::kGroupId_);
+}
+
+std::optional<std::string> GetGroupId(
+    const std::vector<vivaldi::TabProbe>& probes) {
+  if (probes.empty())
+    return std::nullopt;
+  std::optional<std::string> first = GetGroupId(probes[0]);
+  if (!first)
+    return std::nullopt;
+
+  for (auto it = std::next(probes.begin()); it != probes.end(); ++it) {
+    if (GetGroupId(*it) != first)
+      return std::nullopt;
+  }
+
+  return first;
 }
 
 std::optional<std::string> GetPanelId(const TabProbe& probe) {
@@ -65,8 +81,7 @@ std::optional<double> GetWorkspaceId(const TabProbe& probe) {
   return rv;
 }
 
-
-BrowserWindowInterface * FindWorkspace(double workspace_id) {
+BrowserWindowInterface* FindWorkspace(double workspace_id) {
   if (workspace_id == 0) {
     return nullptr;
   }
@@ -75,9 +90,13 @@ BrowserWindowInterface * FindWorkspace(double workspace_id) {
     if (!tab_strip)
       continue;
 
+    if (tab_strip->GetActiveWorkspace() == workspace_id) {
+      return browser;
+    }
+
     for (tabs::TabInterface* tab : *tab_strip) {
       content::WebContents* contents = tab->GetContents();
-      TabExtData *ext = TabExtData::Get(contents);
+      TabExtData* ext = TabExtData::Get(contents);
       std::optional<double> wsid = ext->GetWorkspaceId();
       if (wsid && *wsid == workspace_id)
         return browser;
@@ -86,7 +105,6 @@ BrowserWindowInterface * FindWorkspace(double workspace_id) {
 
   return nullptr;
 }
-
 
 // --- ResolveTab Implementations ---
 std::vector<TabProbe> ResolveTabs(
@@ -296,6 +314,21 @@ TabProbe GetLastInGroup(TabProbe probe, bool reverse) {
   return probe;
 }
 
+TabProbe GetLastInWorkspaceIgnorePin(TabProbe probe, bool reverse) {
+  CHECK(probe.contents);
+  const int increment = reverse ? -1 : 1;
+  std::optional<double> workspace_id = GetWorkspaceId(probe);
+  for (int i = probe.index + increment;; i += increment) {
+    auto next_tab = tab_probe::TabLookup(i, probe.tab_strip_model);
+    if (!next_tab || GetPanelId(*next_tab))
+      return probe;
+
+    if (GetWorkspaceId(*next_tab) == workspace_id) {
+      probe = *next_tab;
+    }
+  }
+}
+
 TabProbe GetLastInWorkspace(TabProbe probe, bool reverse) {
   CHECK(probe.contents);
   const int increment = reverse ? -1 : 1;
@@ -371,14 +404,109 @@ std::pair<int, int> GetGroupRange(TabStripModel* tab_strip,
 }
 
 bool IsPinnedGroup(TabStripModel* tab_strip, const std::string& group_id) {
-  for (int i = 0; i < tab_strip->IndexOfFirstNonPinnedTab();++i) {
+  for (int i = 0; i < tab_strip->IndexOfFirstNonPinnedTab(); ++i) {
     content::WebContents* contents = tab_strip->GetWebContentsAt(i);
-    TabExtData *ext = TabExtData::Get(contents);
+    TabExtData* ext = TabExtData::Get(contents);
     if (ext->GetGroupId() == group_id)
       return true;
   }
   return false;
 }
 
+bool IsNextToGroup(const TabProbe& probe,
+                   const std::string& group,
+                   TabProbe* sample) {
+  std::optional<TabProbe> next = GetNext(probe);
+  if (next && GetGroupId(*next) == group) {
+    if (sample)
+      *sample = *next;
+    return true;
+  }
+
+  next = GetNext(probe, true);
+  if (next && GetGroupId(*next) == group) {
+    if (sample)
+      *sample = *next;
+    return true;
+  }
+
+  return false;
+}
+
+std::optional<std::string> IdentifyGroup(
+    const std::vector<::vivaldi::TabProbe>& probes) {
+  std::optional<std::string> group = GetGroupId(probes);
+
+  if (!group)
+    return std::nullopt;
+
+  CHECK(!probes.empty());
+
+  // Range where the group is in the tab-strip.
+  auto range = GetGroupRange(probes[0].tab_strip_model, *group);
+  if (range.second == range.first)
+    return std::nullopt;
+  const int range_size = range.second - range.first + 1;
+
+  // The group is bigger.
+  if (static_cast<int>(probes.size()) < range_size)
+    return std::nullopt;
+
+  // Handle possible duplicates.
+  absl::flat_hash_set<int> indices;
+  for (auto& probe : probes) {
+    indices.insert(probe.index);
+  }
+
+  if (static_cast<int>(indices.size()) != range_size)
+    return std::nullopt;
+
+  return group;
+}
+
+std::optional<TabProbe> GetLastInActiveWorkspace(TabProbe probe) {
+  return GetLastInActiveWorkspace(probe.tab_strip_model);
+}
+
+std::optional<TabProbe> GetLastInActiveWorkspace(TabStripModel* tab_strip) {
+  if (!tab_strip)
+    return std::nullopt;
+  double workspace_id = tab_strip->GetActiveWorkspace();
+  std::optional<TabProbe> probe;
+  for (int i = 0; i < tab_strip->count(); ++i) {
+    std::optional<TabProbe> next_tab = tab_probe::TabLookup(i, tab_strip);
+    if (!next_tab || tab_probe::GetPanelId(*next_tab)) {
+      return probe;
+    }
+    if (GetWorkspaceId(*next_tab).value_or(0) == workspace_id) {
+      probe = *next_tab;
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<TabProbe> FindByPurpose(TabStripModel* tab_strip,
+                                      TabPurpose purpose) {
+  std::optional<TabProbe> rv;
+  double active_workspace = tab_strip->GetActiveWorkspace();
+  for (int i = 0; i < tab_strip->count(); ++i) {
+    std::optional<TabProbe> probe = TabLookup(i, tab_strip);
+    if (!probe)
+      break;
+
+    TabExtData* ext = TabExtData::Get(probe->contents);
+
+    if (ext->GetPurpose() != purpose)
+      continue;
+
+    rv = probe;
+
+    // Find the email tab that is preferably on the
+    // active workspace.
+    if (ext->GetWorkspaceId().value_or(0) == active_workspace)
+      break;
+  }
+  return rv;
+}
 }  // namespace tab_probe
 }  // namespace vivaldi

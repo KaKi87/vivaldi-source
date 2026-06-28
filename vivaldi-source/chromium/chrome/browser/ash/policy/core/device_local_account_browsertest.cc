@@ -20,6 +20,7 @@
 #include "ash/display/screen_orientation_controller_test_api.h"
 #include "ash/public/cpp/login_screen_test_api.h"
 #include "ash/shell.h"
+#include "ash/strings/grit/ash_strings.h"
 #include "ash/system/session/logout_confirmation_controller.h"
 #include "ash/system/session/logout_confirmation_dialog.h"
 #include "base/check_deref.h"
@@ -77,7 +78,6 @@
 #include "chrome/browser/ash/policy/external_data/cloud_external_data_manager_base_test_util.h"
 #include "chrome/browser/ash/policy/test_support/embedded_policy_test_server_mixin.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
-#include "chrome/browser/ash/system/timezone_util.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part.h"
 #include "chrome/browser/chromeos/extensions/external_loader/device_local_account_external_policy_loader.h"
@@ -99,10 +99,10 @@
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/ash/login/login_display_host.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/webui/ash/login/oobe_ui.h"
 #include "chrome/browser/ui/webui/ash/login/terms_of_service_screen_handler.h"
@@ -110,14 +110,13 @@
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/extensions/extension_constants.h"
-#include "chrome/grit/branded_strings.h"
-#include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "chromeos/ash/components/dbus/session_manager/fake_session_manager_client.h"
 #include "chromeos/ash/components/login/auth/public/user_context.h"
 #include "chromeos/ash/components/network/policy_certificate_provider.h"
 #include "chromeos/ash/components/policy/device_local_account/device_local_account_type.h"
 #include "chromeos/ash/components/settings/timezone_settings.h"
+#include "chromeos/ash/components/timezone/timezone_util.h"
 #include "chromeos/components/mgs/managed_guest_session_utils.h"
 #include "components/crx_file/crx_verifier.h"
 #include "components/metrics_services_manager/metrics_services_manager.h"
@@ -902,7 +901,7 @@ IN_PROC_BROWSER_TEST_F(DeviceLocalAccountTest, PRE_DataIsRemoved) {
 }
 
 // Disabled on ASan and LSAn builds due to a consistent failure. See
-// crbug.com/1004228
+// crbug.com/40647624
 #if defined(ADDRESS_SANITIZER) || defined(LEAK_SANITIZER)
 #define MAYBE_DataIsRemoved DISABLED_DataIsRemoved
 #else
@@ -1050,7 +1049,7 @@ IN_PROC_BROWSER_TEST_F(DeviceLocalAccountTest, StartSession) {
   WaitForSessionStart();
 
   // Check that the startup pages specified in policy were opened.
-  EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
   BrowserWindowInterface* const browser =
       GetLastActiveBrowserWindowInterfaceWithAnyProfile();
   ASSERT_TRUE(browser);
@@ -1082,7 +1081,7 @@ IN_PROC_BROWSER_TEST_F(DeviceLocalAccountTest, FullscreenAllowed) {
   ASSERT_NO_FATAL_FAILURE(StartLogin(std::string(), std::string()));
   WaitForSessionStart();
 
-  EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
   BrowserWindowInterface* const browser =
       GetLastActiveBrowserWindowInterfaceWithAnyProfile();
   ASSERT_TRUE(browser);
@@ -1601,7 +1600,7 @@ IN_PROC_BROWSER_TEST_F(DeviceLocalAccountTest, LastWindowClosedLogoutReminder) {
   EXPECT_EQ(1U, app_window_registry->app_windows().size());
 
   // Close the only open browser window.
-  EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
   BrowserWindowInterface* browser =
       GetLastActiveBrowserWindowInterfaceWithAnyProfile();
   ASSERT_TRUE(browser);
@@ -1615,7 +1614,7 @@ IN_PROC_BROWSER_TEST_F(DeviceLocalAccountTest, LastWindowClosedLogoutReminder) {
 
   // Open a browser window.
   BrowserWindowInterface* first_browser = CreateBrowser(profile);
-  EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
 
   // Close the app window.
   run_loop_ = std::make_unique<base::RunLoop>();
@@ -1630,12 +1629,12 @@ IN_PROC_BROWSER_TEST_F(DeviceLocalAccountTest, LastWindowClosedLogoutReminder) {
 
   // Open a second browser window.
   BrowserWindowInterface* second_browser = CreateBrowser(profile);
-  EXPECT_EQ(2U, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(2U, GlobalBrowserCollection::GetInstance()->GetSize());
 
   // Close the first browser window.
   CloseBrowserAndVerifyDestruction(first_browser);
   first_browser = nullptr;
-  EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
 
   // Verify that the logout confirmation dialog is not showing because a browser
   // window is still open.
@@ -1657,7 +1656,7 @@ IN_PROC_BROWSER_TEST_F(DeviceLocalAccountTest, LastWindowClosedLogoutReminder) {
 
   // Open a browser window.
   browser = CreateBrowser(profile);
-  EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
 
   // Close the browser window.
   CloseBrowserAndVerifyDestruction(browser);
@@ -1733,6 +1732,9 @@ IN_PROC_BROWSER_TEST_F(DeviceLocalAccountTest, NoRecommendedLocaleSwitch) {
 // timezone, which should be possible iff the timezone automatic detection
 // policy is set to either DISABLED or USERS_DECIDE.
 IN_PROC_BROWSER_TEST_F(DeviceLocalAccountTest, ManagedSessionTimezoneChange) {
+  const PrefService& local_state =
+      CHECK_DEREF(g_browser_process->local_state());
+
   UploadAndInstallDeviceLocalAccountPolicy();
   AddPublicSessionToDevicePolicy(kAccountId1);
   EnableAutoLogin();
@@ -1757,30 +1759,30 @@ IN_PROC_BROWSER_TEST_F(DeviceLocalAccountTest, ManagedSessionTimezoneChange) {
 
   timezone_settings->SetTimezoneFromID(timezone_id1);
   SetSystemTimezoneAutomaticDetectionPolicy(em::SystemTimezoneProto::DISABLED);
-  ash::system::SetSystemTimezone(user, timezone_id2);
+  ash::system::SetSystemTimezone(local_state, user, timezone_id2);
   EXPECT_EQ(timezone_settings->GetCurrentTimezoneID(), timezone_id2_utf16);
 
   timezone_settings->SetTimezoneFromID(timezone_id1);
   SetSystemTimezoneAutomaticDetectionPolicy(
       em::SystemTimezoneProto::USERS_DECIDE);
-  ash::system::SetSystemTimezone(user, timezone_id2);
+  ash::system::SetSystemTimezone(local_state, user, timezone_id2);
   EXPECT_EQ(timezone_settings->GetCurrentTimezoneID(), timezone_id2_utf16);
 
   timezone_settings->SetTimezoneFromID(timezone_id1);
   SetSystemTimezoneAutomaticDetectionPolicy(em::SystemTimezoneProto::IP_ONLY);
-  ash::system::SetSystemTimezone(user, timezone_id2);
+  ash::system::SetSystemTimezone(local_state, user, timezone_id2);
   EXPECT_NE(timezone_settings->GetCurrentTimezoneID(), timezone_id2_utf16);
 
   timezone_settings->SetTimezoneFromID(timezone_id1);
   SetSystemTimezoneAutomaticDetectionPolicy(
       em::SystemTimezoneProto::SEND_WIFI_ACCESS_POINTS);
-  ash::system::SetSystemTimezone(user, timezone_id2);
+  ash::system::SetSystemTimezone(local_state, user, timezone_id2);
   EXPECT_NE(timezone_settings->GetCurrentTimezoneID(), timezone_id2_utf16);
 
   timezone_settings->SetTimezoneFromID(timezone_id1);
   SetSystemTimezoneAutomaticDetectionPolicy(
       em::SystemTimezoneProto::SEND_ALL_LOCATION_INFO);
-  ash::system::SetSystemTimezone(user, timezone_id2);
+  ash::system::SetSystemTimezone(local_state, user, timezone_id2);
   EXPECT_NE(timezone_settings->GetCurrentTimezoneID(), timezone_id2_utf16);
 }
 
@@ -2899,7 +2901,7 @@ IN_PROC_BROWSER_TEST_F(DeviceLocalAccountUkmTest, PRE_ReportUkmOnShutdown) {
   EXPECT_TRUE(ukm_test_helper.IsRecordingEnabled());
 
   // A browser is opened by default in MGS.
-  EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
+  EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
 
   // Delete all UKM to check metrics reported during the shutdown.
   ukm_test_helper.PurgeData();
@@ -2932,7 +2934,7 @@ class AmbientAuthenticationManagedGuestSessionTest
     int policy_value = device_local_account_policy_.payload()
                            .ambientauthenticationinprivatemodesenabled()
                            .value();
-    EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
+    EXPECT_EQ(1U, GlobalBrowserCollection::GetInstance()->GetSize());
     Profile* const regular_profile =
         GetLastActiveBrowserWindowInterfaceWithAnyProfile()->GetProfile();
     Profile* const incognito_profile =

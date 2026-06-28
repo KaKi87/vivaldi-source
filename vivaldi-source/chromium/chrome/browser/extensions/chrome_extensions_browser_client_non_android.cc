@@ -62,8 +62,12 @@ ChromeExtensionsBrowserClient::GetControlledFrameEmbedderURLLoader(
     const url::Origin& app_origin,
     content::FrameTreeNodeId frame_tree_node_id,
     content::BrowserContext* browser_context) {
+  // For ControlledFrame, the request initiator is typically the content inside
+  // the frame (cross-origin to the embedder IWA). Thus, strict same-origin
+  // enforcement must be disabled to allow access to the embedder's resources.
   return web_app::IsolatedWebAppURLLoaderFactory::CreateForFrame(
-      browser_context, app_origin, frame_tree_node_id);
+      browser_context, app_origin, frame_tree_node_id,
+      /*enforce_same_origin=*/false);
 }
 
 void ChromeExtensionsBrowserClient::ReportError(
@@ -105,7 +109,7 @@ void ChromeExtensionsBrowserClient::GetWebViewStoragePartitionConfig(
           webapps::kIsolatedAppScheme)) {
     base::expected<web_app::IsolatedWebAppUrlInfo, std::string> url_info =
         web_app::IsolatedWebAppUrlInfo::Create(
-            owner_site_instance->GetSiteURL());
+            owner_site_instance->GetSecurityPrincipal().GetDeprecatedSiteURL());
     DCHECK(url_info.has_value()) << url_info.error();
 
     auto* profile = Profile::FromBrowserContext(browser_context);

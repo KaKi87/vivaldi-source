@@ -1,22 +1,35 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="ru">
+<translation id="1062777154504442433">Новая группа</translation>
 <translation id="1204037785786432551">Сохранить данные по ссылке</translation>
 <translation id="1206892813135768548">Копировать как текст</translation>
+<translation id="1223158186497001208">Общая группа <ph name="GROUP_TITLE" /> с новой активностью</translation>
+<translation id="1328749518742029305">Группа <ph name="TAB_GROUP_TITLE" /> закрыта и сохранена</translation>
 <translation id="1397811292916898096">Поиск в <ph name="PRODUCT_NAME" /></translation>
 <translation id="1435593198351412143">Открывать PDF-файлы автоматически</translation>
 <translation id="1456207338570705181">Быстрый поиск доступен только в случае, если Google выбран поиском по умолчанию в Vivaldi. Эта функция отправляет слово и его контекст в поиск Google. Вы можете отключить её в <ph name="BEGIN_LINK" />Настройках<ph name="END_LINK" />.</translation>
 <translation id="1598449788754183301">Обычные/приватные вкладки</translation>
+<translation id="1626105448931436644">Подробнее об общих группах</translation>
 <translation id="1644574205037202324">История</translation>
 <translation id="1829244130665387512">Найти на странице</translation>
-<translation id="1910514478706885609">Сгруппировать с активной</translation>
+<translation id="1839634099873376237">{NUMBER_OF_TABS, plural,
+          =1 {Просмотреть <ph name="TABS_COUNT_ONE" /> вкладку с новой активностью в общих группах}
+          other {Просмотреть <ph name="TABS_COUNT_MANY" /> вкладки с новой активностью в общих группах}
+        }</translation>
 <translation id="1925021887439448749">Ввести свой веб-адрес</translation>
+<translation id="197242951608864241">{NUM_OTHER_MEMBERS, plural,
+          =1 {Присоединиться к группе с <ph name="OWNER_FIRST_NAME" /> и <ph name="NUMBER_OF_OTHER_MEMBERS" /> другим}
+          other {Присоединиться к группе с <ph name="OWNER_FIRST_NAME" /> и <ph name="NUMBER_OF_OTHER_MEMBERS" /> другими}
+        }</translation>
 <translation id="2038563949887743358">Включить полную версию сайта</translation>
+<translation id="2067565353468675023">Войти в общую группу с <ph name="OWNER_FIRST_NAME" /></translation>
 <translation id="208033313373016095">Режим чтения для веб-страниц</translation>
 <translation id="2149973817440762519">Изменить закладку</translation>
 <translation id="2306442503286132111">Закладка сохранена в папке <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Внешний вид</translation>
-<translation id="2501278716633472235">Переход назад</translation>
+<translation id="2495373685671077949">Поиск во вкладках и группах</translation>
+<translation id="2500281581698062897">Вы потеряете доступ к группе “<ph name="GROUP_NAME" />” и <ph name="BLOCKED_MEMBER_FULL_NAME" /> (<ph name="BLOCKED_MEMBER_EMAIL" />) больше не сможет взаимодействовать с вами через сервисы Google.</translation>
 <translation id="2546283357679194313">Cookies и данные сайта</translation>
 <translation id="2633278372998075009">Приватные вкладки</translation>
 <translation id="2650751991977523696">Повторить загрузку?</translation>
@@ -26,6 +39,7 @@
 <translation id="2871733351037274014">Предзагрузка страниц</translation>
 <translation id="2904300462646366554">Скачанные PDF-файлы откроются в PDF-просмотрщике если он установлен на устройстве</translation>
 <translation id="2951071800649516099">Добавьте страницы в список чтения</translation>
+<translation id="3020023775880428664">Переместить вкладку в группу</translation>
 <translation id="3029276696788198026">Без предзагрузки</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT, plural,
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> закладка}
@@ -35,7 +49,13 @@
 <translation id="3232293466644486101">Удалить данные просмотра…</translation>
 <translation id="3234355010754616171">Приватная вкладка</translation>
 <translation id="3237087289225714896">Стандартная предзагрузка:</translation>
+<translation id="3298614730029636660">Покинуть группу</translation>
+<translation id="3359462099791810823">Сохранить эту группу для добавления вкладок позже или удалить, если она не нужна.</translation>
 <translation id="3478414204555961127">Режим чтения</translation>
+<translation id="3492241834031916806">{TAB_COUNT, plural,
+          =1 {Восстановить группу с <ph name="TAB_COUNT_ONE" /> вкладкой, <ph name="COLOR_NAME" /> цвет, как новую фоновую группу.}
+          other {Восстановить группу с <ph name="TAB_COUNT_MANY" /> вкладками, <ph name="COLOR_NAME" /> цвет, как новую фоновую группу.}
+        }</translation>
 <translation id="3504699618187058974">Вкладки в группу</translation>
 <translation id="3518985090088779359">Принять и продолжить</translation>
 <translation id="3571177741182643350">Непрочтённые статьи - Доступны автономно:</translation>
@@ -43,9 +63,11 @@
 <translation id="3700829948786686853">Добро пожаловать в Vivaldi</translation>
 <translation id="3719826155360621982">Домой</translation>
 <translation id="3738139272394829648">Быстрый поиск</translation>
-<translation id="385051799172605136">Назад</translation>
+<translation id="3900825170941000696">Восстановить группу <ph name="TITLE_OF_GROUP" />, <ph name="COLOR_NAME" /> цвет, как новую фоновую группу.</translation>
+<translation id="395421286877117532">Настройте группу и нажмите Завершить</translation>
 <translation id="3987993985790029246">Копировать ссылку</translation>
 <translation id="399014816462153200">Прочитанные статьи:</translation>
+<translation id="4048089913902125176">Открыть группу <ph name="TITLE_OF_GROUP" />, <ph name="COLOR_NAME" /> цвет, с вкладками <ph name="URL_LIST" />.</translation>
 <translation id="40716919553748435">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> вкладка}
           other {<ph name="TAB_COUNT_MANY" /> вкладок, <ph name="TAB_COUNT_INCOGNITO" /> приватных}}</translation>
@@ -54,25 +76,41 @@
 <translation id="4137746084635924146">Текущий язык устройства</translation>
 <translation id="4167670741834902166">Новая приватная вкладка</translation>
 <translation id="4195643157523330669">Открыть в новой вкладке</translation>
+<translation id="4219031106525503429">Сделать группу “<ph name="GROUP_NAME" />” общей</translation>
 <translation id="4225895483398857530">Кнопка на панели инструментов</translation>
 <translation id="4243710787042215766">Открыть в приватной вкладке</translation>
 <translation id="4269820728363426813">Копировать как ссылку</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Включить блокировку экрана в настройках Android<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Менеджер паролей</translation>
-<translation id="441100617989818073">Неиспользуемые или дубли вкладок и групп</translation>
+<translation id="4393275721087307686">{NUMBER_OF_TABS, plural,
+          =1 {<ph name="TABS_COUNT_ONE" /> обычная вкладка с новой активностью в общих группах}
+          other {<ph name="TABS_COUNT_MANY" /> обычных вкладки с новой активностью в общих группах}
+        }</translation>
+<translation id="4445802392779002787">Добавить вкладку в группу</translation>
 <translation id="451872707440238414">Искать в закладках</translation>
 <translation id="4526803704855831732">Приватные вкладки</translation>
 <translation id="4532845899244822526">Выбор папки</translation>
+<translation id="454284936014822050">Группа <ph name="GROUP_TITLE" /></translation>
+<translation id="4614713783237504866">Неиспользуемые или дубли вкладок и групп</translation>
+<translation id="463284870544181537">Остаться в группе для добавления вкладок позже или покинуть, если она вам больше не нужна</translation>
+<translation id="4638726726741656531">Вы можете добавлять вкладки в группы здесь</translation>
 <translation id="4699172675775169585">Картинки и файлы из кэша</translation>
 <translation id="4719086422742491124">Получайте больше информации не покидая страницы. Выберите одно или несколько слов на странице для поиска.
 
 Быстрый поиск доступен только в случае, если Google выбран поиском по умолчанию в Vivaldi.</translation>
 <translation id="4759238208242260848">Загрузки</translation>
-<translation id="4777866634702576038">Удалить группу?</translation>
+<translation id="4771820744342013314">Удалить группу?</translation>
 <translation id="4850886885716139402">Читать</translation>
 <translation id="4883379392681899581">Выйти из приватного режима</translation>
+<translation id="4883812026489706387">В группе “<ph name="TAB_GROUP_TITLE" />” новая активность</translation>
+<translation id="4887248255051238988">Покинуть группу?</translation>
 <translation id="4943872375798546930">Нет результатов</translation>
 <translation id="49576331685473090">Блокировщик</translation>
+<translation id="4964059453543967592">Восстановить группу</translation>
+<translation id="4972397775068600917">{TAB_GROUP_COUNT, plural,
+          =1 {<ph name="TAB_GROUPS_ONE" /> группа}
+          other {<ph name="TAB_GROUPS_MANY" /> группы}
+        }</translation>
 <translation id="5048396920203761159">{TAB_COUNT, plural,
           =1 {<ph name="TAB_COUNT_ONE" /> приватная вкладка}
           other {<ph name="TAB_COUNT_NORMAL" /> приватных вкладок}}</translation>
@@ -83,19 +121,26 @@
 <translation id="5206168361184759344">{FILE_COUNT, plural,
             =1 {Загружается файл…}
             other {Загружается # файлов…}}</translation>
+<translation id="5210689723585747462">Группа <ph name="TAB_GROUP_TITLE" /> закрыта</translation>
 <translation id="5233638681132016545">Новая вкладка</translation>
 <translation id="5375131951310889874">Получайте больше информации не покидая страницы. Быстрый поиск доступен только в случае, если Google выбран поиском по умолчанию в Vivaldi. Эта функция отправляет слово и его контекст в поиск Google, возвращая описания, картинки, результаты поиска и другие сведения.
 
 Для поиска используйте долгое нажатие. Чтобы уточнить запрос, прокрутите панель вверх до упора и коснитесь поля поиска.</translation>
+<translation id="5570837353202786816">Все пользователи потеряют доступ к группе “<ph name="GROUP_NAME" />” и все ссылки-приглашения будут отключены</translation>
+<translation id="5614794348925178470">Общая группа <ph name="GROUP_TITLE" /></translation>
 <translation id="572328651809341494">Недавние вкладки</translation>
 <translation id="5833984609253377421">Поделиться ссылкой</translation>
+<translation id="6129507335719227488">Вкладки в группе</translation>
 <translation id="6150320133806434356">Закладка сохранена</translation>
 <translation id="6193448654517602979">Выбрать вкладки</translation>
+<translation id="6221225660285238685">Переместить группу в другое окно</translation>
+<translation id="6277377952699614191">Группа вкладок</translation>
 <translation id="6336451774241870485">Приватная вкладка</translation>
 <translation id="6337323516034698937">Чтобы отправить эту вкладку на другое устройство, войдите в Vivaldi Sync на обоих устройствах. Убедитесь, что вы ввели пароль шифрования, если необходимо.</translation>
 <translation id="6341580099087024258">Спрашивать, куда сохранять файлы</translation>
 <translation id="6364438453358674297">Удалить подсказку из истории?</translation>
 <translation id="6404511346730675251">Изменить закладку</translation>
+<translation id="6453011654157908292">Детали группы</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
           =1 {Файл загружен}
           other {# файлов загружено}}</translation>
@@ -104,11 +149,13 @@
 <translation id="6593061639179217415">Вид для ПК</translation>
 <translation id="6610147964972079463">Закрыть приватные вкладки</translation>
 <translation id="6627583120233659107">Изменить папку</translation>
+<translation id="6785740335511995065">Сохранить группу?</translation>
 <translation id="6865313869410766144">Данные для автозаполнения</translation>
 <translation id="6909589135458168665">Предзагрузка страниц</translation>
 <translation id="7029995644714925509">Когда сайт запрашивает предзагрузку ссылок на свою страницу, Vivaldi шифрует и предзагружает страницы через серверы Google без файлов cookie. Это скрывает вашу личность от предзагруженного сайта.</translation>
 <translation id="706339621163631076">Политика безопасности</translation>
 <translation id="7100573672995171864">Настраивайте и управляйте Vivaldi</translation>
+<translation id="7133879160432070247">Блокировать и покинуть группу?</translation>
 <translation id="732145680195464316">Закладка сохранена в <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Отправлять запрос Do Not Track</translation>
 <translation id="7359002509206457351">Доступ к способам оплаты</translation>
@@ -117,25 +164,34 @@
 <translation id="7456774706094330779">Расширенная предзагрузка</translation>
 <translation id="7465104139234185284">Закрыть приватные вкладки</translation>
 <translation id="7481312909269577407">Вперёд</translation>
+<translation id="759273611317559136">Группа <ph name="TAB_GROUP_TITLE" /> удалена</translation>
+<translation id="7630413501995820846">Сохранить</translation>
+<translation id="7640137753339219124">Удалить группу</translation>
 <translation id="7764225426217299476">Добавить адрес</translation>
+<translation id="7910753230807645596">Дублирующиеся вкладки и группы или неиспользуемые <ph name="DAYS_INACTIVE" /> дней перемещены в <ph name="AUTODELETE_SECTION" />. Вы можете изменить это в любой момент в <ph name="DECLUTTER_SETTINGS_TITLE" />.</translation>
 <translation id="7968014550143838305">Добавлено в список чтения</translation>
 <translation id="804786196054284061">Условия использования Vivaldi</translation>
 <translation id="8062594758852531064">Расширенная предзагрузка:</translation>
 <translation id="8073388330009372546">Открыть картинку в новой вкладке</translation>
 <translation id="8127542551745560481">Изменить главную страницу</translation>
+<translation id="8149776854955817519">Просмотрите ваши неактивные вкладки и группы здесь</translation>
 <translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
           =1 {(1) неактивный элемент}
           few {(#) неактивных элемента}
           other {(#) неактивных элементов}}</translation>
 <translation id="8266862848225348053">Каталог загрузки</translation>
 <translation id="8348430946834215779">Использовать по возможности протокол HTTPS и предупреждать перед загрузкой сайтов, которые его не поддерживают</translation>
+<translation id="8480628728881718381">Открыть в новой группе</translation>
+<translation id="8543049482641423692">Добавить вкладку в новую группу</translation>
 <translation id="8560602726703398413">Список чтения находится в закладках</translation>
 <translation id="85991616550051997">Переход на домашнюю страницу</translation>
+<translation id="8680308397617585416">Вы потеряете доступ к группе “<ph name="GROUP_NAME" />” и она будет удалена со всех ваших устройств</translation>
 <translation id="8738163682604285902">Включить режим чтения?</translation>
 <translation id="8820817407110198400">Закладки</translation>
 <translation id="9042893549633094279">Приватность и безопасность</translation>
 <translation id="9063523880881406963">Отключить полную версию сайта</translation>
 <translation id="9080642952018487277">Работать приватно</translation>
+<translation id="9099398755190923267">Все пользователи потеряют доступ к группе “<ph name="GROUP_NAME" />” и она будет удалена со всех устройств</translation>
 <translation id="930124987204876019">Удалить историю, файлы cookie, данные сайтов, кэш и другие данные…</translation>
 <translation id="961856697154696964">Удалить данные просмотра</translation>
 </translationbundle>

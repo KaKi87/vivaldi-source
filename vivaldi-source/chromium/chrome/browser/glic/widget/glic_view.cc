@@ -8,14 +8,13 @@
 #include "base/metrics/user_metrics.h"
 #include "chrome/browser/file_select_helper.h"
 #include "chrome/browser/glic/fre/glic_fre_controller.h"
+#include "chrome/browser/glic/public/features.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -58,16 +57,6 @@ GlicView::~GlicView() = default;
 
 bool GlicView::HandleKeyboardEvent(content::WebContents* source,
                                    const input::NativeWebKeyboardEvent& event) {
-  if (event.GetType() == input::NativeWebKeyboardEvent::Type::kRawKeyDown &&
-      event.windows_key_code == ui::VKEY_ESCAPE) {
-    if (auto* glic_service = GlicKeyedServiceFactory::GetGlicKeyedService(
-            source->GetBrowserContext())) {
-      if (glic_service->fre_controller().ShouldShowFreDialog() &&
-          glic_service->IsWindowOrFreShowing()) {
-        base::RecordAction(base::UserMetricsAction("Glic.Fre.CloseWithEsc"));
-      }
-    }
-  }
   return GetWidget() && unhandled_keyboard_event_handler_.HandleKeyboardEvent(
                             event, GetWidget()->GetFocusManager());
 }
@@ -98,7 +87,8 @@ bool GlicView::CanDragEnter(content::WebContents* source,
   bool has_files = !data.filenames.empty() || !data.file_system_files.empty();
   bool has_url = !data.url_infos.empty();
 
-  return has_files || has_url;
+  return has_files || (has_url && base::FeatureList::IsEnabled(
+                                      features::kGlicWebDragAndDropFileUpload));
 }
 
 void GlicView::SetWebContents(content::WebContents* web_contents) {
@@ -111,10 +101,6 @@ void GlicView::SetWebContents(content::WebContents* web_contents) {
 void GlicView::DraggableRegionsChanged(
     const std::vector<blink::mojom::DraggableRegionPtr>& regions,
     content::WebContents* contents) {
-  // `GlicView::DraggableRegionsChanged()` is called when draggable regions for
-  // either the main-webcontents or guest-webcontents are changed.
-  // guest-webcontents are the webcontents associated to `<webview>` hosting the
-  // glic web app,
   SkRegion sk_region;
   for (const auto& region : regions) {
     sk_region.op(
@@ -123,11 +109,18 @@ void GlicView::DraggableRegionsChanged(
         region->draggable ? SkRegion::kUnion_Op : SkRegion::kDifference_Op);
   }
 
-  SetDraggableRegion(sk_region);
+  // `GlicView::DraggableRegionsChanged()` is called when draggable regions for
+  // either the main-webcontents or guest-webcontents are changed.
+  // guest-webcontents are the webcontents associated to `<webview>` hosting the
+  // glic web app,
+  const bool is_webview_contents = web_contents() != contents;
+  SetDraggableRegion(sk_region, /*for_webview=*/is_webview_contents);
 }
 
 bool GlicView::IsPointWithinDraggableRegion(const gfx::Point& point) {
-  return draggable_region_.contains(point.x(), point.y());
+  // Draggable region of webview takes precedence.
+  return webview_draggable_region_.contains(point.x(), point.y()) ||
+         draggable_region_.contains(point.x(), point.y());
 }
 
 void GlicView::UpdateBackgroundColor() {
@@ -150,6 +143,11 @@ void GlicView::UpdateBackgroundColor() {
   }
 }
 
+void GlicView::OnThemeChanged() {
+  views::WebView::OnThemeChanged();
+  UpdateBackgroundColor();
+}
+
 void GlicView::SetBackgroundRoundedCorners(const gfx::RoundedCornersF& radii) {
   if (radii == background_radii_) {
     return;
@@ -167,10 +165,8 @@ bool GlicView::AcceleratorPressed(const ui::Accelerator& accelerator) {
   return false;
 }
 
-void GlicView::SetDraggableRegion(const SkRegion& region) {
-  // Since <webview> covers the entire main web-contents, overriding the
-  // draggable regions set by main web-contents (if any) is okay.
-  draggable_region_ = region;
+void GlicView::SetDraggableRegion(const SkRegion& region, bool for_webview) {
+  (for_webview ? webview_draggable_region_ : draggable_region_) = region;
 }
 
 std::optional<SkColor> GlicView::GetClientBackgroundColor() {

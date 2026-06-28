@@ -72,6 +72,7 @@ import org.chromium.base.task.TaskTraits;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.back_press.BackPressHelper;
@@ -101,6 +102,7 @@ import org.chromium.components.offline_items_collection.RenameResult;
 import org.chromium.components.url_formatter.SchemeDisplay;
 import org.chromium.components.url_formatter.UrlFormatter;
 import org.chromium.components.url_formatter.UrlFormatterJni;
+import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.edge_to_edge.EdgeToEdgePadAdjuster;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.test.util.BlankUiTestActivity;
@@ -336,8 +338,8 @@ public class DownloadActivityV2Test {
                 });
         checkItemsDisplayed(true, true, true, true);
 
-        Matcher filesTabMatcher = withText(equalToIgnoringCase("My Files"));
-        Matcher prefetchTabMatcher = withText(equalToIgnoringCase("Explore Offline"));
+        Matcher<View> filesTabMatcher = withText(equalToIgnoringCase("My Files"));
+        Matcher<View> prefetchTabMatcher = withText(equalToIgnoringCase("Explore Offline"));
         onView(filesTabMatcher).check(matches(isDisplayed()));
         onView(prefetchTabMatcher).check(matches(isDisplayed()));
 
@@ -361,15 +363,15 @@ public class DownloadActivityV2Test {
         // Two PAGES and two OTHER files. Should show All, Pages, and Other chips.
         checkItemsDisplayed(true, true, true, true);
 
-        Matcher allChipMatcher =
+        Matcher<View> allChipMatcher =
                 allOf(
                         withText(equalToIgnoringCase("All")),
                         isDescendantOfA(withId(R.id.content_container)));
-        Matcher pagesChipMatcher =
+        Matcher<View> pagesChipMatcher =
                 allOf(
                         withText(equalToIgnoringCase("Pages")),
                         isDescendantOfA(withId(R.id.content_container)));
-        Matcher otherChipMatcher =
+        Matcher<View> otherChipMatcher =
                 allOf(
                         withText(equalToIgnoringCase("Other")),
                         isDescendantOfA(withId(R.id.content_container)));
@@ -522,6 +524,7 @@ public class DownloadActivityV2Test {
     @Test
     @MediumTest
     @DisabledTest(message = "crbug.com/427410747")
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/479879586
     public void testDeleteDangerousUsingMenu() throws Exception {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
@@ -551,6 +554,7 @@ public class DownloadActivityV2Test {
     @Test
     @MediumTest
     @DisabledTest(message = "crbug.com/427410747")
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/479879586
     public void testDeleteDangerousUsingSelection() throws Exception {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
@@ -655,6 +659,7 @@ public class DownloadActivityV2Test {
 
     @Test
     @MediumTest
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/479879586
     public void testShowListItemMenuWithRename() throws Exception {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
@@ -759,6 +764,7 @@ public class DownloadActivityV2Test {
 
     @Test
     @MediumTest
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/479879586
     public void testDeleteItem() throws Exception {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
@@ -798,7 +804,7 @@ public class DownloadActivityV2Test {
 
     @Test
     @MediumTest
-    @DisabledTest(message = "https://crbug.com/1338140")
+    @DisabledTest(message = "https://crbug.com/40848881")
     public void testRenameItem() throws Exception {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {

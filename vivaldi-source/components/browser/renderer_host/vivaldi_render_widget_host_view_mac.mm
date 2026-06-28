@@ -17,8 +17,8 @@ void RenderWidgetHostViewMac::VivaldiOnAsyncDictionaryHitTestCompleted(
   }
   auto* view_base = static_cast<RenderWidgetHostViewBase*>(view.get());
 
-  RenderWidgetHostImpl* widget_host = RenderWidgetHostImpl::From(
-      view_base->GetRenderWidgetHost());
+  RenderWidgetHostImpl* widget_host =
+      RenderWidgetHostImpl::From(view_base->GetRenderWidgetHost());
 
   if (!widget_host)
     return;

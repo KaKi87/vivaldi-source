@@ -82,7 +82,7 @@ void VivaldiTranslateAgent::ExecuteScript(const std::string& script) {
     return;
 
   WebScriptSource source = WebScriptSource(
-      WebString::FromUTF8(script), WebURL(GURL("vivaldi://translate.js")));
+      WebString::FromUtf8(script), WebURL(GURL("vivaldi://translate.js")));
   main_frame->ExecuteScriptInIsolatedWorld(
       world_id_, source, blink::BackForwardCacheAware::kAllow);
 

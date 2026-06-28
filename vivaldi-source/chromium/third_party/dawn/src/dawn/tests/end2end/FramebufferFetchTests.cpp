@@ -28,9 +28,9 @@
 #include <string>
 #include <vector>
 
-#include "dawn/tests/DawnTest.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/WGPUHelpers.h"
 
 namespace dawn {
 namespace {
@@ -395,7 +395,12 @@ TEST_P(FramebufferFetchTests, MultisamplingIsSampleRasterization) {
                       {0, 0});
 }
 
-DAWN_INSTANTIATE_TEST(FramebufferFetchTests, MetalBackend());
+// TODO(crbug.com/42241389): Add a test that uses FramebufferFetch and ResourceTable in the same
+// pipeline.
+
+DAWN_INSTANTIATE_TEST(FramebufferFetchTests,
+                      MetalBackend(),
+                      VulkanBackend({}, {"vulkan_use_dynamic_rendering"}));
 
 }  // anonymous namespace
 }  // namespace dawn

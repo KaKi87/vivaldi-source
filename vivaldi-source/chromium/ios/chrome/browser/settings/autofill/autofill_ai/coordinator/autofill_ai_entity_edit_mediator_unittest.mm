@@ -8,17 +8,24 @@
 #import "base/strings/sys_string_conversions.h"
 #import "base/test/bind.h"
 #import "base/test/ios/wait_util.h"
+#import "base/test/metrics/histogram_tester.h"
 #import "components/autofill/core/browser/data_manager/autofill_ai/entity_data_manager.h"
 #import "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
 #import "components/autofill/core/browser/network/autofill_ai/mock_wallet_pass_access_manager.h"
 #import "components/autofill/core/browser/test_utils/entity_data_test_utils.h"
 #import "components/autofill/core/common/autofill_features.h"
+#import "components/consent_auditor/fake_consent_auditor.h"
+#import "components/signin/public/base/consent_level.h"
+#import "components/signin/public/identity_manager/identity_test_environment.h"
+#import "components/sync/test/test_sync_service.h"
+#import "components/wallet/core/common/wallet_features.h"
 #import "ios/chrome/browser/autofill/model/ios_autofill_entity_data_manager_factory.h"
 #import "ios/chrome/browser/settings/autofill/autofill_ai/coordinator/fake_autofill_ai_entity_edit_consumer.h"
 #import "ios/chrome/browser/settings/autofill/autofill_ai/ui/autofill_ai_entity_country_item.h"
 #import "ios/chrome/browser/settings/autofill/autofill_ai/ui/autofill_ai_entity_edit_consumer.h"
 #import "ios/chrome/browser/settings/autofill/autofill_ai/ui/autofill_ai_entity_edit_item.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
+#import "ios/chrome/browser/sync/model/sync_service_factory.h"
 #import "ios/chrome/browser/webdata_services/model/web_data_service_factory.h"
 #import "ios/web/public/test/web_task_environment.h"
 #import "testing/gtest/include/gtest/gtest.h"
@@ -26,17 +33,38 @@
 #import "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
 
+@interface FakeAutofillAIEntityEditMediatorDelegate
+    : NSObject <AutofillAIEntityEditMediatorDelegate>
+@property(nonatomic, assign) BOOL canPerformWalletSave;
+@end
+
+@implementation FakeAutofillAIEntityEditMediatorDelegate
+
+- (BOOL)mediator:(AutofillAIEntityEditMediator*)mediator
+    canPerformWalletSaveForType:(autofill::EntityType)type {
+  return self.canPerformWalletSave;
+}
+
+@end
+
 class AutofillAIEntityEditMediatorTest : public PlatformTest {
  protected:
   AutofillAIEntityEditMediatorTest() {
     scoped_feature_list_.InitWithFeatures(
         {autofill::features::kAutofillAiWithDataSchema,
-         autofill::features::kAutofillAiCreateEntityDataManager},
+         autofill::features::kAutofillAiCreateEntityDataManager,
+         wallet::features::kWalletApiPrivatePassesConsent},
         {});
 
     TestProfileIOS::Builder builder;
     builder.AddTestingFactory(ios::WebDataServiceFactory::GetInstance(),
                               ios::WebDataServiceFactory::GetDefaultFactory());
+    builder.AddTestingFactory(
+        SyncServiceFactory::GetInstance(),
+        base::BindRepeating(
+            [](ProfileIOS* profile) -> std::unique_ptr<KeyedService> {
+              return std::make_unique<syncer::TestSyncService>();
+            }));
 
     profile_ = std::move(builder).Build();
     entity_data_manager_ =
@@ -46,12 +74,19 @@ class AutofillAIEntityEditMediatorTest : public PlatformTest {
     mock_wallet_pass_manager_ = std::make_unique<
         testing::StrictMock<autofill::MockWalletPassAccessManager>>();
 
+    fake_delegate_ = [[FakeAutofillAIEntityEditMediatorDelegate alloc] init];
+
     mockReauthModule_ = OCMProtocolMock(@protocol(ReauthenticationProtocol));
+
+    // Sign in a primary account so IdentityManager can provide a valid GaiaId.
+    identity_test_env_.MakePrimaryAccountAvailable(
+        "test@example.com", signin::ConsentLevel::kSignin);
   }
 
   void TearDown() override {
     mediator_ = nil;
     consumer_ = nil;
+    fake_delegate_ = nil;
     PlatformTest::TearDown();
   }
 
@@ -61,9 +96,12 @@ class AutofillAIEntityEditMediatorTest : public PlatformTest {
         initWithEntityInstance:instance
              entityDataManager:entity_data_manager_
              walletPassManager:mock_wallet_pass_manager_.get()
+                consentAuditor:&fake_consent_auditor_
+               identityManager:identity_test_env_.identity_manager()
                   reauthModule:mockReauthModule_
                      userEmail:nil];
     mediator_.consumer = consumer_;
+    mediator_.delegate = fake_delegate_;
   }
 
   // Helper method to create a mediator with a given entity instance and
@@ -96,8 +134,11 @@ class AutofillAIEntityEditMediatorTest : public PlatformTest {
   raw_ptr<autofill::EntityDataManager> entity_data_manager_;
   std::unique_ptr<autofill::MockWalletPassAccessManager>
       mock_wallet_pass_manager_;
+  testing::NiceMock<consent_auditor::FakeConsentAuditor> fake_consent_auditor_;
+  signin::IdentityTestEnvironment identity_test_env_;
   FakeAutofillAIEntityEditConsumer* consumer_;
   AutofillAIEntityEditMediator* mediator_;
+  FakeAutofillAIEntityEditMediatorDelegate* fake_delegate_;
   id mockReauthModule_;
 };
 
@@ -188,6 +229,11 @@ TEST_F(AutofillAIEntityEditMediatorTest, SaveWalletEligibleEntity_Success) {
           {.record_type =
                autofill::EntityInstance::RecordType::kServerWallet}));
   CreateMediator(instance);
+  fake_delegate_.canPerformWalletSave = YES;
+
+  consent_auditor::ConsentAuditor::SessionId captured_session_id;
+  EXPECT_CALL(fake_consent_auditor_, RecordWalletPrivatePassConsent)
+      .WillOnce(testing::SaveArg<1>(&captured_session_id));
 
   EXPECT_CALL(*mock_wallet_pass_manager_,
               SaveWalletEntityInstance(testing::_, testing::_, testing::_))
@@ -196,10 +242,13 @@ TEST_F(AutofillAIEntityEditMediatorTest, SaveWalletEligibleEntity_Success) {
               const consent_auditor::ConsentAuditor::SessionId& session_id,
               autofill::WalletPassAccessManager::UpsertEntityInstanceCallback
                   callback) {
+            EXPECT_EQ(session_id, captured_session_id);
             autofill::EntityInstance masked_saved_entity =
                 autofill::test::MaskEntityInstance(entity);
             std::move(callback).Run(masked_saved_entity);
           });
+
+  base::HistogramTester histogram_tester;
 
   [mediator_ saveEntityInstance];
 
@@ -213,6 +262,9 @@ TEST_F(AutofillAIEntityEditMediatorTest, SaveWalletEligibleEntity_Success) {
         return entity_data_manager_->GetEntityInstance(instance.guid())
             .has_value();
       }));
+
+  histogram_tester.ExpectUniqueSample("Autofill.Ai.EntityUpdatedFromSettings",
+                                      autofill::EntityTypeName::kPassport, 1);
 }
 
 // Tests that if the Wallet API fails to save, the mediator falls back to saving
@@ -224,6 +276,7 @@ TEST_F(AutofillAIEntityEditMediatorTest,
           {.record_type =
                autofill::EntityInstance::RecordType::kServerWallet}));
   CreateMediator(instance);
+  fake_delegate_.canPerformWalletSave = YES;
 
   // Expect the mock to be called and simulate a failure.
   EXPECT_CALL(*mock_wallet_pass_manager_,
@@ -233,6 +286,8 @@ TEST_F(AutofillAIEntityEditMediatorTest,
               const consent_auditor::ConsentAuditor::SessionId& session_id,
               autofill::WalletPassAccessManager::UpsertEntityInstanceCallback
                   callback) { std::move(callback).Run(std::nullopt); });
+
+  base::HistogramTester histogram_tester;
 
   [mediator_ saveEntityInstance];
 
@@ -252,6 +307,9 @@ TEST_F(AutofillAIEntityEditMediatorTest,
       entity_data_manager_->GetEntityInstance(instance.guid());
   EXPECT_EQ(saved_instance->record_type(),
             autofill::EntityInstance::RecordType::kLocal);
+
+  histogram_tester.ExpectUniqueSample("Autofill.Ai.EntityUpdatedFromSettings",
+                                      autofill::EntityTypeName::kPassport, 1);
 }
 
 // Tests that entities not eligible for wallet storage save directly to the data
@@ -267,6 +325,8 @@ TEST_F(AutofillAIEntityEditMediatorTest,
               SaveWalletEntityInstance(testing::_, testing::_, testing::_))
       .Times(0);
 
+  base::HistogramTester histogram_tester;
+
   [mediator_ saveEntityInstance];
 
   // Loading state should not be triggered for synchronous local saves.
@@ -280,4 +340,31 @@ TEST_F(AutofillAIEntityEditMediatorTest,
         return entity_data_manager_->GetEntityInstance(instance.guid())
             .has_value();
       }));
+
+  histogram_tester.ExpectUniqueSample("Autofill.Ai.EntityUpdatedFromSettings",
+                                      autofill::EntityTypeName::kVehicle, 1);
+}
+
+// Tests that saving an entity in Create mode logs the Added metric.
+TEST_F(AutofillAIEntityEditMediatorTest, SaveEntity_CreateMode) {
+  autofill::EntityInstance instance =
+      autofill::test::GetVehicleEntityInstance();
+  CreateMediator(instance);
+  consumer_.mode = AutofillAIEntityEditMode::kCreate;
+
+  base::HistogramTester histogram_tester;
+
+  [mediator_ saveEntityInstance];
+
+  EXPECT_TRUE(consumer_.didFinishSavingCalled);
+
+  // Verify it was saved.
+  EXPECT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(
+      base::test::ios::kWaitForActionTimeout, true, ^{
+        return entity_data_manager_->GetEntityInstance(instance.guid())
+            .has_value();
+      }));
+
+  histogram_tester.ExpectUniqueSample("Autofill.Ai.EntityAddedFromSettings",
+                                      autofill::EntityTypeName::kVehicle, 1);
 }

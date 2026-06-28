@@ -7,11 +7,10 @@
 #include <utility>
 
 #include "base/notimplemented.h"
-#include "remoting/codec/video_encoder.h"
+#include "remoting/base/fifo_buffer.h"
 #include "remoting/protocol/audio_source.h"
 #include "remoting/protocol/audio_stream.h"
 #include "remoting/protocol/session.h"
-#include "remoting/protocol/video_frame_pump.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_capturer.h"
 
 namespace remoting::protocol {
@@ -68,16 +67,6 @@ std::unique_ptr<VideoStream> FakeConnectionToClient::StartVideoStream(
     webrtc::ScreenId screen_id,
     std::unique_ptr<DesktopCapturer> desktop_capturer) {
   desktop_capturer_ = std::move(desktop_capturer);
-  if (video_stub_ && video_encode_task_runner_) {
-    std::unique_ptr<VideoEncoder> video_encoder =
-        VideoEncoder::Create(session_->config());
-
-    std::unique_ptr<protocol::VideoFramePump> pump(new protocol::VideoFramePump(
-        video_encode_task_runner_, std::move(desktop_capturer_),
-        std::move(video_encoder), video_stub_));
-    video_feedback_stub_ = pump->video_feedback_stub();
-    return std::move(pump);
-  }
 
   std::unique_ptr<FakeVideoStream> result(new FakeVideoStream());
   last_video_stream_ = result->GetWeakPtr();
@@ -88,6 +77,11 @@ std::unique_ptr<AudioStream> FakeConnectionToClient::StartAudioStream(
     std::unique_ptr<AudioSource> audio_source) {
   NOTIMPLEMENTED();
   return nullptr;
+}
+
+void FakeConnectionToClient::SetAudioWriter(
+    std::unique_ptr<FifoBufferWriter> writer) {
+  audio_writer_ = std::move(writer);
 }
 
 ClientStub* FakeConnectionToClient::client_stub() {

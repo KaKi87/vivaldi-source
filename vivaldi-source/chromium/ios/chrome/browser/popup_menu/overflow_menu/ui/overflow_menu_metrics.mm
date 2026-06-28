@@ -35,6 +35,8 @@ IOSOverflowMenuDestination HistogramDestinationFromDestination(
       return IOSOverflowMenuDestination::kPriceNotifications;
     case overflow_menu::Destination::Cobalt:
       return IOSOverflowMenuDestination::kCobalt;
+    case overflow_menu::Destination::LevelUp:
+      return IOSOverflowMenuDestination::kLevelUp;
 
     // Vivaldi
     // Note:(@prio@vivaldi.com) - This is not necessary for us. SiteInfo is
@@ -91,8 +93,8 @@ IOSOverflowMenuAction HistogramActionFromActionType(
       return IOSOverflowMenuAction::kAskBWG;
     case overflow_menu::ActionType::HideToolbars:
       return IOSOverflowMenuAction::kHideToolbars;
-    case overflow_menu::ActionType::TabGroup:
-      return IOSOverflowMenuAction::kTabGroup;
+    case overflow_menu::ActionType::TabGroupDeprecated:
+      NOTREACHED();
     case overflow_menu::ActionType::ShareThisPage:
       return IOSOverflowMenuAction::kShareThisPage;
 

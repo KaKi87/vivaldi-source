@@ -212,7 +212,7 @@ void CrashesDOMHandler::UpdateUI() {
 #endif
   bool allow_manual_uploads =
       manual_uploads_supported &&
-      (crash_reporting_enabled || !IsMetricsReportingPolicyManaged());
+      (crash_reporting_enabled || !metrics::IsMetricsReportingPolicyManaged());
 
   // Show crash reports regardless of |crash_reporting_enabled| when it is
   // possible to manually upload reports.
@@ -239,7 +239,7 @@ void CrashesDOMHandler::HandleRequestSingleCrashUpload(
     const base::ListValue& args) {
   // Only allow manual uploads if crash uploads aren’t disabled by policy.
   if (!ChromeMetricsServiceAccessor::IsMetricsAndCrashReportingEnabled() &&
-      IsMetricsReportingPolicyManaged()) {
+      metrics::IsMetricsReportingPolicyManaged()) {
     return;
   }
 

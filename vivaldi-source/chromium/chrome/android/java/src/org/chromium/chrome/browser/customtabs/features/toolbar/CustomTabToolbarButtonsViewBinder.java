@@ -54,6 +54,9 @@ import org.chromium.ui.modelutil.PropertyListModel;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+
 @NullMarked
 public class CustomTabToolbarButtonsViewBinder
         implements PropertyModelChangeProcessor.ViewBinder<
@@ -455,6 +458,14 @@ public class CustomTabToolbarButtonsViewBinder
             int incognitoIconWidth =
                     resources.getDimensionPixelSize(R.dimen.custom_tabs_incognito_icon_width);
             titleUrlLp.leftMargin += incognitoIconWidth;
+        }
+        // Vivaldi VAB-12896: Offset title container to avoid overlapping the security button.
+        if (BuildConfig.IS_VIVALDI && !omniboxEnabled) {
+            View securityWrapper = view.findViewById(R.id.security_button_wrapper);
+            if (securityWrapper.getVisibility() == View.VISIBLE
+                    && securityWrapper.getWidth() > 0) {
+                titleUrlLp.leftMargin += securityWrapper.getWidth();
+            }
         }
         titleUrlContainer.setLayoutParams(titleUrlLp);
 

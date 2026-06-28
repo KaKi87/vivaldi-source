@@ -231,13 +231,16 @@ UILabel* BubbleTitleLabelWithText(NSString* text,
   return label;
 }
 
-UIButton* BubbleNextButton(BubblePageControlPage page) {
+UIButton* BubbleNextButton(BubblePageControlPage page, NSString* customTitle) {
   UIButton* button = [UIButton buttonWithType:UIButtonTypeSystem];
   button.accessibilityIdentifier = kBubbleViewNextButtonIdentifier;
-  int textID = page == BubblePageControlPageFourth ? IDS_IOS_IPH_BUBBLE_GOT_IT
-                                                   : IDS_IOS_IPH_BUBBLE_NEXT;
-  [button setTitle:l10n_util::GetNSString(textID)
-          forState:UIControlStateNormal];
+  NSString* title = customTitle;
+  if (!title) {
+    int textID = page == BubblePageControlPageFourth ? IDS_IOS_IPH_BUBBLE_GOT_IT
+                                                     : IDS_IOS_IPH_BUBBLE_NEXT;
+    title = l10n_util::GetNSString(textID);
+  }
+  [button setTitle:title forState:UIControlStateNormal];
   [button setTitleColor:[UIColor colorNamed:kSolidButtonTextColor]
                forState:UIControlStateNormal];
   [button.titleLabel
@@ -267,9 +270,10 @@ UIStackView* PageControl(BubblePageControlPage page) {
         initWithImage:DefaultSymbolWithConfiguration(kCircleBadgeFill,
                                                      symbolConfiguration)];
     BOOL shouldBeHighlighted = i == page - 1;
-    circleImageView.tintColor = shouldBeHighlighted
-                                    ? [UIColor whiteColor]
-                                    : [UIColor colorWithWhite:1 alpha:0.45];
+    UIColor* baseCircleColor = [UIColor colorNamed:kSolidButtonTextColor];
+    circleImageView.tintColor =
+        shouldBeHighlighted ? baseCircleColor
+                            : [baseCircleColor colorWithAlphaComponent:0.45];
     [container addArrangedSubview:circleImageView];
   }
   return container;
@@ -327,6 +331,28 @@ UIStackView* PageControl(BubblePageControlPage page) {
                         page:(BubblePageControlPage)page
                textAlignment:(NSTextAlignment)textAlignment
                     delegate:(id<BubbleViewDelegate>)delegate {
+  return [self initWithText:text
+             arrowDirection:direction
+                  alignment:alignment
+           showsCloseButton:shouldShowCloseButton
+                      title:titleString
+            showsNextButton:showsNextButton
+                       page:page
+              textAlignment:textAlignment
+      customNextButtonTitle:nil
+                   delegate:delegate];
+}
+
+- (instancetype)initWithText:(NSString*)text
+              arrowDirection:(BubbleArrowDirection)direction
+                   alignment:(BubbleAlignment)alignment
+            showsCloseButton:(BOOL)shouldShowCloseButton
+                       title:(NSString*)titleString
+             showsNextButton:(BOOL)showsNextButton
+                        page:(BubblePageControlPage)page
+               textAlignment:(NSTextAlignment)textAlignment
+       customNextButtonTitle:(NSString*)customNextButtonTitle
+                    delegate:(id<BubbleViewDelegate>)delegate {
   self = [super initWithFrame:CGRectZero];
   if (self) {
     _direction = direction;
@@ -369,7 +395,7 @@ UIStackView* PageControl(BubblePageControlPage page) {
       _separator.translatesAutoresizingMaskIntoConstraints = NO;
       _separator.backgroundColor = [UIColor colorNamed:kSeparatorColor];
       [self addSubview:_separator];
-      _nextButton = BubbleNextButton(page);
+      _nextButton = BubbleNextButton(page, customNextButtonTitle);
       [_nextButton addTarget:self
                       action:@selector(nextButtonWasTapped:)
             forControlEvents:UIControlEventTouchUpInside];
@@ -600,6 +626,12 @@ UIStackView* PageControl(BubblePageControlPage page) {
   ];
   for (NSLayoutConstraint* constraint in labelAlignmentConstraints) {
     constraint.priority = UILayoutPriorityDefaultLow;
+  }
+  if (self.label.textAlignment != NSTextAlignmentCenter) {
+    // Force the leading constraint to be satisfied over the trailing constraint
+    // to left-align (or right-align in RTL) the label inside the background,
+    // avoiding extra leading space when the bubble is wider than the text.
+    labelAlignmentConstraints[1].priority = UILayoutPriorityDefaultHigh - 10;
   }
   // Add horizontal margins between the bubble's frame and the background. These
   // constraints are optional (if the bubble is too close to the edge of the
@@ -943,7 +975,7 @@ UIStackView* PageControl(BubblePageControlPage page) {
   if (self.showsCloseButton) {
     textHorizontalInset += MAX(kCloseButtonSize, kBubbleHorizontalPadding) +
                            kBubbleHorizontalPadding;
-  } else if (!self.titleLabel) {
+  } else {
     textHorizontalInset += kBubbleHorizontalPadding * 2;
   }
 

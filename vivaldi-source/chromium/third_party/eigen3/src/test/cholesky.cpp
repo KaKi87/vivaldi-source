@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #define TEST_ENABLE_TEMPORARY_TRACKING
 
@@ -75,8 +76,8 @@ void cholesky(const MatrixType& m) {
   }
 
   {
-    STATIC_CHECK((internal::is_same<typename LLT<MatrixType, Lower>::StorageIndex, int>::value));
-    STATIC_CHECK((internal::is_same<typename LLT<MatrixType, Upper>::StorageIndex, int>::value));
+    STATIC_CHECK((std::is_same<typename LLT<MatrixType, Lower>::StorageIndex, int>::value));
+    STATIC_CHECK((std::is_same<typename LLT<MatrixType, Upper>::StorageIndex, int>::value));
 
     SquareMatrixType symmUp = symm.template triangularView<Upper>();
     SquareMatrixType symmLo = symm.template triangularView<Lower>();
@@ -138,8 +139,8 @@ void cholesky(const MatrixType& m) {
 
   // LDLT
   {
-    STATIC_CHECK((internal::is_same<typename LDLT<MatrixType, Lower>::StorageIndex, int>::value));
-    STATIC_CHECK((internal::is_same<typename LDLT<MatrixType, Upper>::StorageIndex, int>::value));
+    STATIC_CHECK((std::is_same<typename LDLT<MatrixType, Lower>::StorageIndex, int>::value));
+    STATIC_CHECK((std::is_same<typename LDLT<MatrixType, Upper>::StorageIndex, int>::value));
 
     int sign = internal::random<int>() % 2 ? 1 : -1;
 

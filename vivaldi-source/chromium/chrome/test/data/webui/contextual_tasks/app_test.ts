@@ -12,7 +12,7 @@ import {fakeMetricsPrivate} from 'chrome://webui-test/metrics_test_support.js';
 import {isVisible, microtasksFinished} from 'chrome://webui-test/test_util.js';
 
 import {TestContextualTasksBrowserProxy} from './test_contextual_tasks_browser_proxy.js';
-import {fixtureUrl} from './test_utils.js';
+import {createContextualTasksAppElement, fixtureUrl, simulateLoadCommit} from './test_utils.js';
 
 // Remove the element to prevent background loadabort events from triggering
 // a race condition with our manual event simulation.
@@ -45,17 +45,20 @@ suite('ContextualTasksAppTest', function() {
       enableComposeboxJumpFix: false,
       isGhostLoaderVisible: false,
       isAiPage: true,
+      windowTrackingEnabled: true,
+      nlmUrlParam: 'ajid',
+      enableCustomNlmUi: true,
+      composeboxSmartTabSharingVisible: false,
+      isAimEligible: true,
+      isZeroState: false,
     });
     metrics = fakeMetricsPrivate();
     const proxy = new TestContextualTasksBrowserProxy('http://example.com');
     BrowserProxyImpl.setInstance(proxy);
   });
 
-  test('gets thread url', () => {
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
-
-    document.body.appendChild(document.createElement('contextual-tasks-app'));
+  test('gets thread url', async () => {
+    const {proxy} = await createContextualTasksAppElement(/*url=*/ fixtureUrl);
 
     assertEquals(1, proxy.handler.getCallCount('getThreadUrl'));
   });
@@ -68,10 +71,8 @@ suite('ContextualTasksAppTest', function() {
     // Set the q query parameter for the AI page.
     const query = 'abc';
     const fixtureUrlWithQuery = `${fixtureUrl}?q=${query}`;
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrlWithQuery);
-    BrowserProxyImpl.setInstance(proxy);
-
-    document.body.appendChild(document.createElement('contextual-tasks-app'));
+    const {proxy} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrlWithQuery);
 
     assertDeepEquals(
         {value: taskId}, await proxy.handler.whenCalled('getUrlForTask'));
@@ -92,10 +93,7 @@ suite('ContextualTasksAppTest', function() {
     window.history.replaceState({}, '', `?chrome_task_id=${taskId}`);
 
     // Don't set the q query parameter for the AI page.
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
-
-    document.body.appendChild(document.createElement('contextual-tasks-app'));
+    const {proxy} = await createContextualTasksAppElement(/*url=*/ fixtureUrl);
 
     assertDeepEquals(
         {value: taskId}, await proxy.handler.whenCalled('getUrlForTask'));
@@ -116,9 +114,8 @@ suite('ContextualTasksAppTest', function() {
       isZeroState: false,
     });
 
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {appElement} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrl);
 
     assertFalse(appElement.hasAttribute('is-ai-page_'));
     assertFalse(appElement.hasAttribute('is-zero-state_'));
@@ -151,12 +148,8 @@ suite('ContextualTasksAppTest', function() {
     window.history.replaceState({}, '', '?chrome_task_id=123');
 
     // Don't set the q query parameter for the AI page.
-    const proxy = new TestContextualTasksBrowserProxy('http://example.com');
-    BrowserProxyImpl.setInstance(proxy);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {proxy} =
+        await createContextualTasksAppElement(/*url=*/ 'http://example.com');
 
     assertEquals(1, proxy.handler.getCallCount('getUrlForTask'));
   });
@@ -168,13 +161,9 @@ suite('ContextualTasksAppTest', function() {
     const threadId = '111';
     const turnId = '222';
     const title = 'title';
-    const proxy = new TestContextualTasksBrowserProxy(
-        `http://example.com?mtid=${threadId}&mstk=${turnId}&q=${title}`);
-    BrowserProxyImpl.setInstance(proxy);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {appElement} = await createContextualTasksAppElement(
+        /*url=*/ `http://example.com?mtid=${threadId}&mstk=${turnId}&q=${
+            title}`);
 
     const threadUrl = new URL(appElement.getThreadUrlForTesting());
 
@@ -187,18 +176,14 @@ suite('ContextualTasksAppTest', function() {
     window.history.replaceState(
         {}, '', `?chrome_task_id=111&thread=222&turn=333&title=wrong`);
 
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {proxy} = await createContextualTasksAppElement(/*url=*/ fixtureUrl);
 
     const initialHistoryLength = window.history.length;
 
     // Since the task ID is different from the one above, this call should add
     // an entry to history.
-    proxy.callbackRouterRemote.setTaskDetails({value: '123'});
+    proxy.callbackRouterRemote.setTaskDetails(
+        {value: '123'}, fixtureUrl, false);
     await proxy.callbackRouterRemote.$.flushForTesting();
     await microtasksFinished();
 
@@ -209,18 +194,13 @@ suite('ContextualTasksAppTest', function() {
     window.history.replaceState(
         {}, '', `?chrome_task_id=111&thread=222&turn=333&title=wrong`);
 
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {proxy} = await createContextualTasksAppElement(/*url=*/ fixtureUrl);
 
     const initialHistoryLength = window.history.length;
 
     // Since the task ID is is the same as above, a history entry should not be
     // added.
-    proxy.callbackRouterRemote.setTaskDetails({value: '111'});
+    proxy.callbackRouterRemote.setTaskDetails({value: '111'}, fixtureUrl, true);
     await proxy.callbackRouterRemote.$.flushForTesting();
     await microtasksFinished();
 
@@ -231,18 +211,15 @@ suite('ContextualTasksAppTest', function() {
     window.history.replaceState(
         {}, '', `?chrome_task_id=111&thread=222&turn=333&title=wrong`);
 
-    const proxy = new TestContextualTasksBrowserProxy(
-        `http://example.com?mtid=111&mstk=222&q=title`);
-    BrowserProxyImpl.setInstance(proxy);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
+    const {appElement, proxy} = await createContextualTasksAppElement(
+        /*url=*/ `http://example.com?mtid=111&mstk=222&q=title`);
     const {promise, resolve} = Promise.withResolvers<void>();
     appElement.setPopStateFinishedCallbackForTesting(resolve);
     await microtasksFinished();
 
     // Fake a task change event.
-    proxy.callbackRouterRemote.setTaskDetails({value: '999'});
+    proxy.callbackRouterRemote.setTaskDetails(
+        {value: '999'}, 'http://example.com?mtid=111&mstk=222&q=title', false);
     await proxy.callbackRouterRemote.$.flushForTesting();
     await microtasksFinished();
 
@@ -259,12 +236,8 @@ suite('ContextualTasksAppTest', function() {
     // Make sure the history panel is requested in the URL.
     window.history.replaceState({}, '', `?open_history=true`);
 
-    const proxy = new TestContextualTasksBrowserProxy('http://example.com');
-    BrowserProxyImpl.setInstance(proxy);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {appElement} =
+        await createContextualTasksAppElement(/*url=*/ 'http://example.com');
 
     const threadUrl = new URL(appElement.getThreadUrlForTesting());
 
@@ -283,13 +256,13 @@ suite('ContextualTasksAppTest', function() {
     const taskId = '123';
     window.history.replaceState({}, '', `?chrome_task_id=${taskId}`);
 
-    const proxy = new TestContextualTasksBrowserProxy('http://example.com');
-    proxy.handler.setIsPendingErrorPage({value: taskId}, true);
-    BrowserProxyImpl.setInstance(proxy);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {appElement} = await createContextualTasksAppElement(
+        /*url=*/ 'http://example.com',
+        /*setupProxy=*/
+        (p) => {
+          p.handler.setIsPendingErrorPage({value: taskId}, true);
+        },
+        /*waitForInitialLoadStart=*/ false);
 
     assertTrue(appElement.hasAttribute('is-error-page-visible_'));
   });
@@ -297,26 +270,18 @@ suite('ContextualTasksAppTest', function() {
   test(
       'error page not shown if pending error page is not true for task',
       async () => {
-        const proxy = new TestContextualTasksBrowserProxy('http://example.com');
-        BrowserProxyImpl.setInstance(proxy);
-
-        const appElement = document.createElement('contextual-tasks-app');
-        document.body.appendChild(appElement);
-        await microtasksFinished();
+        const {appElement} = await createContextualTasksAppElement(
+            /*url=*/ 'http://example.com');
 
         assertFalse(appElement.hasAttribute('is-error-page-visible_'));
       });
 
   test('toolbar visibility changes for tab and side panel', async () => {
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
-
-    // The test will start with the UI in a tab.
-    proxy.handler.setIsShownInTab(true);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {appElement, proxy} = await createContextualTasksAppElement(
+        /*url=*/ fixtureUrl,
+        /*setupProxy=*/ (p) => {
+          p.handler.setIsShownInTab(true);
+        });
 
     assertFalse(!!appElement.shadowRoot.querySelector('top-toolbar'));
 
@@ -349,13 +314,12 @@ suite('ContextualTasksAppTest', function() {
     // Set the q query parameter for the AI page.
     const query = 'abc';
     const fixtureUrlWithQuery = `${fixtureUrl}?q=${query}`;
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrlWithQuery);
-    BrowserProxyImpl.setInstance(proxy);
-
-    document.body.appendChild(document.createElement('contextual-tasks-app'));
+    const {proxy} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrlWithQuery);
 
     const taskId = {value: '12345'};
-    proxy.callbackRouterRemote.setTaskDetails(taskId);
+    proxy.callbackRouterRemote.setTaskDetails(
+        taskId, fixtureUrlWithQuery, true);
     await proxy.callbackRouterRemote.$.flushForTesting();
 
     const currentUrl = new URL(window.location.href);
@@ -363,23 +327,22 @@ suite('ContextualTasksAppTest', function() {
   });
 
   test('aim url updates webui url params', async () => {
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
+    const {proxy} = await createContextualTasksAppElement(/*url=*/ fixtureUrl);
 
-    document.body.appendChild(document.createElement('contextual-tasks-app'));
-
+    const taskId = {value: '12345'};
     const aimUrl = `${fixtureUrl}/search?q=123&mtid=456&old_param=1`;
-    proxy.callbackRouterRemote.setAimUrl(aimUrl);
+    proxy.callbackRouterRemote.setTaskDetails(taskId, aimUrl, true);
     await proxy.callbackRouterRemote.$.flushForTesting();
 
     let currentUrl = new URL(window.location.href);
     assertEquals('123', currentUrl.searchParams.get('q'));
     assertEquals('456', currentUrl.searchParams.get('mtid'));
     assertEquals('1', currentUrl.searchParams.get('old_param'));
+    assertEquals('12345', currentUrl.searchParams.get('chrome_task_id'));
 
     // Ensure old params are removed if no longer present on the aim URL.
     const updatedAimUrl = `${fixtureUrl}/search?q=123&mtid=456&new_param=2`;
-    proxy.callbackRouterRemote.setAimUrl(updatedAimUrl);
+    proxy.callbackRouterRemote.setTaskDetails(taskId, updatedAimUrl, true);
     await proxy.callbackRouterRemote.$.flushForTesting();
 
     currentUrl = new URL(window.location.href);
@@ -387,14 +350,34 @@ suite('ContextualTasksAppTest', function() {
     assertEquals('456', currentUrl.searchParams.get('mtid'));
     assertEquals('2', currentUrl.searchParams.get('new_param'));
     assertFalse(currentUrl.searchParams.has('old_param'));
+    assertEquals('12345', currentUrl.searchParams.get('chrome_task_id'));
   });
 
-  test('cs param updates dark mode only on commit', async () => {
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
-    const appElement = document.createElement('contextual-tasks-app') as any;
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+  test('aim url updates webui url fragment', async () => {
+    const {proxy} = await createContextualTasksAppElement(/*url=*/ fixtureUrl);
+
+    const taskId = {value: '12345'};
+    const aimUrl = `${fixtureUrl}/search?q=123#my-fragment`;
+    proxy.callbackRouterRemote.setTaskDetails(taskId, aimUrl, true);
+    await proxy.callbackRouterRemote.$.flushForTesting();
+
+    let currentUrl = new URL(window.location.href);
+    assertEquals('123', currentUrl.searchParams.get('q'));
+    assertEquals('#my-fragment', currentUrl.hash);
+
+    // Ensure fragment is removed if no longer present on the aim URL.
+    const updatedAimUrl = `${fixtureUrl}/search?q=123`;
+    proxy.callbackRouterRemote.setTaskDetails(taskId, updatedAimUrl, true);
+    await proxy.callbackRouterRemote.$.flushForTesting();
+
+    currentUrl = new URL(window.location.href);
+    assertEquals('', currentUrl.hash);
+  });
+
+  // Disabled: crbug.com/507859340
+  test.skip('cs param updates dark mode only on commit', async () => {
+    const {appElement} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrl);
     // Initial state should be light mode (or whatever default is).
     assertFalse(appElement['darkMode_']);
     const urlWithCs1 = `${fixtureUrl}?cs=1`;
@@ -429,14 +412,12 @@ suite('ContextualTasksAppTest', function() {
     assertTrue(appElement['darkMode_']);
   });
   test('isAiPage reflected in dom', async () => {
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
+    const {appElement, proxy} = await createContextualTasksAppElement(
+        /*url=*/ fixtureUrl,
+        /*setupProxy=*/ undefined,
+        /*waitForInitialLoadStart=*/ false);
 
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
-
-    assertTrue(appElement.hasAttribute('is-ai-page_'));
+    assertFalse(appElement.hasAttribute('is-ai-page_'));
 
     proxy.callbackRouterRemote.onAiPageStatusChanged(false);
     await proxy.callbackRouterRemote.$.flushForTesting();
@@ -457,13 +438,11 @@ suite('ContextualTasksAppTest', function() {
     initialThreadUrl.searchParams.set('source', 'some-source');
     initialThreadUrl.searchParams.set('aep', 'some-aep');
 
-    const proxy = new TestContextualTasksBrowserProxy(initialThreadUrl.href);
-    BrowserProxyImpl.setInstance(proxy);
-    proxy.handler.setIsShownInTab(true);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {appElement, proxy} = await createContextualTasksAppElement(
+        /*url=*/ initialThreadUrl.href,
+        /*setupProxy=*/ (p) => {
+          p.handler.setIsShownInTab(true);
+        });
 
     // Switch to side panel view, which should show the toolbar.
     proxy.handler.setIsShownInTab(false);
@@ -496,12 +475,11 @@ suite('ContextualTasksAppTest', function() {
     url.searchParams.set('chrome_task_id', threadUuid);
     window.history.pushState({}, '', url.href);
 
-    const proxy =
-        BrowserProxyImpl.getInstance() as TestContextualTasksBrowserProxy;
-    proxy.handler.setIsShownInTab(true);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
+    const {appElement} = await createContextualTasksAppElement(
+        /*url=*/ url.href,
+        /*setupProxy=*/ (p) => {
+          p.handler.setIsShownInTab(true);
+        });
     const {promise, resolve} = Promise.withResolvers<void>();
     appElement.setPopStateFinishedCallbackForTesting(resolve);
     await microtasksFinished();
@@ -523,12 +501,8 @@ suite('ContextualTasksAppTest', function() {
   });
 
   test('sends composebox height update', async () => {
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {appElement} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrl);
 
     // Mock the post message handler to verify that the composebox height update
     // is sent.
@@ -562,12 +536,8 @@ suite('ContextualTasksAppTest', function() {
 
   test(
       'lockInput and unlockInput updates composebox inputEnabled', async () => {
-        const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-        BrowserProxyImpl.setInstance(proxy);
-
-        const appElement = document.createElement('contextual-tasks-app');
-        document.body.appendChild(appElement);
-        await microtasksFinished();
+        const {appElement, proxy} =
+            await createContextualTasksAppElement(/*url=*/ fixtureUrl);
 
         const composebox = appElement.$.composebox;
         assertTrue(composebox.inputEnabled);
@@ -586,12 +556,8 @@ suite('ContextualTasksAppTest', function() {
       });
 
   test('composebox bounds update styles', async () => {
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {appElement} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrl);
 
     const composebox = appElement.$.composebox;
     assertTrue(!!composebox);
@@ -632,12 +598,8 @@ suite('ContextualTasksAppTest', function() {
   });
 
   test('composebox bounds update styles in nlm', async () => {
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {appElement} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrl);
 
     const composebox = appElement.$.composebox;
     assertTrue(!!composebox);
@@ -686,16 +648,101 @@ suite('ContextualTasksAppTest', function() {
     assertEquals('', composebox.style.height);
   });
 
-  test('composebox hidden in nlm when no forced bounds', async () => {
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
+  test('zero state nullifies and ignores forcedComposeboxBounds', async () => {
+    loadTimeData.overrideValues({contextManagementInComposeboxEnabled: false});
+    const {appElement, proxy} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrl);
 
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
+    // Simulate loadcommit to set up the target origin in PostMessageHandler.
+    const webview = appElement.shadowRoot.querySelector<HTMLElement>('webview');
+    assertTrue(!!webview);
+    simulateLoadCommit(webview);
+
+    const rect = {
+      top: 10,
+      left: 20,
+      width: 100,
+      height: 200,
+      right: 120,
+      bottom: 210,
+    };
+
+    // 1. Set initial bounds.
+    appElement.setForcedComposeboxBoundsForTesting(rect);
+    assertDeepEquals(rect, appElement.getForcedComposeboxBoundsForTesting());
+
+    // 2. Transition to zero state. Bounds should be nullified.
+    proxy.callbackRouterRemote.onZeroStateChange(true);
+    await proxy.callbackRouterRemote.$.flushForTesting();
     await microtasksFinished();
+
+    assertEquals(null, appElement.getForcedComposeboxBoundsForTesting());
+
+    // 3. Try to update bounds while in zero state. They should remain null.
+    const message = {
+      type: 'input-plate-bounds-update',
+      'bounds-rect': rect,
+    };
+    window.dispatchEvent(new MessageEvent('message', {
+      data: message,
+      origin: new URL(fixtureUrl).origin,
+    }));
+    await microtasksFinished();
+
+    assertEquals(null, appElement.getForcedComposeboxBoundsForTesting());
+
+    // 4. Transition out of zero state.
+    proxy.callbackRouterRemote.onZeroStateChange(false);
+    await proxy.callbackRouterRemote.$.flushForTesting();
+    await microtasksFinished();
+
+    // 5. Bounds should now be updatable.
+    window.dispatchEvent(new MessageEvent('message', {
+      data: message,
+      origin: new URL(fixtureUrl).origin,
+    }));
+    await microtasksFinished();
+
+    assertDeepEquals(
+        rect.bottom - appElement.$.composebox.offsetHeight,
+        appElement.getForcedComposeboxBoundsForTesting()!.top);
+
+    // 6. Transition to NLM mode while in zero state.
+    appElement.setInNlmForTesting(true);
+    // Explicitly set bounds.
+    appElement.setForcedComposeboxBoundsForTesting(rect);
+    // Transition to zero state again (to trigger the listener).
+    proxy.callbackRouterRemote.onZeroStateChange(true);
+    await proxy.callbackRouterRemote.$.flushForTesting();
+    await microtasksFinished();
+
+    // Bounds should NOT be nullified in NLM mode.
+    assertDeepEquals(rect, appElement.getForcedComposeboxBoundsForTesting());
+
+    // 7. Bound updates should be accepted in NLM mode even in zero state.
+    const newRect = {...rect, top: 100};
+    const newMessage = {
+      type: 'input-plate-bounds-update',
+      'bounds-rect': newRect,
+    };
+    window.dispatchEvent(new MessageEvent('message', {
+      data: newMessage,
+      origin: new URL(fixtureUrl).origin,
+    }));
+    await microtasksFinished();
+
+    assertDeepEquals(
+        newRect.bottom - appElement.$.composebox.offsetHeight,
+        appElement.getForcedComposeboxBoundsForTesting()!.top);
+  });
+
+  test('composebox hidden in nlm when no forced bounds', async () => {
+    const {appElement} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrl);
 
     appElement.setIsZeroStateForTesting(false);
     appElement.setInNlmForTesting(true);
+    appElement.setIsZeroStateForTesting(false);
     await appElement.updateComplete;
     await microtasksFinished();
 
@@ -719,12 +766,8 @@ suite('ContextualTasksAppTest', function() {
 
   test('composebox hidden when jump fix conditions met', async () => {
     loadTimeData.overrideValues({enableComposeboxJumpFix: true});
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {appElement, proxy} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrl);
     await removeThreadFrameToPreventRaceConditions();
 
     const composebox = appElement.$.composebox;
@@ -776,19 +819,8 @@ suite('ContextualTasksAppTest', function() {
   });
 
   test('updates clip path on post message', async () => {
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
-
-    // Create a promise to wait for the loadstart handler to finish. Without
-    // this, forcedComposeboxBounds_ might get reset to null before the test
-    // accesses it.
-    const {promise, resolve} = Promise.withResolvers<void>();
-    const appElement = document.createElement('contextual-tasks-app');
-    appElement.setOnLoadStartFinishedCallbackForTesting(resolve);
-
-    // Add the app element to the DOM.
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {appElement} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrl);
 
     // Get the webview element.
     const webview = appElement.shadowRoot.querySelector<HTMLElement>('webview');
@@ -797,7 +829,6 @@ suite('ContextualTasksAppTest', function() {
     // Wait for the load handler to finish to avoid a race condition
     // between the post message setting the forcedComposeboxBounds_ and the
     // load commit handler resetting it.
-    await promise;
 
     // Simulate loadcommit to set up the target origin in PostMessageHandler.
     const loadCommitEvent = new Event('loadcommit');
@@ -872,12 +903,10 @@ suite('ContextualTasksAppTest', function() {
   });
 
   test('sets isFrameLoading to false when content load finishes', async () => {
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {appElement} = await createContextualTasksAppElement(
+        /*url=*/ fixtureUrl,
+        /*setupProxy=*/ undefined,
+        /*waitForInitialLoadStart=*/ false);
 
     // Remove the thread frame to prevent unwanted loadstart events.
     const threadFrame = appElement.shadowRoot.querySelector('#threadFrame');
@@ -914,12 +943,8 @@ suite('ContextualTasksAppTest', function() {
   });
 
   test('sets isFrameLoading to false when load aborts', async () => {
-    const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-    BrowserProxyImpl.setInstance(proxy);
-
-    const appElement = document.createElement('contextual-tasks-app');
-    document.body.appendChild(appElement);
-    await microtasksFinished();
+    const {appElement} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrl);
 
     // Remove the thread frame to prevent unwanted loadstart events.
     const threadFrame = appElement.shadowRoot.querySelector('#threadFrame');
@@ -947,18 +972,15 @@ suite('ContextualTasksAppTest', function() {
   });
 
   test(
-      'hides composebox if load abort contains an error document',
+      'sets isLoadError true if load abort contains an error document',
       async () => {
-        const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
-        // Override isEmbeddedPageErrorDocument to return true
-        proxy.handler.isEmbeddedPageErrorDocument = () => {
-          return Promise.resolve({isErrorDocument: true});
-        };
-        BrowserProxyImpl.setInstance(proxy);
-
-        const appElement = document.createElement('contextual-tasks-app');
-        document.body.appendChild(appElement);
-        await microtasksFinished();
+        const {appElement} = await createContextualTasksAppElement(
+            /*url=*/ fixtureUrl,
+            /*setupProxy=*/ (p) => {
+              p.handler.isEmbeddedPageErrorDocument = () => {
+                return Promise.resolve({isErrorDocument: true});
+              };
+            });
 
         // Remove the thread frame to prevent unwanted loadstart events.
         const threadFrame = appElement.shadowRoot.querySelector('#threadFrame');
@@ -1031,7 +1053,7 @@ suite('ContextualTasksAppTest', function() {
       });
 
   test(
-      'does not hide composebox if load abort does not contain error document',
+      'leaves isLoadError false if load abort does not contain error document',
       async () => {
         const proxy = new TestContextualTasksBrowserProxy(fixtureUrl);
         // Override isEmbeddedPageErrorDocument to return false
@@ -1099,4 +1121,79 @@ suite('ContextualTasksAppTest', function() {
     assertEquals('1', url.searchParams.get('cs'));
     assertEquals('another', url.searchParams.get('hl'));
   });
+
+  test('composebox hidden when isAimEligible is false', async () => {
+    loadTimeData.overrideValues({
+      isAimEligible: false,
+      isZeroState: true,
+    });
+
+    const {appElement} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrl);
+
+    assertTrue(appElement.$.composebox.hidden);
+  });
+
+  test('composebox header wrapper hidden when isAimEligible is false', async () => {
+    loadTimeData.overrideValues({
+      isAimEligible: false,
+      isZeroState: true,
+    });
+
+    const {appElement} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrl);
+
+    const wrapper = appElement.shadowRoot.querySelector('#composeboxHeaderWrapper')!;
+    assertTrue(wrapper.hasAttribute('hidden'));
+  });
+
+  test('composebox header wrapper hidden when isZeroState is undefined', async () => {
+    const {appElement} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrl);
+
+    appElement.setIsZeroStateForTesting(undefined);
+    await microtasksFinished();
+    await appElement.updateComplete;
+
+    const wrapper = appElement.shadowRoot.querySelector('#composeboxHeaderWrapper')!;
+    assertTrue(wrapper.hasAttribute('hidden'));
+  });
+
+  test('composebox header wrapper hidden when isInputHidden is true', async () => {
+    const {appElement, proxy} =
+        await createContextualTasksAppElement(/*url=*/ fixtureUrl);
+
+    // Initial state
+    appElement.setIsZeroStateForTesting(false);
+    await microtasksFinished();
+    await appElement.updateComplete;
+    const wrapper = appElement.shadowRoot.querySelector('#composeboxHeaderWrapper')!;
+    assertFalse(wrapper.hasAttribute('hidden'));
+
+    proxy.callbackRouterRemote.hideInput();
+    await proxy.callbackRouterRemote.$.flushForTesting();
+    await microtasksFinished();
+    await appElement.updateComplete;
+
+    assertTrue(wrapper.hasAttribute('hidden'));
+  });
+
+  test(
+      'does not initialize WindowManager when windowTrackingEnabled is false',
+      async () => {
+        loadTimeData.overrideValues({
+          windowTrackingEnabled: false,
+        });
+
+        const {appElement} =
+            await createContextualTasksAppElement(/*url=*/ fixtureUrl);
+
+        let newWindowIntercepted = false;
+        appElement.$.threadFrame.addEventListener('newwindow', (e: Event) => {
+          newWindowIntercepted = e.defaultPrevented;
+        });
+        appElement.$.threadFrame.dispatchEvent(
+            new CustomEvent('newwindow', {cancelable: true}));
+        assertFalse(newWindowIntercepted);
+      });
 });

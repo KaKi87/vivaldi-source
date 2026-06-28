@@ -25,6 +25,7 @@ import org.chromium.base.ObserverList;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.build.annotations.EnsuresNonNull;
@@ -34,7 +35,6 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.build.annotations.RequiresNonNull;
 import org.chromium.chrome.browser.app.tabwindow.TabWindowManagerSingleton;
 import org.chromium.chrome.browser.crypto.CipherFactory;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileKeyedMap;
@@ -124,13 +124,6 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
     private final TabArchiver.Observer mTabArchiverObserver =
             new TabArchiver.Observer() {
                 @Override
-                public void onDeclutterPassCompleted() {
-                    if (!ChromeFeatureList.sTabModelInitFixes.isEnabled()) {
-                        saveState();
-                    }
-                }
-
-                @Override
                 public void onArchivePersistedTabDataCreated() {
                     assumeNonNull(mTabArchiver);
                     if (mTriggerAutodeleteAfterDataCreated) {
@@ -212,7 +205,8 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
         ApplicationStatus.unregisterApplicationStateListener(sApplicationStateListener);
     }
 
-    private ArchivedTabModelOrchestrator(Profile profile) {
+    @VisibleForTesting
+    ArchivedTabModelOrchestrator(Profile profile) {
         mProfile = profile;
         mArchivedTabCreatorManager =
                 new TabCreatorManager() {
@@ -394,7 +388,7 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
         assert tabContentManager != null;
 
         Context context = ContextUtils.getApplicationContext();
-        mWindow = new WindowAndroid(context, /* trackOcclusion= */ false);
+        mWindow = new WindowAndroid(context, /* occlusionTrackingAllowed= */ false);
         mArchivedTabCreator = new ArchivedTabCreator(mWindow);
         mCipherFactory = cipherFactory;
 
@@ -411,7 +405,8 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
                         TabMetadataFileManager.getMetadataFileName(ARCHIVED_WINDOW_TAG),
                         /* otherWindowTag= */ null,
                         /* mergeTabsOnStartup= */ false,
-                        /* tabMergingEnabled= */ false) {
+                        /* tabMergingEnabled= */ false,
+                        ObservableSuppliers.createNonNull(false)) {
 
                     @Override
                     public void notifyStateLoaded(int tabCountAtStartup) {
@@ -430,7 +425,8 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
                         mTabWindowManager,
                         ARCHIVED_WINDOW_TAG,
                         cipherFactory,
-                        /* recordLegacyTabCountMetrics= */ false);
+                        /* recordLegacyTabCountMetrics= */ false,
+                        /* isFromRecreating= */ false);
 
         wireSelectorAndStore();
         markTabModelsInitialized();
@@ -438,7 +434,10 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
         // This will be called from a deferred task which sets up the entire class, so therefore all
         // of the methods required for proper initialization need to be called here.
         onNativeLibraryReady(tabContentManager);
-        loadState(/* ignoreIncognitoFiles= */ true, /* onStandardActiveIndexRead= */ null);
+        loadState(
+                /* ignoreIncognitoFiles= */ true,
+                /* ignoreRegularFiles= */ false,
+                /* onStandardActiveIndexRead= */ null);
         restoreTabs(/* setActiveTab= */ false);
 
         mInitCalled = true;
@@ -606,11 +605,13 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
 
     @Override
     public void loadState(
-            boolean ignoreIncognitoFiles, @Nullable Callback<String> onStandardActiveIndexRead) {
+            boolean ignoreIncognitoFiles,
+            boolean ignoreRegularFiles,
+            @Nullable Callback<String> onStandardActiveIndexRead) {
         if (mLoadStateCalled) return;
         mLoadStateCalled = true;
         assert ignoreIncognitoFiles : "Must ignore incognito files for archived tabs.";
-        super.loadState(ignoreIncognitoFiles, onStandardActiveIndexRead);
+        super.loadState(ignoreIncognitoFiles, ignoreRegularFiles, onStandardActiveIndexRead);
     }
 
     @Override
@@ -650,18 +651,13 @@ public class ArchivedTabModelOrchestrator extends TabModelOrchestrator implement
     @RequiresNonNull("mTabPersistentStore")
     private void resumeSaveTabList(TabbedModeTabModelOrchestrator orchestrator) {
         // Re-enable #saveTabListAsynchronously after running a bulk operation.
-        if (ChromeFeatureList.sTabModelInitFixes.isEnabled()) {
-            // This triggers saves to the backing stores. It's possible we crash/are shutdown after
-            // the first and before the second. For this reason, it's critical that we resume the
-            // archived side before the tabbed side. This will cause tab duplication instead of data
-            // loss. Duplication will be cleaned up and handled on the next restart. While data loss
-            // would not be recoverable.
-            mTabPersistentStore.resumeSaveTabList();
-            orchestrator.getTabPersistentStore().resumeSaveTabList();
-        } else {
-            orchestrator.getTabPersistentStore().resumeSaveTabList();
-            mTabPersistentStore.resumeSaveTabList();
-        }
+        // This triggers saves to the backing stores. It's possible we crash/are shutdown after
+        // the first and before the second. For this reason, it's critical that we resume the
+        // archived side before the tabbed side. This will cause tab duplication instead of data
+        // loss. Duplication will be cleaned up and handled on the next restart. While data loss
+        // would not be recoverable.
+        mTabPersistentStore.resumeSaveTabList();
+        orchestrator.getTabPersistentStore().resumeSaveTabList();
     }
 
     // Testing-specific methods

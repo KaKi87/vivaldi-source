@@ -34,7 +34,6 @@
 #include "chrome/browser/ui/views/controls/rich_hover_button.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/passwords/manage_passwords_details_view.h"
-#include "chrome/browser/ui/views/passwords/manage_passwords_icon_views.h"
 #include "chrome/browser/ui/views/passwords/manage_passwords_list_view.h"
 #include "chrome/browser/ui/views/passwords/manage_passwords_view.h"
 #include "chrome/browser/ui/views/passwords/manage_passwords_view_ids.h"
@@ -50,6 +49,7 @@
 #include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
+#include "components/password_manager/core/browser/password_store/password_form_converters.h"
 #include "components/password_manager/core/common/password_manager_features.h"
 #include "components/password_manager/core/common/password_manager_pref_names.h"
 #include "components/signin/public/base/signin_prefs.h"
@@ -161,6 +161,7 @@ class PasswordBubbleInteractiveUiTest : public ManagePasswordsTest,
     base::RunLoop loop;
     task->AddTab(
         browser()->tab_strip_model()->GetActiveTab()->GetHandle(),
+        /*stop_task_on_detach=*/true,
         base::BindLambdaForTesting(
             [&](actor::mojom::ActionResultPtr result) { loop.Quit(); }));
     loop.Run();
@@ -457,7 +458,7 @@ IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest, DontCloseOnNavigation) {
   EXPECT_TRUE(IsBubbleShowing());
 }
 
-// crbug.com/1194950.
+// crbug.com/40175841.
 // Test that the automatic save bubble ignores the browser activation and
 // deactivation events.
 IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest,
@@ -472,7 +473,7 @@ IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest,
   EXPECT_TRUE(IsBubbleShowing());
 }
 
-// crbug.com/1194950.
+// crbug.com/40175841.
 // Test that the automatic save bubble ignores the focus lost event.
 IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest, DontCloseOnLostFocus) {
   SetupPendingPassword();
@@ -613,7 +614,7 @@ IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest, LeakPromptHidesBubble) {
   views::test::WidgetDestroyedWaiter(password_bubble).Wait();
 }
 
-// This is a regression test for crbug.com/1335418
+// This is a regression test for crbug.com/40228526
 IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest, SaveUiDismissalReason) {
   base::HistogramTester histogram_tester;
 
@@ -1336,8 +1337,10 @@ IN_PROC_BROWSER_TEST_P(SharedPasswordsNotificationBubbleInteractiveUiTest,
   std::vector<password_manager::PasswordForm> forms = {shared_credentials};
 
   auto setup_shared_passwords = [&]() {
-    GetController()->OnPasswordAutofilled(forms, url::Origin::Create(test_url),
-                                          /*federated_matches=*/{});
+    GetController()->OnPasswordAutofilled(
+        password_manager::FromPasswordForms(forms),
+        url::Origin::Create(test_url),
+        /*federated_matches=*/{});
   };
 
   RunTestSequence(Do(setup_shared_passwords),
@@ -1365,8 +1368,10 @@ IN_PROC_BROWSER_TEST_P(
                                                        shared_credentials2};
 
   auto setup_shared_passwords = [&]() {
-    GetController()->OnPasswordAutofilled(forms, url::Origin::Create(test_url),
-                                          /*federated_matches=*/{});
+    GetController()->OnPasswordAutofilled(
+        password_manager::FromPasswordForms(forms),
+        url::Origin::Create(test_url),
+        /*federated_matches=*/{});
   };
 
   RunTestSequence(Do(setup_shared_passwords),
@@ -1396,8 +1401,10 @@ IN_PROC_BROWSER_TEST_P(
                                                        shared_credentials2};
 
   auto setup_shared_passwords = [&]() {
-    GetController()->OnPasswordAutofilled(forms, url::Origin::Create(test_url),
-                                          /*federated_matches=*/{});
+    GetController()->OnPasswordAutofilled(
+        password_manager::FromPasswordForms(forms),
+        url::Origin::Create(test_url),
+        /*federated_matches=*/{});
   };
 
   RunTestSequence(Do(setup_shared_passwords),
@@ -1419,8 +1426,10 @@ IN_PROC_BROWSER_TEST_P(
   std::vector<password_manager::PasswordForm> forms = {shared_credentials};
 
   auto setup_shared_passwords = [&]() {
-    GetController()->OnPasswordAutofilled(forms, url::Origin::Create(test_url),
-                                          /*/*federated_matches=*/{});
+    GetController()->OnPasswordAutofilled(
+        password_manager::FromPasswordForms(forms),
+        url::Origin::Create(test_url),
+        /*/*federated_matches=*/{});
   };
 
   RunTestSequence(Do(setup_shared_passwords),

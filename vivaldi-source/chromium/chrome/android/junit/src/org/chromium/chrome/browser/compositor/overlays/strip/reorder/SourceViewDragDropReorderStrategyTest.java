@@ -11,6 +11,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyFloat;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -34,7 +35,6 @@ import org.chromium.chrome.browser.tab.MockTab;
 import org.chromium.chrome.browser.tabmodel.TabModelActionListener;
 
 import java.util.Collections;
-import java.util.List;
 
 /** Tests for {@link SourceViewDragDropReorderStrategy}. */
 @Config(qualifiers = "sw600dp")
@@ -68,7 +68,6 @@ public class SourceViewDragDropReorderStrategyTest extends ReorderStrategyTestBa
                         mAnimationHost,
                         mScrollDelegate,
                         mModel,
-                        mTabGroupModelFilter,
                         mContainerView,
                         mGroupIdToHideSupplier,
                         mTabWidthSupplier,
@@ -139,7 +138,7 @@ public class SourceViewDragDropReorderStrategyTest extends ReorderStrategyTestBa
         verify(mTabStripDragHandler)
                 .startMultiTabDragAction(
                         eq(mContainerView),
-                        any(List.class),
+                        anyList(),
                         eq(mTabForInteractingView),
                         eq(DRAG_START_POINT),
                         anyFloat(),
@@ -536,7 +535,7 @@ public class SourceViewDragDropReorderStrategyTest extends ReorderStrategyTestBa
         mInteractingGroupTitle.setIsDraggedOffStrip(true);
 
         // Call. Simulate failed drop.
-        when(mTabGroupModelFilter.tabGroupExists(GROUP_ID1)).thenReturn(true);
+        when(mModel.tabGroupExists(GROUP_ID1)).thenReturn(true);
         mStrategy.stopReorderMode(mStripViews, mGroupTitles);
 
         // Verify restore.
@@ -606,7 +605,7 @@ public class SourceViewDragDropReorderStrategyTest extends ReorderStrategyTestBa
         dragOutOfStrip();
         verifyDragOutOfStrip(mGroupStrategy, /* isDragCancelled= */ false);
 
-        when(mTabGroupModelFilter.tabGroupExists(GROUP_ID1)).thenReturn(true);
+        when(mModel.tabGroupExists(GROUP_ID1)).thenReturn(true);
 
         // Cancel drag and verify group is in strip
         mStrategy.stopReorderMode(mStripViews, mGroupTitles, /* isDragCancelled= */ true);

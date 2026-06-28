@@ -75,14 +75,18 @@ class ToolbarButtonHighlightPathGenerator
     gfx::Rect rect(view->size());
     rect.Inset(GetToolbarInkDropInsets(view));
 
-    const SkScalar left_radius =
-        toolbar_button_->GetCornerRadiusFor(ToolbarButton::Edge::kLeft);
-    const SkScalar right_radius =
-        toolbar_button_->GetCornerRadiusFor(ToolbarButton::Edge::kRight);
-    const SkVector radii[4] = {{left_radius,  left_radius},
-                               {right_radius, right_radius},
-                               {right_radius, right_radius},
-                               {left_radius,  left_radius}};
+    const SkScalar top_left_radius =
+        toolbar_button_->GetCornerRadiusFor(ToolbarButton::Edge::kTopLeft);
+    const SkScalar bottom_right_radius =
+        toolbar_button_->GetCornerRadiusFor(ToolbarButton::Edge::kBottomRight);
+    const SkScalar top_right_radius =
+        toolbar_button_->GetCornerRadiusFor(ToolbarButton::Edge::kTopRight);
+    const SkScalar bottom_left_radius =
+        toolbar_button_->GetCornerRadiusFor(ToolbarButton::Edge::kBottomLeft);
+    const SkVector radii[4] = {{top_left_radius, top_left_radius},
+                               {top_right_radius, top_right_radius},
+                               {bottom_right_radius, bottom_right_radius},
+                               {bottom_left_radius, bottom_left_radius}};
 
     return SkPath::RRect(
         SkRRect::MakeRectRadii(gfx::RectToSkRect(rect), radii));
@@ -101,14 +105,16 @@ ToolbarButton::ToolbarButton(PressedCallback callback,
                              std::unique_ptr<ui::MenuModel> model,
                              TabStripModel* tab_strip_model,
                              bool trigger_menu_on_long_press)
-    : views::LabelButton(std::move(callback),
-                         std::u16string(),
-                         CONTEXT_TOOLBAR_BUTTON),
+    : views::LabelButton(
+          std::move(callback),
+          std::u16string(),
+          CONTEXT_TOOLBAR_BUTTON,
+          std::make_unique<views::SingleAnimatedImageContainer>(this)),
       model_(std::move(model)),
       tab_strip_model_(tab_strip_model),
       trigger_menu_on_long_press_(trigger_menu_on_long_press),
       highlight_color_animation_(this) {
-  ConfigureInkDropForToolbar(
+  ConfigureInkDrop(
       this, std::make_unique<ToolbarButtonHighlightPathGenerator>(this));
 
   set_context_menu_controller(this);

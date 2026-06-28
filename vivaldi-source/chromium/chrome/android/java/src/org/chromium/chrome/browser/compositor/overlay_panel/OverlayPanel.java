@@ -37,6 +37,7 @@ import org.chromium.chrome.browser.layouts.EventFilter;
 import org.chromium.chrome.browser.layouts.SceneOverlay;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneOverlayLayer;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
+import org.chromium.chrome.browser.overlay_panel.PanelState;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabBrowserControlsConstraintsHelper;
@@ -63,27 +64,6 @@ public class OverlayPanel extends OverlayPanelAnimation
                 SceneOverlay {
     /** The delay after which the hide progress will be hidden. */
     private static final long HIDE_PROGRESS_BAR_DELAY_MS = 1000 / 60 * 4;
-
-    /** State of the Overlay Panel. */
-    @IntDef({
-        PanelState.UNDEFINED,
-        PanelState.CLOSED,
-        PanelState.PEEKED,
-        PanelState.EXPANDED,
-        PanelState.MAXIMIZED
-    })
-    @Retention(RetentionPolicy.SOURCE)
-    public @interface PanelState {
-        // Values can't have gaps and should be numerated from 0.
-        // Values CLOSED - MAXIMIZED are sorted and show next states.
-        // TODO(pedrosimonetti): consider removing the UNDEFINED state
-        int UNDEFINED = 0;
-        int CLOSED = 1;
-        int PEEKED = 2;
-        int EXPANDED = 3;
-        int MAXIMIZED = 4;
-        int NUM_ENTRIES = 5;
-    }
 
     /** The reason for a change in the Overlay Panel's state. */
     @IntDef({
@@ -544,7 +524,7 @@ public class OverlayPanel extends OverlayPanelAnimation
 
     /**
      * Call this when a loadUrl request has failed to notify the panel that the WebContents can be
-     * reused. See crbug.com/682953 for details.
+     * reused. See crbug.com/40502510 for details.
      */
     public void onLoadUrlFailed() {
         if (mContent != null) mContent.onLoadUrlFailed();
@@ -639,7 +619,9 @@ public class OverlayPanel extends OverlayPanelAnimation
      *     should jump immediately.
      */
     public void updateBrowserControlsState(int current, boolean animate) {
-        TabBrowserControlsConstraintsHelper.update(mCurrentTabSupplier.get(), current, animate);
+        if (mCurrentTabSupplier != null) {
+            TabBrowserControlsConstraintsHelper.update(mCurrentTabSupplier.get(), current, animate);
+        }
     }
 
     /** Sets the top control state based on the internals of the panel. */
@@ -652,7 +634,7 @@ public class OverlayPanel extends OverlayPanelAnimation
         // renderer will consider the ContentView height to be the fullscreen height
         // minus the Toolbar height.
         //
-        // This is necessary to fix the bugs: crbug.com/510205 and crbug.com/510206
+        // This is necessary to fix the bugs: crbug.com/40426733 and crbug.com/40426734
         mContent.updateBrowserControlsState(isFullWidthSizePanel());
     }
 
@@ -673,6 +655,8 @@ public class OverlayPanel extends OverlayPanelAnimation
 
         if (getPanelState() == PanelState.PEEKED || getPanelState() == PanelState.CLOSED) {
             setBasePageTextControlsVisibility(true);
+            // Ensure the browser controls come back into view.
+            updateBrowserControlsState(BrowserControlsState.BOTH, false);
         } else {
             setBasePageTextControlsVisibility(false);
         }
@@ -930,7 +914,7 @@ public class OverlayPanel extends OverlayPanelAnimation
     // SwipeHandler implementation.
 
     @Override
-    public void onSwipeStarted(@ScrollDirection int direction, MotionEvent ev) {
+    public void onSwipeStarted(@ScrollDirection int direction, MotionEvent triggerEvent) {
         if (onInterceptBarSwipe()) {
             mIgnoreSwipeEvents = true;
             return;
@@ -966,7 +950,7 @@ public class OverlayPanel extends OverlayPanelAnimation
     }
 
     @Override
-    public boolean isSwipeEnabled(@ScrollDirection int direction) {
+    public boolean isSwipeEnabled(@ScrollDirection int direction, MotionEvent triggerEvent) {
         return direction == ScrollDirection.UP && isShowing();
     }
 
@@ -1040,7 +1024,8 @@ public class OverlayPanel extends OverlayPanelAnimation
 
     @Override
     public boolean shouldHideAndroidBrowserControls() {
-        return isPanelOpened() && getCanHideAndroidBrowserControls();
+        return (getPanelState() == PanelState.MAXIMIZED || getPanelState() == PanelState.EXPANDED)
+                && getCanHideAndroidBrowserControls();
     }
 
     @Override

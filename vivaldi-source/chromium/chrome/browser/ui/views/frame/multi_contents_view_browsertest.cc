@@ -365,7 +365,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
 
   // Drag and drop should be enabled for chrome://newtab.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(),
-                                           GURL(chrome::kChromeUINewTabURL)));
+                                           chrome::ChromeUINewTabURLAsGURL()));
   EXPECT_TRUE(multi_contents_view()->IsDragAndDropEnabled());
 }
 
@@ -405,7 +405,7 @@ class MultiContentsViewWebContentsReLayoutBrowserTest
     const int active_index = tab_strip_model->active_index();
 
     RunScheduledLayouts();
-    chrome::NewSplitTab(browser(),
+    chrome::NewSplitTab(browser(), split_tabs::SplitTabLayout::kSideBySide,
                         split_tabs::SplitTabCreatedSource::kToolbarButton);
     EXPECT_TRUE(content::WaitForLoadStop(
         tab_strip_model->GetWebContentsAt(active_index + 1)));
@@ -584,11 +584,11 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest, OnlyFocusTabsInSplitView) {
 
   EXPECT_TRUE(
       AddTabAtIndex(1, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
-  chrome::NewSplitTab(browser(),
+  chrome::NewSplitTab(browser(), split_tabs::SplitTabLayout::kSideBySide,
                       split_tabs::SplitTabCreatedSource::kToolbarButton);
   EXPECT_TRUE(
       AddTabAtIndex(3, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
-  chrome::NewSplitTab(browser(),
+  chrome::NewSplitTab(browser(), split_tabs::SplitTabLayout::kSideBySide,
                       split_tabs::SplitTabCreatedSource::kToolbarButton);
 
   ASSERT_EQ(5, browser()->tab_strip_model()->count());
@@ -615,9 +615,12 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest, OnlyFocusTabsInSplitView) {
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest, LeadingSeparatorLayout) {
   MultiContentsView* view = multi_contents_view();
-  view->SetShouldShowTrailingSeparator(false);
-  view->SetShouldShowLeadingSeparator(true);
   view->SetShouldShowTopSeparator(true);
+  view->drop_target_view_->Show(
+      MultiContentsDropTargetView::DropSide::START,
+      MultiContentsDropTargetView::DropTargetState::kFull,
+      MultiContentsDropTargetView::DragType::kLink);
+  view->drop_target_view_->animation_for_testing().End();
 
   gfx::Rect initial_bounds(10, 20, 100, 80);
   std::vector<views::ChildLayout> actual_child_layouts;
@@ -658,9 +661,12 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest, LeadingSeparatorLayout) {
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest, TrailingSeparatorLayout) {
   MultiContentsView* view = multi_contents_view();
-  view->SetShouldShowTrailingSeparator(true);
-  view->SetShouldShowLeadingSeparator(false);
   view->SetShouldShowTopSeparator(true);
+  view->drop_target_view_->Show(
+      MultiContentsDropTargetView::DropSide::END,
+      MultiContentsDropTargetView::DropTargetState::kFull,
+      MultiContentsDropTargetView::DragType::kLink);
+  view->drop_target_view_->animation_for_testing().End();
 
   gfx::Rect initial_bounds(10, 20, 100, 80);
   std::vector<views::ChildLayout> actual_child_layouts;

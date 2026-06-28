@@ -13,9 +13,11 @@
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/ui/web_applications/web_app_browsertest_base.h"
 #include "chrome/browser/ui/web_applications/web_app_menu_model.h"
+#include "chrome/browser/web_applications/test/web_app_page_waiter.h"
 #include "chrome/browser/web_applications/web_app.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
@@ -235,10 +237,9 @@ IN_PROC_BROWSER_TEST_F(WebAppPublisherHelperMigrationTest, MigrationCalls) {
   // 1. Install source app.
   const GURL from_url = embedded_test_server()->GetURL(
       "/web_apps/migration/migrate_from/no_migration_info.html");
-  ui_test_utils::BrowserCreatedObserver browser_created_observer;
-  const webapps::AppId source_app_id =
-      web_app::InstallWebAppFromPage(browser(), from_url);
-  Browser* app_browser = browser_created_observer.Wait();
+  Browser* app_browser =
+      web_app::InstallWebAppFromPageGetBrowser(browser(), from_url);
+  const webapps::AppId source_app_id = app_browser->app_controller()->app_id();
 
   auto* proxy =
       apps::AppServiceProxyFactory::GetForProfile(browser()->profile());
@@ -254,12 +255,14 @@ IN_PROC_BROWSER_TEST_F(WebAppPublisherHelperMigrationTest, MigrationCalls) {
   GURL to_url = embedded_test_server()->GetURL(
       "/web_apps/migration/migrate_to/suggest.html");
   EXPECT_TRUE(ui_test_utils::NavigateToURL(browser(), to_url));
-  web_app::test::WaitForLoadCompleteAndMaybeManifestSeen(
-      *browser()->tab_strip_model()->GetActiveWebContents());
+  EXPECT_TRUE(web_app::test::WebAppPageWaiter(
+                  browser()->tab_strip_model()->GetActiveWebContents())
+                  .ExpectUrl(to_url)
+                  .ManifestOrLoadedNoManifest()
+                  .WaitAndFlushCommands());
 
   web_app::WebAppProvider* provider =
       web_app::WebAppProvider::GetForTest(browser()->profile());
-  provider->command_manager().AwaitAllCommandsCompleteForTesting();
 
   // 3. Accept migration dialog.
   views::NamedWidgetShownWaiter update_dialog_waiter(

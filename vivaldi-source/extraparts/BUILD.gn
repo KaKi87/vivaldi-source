@@ -11,10 +11,10 @@ source_set("extraparts") {
   ]
   if (is_linux) {
     sources += [
-      "vivaldi_browser_main_extra_parts_linux.h",
       "vivaldi_browser_main_extra_parts_linux.cc",
-      "vivaldi_snap_utils.h",
+      "vivaldi_browser_main_extra_parts_linux.h",
       "vivaldi_snap_utils.cc",
+      "vivaldi_snap_utils.h",
     ]
   }
   if (is_mac) {
@@ -27,22 +27,25 @@ source_set("extraparts") {
   }
   if (is_win) {
     sources += [
-      "vivaldi_browser_main_extra_parts_win.h",
       "vivaldi_browser_main_extra_parts_win.cc",
+      "vivaldi_browser_main_extra_parts_win.h",
     ]
   }
   if (is_android) {
     sources += [
-      "vivaldi_browser_main_extra_parts_android.h",
       "vivaldi_browser_main_extra_parts_android.cc",
+      "vivaldi_browser_main_extra_parts_android.h",
     ]
   }
   deps = [
-    "//base:base",
+    "//base",
+
     #"//chrome/browser",
     "//chrome/common:constants",
+    "//components/os_crypt/async/browser",
     "//components/sessions",
     "//components/translate/core/browser",
+
     #"//content/browser",
     "//content/public/browser",
     "//content/public/common",
@@ -55,26 +58,27 @@ source_set("extraparts") {
     "//vivaldi/browser",
     "//vivaldi/browser:stats_reporter",
     "//vivaldi/calendar",
-    "//vivaldi/components/db/mail_client",
-    "//vivaldi/contact",
     "//vivaldi/components:adverse_adblocking",
-    "//vivaldi/prefs",
-    "//vivaldi/components/notes:browser",
-    "//vivaldi/ui",
     "//vivaldi/components/content_injection",
+    "//vivaldi/components/db/mail_client",
     "//vivaldi/components/direct_match:browser",
+    "//vivaldi/components/notes:browser",
     "//vivaldi/components/omnibox:browser",
+    "//vivaldi/contact",
+    "//vivaldi/prefs",
+    "//vivaldi/thirdparty/brave/components:debounce",
+    "//vivaldi/thirdparty/brave/components:query_filter",
+    "//vivaldi/thirdparty/brave/components:url_sanitizer",
+    "//vivaldi/ui",
     "//vivaldi/vivaldi_status:browser",
   ]
   if (!vivaldi_disable_sparkle) {
-    deps += [
-      "//vivaldi/update",
-    ]
+    deps += [ "//vivaldi/update" ]
   }
   if (!is_android) {
     deps += [
-      "//vivaldi/components:navigation_throttle",
       "//vivaldi/browser:default_bookmarks",
+      "//vivaldi/components:navigation_throttle",
       "//vivaldi/extensions",
       "//vivaldi/extensions/api:apis",
       "//vivaldi/extensions/schema",

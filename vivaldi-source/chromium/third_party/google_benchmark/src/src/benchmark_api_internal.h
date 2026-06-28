@@ -8,7 +8,9 @@
 #include <string>
 #include <vector>
 
-#include "benchmark/benchmark.h"
+#include "benchmark/benchmark_api.h"
+#include "benchmark/reporter.h"
+#include "benchmark/sysinfo.h"
 #include "commandlineflags.h"
 
 namespace benchmark {
@@ -17,7 +19,7 @@ namespace internal {
 // Information kept per benchmark we may want to run
 class BenchmarkInstance {
  public:
-  BenchmarkInstance(Benchmark* benchmark, int family_idx,
+  BenchmarkInstance(benchmark::Benchmark* benchmark, int family_idx,
                     int per_family_instance_idx,
                     const std::vector<int64_t>& args, int thread_count);
 
@@ -52,7 +54,7 @@ class BenchmarkInstance {
 
  private:
   BenchmarkName name_;
-  Benchmark& benchmark_;
+  benchmark::Benchmark& benchmark_;
   const int family_index_;
   const int per_family_instance_index_;
   AggregationReportMode aggregation_report_mode_;

@@ -35,6 +35,12 @@ namespace policy {
 class MockCloudPolicyClient;
 }
 
+namespace content {
+class BrowserContext;
+}
+
+class KeyedService;
+
 namespace enterprise_connectors::test {
 
 // Helper class that represents a report that's expected from a test. The
@@ -267,20 +273,20 @@ class EventReportValidator : public EventReportValidatorBase {
   std::optional<std::string> tab_url_;
   std::optional<std::string> source_;
   std::optional<std::string> destination_;
-  std::optional<std::string> trigger_ = std::nullopt;
-  std::optional<std::string> threat_type_ = std::nullopt;
-  std::optional<std::string> unscanned_reason_ = std::nullopt;
-  std::optional<std::string> content_transfer_method_ = std::nullopt;
-  std::optional<std::u16string> user_justification_ = std::nullopt;
-  std::optional<int64_t> content_size_ = std::nullopt;
+  std::optional<std::string> trigger_;
+  std::optional<std::string> threat_type_;
+  std::optional<std::string> unscanned_reason_;
+  std::optional<std::string> content_transfer_method_;
+  std::optional<std::u16string> user_justification_;
+  std::optional<int64_t> content_size_;
   raw_ptr<const std::set<std::string>> mimetypes_ = nullptr;
   std::string username_;
   std::string profile_identifier_;
-  std::optional<bool> is_federated_ = std::nullopt;
-  std::optional<std::string> federated_origin_ = std::nullopt;
-  std::optional<std::u16string> login_user_name_ = std::nullopt;
+  std::optional<bool> is_federated_;
+  std::optional<std::string> federated_origin_;
+  std::optional<std::u16string> login_user_name_;
   std::optional<std::vector<std::pair<std::string, std::u16string>>>
-      password_breach_identities_ = std::nullopt;
+      password_breach_identities_;
   std::optional<std::string> active_content_area_user_;
   std::optional<std::string> source_active_content_area_user_;
   std::optional<std::vector<std::string>> frame_urls_;
@@ -318,14 +324,15 @@ class EventReportValidatorHelper {
   signin::IdentityTestEnvironment identity_test_environment_;
 };
 
-#if BUILDFLAG(ENTERPRISE_CONTENT_ANALYSIS)
 // Helper functions that set Connector policies for testing.
 void SetAnalysisConnector(PrefService* prefs,
                           AnalysisConnector connector,
                           const std::string& pref_value,
                           bool machine_scope = true);
 void ClearAnalysisConnector(PrefService* prefs, AnalysisConnector connector);
-#endif  // BUILDFLAG(ENTERPRISE_CONTENT_ANALYSIS)
+
+std::unique_ptr<KeyedService> BuildRealtimeReportingClient(
+    content::BrowserContext* context);
 
 #if !BUILDFLAG(IS_CHROMEOS)
 // Helper function to set the profile DM token. It installs a

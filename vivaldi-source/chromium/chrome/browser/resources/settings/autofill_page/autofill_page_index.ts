@@ -51,13 +51,13 @@ export class SettingsAutofillPageIndexElement extends
       autofillAiAvailable_: {
         type: Boolean,
         value() {
-          return loadTimeData.getBoolean('showAutofillAiControl');
+          return false; // loadTimeData.getBoolean('showAutofillAiControl');
         },
       },
     };
   }
 
-  declare prefs: {[key: string]: any};
+  declare prefs: Record<string, unknown>;
   declare private autofillAiAvailable_: boolean;
 
   override currentRouteChanged(newRoute: Route, oldRoute?: Route) {

@@ -132,7 +132,7 @@ class MockAccountSelectionView : public AccountSelectionView {
 
   MOCK_METHOD(content::WebContents*, GetRpWebContents, (), (override));
 
-  MOCK_METHOD(void, SetCanShowWidget, (bool), (override));
+  MOCK_METHOD(void, SetCanShowUi, (bool), (override));
 };
 
 class IdentityDialogControllerTest : public ChromeRenderViewHostTestHarness {
@@ -360,8 +360,8 @@ TEST_F(IdentityDialogControllerTest, ActorTaskSuppressesUi) {
   auto mock_view = std::make_unique<MockAccountSelectionView>();
   MockAccountSelectionView* view_ptr = mock_view.get();
 
-  // 1. Simulate an active actor task. This should call SetCanShowWidget(false).
-  EXPECT_CALL(*view_ptr, SetCanShowWidget(false));
+  // 1. Simulate an active actor task. This should call SetCanShowUi(false).
+  EXPECT_CALL(*view_ptr, SetCanShowUi(false));
   controller->SetAccountSelectionViewForTesting(std::move(mock_view));
   controller->SetActingTaskIdForTesting(actor::TaskId::FromUnsafeValue(1));
 
@@ -482,7 +482,7 @@ TEST_F(IdentityDialogControllerTest, NoTabDoesNotCrash) {
   ShowAccountsDialog(controller.get(), blink::mojom::RpMode::kActive);
 }
 
-TEST_F(IdentityDialogControllerTest, SegmentationPlatformShowUi) {
+TEST_F(IdentityDialogControllerTest, SegmentationPlatformLoudUi) {
   base::test::ScopedFeatureList list;
   list.InitAndEnableFeature(
       segmentation_platform::features::kSegmentationPlatformFedCmUser);
@@ -495,19 +495,20 @@ TEST_F(IdentityDialogControllerTest, SegmentationPlatformShowUi) {
           CreateMockSegmentationPlatformService("FedCmUserLoud", run_loop),
           CreateMockOptimizationGuideDecider());
 
-  base::MockCallback<
-      IdentityDialogController::ShouldShowAccountsPassiveDialogCallback>
-      should_show_callback;
-  bool value = false;
-  EXPECT_CALL(should_show_callback, Run).WillOnce(SaveArg<0>(&value));
+  base::MockCallback<IdentityDialogController::GetPassiveDialogVolumeCallback>
+      callback;
+  content::IdentityRequestDialogController::PassiveDialogVolume value;
+  EXPECT_CALL(callback, Run).WillOnce(SaveArg<0>(&value));
 
-  controller->ShouldShowAccountsPassiveDialog(should_show_callback.Get());
+  controller->GetPassiveDialogVolume(callback.Get());
 
   run_loop.Run();
-  EXPECT_EQ(true, value);
+  EXPECT_EQ(
+      content::IdentityRequestDialogController::PassiveDialogVolume::kDefault,
+      value);
 }
 
-TEST_F(IdentityDialogControllerTest, SegmentationPlatformDontShowUi) {
+TEST_F(IdentityDialogControllerTest, SegmentationPlatformAmbientUi) {
   base::test::ScopedFeatureList list;
   list.InitAndEnableFeature(
       segmentation_platform::features::kSegmentationPlatformFedCmUser);
@@ -520,16 +521,17 @@ TEST_F(IdentityDialogControllerTest, SegmentationPlatformDontShowUi) {
           CreateMockSegmentationPlatformService("FedCmUserQuiet", run_loop),
           CreateMockOptimizationGuideDecider());
 
-  base::MockCallback<
-      IdentityDialogController::ShouldShowAccountsPassiveDialogCallback>
-      should_show_callback;
-  bool value = true;
-  EXPECT_CALL(should_show_callback, Run).WillOnce(SaveArg<0>(&value));
+  base::MockCallback<IdentityDialogController::GetPassiveDialogVolumeCallback>
+      callback;
+  content::IdentityRequestDialogController::PassiveDialogVolume value;
+  EXPECT_CALL(callback, Run).WillOnce(SaveArg<0>(&value));
 
-  controller->ShouldShowAccountsPassiveDialog(should_show_callback.Get());
+  controller->GetPassiveDialogVolume(callback.Get());
 
   run_loop.Run();
-  EXPECT_EQ(false, value);
+  EXPECT_EQ(
+      content::IdentityRequestDialogController::PassiveDialogVolume::kAmbient,
+      value);
 }
 
 TEST_F(IdentityDialogControllerTest,
@@ -562,7 +564,7 @@ TEST_F(IdentityDialogControllerTest,
                 CollectTrainingData(_, _, _, _, _))
         .Times(1);
 
-    controller->ShouldShowAccountsPassiveDialog(base::DoNothing());
+    controller->GetPassiveDialogVolume(base::DoNothing());
     run_loop.Run();
     ShowAccountsDialog(controller.get(), blink::mojom::RpMode::kPassive);
 
@@ -589,7 +591,7 @@ TEST_F(IdentityDialogControllerTest,
                 CollectTrainingData(_, _, _, _, _))
         .Times(1);
 
-    controller->ShouldShowAccountsPassiveDialog(base::DoNothing());
+    controller->GetPassiveDialogVolume(base::DoNothing());
     run_loop.Run();
     ShowAccountsDialog(controller.get(), blink::mojom::RpMode::kPassive);
 
@@ -616,7 +618,7 @@ TEST_F(IdentityDialogControllerTest,
                 CollectTrainingData(_, _, _, _, _))
         .Times(1);
 
-    controller->ShouldShowAccountsPassiveDialog(base::DoNothing());
+    controller->GetPassiveDialogVolume(base::DoNothing());
     run_loop.Run();
     ShowAccountsDialog(controller.get(), blink::mojom::RpMode::kPassive);
 
@@ -645,7 +647,7 @@ TEST_F(IdentityDialogControllerTest,
               CollectTrainingData(_, _, _, _, _))
       .Times(0);
 
-  controller->ShouldShowAccountsPassiveDialog(base::DoNothing());
+  controller->GetPassiveDialogVolume(base::DoNothing());
   run_loop.Run();
   ShowAccountsDialog(controller.get(), blink::mojom::RpMode::kPassive);
 
@@ -669,7 +671,7 @@ TEST_F(IdentityDialogControllerTest,
   controller->SetAccountSelectionViewForTesting(
       std::make_unique<MockAccountSelectionView>());
 
-  controller->ShouldShowAccountsPassiveDialog(base::DoNothing());
+  controller->GetPassiveDialogVolume(base::DoNothing());
 
   // Reset the controller before running
   // `segmentation_platform_service_callback_`. This should not crash.
@@ -857,182 +859,14 @@ TEST_F(IdentityDialogControllerTest,
   }
 }
 
-struct FederatedLoginResultTestParam {
-  content::webid::FederatedLoginResult login_result;
-  std::string test_name;
-};
-
-class IdentityDialogControllerOnFlowCompletedTest
-    : public IdentityDialogControllerTest,
-      public testing::WithParamInterface<FederatedLoginResultTestParam> {};
-
-TEST_P(IdentityDialogControllerOnFlowCompletedTest, OnFlowCompleted) {
-  std::unique_ptr<IdentityDialogController> controller =
-      std::make_unique<IdentityDialogController>(web_contents());
-
-  GURL idp_url("https://idp.example");
-  url::Origin idp_origin = url::Origin::Create(idp_url);
-  std::string account_id = "account_id123";
-
-  base::MockCallback<
-      base::RepeatingCallback<void(content::webid::FederatedLoginResult)>>
-      result_callback;
-  EXPECT_CALL(result_callback, Run(GetParam().login_result)).Times(1);
-
-  content::webid::FederatedEmbedderLoginRequest::Set(
-      web_contents(), idp_origin, account_id, result_callback.Get());
-
-  controller->OnFlowCompleted(GetParam().login_result);
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    All,
-    IdentityDialogControllerOnFlowCompletedTest,
-    testing::Values(
-        FederatedLoginResultTestParam{
-            content::webid::FederatedLoginResult::kSuccess, "Success"},
-        FederatedLoginResultTestParam{
-            content::webid::FederatedLoginResult::kContinuation,
-            "Continuation"},
-        FederatedLoginResultTestParam{
-            content::webid::FederatedLoginResult::kAccountNotLoggedIn,
-            "AccountNotLoggedIn"},
-        FederatedLoginResultTestParam{
-            content::webid::FederatedLoginResult::kAccountIsSignUp,
-            "AccountIsSignUp"},
-        FederatedLoginResultTestParam{
-            content::webid::FederatedLoginResult::kAccountNotAvailable,
-            "AccountNotAvailable"},
-        FederatedLoginResultTestParam{
-            content::webid::FederatedLoginResult::kIdpReturnedError,
-            "IdpReturnedError"},
-        FederatedLoginResultTestParam{
-            content::webid::FederatedLoginResult::kIdpNetworkError,
-            "IdpNetworkError"},
-        FederatedLoginResultTestParam{
-            content::webid::FederatedLoginResult::kTokenRequestAborted,
-            "TokenRequestAborted"},
-        FederatedLoginResultTestParam{
-            content::webid::FederatedLoginResult::kFrameNotActive,
-            "FrameNotActive"},
-        FederatedLoginResultTestParam{
-            content::webid::FederatedLoginResult::kExpectedAccountNotPresent,
-            "ExpectedAccountNotPresent"}),
-    [](const testing::TestParamInfo<
-        IdentityDialogControllerOnFlowCompletedTest::ParamType>& info) {
-      return info.param.test_name;
-    });
-
-TEST_F(IdentityDialogControllerTest, OnFlowCompletedNoActorLoginRequest) {
-  std::unique_ptr<IdentityDialogController> controller =
-      std::make_unique<IdentityDialogController>(web_contents());
-
-  // Test that it does not crash if there is no actor login request.
-  controller->OnFlowCompleted(content::webid::FederatedLoginResult::kSuccess);
-}
-
-TEST_F(IdentityDialogControllerTest, ActorLoginContinuationAndSuccess) {
-  std::unique_ptr<IdentityDialogController> controller =
-      std::make_unique<IdentityDialogController>(web_contents());
-  controller->SetAccountSelectionViewForTesting(
-      std::make_unique<MockAccountSelectionView>());
-
-  GURL idp_url("https://idp.example");
-  url::Origin idp_origin = url::Origin::Create(idp_url);
-  std::string account_id = "account_id123";
-
-  // Test that showing modal dialog results in kContinuation.
-  {
-    base::MockCallback<
-        base::RepeatingCallback<void(content::webid::FederatedLoginResult)>>
-        result_callback;
-    EXPECT_CALL(result_callback,
-                Run(content::webid::FederatedLoginResult::kContinuation))
-        .Times(1);
-
-    content::webid::FederatedEmbedderLoginRequest::Set(
-        web_contents(), idp_origin, account_id, result_callback.Get());
-
-    controller->ShowModalDialog(GURL("https://idp.example/login"),
-                                blink::mojom::RpMode::kActive,
-                                base::DoNothing(), base::DoNothing());
-  }
-
-  // Test Continuation -> Success.
-  {
-    base::MockCallback<
-        base::RepeatingCallback<void(content::webid::FederatedLoginResult)>>
-        result_callback;
-    EXPECT_CALL(result_callback,
-                Run(content::webid::FederatedLoginResult::kSuccess))
-        .Times(1);
-
-    // After a continuation, the callback has been consumed. For the test, we
-    // set a new request to verify that the flow can complete.
-    content::webid::FederatedEmbedderLoginRequest::Set(
-        web_contents(), idp_origin, account_id, result_callback.Get());
-
-    controller->OnFlowCompleted(content::webid::FederatedLoginResult::kSuccess);
-  }
-}
-
-TEST_F(IdentityDialogControllerTest, ActorLoginContinuationAndFailure) {
-  std::unique_ptr<IdentityDialogController> controller =
-      std::make_unique<IdentityDialogController>(web_contents());
-  auto mock_view = std::make_unique<MockAccountSelectionView>();
-  MockAccountSelectionView* mock_view_ptr = mock_view.get();
-  controller->SetAccountSelectionViewForTesting(std::move(mock_view));
-
-  GURL idp_url("https://idp.example");
-  url::Origin idp_origin = url::Origin::Create(idp_url);
-  std::string account_id = "account_id123";
-
-  // Test that showing modal dialog results in kContinuation.
-  {
-    base::MockCallback<
-        base::RepeatingCallback<void(content::webid::FederatedLoginResult)>>
-        result_callback;
-    EXPECT_CALL(result_callback,
-                Run(content::webid::FederatedLoginResult::kContinuation))
-        .Times(1);
-
-    content::webid::FederatedEmbedderLoginRequest::Set(
-        web_contents(), idp_origin, account_id, result_callback.Get());
-
-    // Should STILL show UI.
-    EXPECT_CALL(*mock_view_ptr, ShowModalDialog)
-        .WillOnce(testing::Return(nullptr));
-
-    controller->ShowModalDialog(GURL("https://idp.example/login"),
-                                blink::mojom::RpMode::kActive,
-                                base::DoNothing(), base::DoNothing());
-  }
-
-  // Test Continuation -> Failure.
-  {
-    base::MockCallback<
-        base::RepeatingCallback<void(content::webid::FederatedLoginResult)>>
-        result_callback;
-    EXPECT_CALL(result_callback,
-                Run(content::webid::FederatedLoginResult::kIdpNetworkError))
-        .Times(1);
-
-    content::webid::FederatedEmbedderLoginRequest::Set(
-        web_contents(), idp_origin, account_id, result_callback.Get());
-
-    controller->OnFlowCompleted(
-        content::webid::FederatedLoginResult::kIdpNetworkError);
-  }
-}
-
 TEST_F(IdentityDialogControllerTest, EmbedderNotifiedOfContinuation) {
   std::unique_ptr<IdentityDialogController> controller =
       std::make_unique<IdentityDialogController>(web_contents());
   auto mock_view = std::make_unique<MockAccountSelectionView>();
   MockAccountSelectionView* mock_view_ptr = mock_view.get();
 
-  // 1. Set task ID. Should call SetCanShowWidget(false).
-  EXPECT_CALL(*mock_view_ptr, SetCanShowWidget(false));
+  // 1. Set task ID. Should call SetCanShowUi(false).
+  EXPECT_CALL(*mock_view_ptr, SetCanShowUi(false));
   controller->SetAccountSelectionViewForTesting(std::move(mock_view));
   controller->SetActingTaskIdForTesting(actor::TaskId::FromUnsafeValue(1));
 
@@ -1121,6 +955,32 @@ TEST_F(IdentityDialogControllerTest, EmbedderNotifiedOfContinuation) {
   }
 }
 
+TEST_F(IdentityDialogControllerTest, ActorLoginContinuation) {
+  std::unique_ptr<IdentityDialogController> controller =
+      std::make_unique<IdentityDialogController>(web_contents());
+  controller->SetAccountSelectionViewForTesting(
+      std::make_unique<MockAccountSelectionView>());
+
+  GURL idp_url("https://idp.example");
+  url::Origin idp_origin = url::Origin::Create(idp_url);
+  std::string account_id = "account_id123";
+
+  // Test that showing modal dialog results in kContinuation.
+  base::MockCallback<
+      base::RepeatingCallback<void(content::webid::FederatedLoginResult)>>
+      result_callback;
+  EXPECT_CALL(result_callback,
+              Run(content::webid::FederatedLoginResult::kContinuation))
+      .Times(1);
+
+  content::webid::FederatedEmbedderLoginRequest::Set(
+      web_contents(), idp_origin, account_id, result_callback.Get());
+
+  controller->ShowModalDialog(GURL("https://idp.example/login"),
+                              blink::mojom::RpMode::kActive, base::DoNothing(),
+                              base::DoNothing());
+}
+
 class IdentityDialogControllerTestWithOptimizationDisabled
     : public IdentityDialogControllerTest {
  public:
@@ -1201,8 +1061,8 @@ TEST_F(IdentityDialogControllerTest, ActiveModeGuardedByActorTask) {
   auto mock_view = std::make_unique<MockAccountSelectionView>();
   MockAccountSelectionView* mock_view_ptr = mock_view.get();
 
-  // 1. Set task ID. Should call SetCanShowWidget(false).
-  EXPECT_CALL(*mock_view_ptr, SetCanShowWidget(false));
+  // 1. Set task ID. Should call SetCanShowUi(false).
+  EXPECT_CALL(*mock_view_ptr, SetCanShowUi(false));
   controller->SetAccountSelectionViewForTesting(std::move(mock_view));
   controller->SetActingTaskIdForTesting(actor::TaskId::FromUnsafeValue(1));
 
@@ -1233,8 +1093,8 @@ TEST_F(IdentityDialogControllerTest, ShowModalDialogNotGuardedByActorTask) {
   auto mock_view = std::make_unique<MockAccountSelectionView>();
   MockAccountSelectionView* mock_view_ptr = mock_view.get();
 
-  // 1. Set task ID. Should call SetCanShowWidget(false).
-  EXPECT_CALL(*mock_view_ptr, SetCanShowWidget(false));
+  // 1. Set task ID. Should call SetCanShowUi(false).
+  EXPECT_CALL(*mock_view_ptr, SetCanShowUi(false));
   controller->SetAccountSelectionViewForTesting(std::move(mock_view));
   controller->SetActingTaskIdForTesting(actor::TaskId::FromUnsafeValue(1));
 
@@ -1253,8 +1113,8 @@ TEST_F(IdentityDialogControllerTest, PassiveModeNotGuardedByActorTask) {
   auto mock_view = std::make_unique<MockAccountSelectionView>();
   MockAccountSelectionView* mock_view_ptr = mock_view.get();
 
-  // 1. Set task ID. Should call SetCanShowWidget(false).
-  EXPECT_CALL(*mock_view_ptr, SetCanShowWidget(false));
+  // 1. Set task ID. Should call SetCanShowUi(false).
+  EXPECT_CALL(*mock_view_ptr, SetCanShowUi(false));
   controller->SetAccountSelectionViewForTesting(std::move(mock_view));
   controller->SetActingTaskIdForTesting(actor::TaskId::FromUnsafeValue(1));
 
@@ -1287,7 +1147,7 @@ TEST_F(IdentityDialogControllerTest, ActiveModeDismissedWhenActorStopsActing) {
   MockAccountSelectionView* mock_view_ptr = mock_view.get();
 
   // 1. Simulate an active actor task.
-  EXPECT_CALL(*mock_view_ptr, SetCanShowWidget(false));
+  EXPECT_CALL(*mock_view_ptr, SetCanShowUi(false));
   controller->SetAccountSelectionViewForTesting(std::move(mock_view));
   controller->SetActingTaskIdForTesting(actor::TaskId::FromUnsafeValue(1));
 
@@ -1306,7 +1166,7 @@ TEST_F(IdentityDialogControllerTest, ActiveModeDismissedWhenActorStopsActing) {
   // 3. Simulate the actor task finishing.
   // This should trigger the dismiss callback because we are in active mode
   // and we previously suppressed the UI.
-  EXPECT_CALL(*mock_view_ptr, SetCanShowWidget(true));
+  EXPECT_CALL(*mock_view_ptr, SetCanShowUi(true));
   EXPECT_CALL(dismiss_callback,
               Run(IdentityDialogController::DismissReason::kOther))
       .Times(1);

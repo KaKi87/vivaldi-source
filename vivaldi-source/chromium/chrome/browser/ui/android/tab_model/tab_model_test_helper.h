@@ -65,6 +65,7 @@ class TestTabModel : public TabModel {
   void SetIsActiveModel(bool is_active);
 
   TabAndroid* GetTabAt(int index) const override;
+  std::vector<tabs::TabHandle> GetOrderedMultiSelectedTabs() const override;
   void SetActiveIndex(int index) override;
   void ForceCloseAllTabs() override;
   void CloseTabAt(int index) override;
@@ -88,7 +89,9 @@ class TestTabModel : public TabModel {
   // TODO(crbug.com/415351293): Implement these.
   // TabListInterface implementation.
   void ActivateTab(tabs::TabHandle tab) override;
-  tabs::TabInterface* OpenTab(const GURL& url, int index) override;
+  tabs::TabInterface* OpenTab(const GURL& url,
+                              int index,
+                              bool foreground) override;
   void SetOpenerForTab(tabs::TabHandle target, tabs::TabHandle opener) override;
   tabs::TabInterface* GetOpenerForTab(tabs::TabHandle target) override;
   tabs::TabInterface* InsertWebContentsAt(
@@ -125,7 +128,7 @@ class TestTabModel : public TabModel {
   void MoveTabToWindow(tabs::TabHandle tab,
                        SessionID destination_window_id,
                        int destination_index) override;
-  void MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
+  bool MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
                             SessionID destination_window_id,
                             int destination_index) override;
   bool IsThisTabListEditable() override;
@@ -174,6 +177,7 @@ class OwningTestTabModel : public TabModel {
   tabs::TabInterface* GetActiveTab() override;
   content::WebContents* GetWebContentsAt(int index) const override;
   TabAndroid* GetTabAt(int index) const override;
+  std::vector<tabs::TabHandle> GetOrderedMultiSelectedTabs() const override;
   void SetActiveIndex(int index) override;
   void ForceCloseAllTabs() override;
   void CloseTabAt(int index) override;
@@ -227,7 +231,9 @@ class OwningTestTabModel : public TabModel {
   // TODO(crbug.com/415351293): Implement these.
   // TabListInterface implementation.
   void ActivateTab(tabs::TabHandle tab) override;
-  tabs::TabInterface* OpenTab(const GURL& url, int index) override;
+  tabs::TabInterface* OpenTab(const GURL& url,
+                              int index,
+                              bool foreground) override;
   void SetOpenerForTab(tabs::TabHandle target, tabs::TabHandle opener) override;
   tabs::TabInterface* GetOpenerForTab(tabs::TabHandle target) override;
   tabs::TabInterface* InsertWebContentsAt(
@@ -264,7 +270,7 @@ class OwningTestTabModel : public TabModel {
   void MoveTabToWindow(tabs::TabHandle tab,
                        SessionID destination_window_id,
                        int destination_index) override;
-  void MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
+  bool MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
                             SessionID destination_window_id,
                             int destination_index) override;
   bool IsThisTabListEditable() override;

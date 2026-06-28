@@ -70,21 +70,6 @@ static int64_t JNI_FeedServiceBridge_GetReliabilityLoggingId(JNIEnv* env) {
   return FeedServiceBridge::GetReliabilityLoggingId();
 }
 
-static int64_t JNI_FeedServiceBridge_AddUnreadContentObserver(
-    JNIEnv* env,
-    const base::android::JavaRef<jobject>& j_observer,
-    bool is_web_feed) {
-  FeedApi* api = GetFeedApi();
-  if (!api)
-    return static_cast<int32_t>(ContentOrder::kUnspecified);
-  JavaUnreadContentObserver* observer = new JavaUnreadContentObserver(
-      base::android::ScopedJavaGlobalRef<jobject>(j_observer));
-  api->AddUnreadContentObserver(is_web_feed ? StreamType(StreamKind::kFollowing)
-                                            : StreamType(StreamKind::kForYou),
-                                observer);
-  return reinterpret_cast<int64_t>(observer);
-}
-
 static void JNI_FeedServiceBridge_ReportOtherUserActionForStream(
     JNIEnv* env,
     int32_t stream_kind,
@@ -103,35 +88,6 @@ static void JNI_FeedServiceBridge_ReportOtherUserAction(JNIEnv* env,
     return;
   }
   api->ReportOtherUserAction(static_cast<FeedUserActionType>(action));
-}
-
-static int32_t JNI_FeedServiceBridge_GetContentOrderForWebFeed(JNIEnv* env) {
-  FeedApi* api = GetFeedApi();
-  if (!api)
-    return 0;
-  return static_cast<int>(
-      api->GetContentOrder(StreamType(StreamKind::kFollowing)));
-}
-
-static void JNI_FeedServiceBridge_SetContentOrderForWebFeed(
-    JNIEnv* env,
-    int32_t content_order) {
-  FeedApi* api = GetFeedApi();
-  if (!api)
-    return;
-  switch (content_order) {
-    case static_cast<int32_t>(ContentOrder::kGrouped):
-      api->SetContentOrder(StreamType(StreamKind::kFollowing),
-                           ContentOrder::kGrouped);
-      return;
-    case static_cast<int32_t>(ContentOrder::kReverseChron):
-      api->SetContentOrder(StreamType(StreamKind::kFollowing),
-                           ContentOrder::kReverseChron);
-      return;
-    case static_cast<int32_t>(ContentOrder::kUnspecified):
-      break;
-  }
-  NOTREACHED() << "Invalid content order: " << content_order;
 }
 
 static bool JNI_FeedServiceBridge_IsSignedIn(JNIEnv* env) {
@@ -186,23 +142,6 @@ uint64_t FeedServiceBridge::GetReliabilityLoggingId() {
 // static
 bool FeedServiceBridge::IsSignedIn() {
   return GetFeedService()->IsSignedIn();
-}
-
-JavaUnreadContentObserver::JavaUnreadContentObserver(
-    base::android::ScopedJavaGlobalRef<jobject> j_observer)
-    : obj_(j_observer) {}
-
-feed::JavaUnreadContentObserver::~JavaUnreadContentObserver() = default;
-
-void JavaUnreadContentObserver::HasUnreadContentChanged(
-    bool has_unread_content) {
-  JNIEnv* env = base::android::AttachCurrentThread();
-  Java_UnreadContentObserver_hasUnreadContentChanged(env, obj_,
-                                                     has_unread_content);
-}
-
-void JavaUnreadContentObserver::Destroy(JNIEnv*) {
-  delete this;
 }
 
 }  // namespace feed

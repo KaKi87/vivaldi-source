@@ -58,7 +58,7 @@ export type {PromoteUpdaterStatus} from './about_page/about_page_browser_proxy.j
 // export {SettingsAiLoggingInfoBullet} from './ai_page/ai_logging_info_bullet.js';
 // export {SettingsAiPageElement} from './ai_page/ai_page.js';
 // export {SettingsAiPageIndexElement} from './ai_page/ai_page_index.js';
-// export {ModelExecutionEnterprisePolicyValue} from './ai_page/constants.js';
+// export {ChromeSuggestionsSettingsValue, ModelExecutionEnterprisePolicyValue} from './ai_page/constants.js';
 export {AppearanceBrowserProxyImpl} from './appearance_page/appearance_browser_proxy.js';
 export type {AppearanceBrowserProxy} from './appearance_page/appearance_browser_proxy.js';
 export {SettingsAppearancePageElement, SystemTheme} from './appearance_page/appearance_page.js';
@@ -86,7 +86,7 @@ export {loadTimeData} from './i18n_setup.js';
 // <if expr="not is_chromeos">
 export {convertLanguageCodeForChrome, convertLanguageCodeForTranslate, getBaseLanguage, isTranslateBaseLanguage} from './languages_page/languages_util.js';
 // </if>
-export {AiPageComposeInteractions, AiPageHistorySearchInteractions, AiPageInteractions, AutofillSettingsReferrer, CardBenefitsUserAction, CvcDeletionUserAction, DeleteBrowsingDataAction, MetricsBrowserProxyImpl, PrivacyElementInteractions, PrivacyGuideInteractions, PrivacyGuideSettingsStates, PrivacyGuideStepsEligibleAndReached, SafeBrowsingInteractions, SafetyCheckNotificationsModuleInteractions, SafetyCheckUnusedSitePermissionsModuleInteractions, SafetyHubCardState, SafetyHubEntryPoint, SafetyHubModuleType, SafetyHubSurfaces, YourSavedInfoDataCategory, YourSavedInfoDataChip, YourSavedInfoRelatedService} from './metrics_browser_proxy.js';
+export {AiPageComposeInteractions, AiPageHistorySearchInteractions, AiPageInteractions, AiPageSuggestionsInteractions, AutofillSettingsReferrer, CardBenefitsUserAction, CvcDeletionUserAction, DeleteBrowsingDataAction, MetricsBrowserProxyImpl, PrivacyElementInteractions, PrivacyGuideInteractions, PrivacyGuideSettingsStates, PrivacyGuideStepsEligibleAndReached, SafeBrowsingInteractions, SafetyCheckNotificationsModuleInteractions, SafetyCheckUnusedSitePermissionsModuleInteractions, SafetyHubCardState, SafetyHubEntryPoint, SafetyHubModuleType, SafetyHubSurfaces, YourSavedInfoDataCategory, YourSavedInfoDataChip, YourSavedInfoRelatedService} from './metrics_browser_proxy.js';
 export type {MetricsBrowserProxy} from './metrics_browser_proxy.js';
 export {OnStartupBrowserProxyImpl} from './on_startup_page/on_startup_browser_proxy.js';
 export type {NtpExtension, OnStartupBrowserProxy} from './on_startup_page/on_startup_browser_proxy.js';
@@ -100,17 +100,15 @@ export {pageVisibility, resetPageVisibilityForTesting} from './page_visibility.j
 export type {PrivacyPageVisibility} from './page_visibility.js';
 // <if expr="is_chromeos">
 export {AccountManagerBrowserProxyImpl} from './people_page/account_manager_browser_proxy.js';
-export type {AccountManagerBrowserProxy} from './people_page/account_manager_browser_proxy.js';
+export type {Account, AccountManagerBrowserProxy} from './people_page/account_manager_browser_proxy.js';
 // </if>
 export {SettingsPeoplePageElement} from './people_page/people_page.js';
 export {SettingsPeoplePageIndexElement} from './people_page/people_page_index.js';
-// <if expr="not is_chromeos">
 export {SettingsSyncAccountControlElement} from './people_page/sync_account_control.js';
-// </if>
 export {BATTERY_SAVER_MODE_PREF, SettingsBatteryPageElement} from './performance_page/battery_page.js';
 export {MEMORY_SAVER_MODE_AGGRESSIVENESS_PREF, MEMORY_SAVER_MODE_PREF, SettingsMemoryPageElement} from './performance_page/memory_page.js';
 export {PerformanceBrowserProxyImpl} from './performance_page/performance_browser_proxy.js';
-export type {PerformanceBrowserProxy} from './performance_page/performance_browser_proxy.js';
+export type {CpuPerformanceInfo, PerformanceBrowserProxy} from './performance_page/performance_browser_proxy.js';
 export {BatterySaverModeState, MemorySaverModeAggressiveness, MemorySaverModeExceptionListAction, MemorySaverModeState, PerformanceMetricsProxyImpl} from './performance_page/performance_metrics_proxy.js';
 export type {PerformanceMetricsProxy} from './performance_page/performance_metrics_proxy.js';
 export {DISCARD_RING_PREF, PERFORMANCE_INTERVENTION_NOTIFICATION_PREF, SettingsPerformancePageElement} from './performance_page/performance_page.js';
@@ -121,7 +119,7 @@ export {ExceptionEntryElement} from './performance_page/tab_discard/exception_en
 export {ExceptionListElement, TAB_DISCARD_EXCEPTIONS_OVERFLOW_SIZE} from './performance_page/tab_discard/exception_list.js';
 export {ExceptionAddDialogTabs, ExceptionTabbedAddDialogElement} from './performance_page/tab_discard/exception_tabbed_add_dialog.js';
 export {MAX_TAB_DISCARD_EXCEPTION_RULE_LENGTH, TAB_DISCARD_EXCEPTIONS_MANAGED_PREF, TAB_DISCARD_EXCEPTIONS_PREF} from './performance_page/tab_discard/exception_validation_mixin.js';
-export {HatsBrowserProxyImpl, SecurityPageV2Interaction, SecuritySettingsBundleSetting, TrustSafetyInteraction} from './privacy_page/hats_browser_proxy.js';
+export {HatsBrowserProxyImpl, SecurityPageInteraction, SecurityPageV2Interaction, SecuritySettingsBundleSetting, TrustSafetyInteraction} from './privacy_page/hats_browser_proxy.js';
 export type {HatsBrowserProxy} from './privacy_page/hats_browser_proxy.js';
 // export {PrivacyGuideBrowserProxyImpl} from './privacy_page/privacy_guide/privacy_guide_browser_proxy.js';
 // export type {PrivacyGuideBrowserProxy} from './privacy_page/privacy_guide/privacy_guide_browser_proxy.js';
@@ -138,6 +136,7 @@ export {buildRouter, resetRouterForTesting, routes} from './route.js';
 export {Route, Router} from './router.js';
 export type {SettingsRoutes} from './router.js';
 export {ScrollableMixin} from './scrollable_mixin.js';
+export {ExtensionControlledMessageElement} from './search_page/extension_controlled_message.js';
 // export {FeatureShortcutsPageElement} from './search_page/feature_shortcuts_page.js';
 // export {KeyboardShortcutPageElement} from './search_page/keyboard_shortcut_page.js';
 // export {SettingsSearchEngineListDialogElement} from './search_page/search_engine_list_dialog.js';

@@ -5,9 +5,8 @@ import("//vivaldi/gn/config/features.gni")
 
 assert(ffmpeg_branding == "Chrome")
 
-ffmpeg_config_root =
-    "//third_party/ffmpeg/" +
-    "chromium/config/$ffmpeg_branding/$os_config/$ffmpeg_arch"
+ffmpeg_config_root = "//third_party/ffmpeg/" +
+                     "chromium/config/$ffmpeg_branding/$os_config/$ffmpeg_arch"
 
 # We need to patch few config files that FFmpeg sources include via the include
 # statements to replace media decoders that we cannot use with ones implemented
@@ -36,32 +35,24 @@ ffmpeg_config_root =
 # thus forcing the recompilation addressing this issue.
 
 group("generate_config") {
-  deps = [
-    ":generate_decoder_list",
-  ]
+  deps = [ ":generate_decoder_list" ]
   if (!is_linux) {
     # Only used by Mac and Windows platform media files
-    deps += [
-      ":generate_redirected_log",
-    ]
+    deps += [ ":generate_redirected_log" ]
   }
 }
 
 generated_file("generate_decoder_list") {
   codec_subpath = "/libavcodec/codec_list.c"
-  decoder_list_file = ffmpeg_config_root  + codec_subpath
+  decoder_list_file = ffmpeg_config_root + codec_subpath
   decoder_list_lines = read_file(decoder_list_file, "list lines")
 
   # Check the expected lines with FFmpeg software decoders before we
   # patched them out to replace with platform specific one or to remove.
-  assert(
-      "&ff_h264_decoder," == decoder_list_lines[1],
-      "Unexpected format of $decoder_list_file"
-  )
-  assert(
-      "&ff_aac_decoder," == decoder_list_lines[2],
-      "Unexpected format of $decoder_list_file"
-  )
+  assert("&ff_h264_decoder," == decoder_list_lines[1],
+         "Unexpected format of $decoder_list_file")
+  assert("&ff_aac_decoder," == decoder_list_lines[2],
+         "Unexpected format of $decoder_list_file")
   if (is_linux) {
     decoder_list_lines[1] = "//" + decoder_list_lines[1]
     decoder_list_lines[2] = "//" + decoder_list_lines[2]
@@ -73,13 +64,13 @@ generated_file("generate_decoder_list") {
   if (is_win) {
     # Declare first the decoder. On Mac it is not necessary as our decoder
     # is a fork of the decoder that FFmpeg already declared.
-    decoder_list_lines[0] = "extern const AVCodec ffwmf_aac_decoder;" +
-        decoder_list_lines[0]
+    decoder_list_lines[0] =
+        "extern const AVCodec ffwmf_aac_decoder;" + decoder_list_lines[0]
     decoder_list_lines[1] = "//" + decoder_list_lines[1]
     decoder_list_lines[2] = "&ffwmf_aac_decoder,"
   }
 
-  outputs = [target_gen_dir + codec_subpath]
+  outputs = [ target_gen_dir + codec_subpath ]
   contents = decoder_list_lines
   output_conversion = "list lines"
 }
@@ -88,10 +79,8 @@ if (!is_linux) {
   # Override chromium/third_party/ffmpeg/libavutil/log.h with an implementation
   # that uses Chromium logging.
   generated_file("generate_redirected_log") {
-    outputs = [target_gen_dir + "/libavutil/log.h"]
-    contents = [
-      "#include \"platform_media/ffmpeg/ffviv_log.h\""
-    ]
+    outputs = [ target_gen_dir + "/libavutil/log.h" ]
+    contents = [ "#include \"platform_media/ffmpeg/ffviv_log.h\"" ]
     output_conversion = "list lines"
   }
 }

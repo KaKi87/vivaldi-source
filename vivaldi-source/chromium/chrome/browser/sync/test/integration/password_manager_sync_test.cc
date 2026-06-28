@@ -24,7 +24,6 @@
 #include "chrome/browser/password_manager/passwords_navigation_observer.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/sync/test/integration/passwords_helper.h"
-#include "chrome/browser/sync/test/integration/secondary_account_helper.h"
 #include "chrome/browser/sync/test/integration/single_client_status_change_checker.h"
 #include "chrome/browser/sync/test/integration/status_change_checker.h"
 #include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
@@ -40,6 +39,7 @@
 #include "components/password_manager/core/browser/features/password_manager_features_util.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_manager_test_utils.h"
+#include "components/password_manager/core/browser/password_store/password_form_converters.h"
 #include "components/password_manager/core/browser/password_store/password_store_interface.h"
 #include "components/password_manager/core/browser/password_store/password_store_results_observer.h"
 #include "components/password_manager/core/browser/password_sync_util.h"
@@ -65,6 +65,7 @@
 #include "content/public/browser/browser_context.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/content_mock_cert_verifier.h"
+#include "content/public/test/test_utils.h"
 #include "google_apis/gaia/gaia_switches.h"
 #include "google_apis/gaia/gaia_urls.h"
 #include "net/dns/mock_host_resolver.h"
@@ -80,14 +81,14 @@ using testing::NiceMock;
 using testing::UnorderedElementsAre;
 
 MATCHER_P2(MatchesLogin, username, password, "") {
-  return arg->username_value == base::UTF8ToUTF16(username) &&
-         arg->password_value == base::UTF8ToUTF16(password);
+  return arg.username_value == base::UTF8ToUTF16(username) &&
+         arg.password_value == base::UTF8ToUTF16(password);
 }
 
 MATCHER_P3(MatchesLoginAndRealm, username, password, signon_realm, "") {
-  return arg->username_value == base::UTF8ToUTF16(username) &&
-         arg->password_value == base::UTF8ToUTF16(password) &&
-         arg->signon_realm == signon_realm;
+  return arg.username_value == base::UTF8ToUTF16(username) &&
+         arg.password_value == base::UTF8ToUTF16(password) &&
+         arg.signon_realm == signon_realm;
 }
 
 const char kExampleHostname[] = "www.example.com";
@@ -246,7 +247,7 @@ class PasswordManagerSyncTest : public SyncTest {
             GetProfile(0));
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 
-    ASSERT_TRUE(GetClient(0)->SignInPrimaryAccount(account));
+    ASSERT_TRUE(GetClient(0)->SignInNoWaitForCompletion(account));
     ASSERT_TRUE(GetClient(0)->AwaitSyncTransportActive());
     ASSERT_FALSE(GetSyncService(0)->IsSyncFeatureEnabled());
   }
@@ -258,10 +259,10 @@ class PasswordManagerSyncTest : public SyncTest {
     ASSERT_TRUE(GetSyncService(0)->GetActiveDataTypes().Has(syncer::PASSWORDS));
   }
 
+#if !BUILDFLAG(IS_CHROMEOS)
   // Should only be called after SetupSyncTransportWithPasswordAccountStorage().
-  void SignOut() {
-    secondary_account_helper::SignOut(GetProfile(0), &test_url_loader_factory_);
-  }
+  void SignOut() { GetClient(0)->SignOutPrimaryAccount(); }
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
   GURL GetWWWOrigin() {
     return embedded_test_server()->GetURL(kExampleHostname, "/");
@@ -324,7 +325,7 @@ class PasswordManagerSyncTest : public SyncTest {
   void AddLocalCredential(const password_manager::PasswordForm& form) {
     scoped_refptr<password_manager::PasswordStoreInterface> password_store =
         passwords_helper::GetProfilePasswordStoreInterface(0);
-    password_store->AddLogin(form);
+    password_store->AddLogin(password_manager::FromPasswordForm(form));
     // Do a roundtrip to the DB thread, to make sure the new password is stored
     // before doing anything else that might depend on it.
     GetAllLoginsFromProfilePasswordStore();
@@ -332,26 +333,26 @@ class PasswordManagerSyncTest : public SyncTest {
 
   // Synchronously reads all credentials from the profile password store and
   // returns them.
-  std::vector<std::unique_ptr<password_manager::PasswordForm>>
+  std::vector<password_manager::PasswordForm>
   GetAllLoginsFromProfilePasswordStore() {
     scoped_refptr<password_manager::PasswordStoreInterface> password_store =
         passwords_helper::GetProfilePasswordStoreInterface(0);
     password_manager::PasswordStoreResultsObserver syncer;
     password_store->GetAllLoginsWithAffiliationAndBrandingInformation(
         syncer.GetWeakPtr());
-    return syncer.WaitForResults();
+    return password_manager::ToPasswordForms(syncer.WaitForResults());
   }
 
   // Synchronously reads all credentials from the account password store and
   // returns them.
-  std::vector<std::unique_ptr<password_manager::PasswordForm>>
+  std::vector<password_manager::PasswordForm>
   GetAllLoginsFromAccountPasswordStore() {
     scoped_refptr<password_manager::PasswordStoreInterface> password_store =
         passwords_helper::GetAccountPasswordStoreInterface(0);
     password_manager::PasswordStoreResultsObserver syncer;
     password_store->GetAllLoginsWithAffiliationAndBrandingInformation(
         syncer.GetWeakPtr());
-    return syncer.WaitForResults();
+    return password_manager::ToPasswordForms(syncer.WaitForResults());
   }
 
   void NavigateToFile(content::WebContents* web_contents,
@@ -388,6 +389,7 @@ class PasswordManagerSyncTest : public SyncTest {
     ASSERT_EQ(web_contents,
               GetBrowser(0)->tab_strip_model()->GetActiveWebContents());
     PasswordsNavigationObserver observer(web_contents);
+    observer.set_wait_for_password_forms_parsed(true);
     ASSERT_TRUE(ui_test_utils::NavigateToURL(GetBrowser(0), url));
     ASSERT_TRUE(observer.Wait());
     // After navigation, the password manager retrieves any matching credentials

@@ -6,9 +6,10 @@
 
 #import "base/check.h"
 #import "ios/chrome/browser/fullscreen/model/fullscreen_browser_agent.h"
+#import "ios/chrome/browser/fullscreen/public/fullscreen_metrics.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_controller.h"
-#import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_metrics.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/scoped_fullscreen_disabler.h"
+#import "ios/chrome/browser/shared/public/commands/fullscreen_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
@@ -105,20 +106,29 @@ using vivaldi::IsVivaldiRunning;
 
   _locationIndicatorActive = locationIndicatorActive;
 
-  if (locationIndicatorActive) {
-    if (_fullscreenController) {
-      _fullscreenController->EnterForceFullscreenMode(
-          /* insets_update_enabled */ false,
-          FullscreenModeTransitionTrigger::kForcedByCode);
+  FullscreenModeTransitionTrigger trigger =
+      FullscreenModeTransitionTrigger::kForcedByCode;
+
+  if (IsFullscreenRefactoringEnabled()) {
+    if (locationIndicatorActive) {
+      [self.fullscreenCommands enterFullscreenWithTrigger:trigger animated:YES];
+    } else {
+      [self.fullscreenCommands exitFullscreenWithTrigger:trigger animated:YES];
     }
+  } else if (_fullscreenController) {
+    if (locationIndicatorActive) {
+      _fullscreenController->EnterForceFullscreenMode(
+          /* insets_update_enabled */ false, trigger);
+    } else {
+      _fullscreenController->ExitForceFullscreenMode(trigger);
+    }
+  }
+
+  if (locationIndicatorActive) {
     self.view.locationBarTopConstraint.constant = 0;
     self.view.bottomSeparator.alpha = 1.0;
     [self.toolbarHeightDelegate secondaryToolbarMovedAboveKeyboard];
   } else {
-    if (_fullscreenController) {
-      _fullscreenController->ExitForceFullscreenMode(
-          FullscreenModeTransitionTrigger::kForcedByCode);
-    }
     self.view.bottomSeparator.alpha = 0.0;
     [self.toolbarHeightDelegate secondaryToolbarRemovedFromKeyboard];
   }
@@ -217,6 +227,14 @@ using vivaldi::IsVivaldiRunning;
 - (void)constraintToKeyboard:(BOOL)shouldConstraintToKeyboard
             withNotification:(NSNotification*)notification {
   if (!self.hasOmnibox) {
+    // When switching to landscape, the bottom omnibox is not available. If
+    // the location indicator was previously active (e.g. Find in Page was open
+    // in portrait), clean up the state so that ExitForceFullscreenMode is
+    // called to balance the earlier EnterForceFullscreenMode.
+    // See crbug.com/498378084 for more context.
+    if (self.locationIndicatorActive) {
+      self.locationIndicatorActive = NO;
+    }
     return;
   }
 
@@ -275,7 +293,7 @@ using vivaldi::IsVivaldiRunning;
       visibleKeyboardHeight = [self inputAccessoryHeightInWindow];
     } else {
       visibleKeyboardHeight =
-          [self keyboardHeightInWindowFromNotification:notification];
+          VisibleKeyboardHeightFromNotification(notification, self.view.window);
       // If the Find navigator is visible and the toolbar is constrained to the
       // keyboard, then add room for the collapsed toolbar to be visible above
       // the keyboard.
@@ -306,22 +324,6 @@ using vivaldi::IsVivaldiRunning;
       [inputAccessory convertRect:inputAccessory.layer.presentationLayer.frame
                            toView:self.view.window];
   return self.view.window.frame.size.height - rectInWindowIA.origin.y;
-}
-
-// Returns the user visible height of the keyboard.
-- (CGFloat)keyboardHeightInWindowFromNotification:
-    (NSNotification*)notification {
-  NSDictionary* userInfo = notification.userInfo;
-  // Part of the keyboard might be hidden. Keep only the visible area.
-  CGRect keyboardFrame = [userInfo[UIKeyboardFrameEndUserInfoKey] CGRectValue];
-  id<UICoordinateSpace> fromCoordinateSpace =
-      ((UIScreen*)notification.object).coordinateSpace;
-  id<UICoordinateSpace> toCoordinateSpace = self.view.window;
-  CGRect keyboardFrameInWindow =
-      [fromCoordinateSpace convertRect:keyboardFrame
-                     toCoordinateSpace:toCoordinateSpace];
-  return CGRectIntersection(keyboardFrameInWindow, self.view.window.bounds)
-      .size.height;
 }
 
 // The minimum height of this toolbar.
@@ -405,6 +407,24 @@ using vivaldi::IsVivaldiRunning;
 - (void)setToolbarFaded:(BOOL)faded {
   self.view.alpha = faded ? 0 : 1;
 }
+
+#pragma mark - Properties
+
+- (void)setLocationBarViewController:
+    (UIViewController*)locationBarViewController {
+  // Resets `locationIndicatorActive` when the location bar is removed. This
+  // prevents an inconsistent active indicator state (and potential crash) when
+  // the secondary toolbar no longer has an omnibox.
+  [super setLocationBarViewController:locationBarViewController];
+  if (!self.hasOmnibox && self.locationIndicatorActive) {
+    self.locationIndicatorActive = NO;
+  }
+
+  if (IsVivaldiRunning()) {
+    [self updateForFullscreenProgress:1];
+  } // End Vivaldi
+}
+
 
 #pragma mark - Vivaldi
 - (UIStackView*)toolbarButtonStackView {
@@ -520,7 +540,7 @@ using vivaldi::IsVivaldiRunning;
       keyboardAnchorVisible = visibleKeyboardHeight > 0;
     } else {
       visibleKeyboardHeight =
-          [self keyboardHeightInWindowFromNotification:notification];
+          VisibleKeyboardHeightFromNotification(notification, self.view.window);
       keyboardAnchorVisible = visibleKeyboardHeight > 0;
       if (findNavigatorVisible) {
         visibleKeyboardHeight += ToolbarCollapsedHeight(
@@ -589,12 +609,6 @@ using vivaldi::IsVivaldiRunning;
                                         curve:curve];
 }
 
-#pragma mark - AdaptiveToolbarViewController (Subclassing)
-- (void)setLocationBarViewController:
-    (UIViewController*)locationBarViewController {
-  [super setLocationBarViewController:locationBarViewController];
-  [self updateForFullscreenProgress:1];
-}
 // End Vivaldi
 
 @end

@@ -22,10 +22,13 @@
 chromium::import! {
     "//mojo/public/rust/mojom_value_parser:mojom_value_parser_core";
     "//mojo/public/rust/mojom_value_parser:parser_unittests_rust";
+    "//mojo/public/rust/bindings";
 }
 
 use rust_gtest_interop::prelude::*;
 
+use bindings::receiver::PendingReceiver;
+use bindings::remote::PendingRemote;
 use mojom_value_parser_core::*;
 use ordered_float::OrderedFloat;
 use parser_unittests_rust::parser_unittests::*;
@@ -139,7 +142,7 @@ impl TestType {
     /// (1) T's associated MojomType and MojomWireType match ours, and
     /// (2) The input value of type T can be converted to and from the input
     ///     MojomValue
-    fn validate_mojomparse<T: MojomParse + std::fmt::Debug + Clone + PartialEq>(
+    fn validate_mojomparse<T: MojomParse<()> + std::fmt::Debug + Clone + PartialEq>(
         &self,
         rust_val: T,
         mojom_val: MojomValue,
@@ -161,14 +164,14 @@ impl TestType {
         );
 
         // Test conversion to/from MojomValues
-        expect_eq!(&mojom_val, &rust_val.clone().into());
-        expect_eq!(rust_val, mojom_val.try_into().unwrap());
+        expect_eq!(&mojom_val, &into_mojom_value(rust_val.clone()));
+        expect_eq!(rust_val, try_from_mojom_value(mojom_val).unwrap());
     }
 
     /// Similar to `validate_mojomparse`, but for types which contain handles.
     /// Since no two different handle values will ever be equal, it uses a
     /// special comparison operator that ignores handles.
-    fn validate_mojomparse_handles<T: MojomParse + std::fmt::Debug + PartialEq>(
+    fn validate_mojomparse_handles<T: MojomParse<()> + std::fmt::Debug + PartialEq>(
         &self,
         rust_val: T,
         get_mojom_val: impl Fn() -> MojomValue,
@@ -187,14 +190,14 @@ impl TestType {
             self.type_name
         );
 
-        expect_true!(equivalent_value(&get_mojom_val(), &rust_val.into()));
+        expect_true!(equivalent_value(&get_mojom_val(), &into_mojom_value(rust_val)));
         // Unfortunately, we don't have `equivalent_value` for rust types.
         // We could write a bunch of them if we _really_ wanted to, but for now
         // we satisfy ourselves by checking round-trip conversions.
         expect_true!(equivalent_value(
             &get_mojom_val(),
-            // The function we really want to test here is T::try_from
-            &T::try_from(get_mojom_val()).unwrap().into()
+            // The function we really want to test here is T::try_from_mojom_value
+            &into_mojom_value(try_from_mojom_value::<T>(get_mojom_val()).unwrap())
         ));
     }
 }
@@ -702,18 +705,18 @@ fn test_bad_conversion() {
     // arbitrary scattershot approach so we have _some_ coverage.
     // TODO(crbug.com/456214728) Replace with matchers from the googletest crate
     // if we switch to it.
-    expect_true!(FourInts::try_from(four_ints_reversed).is_err());
-    expect_true!(FourInts::try_from(once_nested()).is_err());
-    expect_true!(FourInts::try_from(empty).is_err());
+    expect_true!(try_from_mojom_value::<FourInts>(four_ints_reversed).is_err());
+    expect_true!(try_from_mojom_value::<FourInts>(once_nested()).is_err());
+    expect_true!(try_from_mojom_value::<FourInts>(empty).is_err());
 
-    expect_true!(TenBoolsAndAByte::try_from(ten_bools_bytes).is_err());
-    expect_true!(TenBoolsAndAByte::try_from(four_ints_intermixed).is_err());
+    expect_true!(try_from_mojom_value::<TenBoolsAndAByte>(ten_bools_bytes).is_err());
+    expect_true!(try_from_mojom_value::<TenBoolsAndAByte>(four_ints_intermixed).is_err());
 
-    expect_true!(OnceNested::try_from(twice_nested).is_err());
-    expect_true!(OnceNested::try_from(ten_bools_byte()).is_err());
+    expect_true!(try_from_mojom_value::<OnceNested>(twice_nested).is_err());
+    expect_true!(try_from_mojom_value::<OnceNested>(ten_bools_byte()).is_err());
 
-    expect_true!(Empty::try_from(ten_bools_byte()).is_err());
-    expect_true!(Empty::try_from(four_ints).is_err());
+    expect_true!(try_from_mojom_value::<Empty>(ten_bools_byte()).is_err());
+    expect_true!(try_from_mojom_value::<Empty>(four_ints).is_err());
 }
 
 // Mojom Definition:
@@ -1047,10 +1050,16 @@ fn test_unions() {
     );
     BASE_UNION_TY.validate_mojomparse(BaseUnion::fl(3.14), base_union_mojom_fl(3.14));
 
-    expect_true!(BaseUnion::try_from(MojomValue::Union(99, Box::new(MojomValue::Int8(0)))).is_err());
-    expect_true!(
-        BaseUnion::try_from(MojomValue::Union(0, Box::new(MojomValue::UInt64(0)))).is_err()
-    );
+    expect_true!(try_from_mojom_value::<BaseUnion>(MojomValue::Union(
+        99,
+        Box::new(MojomValue::Int8(0))
+    ))
+    .is_err());
+    expect_true!(try_from_mojom_value::<BaseUnion>(MojomValue::Union(
+        0,
+        Box::new(MojomValue::UInt64(0))
+    ))
+    .is_err());
 
     NESTED_UNION_TY.validate_mojomparse(NestedUnion::n(60), nested_union_mojom_n(60));
     NESTED_UNION_TY.validate_mojomparse(
@@ -1189,7 +1198,7 @@ static ARRAY_UNION_TY: LazyLock<TestType> = LazyLock::new(|| TestType {
 });
 
 fn array_union_mojom(elts: Vec<BaseUnion>) -> MojomValue {
-    MojomValue::Array(elts.into_iter().map(MojomValue::from).collect())
+    MojomValue::Array(elts.into_iter().map(into_mojom_value).collect())
 }
 
 // Mojom Definition:
@@ -1201,7 +1210,7 @@ static ARRAY_UNION_NESTED_TY: LazyLock<TestType> = LazyLock::new(|| TestType {
 });
 
 fn array_union_nested_mojom(elts: Vec<NestedUnion>) -> MojomValue {
-    MojomValue::Array(elts.into_iter().map(MojomValue::from).collect())
+    MojomValue::Array(elts.into_iter().map(into_mojom_value).collect())
 }
 
 // Mojom Definition:
@@ -1213,7 +1222,7 @@ static ARRAY_FOURINTS_TY: LazyLock<TestType> = LazyLock::new(|| TestType {
 });
 
 fn array_fourints_mojom(elts: Vec<FourInts>) -> MojomValue {
-    MojomValue::Array(elts.into_iter().map(MojomValue::from).collect())
+    MojomValue::Array(elts.into_iter().map(into_mojom_value).collect())
 }
 
 // Mojom Definition:
@@ -1426,10 +1435,10 @@ fn test_arrays() {
     );
 
     let array_val = array_int16_mojom(vec![]);
-    expect_true!(FourInts::try_from(array_val).is_err());
+    expect_true!(try_from_mojom_value::<FourInts>(array_val).is_err());
 
-    expect_true!(<Vec<i16>>::try_from(empty_mojom()).is_err());
-    expect_true!(<[u64; 3]>::try_from(empty_mojom()).is_err());
+    expect_true!(try_from_mojom_value::<Vec<i16>>(empty_mojom()).is_err());
+    expect_true!(try_from_mojom_value::<[u64; 3]>(empty_mojom()).is_err());
 
     ARRAYS_TY.validate_mojomparse(
         Arrays {
@@ -1539,7 +1548,7 @@ static MAP_I8_FOURINTS_TY: LazyLock<TestType> = LazyLock::new(|| TestType {
 
 fn map_i8_fourints_mojom(elts: HashMap<i8, FourInts>) -> MojomValue {
     MojomValue::Map(
-        elts.into_iter().map(|(k, v)| (MojomValue::Int8(k), MojomValue::from(v))).collect(),
+        elts.into_iter().map(|(k, v)| (MojomValue::Int8(k), into_mojom_value(v))).collect(),
     )
 }
 
@@ -1553,7 +1562,7 @@ static MAP_I8_NESTEDUNION_TY: LazyLock<TestType> = LazyLock::new(|| TestType {
 
 fn map_i8_nestedunion_mojom(elts: HashMap<i8, NestedUnion>) -> MojomValue {
     MojomValue::Map(
-        elts.into_iter().map(|(k, v)| (MojomValue::Int8(k), MojomValue::from(v))).collect(),
+        elts.into_iter().map(|(k, v)| (MojomValue::Int8(k), into_mojom_value(v))).collect(),
     )
 }
 
@@ -1570,7 +1579,7 @@ static MAP_I8_MAP_I16_U32_TY: LazyLock<TestType> = LazyLock::new(|| TestType {
 
 fn map_i8_map_i16_u32_mojom(elts: HashMap<i8, HashMap<i16, u32>>) -> MojomValue {
     MojomValue::Map(
-        elts.into_iter().map(|(k, v)| (MojomValue::Int8(k), MojomValue::from(v))).collect(),
+        elts.into_iter().map(|(k, v)| (MojomValue::Int8(k), into_mojom_value(v))).collect(),
     )
 }
 
@@ -2052,7 +2061,7 @@ static ARRAY_NULL_EMPTY_TY: LazyLock<TestType> = LazyLock::new(|| TestType {
 
 fn array_null_empty_mojom(elts: Vec<Option<Empty>>) -> MojomValue {
     MojomValue::Array(
-        elts.into_iter().map(|elt| nullable_val!(elt.map(MojomValue::from))).collect(),
+        elts.into_iter().map(|elt| nullable_val!(elt.map(into_mojom_value))).collect(),
     )
 }
 
@@ -2085,7 +2094,7 @@ static ARRAY_NULL_UNION_TY: LazyLock<TestType> = LazyLock::new(|| TestType {
 
 fn array_null_union_mojom(elts: Vec<Option<BaseUnion>>) -> MojomValue {
     MojomValue::Array(
-        elts.into_iter().map(|elt| nullable_val!(elt.map(MojomValue::from))).collect(),
+        elts.into_iter().map(|elt| nullable_val!(elt.map(into_mojom_value))).collect(),
     )
 }
 
@@ -2560,5 +2569,90 @@ fn test_handles() {
                 dummy_handle(),
             )
         },
+    );
+}
+
+const STRUCT_WITH_NESTED_ENUM_TYPE_PRED: Predicate<i32> = Predicate::new::<StructWithNestedEnum_Type>(
+    &(StructWithNestedEnum_Type::is_valid as fn(i32) -> bool),
+);
+
+static STRUCT_WITH_NESTED_ENUM_TY: LazyLock<TestType> = LazyLock::new(|| TestType {
+    type_name: "StructWithNestedEnum",
+    base_type: wrap_struct_fields_type(vec![(
+        "even_or_odd".to_string(),
+        MojomType::Enum { is_valid: STRUCT_WITH_NESTED_ENUM_TYPE_PRED },
+    )]),
+    packed_type: wrap_packed_struct_fields(
+        vec![(
+            "even_or_odd".to_string(),
+            struct_leaf!(0, PackedLeafType::Enum { is_valid: STRUCT_WITH_NESTED_ENUM_TYPE_PRED }),
+        )],
+        1,
+    ),
+});
+
+fn struct_with_nested_enums_mojom(even_or_odd: i32) -> MojomValue {
+    wrap_struct_fields_value(vec![("even_or_odd".to_string(), MojomValue::Enum(even_or_odd))])
+}
+
+#[gtest(RustTestMojomParsingAttr, TestNestedEnums)]
+fn test_nested_enums() {
+    STRUCT_WITH_NESTED_ENUM_TY.validate_mojomparse(
+        StructWithNestedEnum { even_or_odd: StructWithNestedEnum_Type::ODD },
+        struct_with_nested_enums_mojom(1),
+    );
+
+    STRUCT_WITH_NESTED_ENUM_TY.validate_mojomparse(
+        StructWithNestedEnum { even_or_odd: StructWithNestedEnum_Type::EVEN },
+        struct_with_nested_enums_mojom(2),
+    );
+
+    expect_true!(StructWithNestedEnum_Type::try_from(0).is_err());
+    expect_true!(StructWithNestedEnum_Type::try_from(3).is_err());
+}
+
+static WITH_PENDING_TYPES_TY: LazyLock<TestType> = LazyLock::new(|| TestType {
+    type_name: "WithPendingTypes",
+    base_type: wrap_struct_fields_type(vec![
+        ("rec".to_string(), MojomType::PendingReceiver),
+        ("rem".to_string(), MojomType::PendingRemote),
+        ("rec2".to_string(), MojomType::PendingReceiver),
+        ("rem2".to_string(), MojomType::PendingRemote),
+    ]),
+    packed_type: wrap_packed_struct_fields(
+        vec![
+            ("rec".to_string(), struct_leaf!(0, PackedLeafType::PendingReceiver)),
+            ("rem".to_string(), struct_leaf!(1, PackedLeafType::PendingRemote)),
+            ("rec2".to_string(), struct_leaf!(2, PackedLeafType::PendingReceiver)),
+            ("rem2".to_string(), struct_leaf!(3, PackedLeafType::PendingRemote)),
+        ],
+        4,
+    ),
+});
+
+fn with_pending_types_mojom(
+    rec: UntypedHandle,
+    rem: UntypedHandle,
+    rec2: UntypedHandle,
+    rem2: UntypedHandle,
+) -> MojomValue {
+    wrap_struct_fields_value(vec![
+        ("rec".to_string(), MojomValue::PendingReceiver(rec.into())),
+        ("rem".to_string(), MojomValue::PendingRemote(rem.into())),
+        ("rec2".to_string(), MojomValue::PendingReceiver(rec2.into())),
+        ("rem2".to_string(), MojomValue::PendingRemote(rem2.into())),
+    ])
+}
+
+#[gtest(RustTestMojomParsingAttr, TestPendingTypes)]
+fn test_pending_types() {
+    WITH_PENDING_TYPES_TY.validate_mojomparse_handles(
+        WithPendingTypes {
+            rec: PendingReceiver::new(dummy_handle().into()),
+            rem: PendingRemote::new(dummy_handle().into()),
+            rec2: PendingReceiver::new(dummy_handle().into()),
+            rem2: PendingRemote::new(dummy_handle().into()),
+        },
+        || with_pending_types_mojom(dummy_handle(), dummy_handle(), dummy_handle(), dummy_handle()),
     );
 }

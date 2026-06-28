@@ -58,6 +58,7 @@
 #include "net/base/schemeful_site.h"
 #include "net/cookies/canonical_cookie.h"
 #include "net/cookies/cookie_inclusion_status.h"
+#include "net/cookies/cookie_util.h"
 #include "net/http/http_request_headers.h"
 #include "net/http/http_util.h"
 #include "services/network/public/cpp/features.h"
@@ -165,9 +166,7 @@ class InterceptedRequest : public network::mojom::URLLoader,
 
   // network::mojom::URLLoader
   void FollowRedirect(
-      const std::vector<std::string>& removed_headers,
-      const net::HttpRequestHeaders& modified_headers,
-      const net::HttpRequestHeaders& modified_cors_exempt_headers,
+      network::HttpRequestHeadersUpdateParams headers_update_params,
       const std::optional<GURL>& new_url) override;
   void SetPriority(net::RequestPriority priority,
                    int32_t intra_priority_value) override;
@@ -433,14 +432,13 @@ void InterceptedRequest::Restart() {
 }
 
 void InterceptedRequest::InterceptWithCookieHeader(std::string cookie) {
-  if (cookie != "") {
-    request_.headers.SetHeader(net::HttpRequestHeaders::kCookie, cookie);
-  }
-
   std::unique_ptr<AwContentsIoThreadClient> io_thread_client =
       GetIoThreadClient();
-
   if (io_thread_client != nullptr) {
+    // Attach cookies if we are intercepting.
+    if (cookie != "") {
+      request_.headers.SetHeader(net::HttpRequestHeaders::kCookie, cookie);
+    }
     // TODO: verify the case when WebContents::RenderFrameDeleted is called
     // before network request is intercepted (i.e. if that's possible and
     // whether it can result in any issues).
@@ -455,17 +453,8 @@ void InterceptedRequest::InterceptWithCookieHeader(std::string cookie) {
 
 void InterceptedRequest::InterceptResponseReceived(
     AwContentsIoThreadClient::InterceptResponseData async_result) {
-  // We send the application's package name in the X-Requested-With header for
-  // compatibility with previous WebView versions. This should not be visible to
-  // shouldInterceptRequest. It should also not trigger CORS prefetch if
-  // OOR-CORS is enabled.
-  std::string header = content::GetCorsExemptRequestedWithHeaderName();
-
-  // Only overwrite if the header hasn't already been set
-  if (!request_.headers.HasHeader(header)) {
-    request_.cors_exempt_headers.SetHeader(
-        header, base::android::apk_info::host_package_name());
-  }
+  AwProxyingURLLoaderFactory::SetRequestedWithHeader(
+      request_, request_.cors_exempt_headers);
 
   JNIEnv* env = base::android::AttachCurrentThread();
   if (async_result.response && async_result.response->RaisedException(env)) {
@@ -495,6 +484,11 @@ void InterceptedRequest::InterceptResponseReceived(
 }
 
 void InterceptedRequest::ContinueAfterIntercept() {
+  // The Cookie header may have been set in `InterceptWithCookieHeader`. But in
+  // cases where the application chose to not intercept, we should remove it
+  // again, so we are sure that the correct header is then set by the lower
+  // network layers.
+  request_.headers.RemoveHeader(net::HttpRequestHeaders::kCookie);
   // For WebViewClassic compatibility this job can only accept URLs that can be
   // opened. URLs that cannot be opened should be resolved by the next handler.
   //
@@ -783,28 +777,14 @@ void InterceptedRequest::OnComplete(
 // URLLoader methods.
 
 void InterceptedRequest::FollowRedirect(
-    const std::vector<std::string>& removed_headers,
-    const net::HttpRequestHeaders& modified_headers,
-    const net::HttpRequestHeaders& modified_cors_exempt_headers,
+    network::HttpRequestHeadersUpdateParams headers_update_params,
     const std::optional<GURL>& new_url) {
   if (target_loader_) {
     if (!origin_matched_headers_.empty()) {
-      // Copy the passed in header objects so we can modify the objects before
-      // passing them on.
-      std::vector<std::string> amended_removed_headers = removed_headers;
-      net::HttpRequestHeaders amended_modified_headers = modified_headers;
-      ApplyOriginMatchedHeaders(&amended_removed_headers,
-                                &amended_modified_headers);
-
-      target_loader_->FollowRedirect(amended_removed_headers,
-                                     amended_modified_headers,
-                                     modified_cors_exempt_headers, new_url);
-    } else {
-      // Just pass the arguments directly if we do not have any origin matched
-      // headers to apply.
-      target_loader_->FollowRedirect(removed_headers, modified_headers,
-                                     modified_cors_exempt_headers, new_url);
+      ApplyOriginMatchedHeaders(&headers_update_params.removed_headers,
+                                &headers_update_params.modified_headers);
     }
+    target_loader_->FollowRedirect(std::move(headers_update_params), new_url);
   } else {
     // Apply any potential headers to the canonical `request_.headers` to keep
     // it in sync.
@@ -973,6 +953,22 @@ AwProxyingURLLoaderFactory::AwProxyingURLLoaderFactory(
 
 AwProxyingURLLoaderFactory::~AwProxyingURLLoaderFactory() = default;
 
+// static
+void AwProxyingURLLoaderFactory::SetRequestedWithHeader(
+    const network::ResourceRequest& request,
+    net::HttpRequestHeaders& cors_exempt_headers) {
+  // We send the application's package name in the X-Requested-With header for
+  // compatibility with previous WebView versions. This should not be visible to
+  // shouldInterceptRequest. It should also not trigger CORS preflight if
+  // OOR-CORS is enabled.
+  std::string header = content::GetCorsExemptRequestedWithHeaderName();
+
+  // Only overwrite if the header hasn't already been set
+  if (!request.headers.HasHeader(header)) {
+    cors_exempt_headers.SetHeader(header,
+                                  base::android::apk_info::host_package_name());
+  }
+}
 
 // static
 void AwProxyingURLLoaderFactory::CreateProxy(
@@ -1121,11 +1117,30 @@ void AwProxyingURLLoaderFactory::GetCookieHeader(
 
   auto isolation_info = GetIsolationInfo(request);
 
-  net::CookieOptions options = net::CookieOptions::MakeAllInclusive();
+  net::CookieOptions options;
+  options.set_include_httponly();
+  options.set_do_not_update_access_time();
+  if (request.resource_type ==
+          static_cast<int32_t>(blink::mojom::ResourceType::kMainFrame) ||
+      request.resource_type ==
+          static_cast<int32_t>(blink::mojom::ResourceType::kSubFrame)) {
+    options.set_same_site_cookie_context(
+        net::cookie_util::ComputeSameSiteContextForRequest(
+            request.method, request.navigation_redirect_chain,
+            request.site_for_cookies, request.request_initiator,
+            request.resource_type ==
+                static_cast<int32_t>(blink::mojom::ResourceType::kMainFrame),
+            /*force_ignore_site_for_cookies=*/false,
+            /*ignore_unsafe_method_for_same_site_lax=*/false));
+  } else {
+    options.set_same_site_cookie_context(
+        net::cookie_util::ComputeSameSiteContextForSubresource(
+            request.url, request.site_for_cookies,
+            /*force_ignore_site_for_cookies=*/false));
+  }
 
   PrivacySetting privacy_setting = cookie_access_policy_->CanAccessCookies(
-      request.url, isolation_info.site_for_cookies(), is_3pc_allowed,
-      request.storage_access_api_status);
+      request.url, isolation_info.site_for_cookies(), is_3pc_allowed);
 
   // We should not bother retrieving the cookie list if cookies are not enabled.
   if (privacy_setting == PrivacySetting::kStateDisallowed) {

@@ -212,7 +212,7 @@ public class ImprovedBookmarkRowCoordinator {
                                     drawable = VivaldiBookmarkUtils.getTrashFolderIcon(mContext);
                                 } else {
                                     drawable = VivaldiBookmarkUtils.getFolderIcon(mContext,
-                                            item.getId());
+                                            item);
                                 }
                                set(drawable);
                             } else // End Vivaldi
@@ -261,7 +261,7 @@ public class ImprovedBookmarkRowCoordinator {
                         bookmarkItem.getId(),
                         mBookmarkModel,
                         BookmarkRowDisplayPref.VISUAL));
-        LazyOneshotSupplierImpl<Pair<Drawable, Drawable>> drawablesSupplier =
+        LazyOneshotSupplierImpl<Pair<@Nullable Drawable, @Nullable Drawable>> drawablesSupplier =
                 new LazyOneshotSupplierImpl<>() {
                     @Override
                     public void doSet() {

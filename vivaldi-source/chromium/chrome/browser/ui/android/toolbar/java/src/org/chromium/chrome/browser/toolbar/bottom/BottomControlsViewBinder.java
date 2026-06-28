@@ -38,10 +38,10 @@ class BottomControlsViewBinder {
     }
 
     static void bind(PropertyModel model, ViewHolder view, PropertyKey propertyKey) {
-        if (BottomControlsProperties.ANDROID_VIEW_HEIGHT == propertyKey) {
+        if (BottomControlsProperties.ANDROID_VIEW_HEIGHT_NO_PADDING == propertyKey) {
             View bottomControlsView = view.root.findViewById(R.id.bottom_container_slot);
             bottomControlsView.getLayoutParams().height =
-                    model.get(BottomControlsProperties.ANDROID_VIEW_HEIGHT);
+                    model.get(BottomControlsProperties.ANDROID_VIEW_HEIGHT_NO_PADDING);
             // Temporarily hide the composited view until a new snapshot is captured to avoid
             // an incorrectly sized cc-layer displaying, particularly when view height is
             // decreasing.
@@ -74,6 +74,21 @@ class BottomControlsViewBinder {
                             : View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
         } else if (BottomControlsProperties.OFFSET_TAG == propertyKey) {
             view.sceneLayer.setOffsetTag(model.get(BottomControlsProperties.OFFSET_TAG));
+        } else if (BottomControlsProperties.SHOW_SHADOW == propertyKey) {
+            boolean show = model.get(BottomControlsProperties.SHOW_SHADOW);
+            view.sceneLayer.setShowShadow(show);
+            view.root.setShowShadow(show);
+            View shadow = view.root.findViewById(R.id.bottom_container_top_shadow);
+            assert shadow != null;
+            shadow.setVisibility(show ? View.VISIBLE : View.INVISIBLE);
+        } else if (BottomControlsProperties.BOTTOM_PADDING == propertyKey) {
+            int padding = model.get(BottomControlsProperties.BOTTOM_PADDING);
+            view.root.setPadding(
+                    view.root.getPaddingLeft(),
+                    view.root.getPaddingTop(),
+                    view.root.getPaddingRight(),
+                    padding);
+            view.sceneLayer.setBottomPadding(padding);
         } else {
             assert false : "Unhandled property detected in BottomControlsViewBinder!";
         }

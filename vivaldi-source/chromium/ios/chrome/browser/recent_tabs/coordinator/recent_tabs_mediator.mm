@@ -11,6 +11,7 @@
 #import "base/notreached.h"
 #import "base/timer/timer.h"
 #import "components/sessions/core/tab_restore_service.h"
+#import "components/signin/public/base/consent_level.h"
 #import "components/signin/public/identity_manager/objc/identity_manager_observer_bridge.h"
 #import "components/signin/public/identity_manager/primary_account_change_event.h"
 #import "components/sync/service/sync_service.h"
@@ -481,7 +482,7 @@ bool UserActionIsRequiredToHaveTabSyncWork(syncer::SyncService* sync_service) {
   }
 }
 
-- (void)setPageAsActive {
+- (void)setPageAsActiveWithBehavior:(TabGridScrollBehavior)behavior {
   NOTREACHED() << "Should not be called in remote tabs.";
 }
 

@@ -4,11 +4,18 @@
 
 #import "ios/chrome/browser/app_bar/ui/app_bar_container_view_controller.h"
 
+#import "ios/chrome/browser/app_bar/ui/app_bar_constants.h"
 #import "ios/chrome/browser/app_bar/ui/app_bar_container_view.h"
 #import "ios/chrome/browser/app_bar/ui/app_bar_container_view_delegate.h"
 #import "ios/chrome/browser/app_bar/ui/app_bar_view_controller.h"
+#import "ios/chrome/browser/fullscreen/model/fullscreen_browser_agent.h"
+#import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_animator.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 
-@interface AppBarContainerViewController () <AppBarContainerViewDelegate>
+@interface AppBarContainerViewController () <AppBarContainerViewDelegate,
+                                             LayoutStateObserver>
 @property(nonatomic, strong) AppBarContainerView* view;
 @end
 
@@ -16,6 +23,27 @@
   AppBarViewController* _appBar;
   // The last fullscreen progress value received.
   CGFloat _fullscreenProgress;
+}
+
+- (void)dealloc {
+  [_layoutState removeObserver:self];
+}
+
+- (void)setLayoutState:(LayoutState*)layoutState {
+  if (_layoutState == layoutState) {
+    return;
+  }
+  [_layoutState removeObserver:self];
+  _layoutState = layoutState;
+  [_layoutState addObserver:self];
+  [self updateLayout];
+}
+
+#pragma mark - LayoutStateObserver
+
+- (void)layoutState:(LayoutState*)layoutState
+    didChangeAppBarPosition:(AppBarPosition)appBarPosition {
+  [self updateLayout];
 }
 
 @dynamic view;
@@ -43,20 +71,6 @@
   _fullscreenProgress = 1;
 }
 
-- (void)viewWillTransitionToSize:(CGSize)size
-       withTransitionCoordinator:
-           (id<UIViewControllerTransitionCoordinator>)coordinator {
-  [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
-
-  __weak __typeof(self) weakSelf = self;
-  [coordinator
-      animateAlongsideTransition:^(
-          id<UIViewControllerTransitionCoordinatorContext> context) {
-        [weakSelf updateLayout];
-      }
-                      completion:nil];
-}
-
 #pragma mark - AppBarContainerViewDelegate
 
 - (void)appBarContainerDidMoveToWindow:(AppBarContainerView*)appBarContainer {
@@ -66,48 +80,95 @@
 #pragma mark - FullscreenUIElement
 
 - (void)updateForFullscreenProgress:(CGFloat)progress {
-  UIWindowScene* windowScene = self.view.window.windowScene;
-  if (!windowScene) {
-    return;
-  }
-  UIInterfaceOrientation orientation =
-      windowScene.effectiveGeometry.interfaceOrientation;
-  if (orientation != UIInterfaceOrientationPortrait) {
-    return;
-  }
   _fullscreenProgress = progress;
   [self updateLayout];
+  [self.view setNeedsLayout];
+  [self.view layoutIfNeeded];
+}
+
+#pragma mark - FullscreenBrowserAgentObserving
+
+- (void)fullscreenWillUpdateObscuredInsetRange:(FullscreenBrowserAgent*)agent {
+  AppBarPosition position = self.layoutState.appBarPosition;
+  switch (position) {
+    case AppBarPosition::kBottom:
+      agent->AddObscuredInsetRange(UIRectEdgeBottom, kAppBarHeightFullscreen,
+                                   kAppBarHeight);
+      break;
+    case AppBarPosition::kLeft:
+      agent->AddObscuredInsetRange(UIRectEdgeLeft, kAppBarHeightLandscape,
+                                   kAppBarHeightLandscape);
+      break;
+    case AppBarPosition::kRight:
+      agent->AddObscuredInsetRange(UIRectEdgeRight, kAppBarHeightLandscape,
+                                   kAppBarHeightLandscape);
+      break;
+    case AppBarPosition::kNone:
+      break;
+  }
+}
+
+- (void)fullscreenWillUpdateState:(FullscreenBrowserAgent*)agent {
+  AppBarPosition position = self.layoutState.appBarPosition;
+  switch (position) {
+    case AppBarPosition::kBottom: {
+      _fullscreenProgress = agent->bottom_progress();
+      CGFloat currentHeight =
+          kAppBarHeightFullscreen +
+          (kAppBarHeight - kAppBarHeightFullscreen) * agent->bottom_progress();
+      agent->AddObscuredInset(UIRectEdgeBottom, currentHeight);
+      [self updateLayout];
+      // If this is inside an animation, layout immediately.
+      if (!agent->animation_duration().is_zero()) {
+        [self.view layoutIfNeeded];
+      }
+      break;
+    }
+    case AppBarPosition::kLeft:
+      agent->AddObscuredInset(UIRectEdgeLeft, kAppBarHeightLandscape);
+      break;
+    case AppBarPosition::kRight:
+      agent->AddObscuredInset(UIRectEdgeRight, kAppBarHeightLandscape);
+      break;
+    case AppBarPosition::kNone:
+      break;
+  }
 }
 
 #pragma mark - Private
 
+// Handles updating the UI for a size transition.
+- (void)setFullscreenProgress:(CGFloat)progress {
+  _fullscreenProgress = progress;
+}
+
+// Updates the layout based on the current orientation and fullscreen progress.
 - (void)updateLayout {
   UIWindowScene* windowScene = self.view.window.windowScene;
   if (!windowScene) {
     return;
   }
 
-  UIInterfaceOrientation orientation =
-      windowScene.effectiveGeometry.interfaceOrientation;
+  AppBarPosition position = self.layoutState.appBarPosition;
+  CGFloat angle = 0;
 
-  CGFloat angle;
-
-  switch (orientation) {
-    case UIInterfaceOrientationLandscapeLeft:
+  switch (position) {
+    case AppBarPosition::kLeft:
       angle = M_PI_2;
       break;
 
-    case UIInterfaceOrientationLandscapeRight:
+    case AppBarPosition::kRight:
       angle = -M_PI_2;
       break;
 
-    default:  // Portrait
+    default:  // kBottom, kNone (Portrait)
       angle = 0;
       break;
   }
 
   self.view.transform = CGAffineTransformMakeRotation(angle);
   self.view.fullscreenProgress = _fullscreenProgress;
+  self.view.appBarPosition = position;
   [_appBar updateForAngle:-angle];
 }
 

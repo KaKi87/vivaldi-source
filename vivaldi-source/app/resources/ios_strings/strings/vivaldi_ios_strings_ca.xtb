@@ -33,6 +33,7 @@
 <translation id="353418192940651934">Mantingues la pila</translation>
 <translation id="3607792383367580513">Tradueix</translation>
 <translation id="3692650606013198282">Obre en una pestanya privada</translation>
+<translation id="3812085181789967792">Graella de pestanyes privades</translation>
 <translation id="3873885181515160073">Crea la teva nova pila de pestanyes donant-li un nom i color</translation>
 <translation id="3922395466317605522">Personalitza el menú</translation>
 <translation id="3981599532037327317">Obre ${url} en privat</translation>
@@ -121,7 +122,7 @@ Handoff ha d'estar activat a la secció general dels ajustos i els teus disposit
 <translation id="9042893549633094279">Privadesa i seguretat</translation>
 <translation id="9094033019050270033">Actualitza la contrasenya</translation>
 <translation id="9203116392574189331">Handoff</translation>
-<translation id="944434461715569989">Surt de la pila</translation>
+<translation id="944434461715569989">Deixa la pila de pestanyes</translation>
 <translation id="959061183386231608">Les pestanyes es mantenen obertes a aquest dispositiu però la pila se suprimirà permanentment.</translation>
 <translation id="988141524645182168">Altres dispositius</translation>
 </translationbundle>

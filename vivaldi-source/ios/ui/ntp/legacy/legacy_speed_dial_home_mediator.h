@@ -8,8 +8,8 @@
 #import "components/bookmarks/browser/bookmark_model.h"
 #import "ios/ui/ntp/legacy/legacy_speed_dial_home_consumer.h"
 #import "ios/ui/ntp/legacy/legacy_speed_dial_item.h"
-#import "ios/ui/ntp/vivaldi_speed_dial_sorting_mode.h"
 #import "ios/ui/ntp/legacy/legacy_speed_dial_view_controller_delegate.h"
+#import "ios/ui/ntp/vivaldi_speed_dial_sorting_mode.h"
 
 namespace user_prefs {
 class PrefRegistrySyncable;

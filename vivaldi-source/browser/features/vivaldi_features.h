@@ -15,27 +15,23 @@ BASE_DECLARE_FEATURE(kCssMods);
 
 BASE_DECLARE_FEATURE(kDoubleClickMenu);
 
+BASE_DECLARE_FEATURE(kHorizontalPinnedTabs);
+
 BASE_DECLARE_FEATURE(kInternalPageReaderMode);
 
-BASE_DECLARE_FEATURE(kLayouts);
-
 BASE_DECLARE_FEATURE(kNoteEditor);
-
-BASE_DECLARE_FEATURE(kPanelOnboarding);
 
 BASE_DECLARE_FEATURE(kRelatedTabs);
 
 BASE_DECLARE_FEATURE(kSettings20);
 
-BASE_DECLARE_FEATURE(kShowNewDeviceChooser);
-bool IsNewDeviceChooserEnabled();
-
-BASE_DECLARE_FEATURE(kThemeUnified);
-
 #if BUILDFLAG(IS_IOS)
 // iOS specific feature flags should be delcared within this block.
 
 BASE_DECLARE_FEATURE(kBankIDDigIDLatencyWorkaround);
+
+BASE_DECLARE_FEATURE(kVivaldiIOSCopySanitizedLink);
+bool IsVivaldiIOSCopySanitizedLinkEnabled();
 
 BASE_DECLARE_FEATURE(kVivaldiIOSShowRefactoredStartPage);
 bool IsVivaldiIOSShowRefactoredStartPageEnabled();
@@ -46,7 +42,9 @@ bool IsVivaldiIOSShowRefactoredStartPageEnabled();
 BASE_DECLARE_FEATURE(kCinemaMode);
 #endif  // defined(OEM_AUTOMOTIVE_BUILD)
 
-BASE_DECLARE_FEATURE(kShowUnifiedSiteDialog);
+BASE_DECLARE_FEATURE(kVivaldiUseNewUrlSanitizer);
+
+BASE_DECLARE_FEATURE(kMailSavingAttachments);
 
 }  // namespace vivaldi_features
 

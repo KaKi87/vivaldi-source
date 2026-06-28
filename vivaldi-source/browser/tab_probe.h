@@ -20,6 +20,7 @@ namespace vivaldi {
 
 class TabExtData;
 enum class TabExtKey;
+enum class TabPurpose;
 
 // A simple struct holding information about a tab.
 // This is an output of Resolve* methods. As it is a structure, it does not
@@ -49,7 +50,13 @@ std::optional<TabProbe> ResolveTabByExtId(const std::string& ext_id,
 // Find the last tab in the group where the probe is one of its tabs.
 TabProbe GetLastInGroup(TabProbe probe, bool reverse = false);
 
+// Returns the last tab in the workspace. Pinned tabs are treated as if they
+// were not in the workspace.
 TabProbe GetLastInWorkspace(TabProbe probe, bool reverse = false);
+
+// Returns the last tab in the workspace. Pinned tabs are treated as if they
+// were not pinned.
+TabProbe GetLastInWorkspaceIgnorePin(TabProbe probe, bool reverse = false);
 
 // Find the last tab in the workspace where the probe is one of tabs.
 std::optional<TabProbe> GetLastInWorkspace(TabStripModel* tab_strip,
@@ -73,7 +80,12 @@ std::optional<std::string> GetParentExtIdAt(TabStripModel* tab_strip,
 // Convenience getters for extended data.
 std::optional<std::string> GetExtId(const TabProbe& probe);
 std::optional<std::string> GetParentExtId(const TabProbe& probe);
+
 std::optional<std::string> GetGroupId(const TabProbe& probe);
+// Returns group if all the tabs in the vector have the same group.
+std::optional<std::string> GetGroupId(
+    const std::vector<vivaldi::TabProbe>& probes);
+
 std::optional<std::string> GetPanelId(const TabProbe& probe);
 std::optional<double> GetWorkspaceId(const TabProbe& probe);
 bool IsPinned(const TabProbe& probe);
@@ -82,13 +94,25 @@ std::pair<int, int> GetGroupRange(TabStripModel* tab_strip,
                                   std::string_view group_id);
 
 // Get next tab in the tabstrip. Respects workspaces.
-std::optional<TabProbe> GetNext(const TabProbe& probe,
-                                bool reverse = false);
+std::optional<TabProbe> GetNext(const TabProbe& probe, bool reverse = false);
 
-BrowserWindowInterface * FindWorkspace(double workspace_id);
+BrowserWindowInterface* FindWorkspace(double workspace_id);
 
 bool IsPinnedGroup(TabStripModel* tab_strip, const std::string& group_id);
 
+bool IsNextToGroup(const TabProbe& probe,
+                   const std::string& group,
+                   TabProbe* sample = nullptr);
+
+// Returns groupId if the probes vector contains exactly the members of the
+// group. The tab duplicates are allowed.
+std::optional<std::string> IdentifyGroup(
+    const std::vector<::vivaldi::TabProbe>& probes);
+
+std::optional<TabProbe> GetLastInActiveWorkspace(TabProbe probe);
+std::optional<TabProbe> GetLastInActiveWorkspace(TabStripModel* tab_strip);
+std::optional<TabProbe> FindByPurpose(TabStripModel* tab_strip,
+                                      TabPurpose purpose);
 }  // namespace tab_probe
 
 }  // namespace vivaldi

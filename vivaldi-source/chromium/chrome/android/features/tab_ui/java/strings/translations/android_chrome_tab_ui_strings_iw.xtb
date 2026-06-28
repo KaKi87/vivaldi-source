@@ -31,12 +31,14 @@
 <translation id="1828808367831369073">כרטיסייה אחת (<ph name="TABS_COUNT_ONE" />) מקובצת</translation>
 <translation id="1844381456014878100">אחרי 7 ימים ללא פעילות</translation>
 <translation id="1869137256605757565">{TABS_COUNT,plural, =1{כרטיסייה אחת (<ph name="TABS_COUNT_ONE" />)}one{<ph name="TABS_COUNT_MANY" /> כרטיסיות}two{<ph name="TABS_COUNT_MANY" /> כרטיסיות}other{<ph name="TABS_COUNT_MANY" /> כרטיסיות}}</translation>
+<translation id="1894429470045525403">{TAB_COUNT,plural, =1{הוספת הכרטיסייה לרשימת הקריאה}one{הוספת כרטיסיות לרשימת הקריאה}two{הוספת כרטיסיות לרשימת הקריאה}other{הוספת כרטיסיות לרשימת הקריאה}}</translation>
 <translation id="1909810060368225529">כדאי לשים לב: השינויים שמבוצעים בקבוצת הכרטיסיות המשותפת הזו גלויים לכולם. כולם יכולים לבצע שינויים בקבוצות הכרטיסיות ששיתפת</translation>
 <translation id="1925363809167540686">{TAB_COUNT,plural, =1{הצמדת הכרטיסייה}one{הצמדת הכרטיסיות}two{הצמדת הכרטיסיות}other{הצמדת הכרטיסיות}}</translation>
 <translation id="1982637982196732906">העברה לקטע הלא פעיל</translation>
 <translation id="2050597508048557928">{TABS_COUNT,plural, =1{הוספת הכרטיסייה (<ph name="TABS_COUNT_ONE" />) שנבחרה לסימניות}one{הוספת <ph name="TABS_COUNT_MANY" /> הכרטיסיות שנבחרו לסימניות}two{הוספת <ph name="TABS_COUNT_MANY" /> הכרטיסיות שנבחרו לסימניות}other{הוספת <ph name="TABS_COUNT_MANY" /> הכרטיסיות שנבחרו לסימניות}}</translation>
 <translation id="2055057176188061528">צריך לבחור קבוצת כרטיסיות או ליצור קבוצת כרטיסיות חדשה</translation>
 <translation id="2074527029802029717">ביטול הצמדה של כרטיסייה</translation>
+<translation id="2111670510994270194">כרטיסייה חדשה מצד ימין</translation>
 <translation id="2118649612461486615">פרטי החנות</translation>
 <translation id="2123073051266141035">{INCOGNITO_TABS_COUNT,plural, =1{אפשר לפתוח מחדש את הכרטיסיות והקבוצות שסגרת בקטע 'כרטיסיות אחרונות' ובקטע 'קבוצות של כרטיסיות'. הכרטיסייה הפרטית לא תהיה זמינה.}one{אפשר לפתוח מחדש את הכרטיסיות והקבוצות שסגרת בקטע 'כרטיסיות אחרונות' ובקטע 'קבוצות של כרטיסיות'. ‫# הכרטיסיות הפרטיות לא יהיו זמינות.}two{אפשר לפתוח מחדש את הכרטיסיות והקבוצות שסגרת בקטע 'כרטיסיות אחרונות' ובקטע 'קבוצות של כרטיסיות'. ‫# הכרטיסיות הפרטיות לא יהיו זמינות.}other{אפשר לפתוח מחדש את הכרטיסיות והקבוצות שסגרת בקטע 'כרטיסיות אחרונות' ובקטע 'קבוצות של כרטיסיות'. ‫# הכרטיסיות הפרטיות לא יהיו זמינות.}}</translation>
 <translation id="2153899164605463849">{TAB_COUNT,plural, =1{ביטול השתקת האתר}one{ביטול השתקת האתרים}two{ביטול השתקת האתרים}other{ביטול השתקת האתרים}}</translation>
@@ -75,6 +77,8 @@
 <translation id="3052964831964880138">הנחה בסך <ph name="PRICE_DROP" /> על <ph name="PRODUCT_NAME" /></translation>
 <translation id="3078350928901129212">סמל בצבע <ph name="COLOR_NAME" /> של קבוצת הכרטיסיות</translation>
 <translation id="311432875115153175">רשימת קבוצות הכרטיסיות נסגרה</translation>
+<translation id="3152596030350326139">הצגת הכרטיסיות לרוחב</translation>
+<translation id="31806439105337256">הצגת הכרטיסיות לאורך</translation>
 <translation id="3194464645767632461">דירוג</translation>
 <translation id="3269930881809501915">{TABS_COUNT,plural, =1{הוספת כרטיסייה אחת (<ph name="TABS_COUNT_ONE" />) לקבוצה}one{הוספת <ph name="TABS_COUNT_MANY" /> כרטיסיות לקבוצה}two{הוספת <ph name="TABS_COUNT_MANY" /> כרטיסיות לקבוצה}other{הוספת <ph name="TABS_COUNT_MANY" /> כרטיסיות לקבוצה}}</translation>
 <translation id="3328308545011660196">הצעה: יש <ph name="NUMBER_OF_TABS" /> כרטיסיות שנראות קשורות. לקבץ אותן?</translation>
@@ -124,6 +128,7 @@
 <translation id="5076161749301278626">להציג ביקורות נוספות על החנות?</translation>
 <translation id="5161254044473106830">יש להזין כותרת</translation>
 <translation id="524477996738997490">{AUTO_DELETE_DELAY,plural, =1{‏‫Chrome סוגר באופן אוטומטי כרטיסיות וקבוצות של כרטיסיות לא פעילות אחרי חודש אחד (<ph name="AUTO_DELETE_DELAY_ONE" />). אפשר לשנות את זה בהגדרות.}one{‏‫Chrome סוגר באופן אוטומטי כרטיסיות וקבוצות של כרטיסיות לא פעילות אחרי <ph name="AUTO_DELETE_DELAY_MANY" /> חודשים. אפשר לשנות את זה בהגדרות.}two{‏‫Chrome סוגר באופן אוטומטי כרטיסיות וקבוצות של כרטיסיות לא פעילות אחרי חודשיים (<ph name="AUTO_DELETE_DELAY_MANY" />). אפשר לשנות את זה בהגדרות.}other{‏‫Chrome סוגר באופן אוטומטי כרטיסיות וקבוצות של כרטיסיות לא פעילות אחרי <ph name="AUTO_DELETE_DELAY_MANY" /> חודשים. אפשר לשנות את זה בהגדרות.}}</translation>
+<translation id="5254233580564156835">השימוש בזיכרון: <ph name="MEMORY_USAGE" /></translation>
 <translation id="5339733443032484186">הכרטיסייה האחרונה שלך</translation>
 <translation id="5380159289133845234">העברת כרטיסיות כפולות לארכיון</translation>
 <translation id="5446043142172831860">הסרת הכרטיסייה ויציאה מהקבוצה</translation>
@@ -163,11 +168,13 @@
 <translation id="6589356853295569750">ההודעה על השינויים בקבוצת הכרטיסיות המשותפת נפתחה בגובה מלא</translation>
 <translation id="6590332670428149473">פתיחה של תפריט הפעולות בקבוצת הכרטיסיות המשותפת <ph name="TITLE_OF_GROUP" />, בצבע <ph name="COLOR_NAME" />.</translation>
 <translation id="6615455863669487791">איך עושים את זה?</translation>
+<translation id="6686490380836145850">סגירת הכרטיסיות מימין</translation>
 <translation id="6694634756612002311">ניהול אפשרויות השיתוף</translation>
 <translation id="6709297274997495821">בחירה בכרטיסייה</translation>
 <translation id="6744956528665271406">שינוי הצבע של הקבוצה</translation>
 <translation id="6784585810034073638">{TAB_COUNT,plural, =1{הוספה לקבוצה בשם <ph name="TITLE_OF_GROUP" /> עם כרטיסייה אחת (<ph name="TAB_COUNT1" />)}one{הוספה לקבוצה בשם <ph name="TITLE_OF_GROUP" /> עם <ph name="TAB_COUNT1" /> כרטיסיות}two{הוספה לקבוצה בשם <ph name="TITLE_OF_GROUP" /> עם <ph name="TAB_COUNT1" /> כרטיסיות}other{הוספה לקבוצה בשם <ph name="TITLE_OF_GROUP" /> עם <ph name="TAB_COUNT1" /> כרטיסיות}}</translation>
 <translation id="6818926723028410516">בחירת פריטים</translation>
+<translation id="68541483639528434">סגירת כרטיסיות אחרות</translation>
 <translation id="6856809498882026482">הסתרת מצב הבחירה המרובה</translation>
 <translation id="6957436309971790274">אחרי 21 ימים ללא פעילות</translation>
 <translation id="7064815189603108598">{NUMBER_OF_TABS,plural, =1{הרחבה של קבוצת הכרטיסיות המשותפת <ph name="TITLE_OF_GROUP" /> שמכילה כרטיסייה אחת (<ph name="TABS_COUNT_ONE" />), בצבע <ph name="COLOR_NAME" />.}one{הרחבה של קבוצת הכרטיסיות המשותפת <ph name="TITLE_OF_GROUP" /> שמכילה <ph name="TABS_COUNT_MANY" /> כרטיסיות, בצבע <ph name="COLOR_NAME" />.}two{הרחבה של קבוצת הכרטיסיות המשותפת <ph name="TITLE_OF_GROUP" /> שמכילה <ph name="TABS_COUNT_MANY" /> כרטיסיות, בצבע <ph name="COLOR_NAME" />.}other{הרחבה של קבוצת הכרטיסיות המשותפת <ph name="TITLE_OF_GROUP" /> שמכילה <ph name="TABS_COUNT_MANY" /> כרטיסיות, בצבע <ph name="COLOR_NAME" />.}}</translation>

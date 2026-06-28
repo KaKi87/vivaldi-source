@@ -89,7 +89,7 @@ class ChannelWin : public Channel,
   }
 
   void Write(MessagePtr message) override {
-    RecordSentMessageMetrics(message->data_num_bytes());
+    RecordSentMessageMetricsSubsampled(message->data_num_bytes());
 
     if (remote_process().IsValid()) {
       // If we know the remote process handle, we transfer all outgoing handles
@@ -218,7 +218,7 @@ class ChannelWin : public Channel,
     CHECK(handle_.is_valid());
     CancelIo(handle_.get());
     if (leak_handle_) {
-      std::ignore = handle_.Take();
+      std::ignore = handle_.release();
     } else {
       handle_.Close();
     }

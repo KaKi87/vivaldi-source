@@ -6,8 +6,8 @@
 import 'chrome://resources/cr_elements/cr_lottie/cr_lottie.js';
 
 import type {CrLottieElement} from 'chrome://resources/cr_elements/cr_lottie/cr_lottie.js';
-import {assertEquals, assertNotEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
-import type { MockMethod} from 'chrome://webui-test/mock_controller.js';
+import {assertDeepEquals, assertEquals, assertNotEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import type {MockMethod} from 'chrome://webui-test/mock_controller.js';
 import {MockController} from 'chrome://webui-test/mock_controller.js';
 import {eventToPromise, microtasksFinished} from 'chrome://webui-test/test_util.js';
 // clang-format on
@@ -42,8 +42,8 @@ suite('cr_lottie_test', function() {
   let container: HTMLElement;
   let canvas: HTMLCanvasElement;
 
-  let waitForInitializeEvent: Promise<void>;
-  let waitForPlayingEvent: Promise<void>;
+  let waitForInitializeEvent: Promise<Event>;
+  let waitForPlayingEvent: Promise<Event>;
 
   const defaultWidth = 300;
   const defaultHeight = 200;
@@ -56,7 +56,7 @@ suite('cr_lottie_test', function() {
     mockController.reset();
   });
 
-  function createLottieElement(autoplay: boolean = true) {
+  function createLottieElement(autoplay: boolean) {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     crLottieElement = document.createElement('cr-lottie');
     crLottieElement.animationUrl = SAMPLE_LOTTIE_GREEN;
@@ -107,7 +107,7 @@ suite('cr_lottie_test', function() {
   /**
    * @return bool true if all elements in a and b are equal.
    */
-  function arrayEquals(a: any[], b: any[]) {
+  function arrayEquals(a: number[], b: number[]): boolean {
     if (a.length !== b.length) {
       return false;
     }
@@ -153,7 +153,8 @@ suite('cr_lottie_test', function() {
 
     // First resize event after loading the animation.
     const firstResizeEventAfterLoad =
-        eventToPromise('cr-lottie-resized', crLottieElement);
+        eventToPromise<CustomEvent<{height: number, width: number}>>(
+            'cr-lottie-resized', crLottieElement);
     const firstResizeEvent = await firstResizeEventAfterLoad;
     assertEquals(firstResizeEvent.detail.height, defaultHeight);
     assertEquals(firstResizeEvent.detail.width, defaultWidth);
@@ -164,7 +165,8 @@ suite('cr_lottie_test', function() {
     container.style.width = newWidth + 'px';
     container.style.height = newHeight + 'px';
     const resizeEventAfterExplicitResize =
-        eventToPromise('cr-lottie-resized', crLottieElement);
+        eventToPromise<CustomEvent<{height: number, width: number}>>(
+            'cr-lottie-resized', crLottieElement);
     const resizeEvent = await resizeEventAfterExplicitResize;
 
     assertEquals(resizeEvent.detail.height, newHeight);
@@ -181,7 +183,8 @@ suite('cr_lottie_test', function() {
     const newHeight = 300;
     const newWidth = 400;
     const waitForResizeEvent =
-        eventToPromise('cr-lottie-resized', crLottieElement);
+        eventToPromise<CustomEvent<{height: number, width: number}>>(
+            'cr-lottie-resized', crLottieElement);
     // Update size of parent div container to see if the canvas is resized.
     container.style.width = newWidth + 'px';
     container.style.height = newHeight + 'px';
@@ -255,6 +258,45 @@ suite('cr_lottie_test', function() {
     await waitForPauseEvent;
   });
 
+  test('TestPlaySegments', async () => {
+    createLottieElement(/*autoplay=*/ false);
+    await waitForInitializeEvent;
+
+    const waitForPlaying =
+        eventToPromise<CustomEvent<{segments: [number, number] | null}>>(
+            'cr-lottie-playing', crLottieElement);
+    crLottieElement.playSegments([0, 10]);
+
+    const event = await waitForPlaying;
+    assertDeepEquals([0, 10], event.detail.segments);
+  });
+
+  test('TestPlaySegmentsBeforeInit', async () => {
+    createLottieElement(/*autoplay=*/ false);
+    assertFalse(crLottieElement.autoplay);
+
+    const waitForPlaying =
+        eventToPromise<CustomEvent<{segments: [number, number] | null}>>(
+            'cr-lottie-playing', crLottieElement);
+    crLottieElement.playSegments([0, 10]);
+
+    await waitForInitializeEvent;
+    const event = await waitForPlaying;
+    assertDeepEquals([0, 10], event.detail.segments);
+  });
+
+  test('TestCompleteEvent', async () => {
+    createLottieElement(/*autoplay=*/ true);
+    crLottieElement.singleLoop = true;
+
+    const waitForCompleteEvent =
+        eventToPromise('cr-lottie-completed', crLottieElement);
+
+    await waitForInitializeEvent;
+    await waitForPlayingEvent;
+    await waitForCompleteEvent;
+  });
+
   test('TestRenderFrame', async function() {
     createLottieElement(/*autoplay=*/ true);
     await waitForInitializeEvent;
@@ -297,9 +339,12 @@ suite('cr_lottie_test', function() {
       onreadystatechange: () => {},
     } as unknown as XMLHttpRequest;
 
-    mockXhr.open = mockController.createFunctionMock(mockXhr, 'open') as any;
-    mockXhr.send = mockController.createFunctionMock(mockXhr, 'send') as any;
-    mockXhr.abort = mockController.createFunctionMock(mockXhr, 'abort') as any;
+    mockXhr.open = mockController.createFunctionMock(mockXhr, 'open') as
+        unknown as XMLHttpRequest['open'];
+    mockXhr.send = mockController.createFunctionMock(mockXhr, 'send') as
+        unknown as XMLHttpRequest['send'];
+    mockXhr.abort = mockController.createFunctionMock(mockXhr, 'abort') as
+        unknown as XMLHttpRequest['abort'];
 
     const mockXhrConstructor =
         mockController.createFunctionMock(window, 'XMLHttpRequest');
@@ -326,9 +371,12 @@ suite('cr_lottie_test', function() {
       onreadystatechange: () => {},
     } as unknown as XMLHttpRequest;
 
-    mockXhr.open = mockController.createFunctionMock(mockXhr, 'open') as any;
-    mockXhr.send = mockController.createFunctionMock(mockXhr, 'send') as any;
-    mockXhr.abort = mockController.createFunctionMock(mockXhr, 'abort') as any;
+    mockXhr.open = mockController.createFunctionMock(mockXhr, 'open') as
+        unknown as XMLHttpRequest['open'];
+    mockXhr.send = mockController.createFunctionMock(mockXhr, 'send') as
+        unknown as XMLHttpRequest['send'];
+    mockXhr.abort = mockController.createFunctionMock(mockXhr, 'abort') as
+        unknown as XMLHttpRequest['abort'];
 
     const mockXhrConstructor =
         mockController.createFunctionMock(window, 'XMLHttpRequest');

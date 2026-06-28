@@ -14,9 +14,9 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_command_controller.h"
-#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_metrics.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
@@ -29,6 +29,7 @@
 #include "components/saved_tab_groups/public/features.h"
 #include "components/saved_tab_groups/public/saved_tab_group.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/color/color_provider.h"
 #include "ui/gfx/favicon_size.h"
 #include "ui/gfx/image/image_skia.h"
@@ -140,7 +141,9 @@ void TabGroupMenuBridge::BuildMenu() {
         [AppController.sharedController lastActiveColorProvider];
     const ui::ColorId color_id = GetTabGroupContextMenuColorId(group->color());
     gfx::ImageSkia group_icon = gfx::CreateVectorIcon(
-        kTabGroupIcon, gfx::kFaviconSize, color_provider.GetColor(color_id));
+        features::IsRoundedIconsEnabled() ? kCircleFilledIcon
+                                          : kTabGroupOldIcon,
+        gfx::kFaviconSize, color_provider.GetColor(color_id));
     item.image = NSImageFromImageSkia(group_icon);
 
     NSMenu* submenu = [[NSMenu alloc] init];
@@ -244,7 +247,8 @@ void TabGroupMenuBridge::OnMenuItem(NSMenuItem* item) {
     return;
   }
 
-  BrowserWindowInterface* browser = chrome::FindLastActive();
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
   if (!browser) {
     return;
   }

@@ -93,6 +93,10 @@ suite('Speech', () => {
     chrome.readingMode.restoreSettingsFromPrefs = () => {};
     chrome.readingMode.languageChanged = () => {};
     chrome.readingMode.onTtsEngineInstalled = () => {};
+    // This test isn't testing engine stall behavior, so these
+    // methods should be mocked to reduce flakiness from test timing.
+    chrome.readingMode.onSpeechEngineFirstStall = () => {};
+    chrome.readingMode.onSpeechEngineStalled = () => {};
     mockMetrics();
     voiceLanguageController = new VoiceLanguageController();
     VoiceLanguageController.setInstance(voiceLanguageController);
@@ -195,16 +199,18 @@ suite('Speech', () => {
     let mockTimer: MockTimer;
 
     function selectAndPlay(
-        baseTree: any, anchorId: number, anchorOffset: number, focusId: number,
-        focusOffset: number, isBackward: boolean = false): void {
+        baseTree: Object, anchorId: number, anchorOffset: number,
+        focusId: number, focusOffset: number,
+        isBackward: boolean = false): void {
       select(
           baseTree, anchorId, anchorOffset, focusId, focusOffset, isBackward);
       playFromSelection();
     }
 
     function select(
-        baseTree: any, anchorId: number, anchorOffset: number, focusId: number,
-        focusOffset: number, isBackward: boolean = false): void {
+        baseTree: Object, anchorId: number, anchorOffset: number,
+        focusId: number, focusOffset: number,
+        isBackward: boolean = false): void {
       mockTimer.install();
       stubAnimationFrame();
       const selectedTree = Object.assign(
@@ -222,6 +228,8 @@ suite('Speech', () => {
       const selectionController = SelectionController.getInstance();
       selectionController.updateSelection(app.getSelection(), app.$.container);
       selectionController.onSelectionChange(app.getSelection());
+      speechController.onSelectionChange(
+          selectionController.getCurrentSelectionStart());
     }
 
     function playFromSelection() {

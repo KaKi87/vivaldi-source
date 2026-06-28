@@ -54,7 +54,7 @@ void ForwardVizInputTransferToken(
     const input::ScopedInputTransferToken& viz_input_token,
     const gpu::SurfaceHandle& surface_handle) {
   JNIEnv* env = jni_zero::AttachCurrentThread();
-  auto viz_input_token_java = base::android::ScopedJavaLocalRef<>::Adopt(
+  auto viz_input_token_java = jni_zero::AdoptRef(
       env, base::AndroidInputReceiverCompat::GetInstance()
                .AInputTransferToken_toJavaFn(
                    env, viz_input_token.a_input_transfer_token()));
@@ -404,6 +404,10 @@ input::TouchEmulator* InputManager::GetTouchEmulator(bool create_if_necessary) {
   return nullptr;
 }
 
+void InputManager::CancelAutoscroll(input::RenderWidgetHostViewInput* view) {
+  // Stub for InputVizard. Autoscroll is not yet supported in Viz.
+}
+
 const DisplayHitTestQueryMap& InputManager::GetDisplayHitTestQuery() const {
   return frame_sink_manager_->GetDisplayHitTestQuery();
 }
@@ -666,13 +670,13 @@ bool InputManager::ReturnInputBackToBrowser() {
     return false;
   }
   JNIEnv* env = jni_zero::AttachCurrentThread();
-  auto viz_input_token_java(base::android::ScopedJavaLocalRef<>::Adopt(
+  auto viz_input_token_java(jni_zero::AdoptRef(
       env,
       base::AndroidInputReceiverCompat::GetInstance()
           .AInputTransferToken_toJavaFn(
               env,
               receiver_data_->viz_input_token().a_input_transfer_token())));
-  auto browser_input_token_java(base::android::ScopedJavaLocalRef<>::Adopt(
+  auto browser_input_token_java(jni_zero::AdoptRef(
       env,
       base::AndroidInputReceiverCompat::GetInstance()
           .AInputTransferToken_toJavaFn(

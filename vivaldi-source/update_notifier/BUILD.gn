@@ -7,68 +7,64 @@ import("//chrome/process_version_rc_template.gni")
 import("//vivaldi/gn/config/locales.gni")
 
 executable("update_notifier") {
-    deps = [
-      ":strings",
-      ":update_notifier_version",
-      "//base",
-      "//base/version_info:generate_version_info",
-      "//build/win:default_exe_manifest",
-      "//chrome/common:constants",
-      "//chrome/install_static:install_static_util",
-      "//components/language/core/browser",
-      "//vivaldi/app:resources",
-      "//vivaldi/app:vivaldi_icon",
-      "//vivaldi/browser:init_sparkle",
-      "//vivaldi/installer/mini_installer/util:constants",
-      "//vivaldi/installer/mini_installer/util:with_no_strings",
-      "thirdparty/winsparkle/src:winsparkle"
-    ]
+  deps = [
+    ":strings",
+    ":update_notifier_version",
+    "thirdparty/winsparkle/src:winsparkle",
+    "//base",
+    "//base/version_info:generate_version_info",
+    "//build/win:default_exe_manifest",
+    "//chrome/common:constants",
+    "//chrome/install_static:install_static_util",
+    "//components/language/core/browser",
+    "//vivaldi/app:resources",
+    "//vivaldi/app:vivaldi_icon",
+    "//vivaldi/browser:init_sparkle",
+    "//vivaldi/installer/mini_installer/util:constants",
+    "//vivaldi/installer/mini_installer/util:with_no_strings",
+  ]
 
-    sources = [
-      "native_menu.cc",
-      "native_menu.h",
-      "update_notifier.rc",
-      "update_notifier_main.cc",
-      "update_notifier_manager.cc",
-      "update_notifier_manager.h",
-      "update_notifier_resources.h",
-      "update_notifier_window.cc",
-      "update_notifier_window.h",
-    ]
+  sources = [
+    "native_menu.cc",
+    "native_menu.h",
+    "update_notifier.rc",
+    "update_notifier_main.cc",
+    "update_notifier_manager.cc",
+    "update_notifier_manager.h",
+    "update_notifier_resources.h",
+    "update_notifier_window.cc",
+    "update_notifier_window.h",
+  ]
 
-    libs = [
-      "comctl32.lib",
-    ]
+  libs = [ "comctl32.lib" ]
 
-    configs -= [ "//build/config/win:console" ]
-    configs += [ "//build/config/win:windowed" ]
+  configs -= [ "//build/config/win:console" ]
+  configs += [ "//build/config/win:windowed" ]
 }
 
 process_version_rc_template("update_notifier_version") {
-  sources = [
-    "update_notifier.ver",
-  ]
+  sources = [ "update_notifier.ver" ]
   output = "$target_gen_dir/update_notifier_version.rc"
 }
 
 generate_embedded_i18n("generate_strings") {
-  languages_json = read_file(
-      "//vivaldi/vivapp/src/constants/language-list.json", "json"
-  )
+  languages_json =
+      read_file("//vivaldi/vivapp/src/constants/language-list.json", "json")
   languages = languages_json.languages
-  vivaldi_translation_locales = [ ]
+  vivaldi_translation_locales = []
   foreach(code_and_names, languages.list) {
-    vivaldi_translation_locales += [ string_replace(code_and_names[0], "@", "-") ]
+    vivaldi_translation_locales +=
+        [ string_replace(code_and_names[0], "@", "-") ]
   }
   vivaldi_translation_locales -= [ "en-US" ]
 
   extractor_datafile = "create_update_notifier_strings_rc.py"
 
   grd_files_info = [ [
-      "//vivaldi/app/native_resources/",
-      "vivaldi_native_strings",
-      "strings",
-      vivaldi_translation_locales,
+        "//vivaldi/app/native_resources/",
+        "vivaldi_native_strings",
+        "strings",
+        vivaldi_translation_locales,
       ] ]
 
   output_file_name_base = "update_notifier_strings"
@@ -76,10 +72,8 @@ generate_embedded_i18n("generate_strings") {
   # generate_embedded_i18n does not support generating dependency information
   # for *.grdp files it includes. So add this manually to the list of input
   # files.
-  inputs = [
-    "//vivaldi/app/native_resources/vivaldi_update_notifier_strings.grdp"
-  ]
-
+  inputs =
+      [ "//vivaldi/app/native_resources/vivaldi_update_notifier_strings.grdp" ]
 }
 
 # Compile the generated .rc file.

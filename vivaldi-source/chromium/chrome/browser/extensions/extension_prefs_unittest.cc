@@ -32,6 +32,7 @@
 #include "extensions/browser/blocklist_extension_prefs.h"
 #include "extensions/browser/blocklist_state.h"
 #include "extensions/browser/disable_reason.h"
+#include "extensions/browser/event_router.h"
 #include "extensions/browser/extension_pref_value_map.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_prefs_observer.h"
@@ -1255,6 +1256,101 @@ TEST_F(ExtensionPrefsSimpleTest, DisableReasonsRawManipulation) {
               testing::UnorderedElementsAre(kKnownReason_1, kKnownReason_2));
   EXPECT_THAT(extension_prefs->GetDisableReasons(extension_id),
               testing::UnorderedElementsAre(kKnownReason_1, kKnownReason_2));
+}
+
+TEST_F(ExtensionPrefsSimpleTest, DoesNotLoadCdpInstalledExtensions) {
+  content::BrowserTaskEnvironment task_environment;
+  TestExtensionPrefs prefs(base::SingleThreadTaskRunner::GetCurrentDefault(),
+                           std::make_unique<TestingProfile>());
+
+  base::DictValue dictionary;
+  dictionary.Set(manifest_keys::kName, "cdp_extension");
+  dictionary.Set(manifest_keys::kVersion, "0.1");
+  dictionary.Set(manifest_keys::kManifestVersion, 3);
+  scoped_refptr<const Extension> cdp_extension =
+      prefs.AddExtensionWithManifestAndFlags(dictionary,
+                                             ManifestLocation::kUnpacked,
+                                             Extension::INSTALLED_VIA_CDP);
+
+  EXPECT_TRUE(prefs.prefs()->HasPrefForExtension(cdp_extension->id()));
+
+  prefs.RecreateExtensionPrefs();
+
+  EXPECT_FALSE(prefs.prefs()->HasPrefForExtension(cdp_extension->id()));
+}
+
+TEST_F(ExtensionPrefsSimpleTest, CleanUpCdpInstalledExtensions) {
+  content::BrowserTaskEnvironment task_environment;
+  TestExtensionPrefs prefs(base::SingleThreadTaskRunner::GetCurrentDefault(),
+                           std::make_unique<TestingProfile>());
+
+  scoped_refptr<const Extension> extension =
+      prefs.AddExtension("normal_extension");
+
+  base::DictValue dictionary;
+  dictionary.Set(manifest_keys::kName, "cdp_extension");
+  dictionary.Set(manifest_keys::kVersion, "0.1");
+  dictionary.Set(manifest_keys::kManifestVersion, 2);
+  scoped_refptr<const Extension> cdp_extension =
+      prefs.AddExtensionWithManifestAndFlags(dictionary,
+                                             ManifestLocation::kUnpacked,
+                                             Extension::INSTALLED_VIA_CDP);
+
+  ExtensionPrefs* extension_prefs = prefs.prefs();
+  EXPECT_TRUE(extension_prefs->HasPrefForExtension(extension->id()));
+  EXPECT_TRUE(extension_prefs->HasPrefForExtension(cdp_extension->id()));
+
+  extension_prefs->CleanUpCdpInstalledExtensions();
+
+  EXPECT_TRUE(extension_prefs->HasPrefForExtension(extension->id()));
+  EXPECT_FALSE(extension_prefs->HasPrefForExtension(cdp_extension->id()));
+}
+
+// Tests that duplicate sub-event filters accumulated in prefs from prior
+// sessions are deduplicated, keeping the last filter. See crbug.com/502402731.
+// TODO(andreaorru): remove this after M156, once non-duplicating webRequest
+// behavior has been stable for a while.
+TEST_F(ExtensionPrefsSimpleTest, CleanUpDuplicateSubEventFilters) {
+  content::BrowserTaskEnvironment task_environment;
+  TestExtensionPrefs prefs(base::SingleThreadTaskRunner::GetCurrentDefault(),
+                           std::make_unique<TestingProfile>());
+  std::string extension_id = prefs.AddExtension("Test Extension")->id();
+  ExtensionPrefs* extension_prefs = prefs.prefs();
+  const std::string kEventName = "webRequest.onBeforeRequest/s0";
+
+  for (const char* pref_key : {EventRouter::kFilteredEvents,
+                               EventRouter::kFilteredServiceWorkerEvents}) {
+    // Populate prefs with two filters under the sub-event name.
+    {
+      ExtensionPrefs::ScopedDictionaryUpdate update(extension_prefs,
+                                                    extension_id, pref_key);
+      auto filtered_events = update.Create();
+      base::ListValue filter_list;
+      base::DictValue filter1;
+      filter1.Set("hostSuffix", "foo.com");
+      base::DictValue filter2;
+      filter2.Set("hostSuffix", "bar.com");
+      filter_list.Append(std::move(filter1));
+      filter_list.Append(std::move(filter2));
+      filtered_events->SetKey(kEventName, base::Value(std::move(filter_list)));
+    }
+
+    extension_prefs->CleanUpDuplicateSubEventFilters();
+
+    // Verify that only the last filter (bar.com) remains.
+    const base::DictValue* dict =
+        extension_prefs->ReadPrefAsDict(extension_id, pref_key);
+    ASSERT_TRUE(dict);
+    const base::Value* value = dict->Find(kEventName);
+    ASSERT_TRUE(value);
+    ASSERT_TRUE(value->is_list());
+    const auto& filter_list = value->GetList();
+    EXPECT_EQ(1u, filter_list.size());
+    const std::string* host_suffix =
+        filter_list[0].GetDict().FindString("hostSuffix");
+    EXPECT_TRUE(host_suffix);
+    EXPECT_EQ("bar.com", *host_suffix);
+  }
 }
 
 // Tests the generic Get/Set functions for profile wide extension prefs.

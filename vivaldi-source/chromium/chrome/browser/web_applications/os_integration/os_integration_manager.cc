@@ -148,6 +148,9 @@ void OsIntegrationManager::RegisterProfilePrefs(
                                 kCurrentAppShortcutsVersion);
   registry->RegisterStringPref(prefs::kAppShortcutsArch,
                                CurrentAppShortcutsArch());
+  // NOTE: If you add new prefs here that should be cleared during database
+  // corruption recovery, make sure to update
+  // `RemoveWebAppJob::RemoveForCorruptDatabase`.
 }
 
 // static
@@ -608,10 +611,9 @@ void OsIntegrationManager::SetCurrentAppShortcutsVersion() {
   }
 }
 
-void OsIntegrationManager::OnIconsRead(
-    const webapps::AppId& app_id,
-    GetShortcutInfoCallback callback,
-    std::map<SquareSizePx, SkBitmap> icon_bitmaps) {
+void OsIntegrationManager::OnIconsRead(const webapps::AppId& app_id,
+                                       GetShortcutInfoCallback callback,
+                                       OrderedSizeToBitmap icon_bitmaps) {
   const WebApp* app = provider_->registrar_unsafe().GetAppById(app_id);
   if (!app) {
     std::move(callback).Run(nullptr);

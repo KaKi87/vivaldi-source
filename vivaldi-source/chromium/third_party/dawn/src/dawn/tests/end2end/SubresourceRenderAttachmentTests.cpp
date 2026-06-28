@@ -27,10 +27,10 @@
 
 #include <vector>
 
-#include "dawn/common/Assert.h"
-#include "dawn/tests/DawnTest.h"
-#include "dawn/utils/ComboRenderPipelineDescriptor.h"
-#include "dawn/utils/WGPUHelpers.h"
+#include "src/dawn/common/Assert.h"
+#include "src/dawn/tests/DawnTest.h"
+#include "src/dawn/utils/ComboRenderPipelineDescriptor.h"
+#include "src/dawn/utils/WGPUHelpers.h"
 
 namespace dawn {
 namespace {
@@ -163,6 +163,8 @@ class SubresourceRenderAttachmentTest : public DawnTest {
 
 // Test rendering into a subresource of a color texture
 TEST_P(SubresourceRenderAttachmentTest, ColorTexture) {
+    // TODO(crbug.com/500793605): Fails on Windows 11/AMD RX 5500 XT w/ D3D11.
+    DAWN_SUPPRESS_TEST_IF(IsWindows11() && IsAMD() && IsD3D11());
     DoTest(Type::Color);
 }
 

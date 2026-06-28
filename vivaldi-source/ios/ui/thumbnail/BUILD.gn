@@ -12,8 +12,8 @@ source_set("service") {
 
   deps = [
     "//base",
-    "//ui/base",
     "//components/bookmarks/browser",
+    "//ui/base",
   ]
 
   frameworks = [

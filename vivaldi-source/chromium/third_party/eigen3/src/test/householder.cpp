@@ -6,6 +6,7 @@
 // This Source Code Form is subject to the terms of the Mozilla
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
 #include <Eigen/QR>
@@ -23,7 +24,7 @@ void householder(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
   typedef typename NumTraits<Scalar>::Real RealScalar;
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
-  typedef Matrix<Scalar, internal::decrement_size<MatrixType::RowsAtCompileTime>::ret, 1> EssentialVectorType;
+  typedef Matrix<Scalar, internal::decrement_size<MatrixType::RowsAtCompileTime>::value, 1> EssentialVectorType;
   typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> SquareMatrixType;
   typedef Matrix<Scalar, Dynamic, MatrixType::ColsAtCompileTime> HBlockMatrixType;
   typedef Matrix<Scalar, Dynamic, 1> HCoeffsVectorType;

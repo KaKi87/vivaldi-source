@@ -16,26 +16,30 @@ import android.view.View.OnClickListener;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.ColorRes;
+import androidx.annotation.DimenRes;
 import androidx.annotation.DrawableRes;
 import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.omnibox.FuseboxSessionState;
 import org.chromium.chrome.browser.omnibox.LocationBarDataProvider;
 import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.omnibox.SearchEngineUtils;
 import org.chromium.chrome.browser.omnibox.SearchEngineUtils.SearchEngineIconObserver;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxState;
+import org.chromium.chrome.browser.omnibox.fusebox.FuseboxFeatureUtils;
 import org.chromium.chrome.browser.omnibox.status.StatusCoordinator.PageInfoAction;
 import org.chromium.chrome.browser.omnibox.status.StatusProperties.PermissionIconResource;
 import org.chromium.chrome.browser.omnibox.status.StatusProperties.StatusIconResource;
 import org.chromium.chrome.browser.omnibox.status.StatusView.IconTransitionType;
+import org.chromium.chrome.browser.omnibox.styles.OmniboxImageSupplier;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.page_info.ChromePageInfoHighlight;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -43,13 +47,19 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.theme.ThemeUtils;
 import org.chromium.chrome.browser.ui.extensions.ExtensionUi;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
+import org.chromium.chrome.browser.util.BrowserUiUtils;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
 import org.chromium.components.browser_ui.util.DrawableUtils;
 import org.chromium.components.content_settings.CookieControlsBridge;
 import org.chromium.components.content_settings.CookieControlsObserver;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
+import org.chromium.components.omnibox.AutocompleteInput;
 import org.chromium.components.omnibox.AutocompleteInput.SiteSearchData;
+import org.chromium.components.omnibox.AutocompleteRequestType;
+import org.chromium.components.omnibox.OmniboxCapabilities;
+import org.chromium.components.omnibox.OmniboxFeatures;
+import org.chromium.components.omnibox.ToolModeUtils;
 import org.chromium.components.permissions.PermissionDialogController;
 import org.chromium.components.search_engines.TemplateUrl;
 import org.chromium.components.search_engines.TemplateUrlService;
@@ -57,8 +67,10 @@ import org.chromium.components.search_engines.TemplateUrlService.TemplateUrlServ
 import org.chromium.components.security_state.ConnectionSecurityLevel;
 import org.chromium.content_public.browser.BrowserContextHandle;
 import org.chromium.content_public.browser.WebContents;
+import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.PropertyModel;
+import org.chromium.url.GURL;
 
 // Vivaldi
 import org.chromium.build.BuildConfig;
@@ -77,22 +89,29 @@ public class StatusMediator
     private final PropertyModel mModel;
     private final OneshotSupplier<TemplateUrlService> mTemplateUrlServiceSupplier;
     private final MonotonicObservableSupplier<Profile> mProfileSupplier;
-    private final boolean mIsTablet;
     private final Context mContext;
     private final LocationBarDataProvider mLocationBarDataProvider;
     private final PermissionStatusHandler mPermissionStatusHandler;
     private final Handler mIconTaskHandler = new Handler();
-    private final Handler mStoreIconHandler = new Handler();
     private final PageInfoIphController mPageInfoIphController;
     private final PageInfoAction mPageInfoAction;
+    private final NonNullObservableSupplier<@FuseboxState Integer> mFuseboxStateSupplier;
+    private final OnClickListener mFuseboxOnPlusButtonClicked;
+    private final NullableObservableSupplier<GURL> mExactMatchUrlSupplier;
+    private final OmniboxImageSupplier mImageSupplier;
+    private @Nullable Runnable mOnStatusViewHiddenForPageInfoRemoval;
     private final Callback<@Nullable SiteSearchData> mSiteSearchDataObserver =
             this::onSiteSearchDataChanged;
+    private final Callback<@FuseboxState Integer> mOnFuseboxStateChanged =
+            this::onFuseboxStateChanged;
+    private final Callback<@Nullable GURL> mOnExactMatchUrlChanged = this::onExactMatchUrlChanged;
+    private final Callback<@AutocompleteRequestType Integer> mOnAutocompleteRequestTypeChanged =
+            this::onAutocompleteRequestTypeChanged;
 
     private boolean mUrlHasFocus;
     private boolean mVerboseStatusSpaceAvailable;
     private boolean mPageIsPaintPreview;
     private boolean mPageIsOffline;
-    private boolean mShowStatusIconWhenUrlFocused;
     private boolean mIsSecurityViewShown;
     private int mUrlMinWidth;
     private int mSeparatorMinWidth;
@@ -103,14 +122,12 @@ public class StatusMediator
     private @ColorRes int mSecurityIconTintRes;
     private @StringRes int mSecurityIconDescriptionRes;
     private @ColorRes int mNavigationIconTintRes;
-    private boolean mUrlBarTextIsSearch = true;
-    private boolean mIsStoreIconShowing;
-    private float mUrlFocusPercent;
     private @Nullable CookieControlsBridge mCookieControlsBridge;
     private @Nullable SearchEngineUtils mSearchEngineUtils;
     private @Nullable StatusIconResource mSearchEngineIcon;
     private @Nullable NullableObservableSupplier<SiteSearchData> mSiteSearchDataSupplier;
     private @Nullable OnClickListener mOnStatusIconNavigateBackButtonPress;
+    private @Nullable FuseboxSessionState mInputSessionState;
     private int mLastTabId;
     private boolean mCurrentTabCrashed;
     private Drawable mDefaultStatusBackground;
@@ -118,6 +135,9 @@ public class StatusMediator
     private Drawable mVerboseStatusBackground;
     private Drawable mVerboseStatusBackgroundIncognito;
     private boolean mShowStatusIconForSecureOrigins;
+    private @Nullable GURL mExactMatchFetchedUrl;
+    private @Nullable Bitmap mExactMatchFavicon;
+    private boolean mShowExactMatchGlobe;
 
     // Vivaldi
     private final TemplateUrlServiceObserverHelper mTemplateUrlServiceObserverHelper;
@@ -125,27 +145,34 @@ public class StatusMediator
     /**
      * @param model The {@link PropertyModel} for this mediator.
      * @param context The {@link Context} for this Status component.
-     * @param isTablet Whether the current device is a tablet.
      * @param locationBarDataProvider Provides data to the location bar.
      * @param permissionDialogController Controls showing permission dialogs.
      * @param templateUrlServiceSupplier Supplies the {@link TemplateUrlService}.
      * @param profileSupplier Supplies the current {@link Profile}.
      * @param pageInfoIphController Manages when an IPH bubble for PageInfo is shown.
      * @param windowAndroid The current {@link WindowAndroid}.
+     * @param pageInfoAction Callback to display the page info UI surface.
+     * @param fuseboxStateSupplier Notifies about the state of the fusebox.
+     * @param onPlusButtonClicked Toggle the fusebox attachments menu when plus button used.
+     * @param exactMatchUrlSupplier Holds the url of an exact match, null otherwise.
      */
     public StatusMediator(
             PropertyModel model,
             Context context,
-            boolean isTablet,
             LocationBarDataProvider locationBarDataProvider,
             PermissionDialogController permissionDialogController,
             OneshotSupplier<TemplateUrlService> templateUrlServiceSupplier,
             MonotonicObservableSupplier<Profile> profileSupplier,
             PageInfoIphController pageInfoIphController,
             WindowAndroid windowAndroid,
-            PageInfoAction pageInfoAction) {
+            PageInfoAction pageInfoAction,
+            NonNullObservableSupplier<Integer> fuseboxStateSupplier,
+            Runnable onPlusButtonClicked,
+            NullableObservableSupplier<GURL> exactMatchUrlSupplier) {
+        mContext = context;
         initBackgroundDrawables(context);
         mModel = model;
+        mModel.set(StatusProperties.USE_WIDE_STATUS_ICON, false);
         mLocationBarDataProvider = locationBarDataProvider;
         mTemplateUrlServiceSupplier = templateUrlServiceSupplier;
         mShowStatusIconForSecureOrigins = !isPageInfoMovedToAppMenu();
@@ -156,13 +183,18 @@ public class StatusMediator
                 });
 
         mProfileSupplier = profileSupplier;
-        mContext = context;
         mPageInfoIphController = pageInfoIphController;
 
-        mIsTablet = isTablet;
-        mShowStatusIconWhenUrlFocused = mIsTablet;
         mPageInfoAction = pageInfoAction;
         mModel.set(StatusProperties.INCOGNITO_BADGE_VISIBLE, false);
+
+        mFuseboxStateSupplier = fuseboxStateSupplier;
+        mFuseboxOnPlusButtonClicked = v -> onPlusButtonClicked.run();
+        mFuseboxStateSupplier.addSyncObserver(mOnFuseboxStateChanged);
+
+        mImageSupplier = new OmniboxImageSupplier(context);
+        mExactMatchUrlSupplier = exactMatchUrlSupplier;
+        mExactMatchUrlSupplier.addSyncObserver(mOnExactMatchUrlChanged);
 
         mPermissionStatusHandler =
                 new PermissionStatusHandler(
@@ -182,11 +214,13 @@ public class StatusMediator
                     }
                     mSearchEngineUtils = SearchEngineUtils.getForProfile(p);
                     mSearchEngineUtils.addIconObserver(this);
+                    mImageSupplier.setProfile(p);
+                    updateLocationBarIcon(IconTransitionType.CROSSFADE);
                 });
 
         updateColorTheme();
-        setStatusIconShown(/* show= */ true);
         updateLocationBarIcon(IconTransitionType.CROSSFADE);
+        updateStatusViewMinWidth();
 
         // Vivaldi
         mTemplateUrlServiceObserverHelper = new TemplateUrlServiceObserverHelper() {
@@ -204,7 +238,6 @@ public class StatusMediator
         }
 
         mPermissionStatusHandler.destroy();
-        mStoreIconHandler.removeCallbacksAndMessages(null);
         mIconTaskHandler.removeCallbacksAndMessages(null);
 
         var templateUrlService = mTemplateUrlServiceSupplier.get();
@@ -215,6 +248,18 @@ public class StatusMediator
             mCookieControlsBridge.destroy();
             mCookieControlsBridge = null;
         }
+        mFuseboxStateSupplier.removeObserver(mOnFuseboxStateChanged);
+        mExactMatchUrlSupplier.removeObserver(mOnExactMatchUrlChanged);
+        mImageSupplier.destroy();
+    }
+
+    /**
+     * Sets the callback to be executed when the status view is hidden due to the Page Info removal.
+     *
+     * @param runnable The callback to run.
+     */
+    void setOnStatusViewHiddenForPageInfoRemoval(Runnable runnable) {
+        mOnStatusViewHiddenForPageInfoRemoval = runnable;
     }
 
     /** Toggle animations of icon changes. */
@@ -281,15 +326,6 @@ public class StatusMediator
         mSeparatorMinWidth = width;
     }
 
-    /** Specify whether status icon should be shown when URL is focused. */
-    @VisibleForTesting
-    public // Vivaldi
-    void setShowIconsWhenUrlFocused(boolean showIconWhenFocused) {
-        if (mShowStatusIconWhenUrlFocused == showIconWhenFocused) return;
-        mShowStatusIconWhenUrlFocused = showIconWhenFocused;
-        updateLocationBarIcon(IconTransitionType.CROSSFADE);
-    }
-
     /** Update unfocused location bar width to determine shape and content of the Status view. */
     void setUnfocusedLocationBarWidth(int width) {
         // This unfocused width is used rather than observing #onMeasure() to avoid showing the
@@ -309,57 +345,75 @@ public class StatusMediator
         }
     }
 
-    /** Report URL focus change. */
-    void setUrlHasFocus(boolean urlHasFocus) {
-        if (mUrlHasFocus == urlHasFocus) return;
+    void beginInput(FuseboxSessionState sessionState) {
+        if (mUrlHasFocus) return;
 
-        mUrlHasFocus = urlHasFocus;
+        mUrlHasFocus = true;
+        setFuseboxSessionState(sessionState);
         updateVerboseStatusTextVisibility();
-        updateStatusVisibility();
         updateLocationBarIcon(IconTransitionType.CROSSFADE);
         updateStatusViewVisibility();
+        updateStatusViewMinWidth();
 
-        // Set the default match to be a search on an unfocus event to avoid the globe sticking
-        // around for subsequent focus events.
-        if (!mUrlHasFocus) updateLocationBarIconForDefaultMatchCategory(true);
+        @DimenRes
+        int cornerRes =
+                OmniboxFeatures.sExactMatchFavicons.isEnabled()
+                        ? R.dimen.omnibox_small_icon_rounding_radius
+                        : R.dimen.omnibox_search_engine_logo_composed_half_size;
+        mModel.set(StatusProperties.STATUS_ICON_CORNER_RADIUS, cornerRes);
     }
 
-    void setStatusIconShown(boolean show) {
-        applyStatusIconAndTooltipProperties(
-                show, mModel.get(StatusProperties.VERBOSE_STATUS_TEXT_VISIBLE));
+    void endInput() {
+        if (!mUrlHasFocus) return;
+
+        mUrlHasFocus = false;
+        setFuseboxSessionState(null);
+        updateVerboseStatusTextVisibility();
+        updateLocationBarIcon(IconTransitionType.CROSSFADE);
+        updateStatusViewVisibility();
+        updateStatusViewMinWidth();
+
+        @DimenRes int cornerRes = R.dimen.omnibox_search_engine_logo_composed_half_size;
+        mModel.set(StatusProperties.STATUS_ICON_CORNER_RADIUS, cornerRes);
+    }
+
+    private void setFuseboxSessionState(@Nullable FuseboxSessionState sessionState) {
+        if (sessionState == mInputSessionState) return;
+
+        if (mInputSessionState != null) {
+            setSiteSearchDataSupplier(null);
+            mInputSessionState
+                    .getAutocompleteInput()
+                    .getRequestTypeSupplier()
+                    .removeObserver(mOnAutocompleteRequestTypeChanged);
+        }
+
+        mInputSessionState = sessionState;
+
+        if (mInputSessionState != null) {
+            setSiteSearchDataSupplier(
+                    mInputSessionState.getAutocompleteInput().getSiteSearchDataSupplier());
+            mInputSessionState
+                    .getAutocompleteInput()
+                    .getRequestTypeSupplier()
+                    .addSyncObserver(mOnAutocompleteRequestTypeChanged);
+        }
+    }
+
+    private void updateStatusViewMinWidth() {
+        // Don't use isNtpVisible() here -- it reports NTP visibility when navigation is already
+        // underway, making the onUrlChanged fail to detect the user is navigating out of the NTP.
+        var url = mLocationBarDataProvider.getCurrentGurl();
+        boolean isRegularNtpUrl =
+                url != null
+                        && UrlUtilities.isNtpUrl(url)
+                        && !mLocationBarDataProvider.isIncognitoBranded();
+
+        mModel.set(StatusProperties.USE_WIDE_STATUS_ICON, mUrlHasFocus || isRegularNtpUrl);
     }
 
     public void setUseSmallWidget(boolean useSmallWidget) {
         mModel.set(StatusProperties.USE_SMALL_WIDGET, useSmallWidget);
-    }
-
-    void updateStatusVisibility() {
-        // This logic doesn't apply to tablets.
-        if (mIsTablet) return;
-
-        setShowIconsWhenUrlFocused(true);
-        setStatusIconShown(true);
-    }
-
-    /**
-     * Set the url focus change percent.
-     *
-     * @param percent The current focus percent.
-     */
-    void setUrlFocusChangePercent(float percent) {
-        // On tablets, the status icon should always be shown so the following logic doesn't apply.
-        assert !mIsTablet : "This logic shouldn't be called on tablets";
-
-        boolean couldAffectIcon =
-                (mUrlFocusPercent == 0.0f && percent > 0.0f)
-                        || (percent == 0.0f && mUrlFocusPercent > 0.0f);
-        mUrlFocusPercent = percent;
-        updateStatusVisibility();
-        mModel.set(StatusProperties.STATUS_ICON_ALPHA, 1.0f);
-
-        if (couldAffectIcon) {
-            updateLocationBarIcon(IconTransitionType.CROSSFADE);
-        }
     }
 
     /** Specify minimum width of an URL field. */
@@ -404,8 +458,7 @@ public class StatusMediator
         }
         mModel.set(StatusProperties.VERBOSE_STATUS_TEXT_VISIBLE, newVisibility);
 
-        applyStatusIconAndTooltipProperties(
-                mModel.get(StatusProperties.SHOW_STATUS_ICON), newVisibility);
+        applyStatusIconAndTooltipProperties(newVisibility);
     }
 
     /** Update color theme for all status components. */
@@ -447,11 +500,37 @@ public class StatusMediator
         return mPageIsOffline || mPageIsPaintPreview;
     }
 
+    /**
+     * Returns whether the NewTabPage is currently shown to the user.
+     *
+     * <p>Caution: returns true even if the user is currently navigating out of the NTP (Current URL
+     * no longer pointing to NTP, but the navigation not yet completed).
+     */
     private boolean isNtpVisible() {
         return mLocationBarDataProvider.getNewTabPageDelegate() != null
                 && mLocationBarDataProvider.getNewTabPageDelegate().isCurrentlyVisible();
     }
 
+    private boolean shouldShowNtpPlusButton() {
+        Profile profile = mProfileSupplier.get();
+        TemplateUrlService templateUrlService = mTemplateUrlServiceSupplier.get();
+        boolean isStandbyNoFocus =
+                mInputSessionState != null
+                        && mInputSessionState.getAutocompleteInput().getAutocompleteState()
+                                == AutocompleteInput.AutocompleteState.STANDBY_NO_FOCUS;
+        return isNtpVisible()
+                && (!mUrlHasFocus || isStandbyNoFocus)
+                && !DeviceFormFactor.isNonMultiDisplayContextOnTablet(mContext)
+                && FuseboxFeatureUtils.shouldShowNtpPlusButton(
+                        mContext, profile, templateUrlService);
+    }
+
+    /**
+     * Returns whether the Incognito NewTabPage is currently shown to the user.
+     *
+     * <p>Caution: returns true even if the user is currently navigating out of the NTP (Current URL
+     * no longer pointing to NTP, but the navigation not yet completed).
+     */
     private boolean isIncognitoNtpVisible() {
         return mLocationBarDataProvider.getNewTabPageDelegate() != null
                 && mLocationBarDataProvider
@@ -471,66 +550,111 @@ public class StatusMediator
     /** Update selection of icon presented on the location bar. */
     @Override
     public void updateLocationBarIcon(@IconTransitionType int transitionType) {
-        // Reset the store icon status.
-        mIsStoreIconShowing = false;
         mIsSecurityViewShown = false;
 
-        @DrawableRes int iconRes = 0;
-        @ColorRes int tintRes = 0;
-        @StringRes int toastRes = 0;
+        @DrawableRes int iconRes = Resources.ID_NULL;
+        @ColorRes int tintRes = Resources.ID_NULL;
+        @StringRes int toastRes = Resources.ID_NULL;
+        @StringRes int descRes = Resources.ID_NULL;
         @StringRes int doubleTapDescriptionRes = R.string.accessibility_toolbar_view_site_info;
         OnClickListener clickListener = null;
+        Bitmap bitmap = null;
 
-        if (maybeUpdateStatusIconForSearchEngineIcon()) {
-            mPermissionStatusHandler.reset(/* shouldDismissNativePrompt= */ true);
-            // No need to proceed further if we've already updated it for the search engine icon.
-            return;
-        } else if (isHubSearch()) {
+        boolean exactMatch = OmniboxFeatures.sExactMatchFavicons.isEnabled();
+        @AutocompleteRequestType
+        int requestType =
+                mInputSessionState == null
+                        ? AutocompleteRequestType.SEARCH
+                        : mInputSessionState.getAutocompleteInput().getRequestType();
+
+        if (isHubSearch()) {
             mPermissionStatusHandler.reset(/* shouldDismissNativePrompt= */ false);
             updateStatusViewVisibility();
-            // Show the status icon primarily for incognito since it is defaulted off there.
-            setStatusIconShown(/* show= */ true);
             iconRes = R.drawable.ic_arrow_back_24dp;
             tintRes = ThemeUtils.getThemedToolbarIconTintRes(mBrandedColorScheme);
             doubleTapDescriptionRes = R.string.accessibility_toolbar_exit_hub_search;
             applyStatusIconAndTooltipProperties(
-                    mModel.get(StatusProperties.SHOW_STATUS_ICON),
                     mModel.get(StatusProperties.VERBOSE_STATUS_TEXT_VISIBLE));
             clickListener = mOnStatusIconNavigateBackButtonPress;
+        } else if (exactMatch && mShowExactMatchGlobe) {
+            mPermissionStatusHandler.reset(/* shouldDismissNativePrompt= */ false);
+            iconRes = R.drawable.ic_globe_24dp;
+            tintRes = mNavigationIconTintRes;
+        } else if (exactMatch && mExactMatchFavicon != null) {
+            mPermissionStatusHandler.reset(/* shouldDismissNativePrompt= */ false);
+            bitmap = mExactMatchFavicon;
+        } else if (OmniboxCapabilities.isDesktopPlatform()
+                && mInputSessionState != null
+                && ToolModeUtils.isAimRequest(requestType)) {
+            mPermissionStatusHandler.reset(/* shouldDismissNativePrompt= */ false);
+            tintRes = mNavigationIconTintRes;
+            iconRes = R.drawable.search_spark_black_24dp;
+            descRes = R.string.accessibility_omnibox_open_context_popup;
+            doubleTapDescriptionRes = Resources.ID_NULL;
+        } else if (mFuseboxStateSupplier.get() == FuseboxState.COMPACT
+                || shouldShowNtpPlusButton()) {
+            mPermissionStatusHandler.reset(/* shouldDismissNativePrompt= */ false);
+            tintRes = mNavigationIconTintRes;
+            iconRes = R.drawable.ic_add_round_20dp_with_inset;
+            clickListener = mFuseboxOnPlusButtonClicked;
+            descRes = R.string.accessibility_omnibox_open_context_popup;
+            doubleTapDescriptionRes = Resources.ID_NULL;
+        } else if (isContextualTasksFusebox()) {
+            mPermissionStatusHandler.reset(/* shouldDismissNativePrompt= */ false);
+            // No icon shown for Fusebox.
+        } else if (maybeUpdateStatusIconForSearchEngineIcon()) {
+            mPermissionStatusHandler.reset(/* shouldDismissNativePrompt= */ true);
+            // No need to proceed further if we've already updated it for the search engine icon.
+            return;
         } else if (mUrlHasFocus) {
             mPermissionStatusHandler.reset(/* shouldDismissNativePrompt= */ true);
-            if (mShowStatusIconWhenUrlFocused) {
-                iconRes =
-                        mUrlBarTextIsSearch
-                                ? R.drawable.ic_suggestion_magnifier
-                                : R.drawable.ic_globe_24dp;
-                tintRes = mNavigationIconTintRes;
-            }
+            iconRes =
+                    isUrlBarTextSearch()
+                            ? R.drawable.ic_suggestion_magnifier
+                            : R.drawable.ic_globe_24dp;
+            tintRes = mNavigationIconTintRes;
         } else if (mPermissionStatusHandler.isClapperQuietIconShowing()) {
             return;
-        } else if (mSecurityIconRes != 0) {
+        } else if (mSecurityIconRes != Resources.ID_NULL) {
             if (mPageSecurityLevel == ConnectionSecurityLevel.SECURE
                     && (isPageInfoMovedToAppMenu() || !mShowStatusIconForSecureOrigins)) {
                 mIsSecurityViewShown = false;
+                if (mOnStatusViewHiddenForPageInfoRemoval != null) {
+                    mOnStatusViewHiddenForPageInfoRemoval.run();
+                }
             } else {
                 mIsSecurityViewShown = true;
                 iconRes = mSecurityIconRes;
                 tintRes = mSecurityIconTintRes;
-                toastRes = R.string.menu_page_info;
-                clickListener = this::onClickOpenPageInfo;
+                if (isPageInfoMovedToAppMenu()) {
+                    toastRes = Resources.ID_NULL;
+                    clickListener = null;
+                } else {
+                    toastRes = R.string.menu_page_info;
+                    clickListener = this::onClickOpenPageInfo;
+                }
             }
         }
 
-        // If the icon is missing, fallback to the info icon.
-        StatusIconResource statusIcon =
-                iconRes == 0 ? null : new StatusIconResource(iconRes,
+        StatusIconResource statusIcon = null;
+        if (bitmap != null) {
+            statusIcon = new StatusIconResource(/* iconIdentifier= */ null, bitmap, tintRes);
+        } else if (iconRes != Resources.ID_NULL) {
+            statusIcon = new StatusIconResource(iconRes,
                 BuildConfig.IS_VIVALDI ? mNavigationIconTintRes : tintRes); // Vivaldi Ref. VAB-8862
+        }
+
         if (statusIcon != null) {
             statusIcon.setTransitionType(transitionType);
         }
 
-        // Update the accessibility description before continuing since we need it either way.
-        mModel.set(StatusProperties.STATUS_ICON_DESCRIPTION_RES, getAccessibilityDescriptionRes());
+        // TODO(https://crbug.com/503744512): Description res decision should be integrated into
+        //  this method's if/else statements.
+        if (descRes == Resources.ID_NULL) {
+            descRes = getAccessibilityDescriptionRes();
+        }
+
+        mModel.set(StatusProperties.STATUS_ICON_DESCRIPTION_RES, descRes);
         mModel.set(StatusProperties.STATUS_ICON_RESOURCE, statusIcon);
         mModel.set(StatusProperties.STATUS_ACCESSIBILITY_TOAST_RES, toastRes);
         mModel.set(
@@ -541,12 +665,12 @@ public class StatusMediator
         updateStatusViewVisibility();
     }
 
-    void onFuseboxStateChanged(int state) {
-        if (state == FuseboxState.COMPACT) {
-            mModel.set(StatusProperties.IMPORTANT_FOR_A11Y, false);
-        } else {
-            mModel.set(StatusProperties.IMPORTANT_FOR_A11Y, true);
-        }
+    private void onFuseboxStateChanged(@FuseboxState int state) {
+        updateLocationBarIcon(IconTransitionType.CROSSFADE);
+    }
+
+    private void onAutocompleteRequestTypeChanged(@AutocompleteRequestType int type) {
+        updateLocationBarIcon(IconTransitionType.CROSSFADE);
     }
 
     /** Returns true if the security icon has been set for the search engine icon. */
@@ -567,11 +691,11 @@ public class StatusMediator
      * independent from alpha/visibility.
      */
     boolean shouldDisplaySearchEngineIcon() {
-        if (isHubSearch()) {
+        if (isHubSearch() || isContextualTasksFusebox()) {
             return false;
         }
 
-        if (mUrlHasFocus && mShowStatusIconWhenUrlFocused) {
+        if (mUrlHasFocus) {
             return true;
         }
 
@@ -597,7 +721,7 @@ public class StatusMediator
 
         // If the current url text is a valid url, then swap the dse icon for a globe.
         // Vivaldi VAB-12793: always show DSE icon when focused.
-        if (!BuildConfig.IS_VIVALDI && !mUrlBarTextIsSearch) {
+        if (!BuildConfig.IS_VIVALDI && !isUrlBarTextSearch()) {
             return new StatusIconResource(
                     R.drawable.ic_globe_24dp,
                     ThemeUtils.getThemedToolbarIconTintRes(mBrandedColorScheme));
@@ -641,18 +765,49 @@ public class StatusMediator
         if (mUrlHasFocus && !mLocationBarDataProvider.isIncognitoBranded()) {
             return 0;
         }
+        if (isPageInfoMovedAndConnectionNotSecure()) {
+            return 0;
+        }
         return (mSecurityIconRes != 0) ? mSecurityIconDescriptionRes : 0;
     }
 
-    /**
-     * Informs StatusMediator that the default match may have changed categories, updating the
-     * status icon if it has.
-     */
-    /* package */ void updateLocationBarIconForDefaultMatchCategory(boolean defaultMatchIsSearch) {
-        if (defaultMatchIsSearch != mUrlBarTextIsSearch) {
-            mUrlBarTextIsSearch = defaultMatchIsSearch;
-            updateLocationBarIcon(IconTransitionType.CROSSFADE);
+    private void onExactMatchUrlChanged(@Nullable GURL url) {
+        if (!OmniboxFeatures.sExactMatchFavicons.isEnabled()) {
+            if ((mExactMatchFetchedUrl == null) != (url == null)) {
+                mExactMatchFetchedUrl = url;
+                updateLocationBarIcon(IconTransitionType.CROSSFADE);
+            }
+            return;
         }
+
+        mExactMatchFetchedUrl = url;
+        if (url == null) {
+            mExactMatchFavicon = null;
+            mShowExactMatchGlobe = false;
+            updateLocationBarIcon(IconTransitionType.CROSSFADE);
+        } else {
+            mImageSupplier.fetchFavicon(url, bitmap -> onFaviconFetched(url, bitmap));
+        }
+    }
+
+    private void onFaviconFetched(GURL url, @Nullable Bitmap favicon) {
+        // If we're not the most recent fetch request, give up.
+        if (!url.equals(mExactMatchFetchedUrl)) return;
+
+        boolean useGlobe = favicon == null;
+
+        // When the url changes, but still the same domain, such as adding a longer path or changing
+        // the scheme, we'll get a different url and different bitmap, but they're identical. Even
+        // though this checks pixel by pixel, it avoids the weirdness of cross-fading what should be
+        // a no-op.
+        if ((mShowExactMatchGlobe && useGlobe)
+                || (mExactMatchFavicon != null && mExactMatchFavicon.sameAs(favicon))) {
+            return;
+        }
+
+        mExactMatchFavicon = favicon;
+        mShowExactMatchGlobe = useGlobe;
+        updateLocationBarIcon(IconTransitionType.CROSSFADE);
     }
 
     // CookieControlsObserver interface.
@@ -724,9 +879,7 @@ public class StatusMediator
     }
 
     private void resetEmbeddedIconHandlers() {
-        mStoreIconHandler.removeCallbacksAndMessages(null);
         mIconTaskHandler.removeCallbacksAndMessages(null);
-        mIsStoreIconShowing = false;
     }
 
     /**
@@ -737,8 +890,6 @@ public class StatusMediator
         ChromePageInfoHighlight highlight = mPermissionStatusHandler.getPageInfoHighlight();
         if (highlight != null) {
             return highlight;
-        } else if (mIsStoreIconShowing) {
-            return ChromePageInfoHighlight.forStoreInfo(/* highlightStoreInfo= */ true);
         } else {
             return ChromePageInfoHighlight.noHighlight();
         }
@@ -755,7 +906,8 @@ public class StatusMediator
         maybeUpdateStatusIconForSearchEngineIcon();
     }
 
-    void setSiteSearchDataSupplier(@Nullable NullableObservableSupplier<SiteSearchData> supplier) {
+    private void setSiteSearchDataSupplier(
+            @Nullable NullableObservableSupplier<SiteSearchData> supplier) {
         if (mSiteSearchDataSupplier != null) {
             mSiteSearchDataSupplier.removeObserver(mSiteSearchDataObserver);
         }
@@ -775,17 +927,16 @@ public class StatusMediator
 
     void setTooltipText(@StringRes int tooltipTextResId) {
         applyStatusIconAndTooltipProperties(
-                mModel.get(StatusProperties.SHOW_STATUS_ICON),
                 mModel.get(StatusProperties.VERBOSE_STATUS_TEXT_VISIBLE));
     }
 
     void setBackground() {
         applyStatusIconAndTooltipProperties(
-                mModel.get(StatusProperties.SHOW_STATUS_ICON),
                 mModel.get(StatusProperties.VERBOSE_STATUS_TEXT_VISIBLE));
     }
 
     public void onUrlChanged() {
+        updateStatusViewMinWidth();
         Tab currentTab = mLocationBarDataProvider.getTab();
         Profile profile = mProfileSupplier.get();
         if (profile != null && currentTab != null) {
@@ -808,6 +959,7 @@ public class StatusMediator
             }
             mLastTabId = currentTab.getId();
         }
+        updateLocationBarIcon(IconTransitionType.CROSSFADE);
     }
 
     public void onTabCrashed() {
@@ -825,12 +977,12 @@ public class StatusMediator
         mOnStatusIconNavigateBackButtonPress = listener;
     }
 
-    private void applyStatusIconAndTooltipProperties(
-            boolean showIcon, boolean verboseStatusTextVisible) {
-        mModel.set(StatusProperties.SHOW_STATUS_ICON, showIcon);
-        if ((showIcon || verboseStatusTextVisible) && !isHubSearch()) {
+    private void applyStatusIconAndTooltipProperties(boolean verboseStatusTextVisible) {
+        if (!isHubSearch()) {
             Drawable background;
-            if (mLocationBarDataProvider.isIncognitoBranded()) {
+            if (isPageInfoMovedAndConnectionNotSecure()) {
+                background = null;
+            } else if (mLocationBarDataProvider.isIncognitoBranded()) {
                 background =
                         verboseStatusTextVisible
                                 ? mVerboseStatusBackgroundIncognito
@@ -842,7 +994,11 @@ public class StatusMediator
                                 : mDefaultStatusBackground;
             }
             mModel.set(StatusProperties.STATUS_VIEW_BACKGROUND, background);
-            mModel.set(StatusProperties.STATUS_VIEW_TOOLTIP_TEXT, R.string.accessibility_menu_info);
+            mModel.set(
+                    StatusProperties.STATUS_VIEW_TOOLTIP_TEXT,
+                    isPageInfoMovedToAppMenu()
+                            ? Resources.ID_NULL
+                            : R.string.accessibility_menu_info);
         } else {
             mModel.set(StatusProperties.STATUS_VIEW_TOOLTIP_TEXT, Resources.ID_NULL);
             mModel.set(StatusProperties.STATUS_VIEW_BACKGROUND, null);
@@ -876,14 +1032,18 @@ public class StatusMediator
     }
 
     private void updateStatusViewVisibility() {
+        if (isContextualTasksFusebox()) {
+            setShowStatusView(false);
+            return;
+        }
+
         setShowStatusView(
                 mUrlHasFocus
                         || isHubSearch()
                         || mShowStatusIconForSecureOrigins
                         || mIsSecurityViewShown
                         || hasStatusIconResource()
-                        || shouldShowVerboseStatusText()
-                        || mIsStoreIconShowing);
+                        || shouldShowVerboseStatusText());
     }
 
     private boolean hasStatusIconResource() {
@@ -906,8 +1066,21 @@ public class StatusMediator
                 == PageClassification.ANDROID_HUB_VALUE;
     }
 
-    private static boolean isPageInfoMovedToAppMenu() {
-        return ChromeFeatureList.sAndroidPageInfoAsAppMenuItem.isEnabled();
+    private boolean isContextualTasksFusebox() {
+        return mLocationBarDataProvider.getPageClassification(/* prefetch= */ false)
+                == PageClassification.CO_BROWSING_COMPOSEBOX_VALUE;
+    }
+
+    private boolean isUrlBarTextSearch() {
+        return mExactMatchUrlSupplier.get() == null;
+    }
+
+    private boolean isPageInfoMovedToAppMenu() {
+        return BrowserUiUtils.isPageInfoMovedToAppMenu(mContext);
+    }
+
+    private boolean isPageInfoMovedAndConnectionNotSecure() {
+        return isPageInfoMovedToAppMenu() && mPageSecurityLevel != ConnectionSecurityLevel.SECURE;
     }
 
     @Nullable CookieControlsBridge getCookieControlsBridgeForTesting() {
@@ -920,10 +1093,6 @@ public class StatusMediator
 
     public PermissionStatusHandler getPermissionStatusHandlerForTesting() {
         return mPermissionStatusHandler;
-    }
-
-    boolean isStoreIconShowingForTesting() {
-        return mIsStoreIconShowing;
     }
 
     // Vivaldi

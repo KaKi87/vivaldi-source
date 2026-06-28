@@ -188,6 +188,7 @@ constexpr CGFloat kAppIconPointSize = 80;
                          completion:nil];
   self.viewController = nil;
 
+  [self.mediator disconnect];
   self.mediator = nil;
 }
 

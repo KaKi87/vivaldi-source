@@ -29,15 +29,11 @@
 #include "base/types/optional_ref.h"
 #include "base/types/pass_key.h"
 #include "chrome/browser/actor/action_tracker_for_metrics.h"
-#include "chrome/browser/actor/actor_features.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/actor/actor_metrics.h"
 #include "chrome/browser/actor/actor_proto_conversion.h"
 #include "chrome/browser/actor/actor_task.h"
-#include "chrome/browser/actor/actor_util.h"
-#include "chrome/browser/actor/enterprise_policy_url_checker.h"
-#include "chrome/browser/actor/origin_checker.h"
-#include "chrome/browser/actor/safety_list_manager.h"
+#include "chrome/browser/actor/enterprise_policy_checker.h"
 #include "chrome/browser/actor/site_policy.h"
 #include "chrome/browser/actor/tools/attempt_login_tool.h"
 #include "chrome/browser/actor/tools/navigate_tool_request.h"
@@ -46,15 +42,22 @@
 #include "chrome/browser/actor/ui/event_dispatcher.h"
 #include "chrome/browser/affiliations/affiliation_service_factory.h"
 #include "chrome/browser/autofill/actor/actor_form_filling_service_impl.h"
+#include "chrome/browser/autofill/actor/one_time_tokens/actor_one_time_token_filling_service.h"
+#include "chrome/browser/autofill/actor/one_time_tokens/actor_one_time_token_filling_service_impl.h"
 #include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/password_manager/actor_login/actor_login_service.h"
 #include "chrome/browser/password_manager/actor_login/actor_login_service_impl.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/actor.mojom.h"
 #include "chrome/common/actor/action_result.h"
-#include "chrome/common/actor/journal_details_builder.h"
-#include "chrome/common/actor/task_id.h"
 #include "chrome/common/chrome_features.h"
+#include "components/actor/core/actor_features.h"
+#include "components/actor/core/actor_util.h"
+#include "components/actor/core/journal_details_builder.h"
+#include "components/actor/core/origin_checker.h"
+#include "components/actor/core/safety_list_manager.h"
+#include "components/actor/core/task_id.h"
+#include "components/actor/public/mojom/actor_types.mojom.h"
 #include "components/affiliations/core/browser/affiliation_service.h"
 #include "components/keyed_service/core/service_access_type.h"
 #include "components/optimization_guide/content/browser/page_content_proto_provider.h"
@@ -100,16 +103,17 @@ RenderFrameHost* GetPrimaryMainFrame(
 
 void PostTaskForActCallback(
     ActorTask::ActCallback callback,
-    std::vector<ActionResultWithLatencyInfo> action_results) {
+    std::vector<ActionResultWithLatencyInfo> action_results,
+    TabObservationStrategy observation_strategy) {
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE,
-      base::BindOnce(std::move(callback), std::move(action_results)));
+      FROM_HERE, base::BindOnce(std::move(callback), std::move(action_results),
+                                std::move(observation_strategy)));
 }
 
 // When operating on an opaque site, we choose to use the precursor's origin
 // when judging whether a user confirmation should be triggered or not. We are
-// effictively, using `rfh.GetLastCommittedUrl()` vs
-// `rfh.GetLastCommittedOrigin()` for this "security" purpose contrary to the
+// effectively using `url::Origin::Create(rfh.GetLastCommittedUrl())` in lieu of
+// `rfh.GetLastCommittedOrigin()` for this "security" purpose, contrary to the
 // guidance here (docs/security/origin-vs-url.md).
 //
 // This is an intentional decision since it relates to user confirmations and it
@@ -121,6 +125,32 @@ url::Origin OriginOrPrecursorIfOpaque(const url::Origin& origin) {
 
   return url::Origin::Create(
       origin.GetTupleOrPrecursorTupleIfOpaque().GetURL());
+}
+
+void OnNavigationConfirmationDecisionInBackground(
+    ExecutionEngine::State state,
+    ukm::SourceId ukm_source_id,
+    base::ScopedUmaHistogramTimer timer,
+    webui::mojom::NavigationConfirmationResponsePtr response) {
+  switch (response->result->which()) {
+    case webui::mojom::ConfirmationRequestResult::Tag::kPermissionGranted: {
+      bool permission_granted = response->result->get_permission_granted();
+      base::UmaHistogramBoolean(kPermissionGrantedHistogram,
+                                permission_granted);
+      ukm::builders::Actor_OriginGating builder(ukm_source_id);
+      builder
+          .SetServerConfirmationResult(static_cast<int64_t>(
+              permission_granted
+                  ? ExecutionEngine::ActorServerConfirmationResult::kAccepted
+                  : ExecutionEngine::ActorServerConfirmationResult::kRejected))
+          .SetEngineState(static_cast<int64_t>(state));
+      builder.Record(ukm::UkmRecorder::Get());
+      return;
+    }
+    case webui::mojom::ConfirmationRequestResult::Tag::kErrorReason:
+      return;
+  }
+  NOTREACHED();
 }
 
 }  // namespace
@@ -171,7 +201,11 @@ ExecutionEngine::ExecutionEngine(
       actor_login_service_(
           std::make_unique<actor_login::ActorLoginServiceImpl>()),
       actor_form_filling_service_(
-          std::make_unique<autofill::ActorFormFillingServiceImpl>()),
+          std::make_unique<autofill::ActorFormFillingServiceImpl>(journal_,
+                                                                  task_->id())),
+      actor_one_time_token_filling_service_(
+          std::make_unique<autofill::ActorOneTimeTokenFillingServiceImpl>(
+              task_->GetProfile())),
       ui_event_dispatcher_(std::move(ui_event_dispatcher)) {
   TRACE_EVENT0("actor", "ExecutionEngine::ExecutionEngine");
 }
@@ -265,19 +299,18 @@ ExecutionEngine::ShouldDeferNavigation(
   base::ScopedUmaHistogramTimer timer(
       "Actor.NavigationGating.TimeElapsedForGating2");
 
-  // Note: `DetermineGatingDecision` operates on GURLs, but `origin_checker_`
-  // operates on Origins only.
-  const GURL& source_url =
-      GetPrimaryMainFrame(navigation_handle)->GetLastCommittedURL();
-  const url::Origin source_origin = url::Origin::Create(source_url);
-
-  const GatingDecision decision =
-      DetermineGatingDecision(source_url,
-                              /*destination_url=*/navigation_handle.GetURL());
+  // Note: `DetermineGatingDecision` and `CheckNavigationSensitiveUrlList`
+  // operate on GURLs, but metrics and `origin_checker_` operate on Origins.
+  const GatingDecision decision = DetermineGatingDecision(
+      GetPrimaryMainFrame(navigation_handle)->GetLastCommittedURL(),
+      /*destination_url=*/navigation_handle.GetURL());
   RecordNavigationGatingDecision(decision);
 
+  const url::Origin source_origin = OriginOrPrecursorIfOpaque(
+      GetPrimaryMainFrame(navigation_handle)->GetLastCommittedOrigin());
   switch (decision) {
     case GatingDecision::kAllowSameOrigin:
+    case GatingDecision::kAllowByContainerConfig:
       LogNavigationGating(source_origin, navigation_handle.GetInitiatorOrigin(),
                           url::Origin::Create(navigation_handle.GetURL()),
                           /*applied_gate=*/false);
@@ -294,6 +327,7 @@ ExecutionEngine::ShouldDeferNavigation(
           /*is_pre_approved=*/false);
       return content::NavigationThrottle::PROCEED;
     case GatingDecision::kBlockByStaticList:
+    case GatingDecision::kBlockByContainerConfig:
       LogNavigationGating(source_origin, navigation_handle.GetInitiatorOrigin(),
                           url::Origin::Create(navigation_handle.GetURL()),
                           /*applied_gate=*/true);
@@ -303,14 +337,15 @@ ExecutionEngine::ShouldDeferNavigation(
       base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
           FROM_HERE,
           base::BindOnce(
-              &ExecutionEngine::CheckNavigationSensitiveUrlList, GetWeakPtr(),
-              source_origin, navigation_handle.GetInitiatorOrigin(),
+              &ExecutionEngine::CheckNavigationSensitiveUrlList,
+              GetActionSequenceWeakPtr(), source_origin,
+              navigation_handle.GetInitiatorOrigin(),
               navigation_handle.GetURL(),
               GetPrimaryMainFrame(navigation_handle)->GetPageUkmSourceId(),
               skip_prompt, std::move(timer),
               std::move(callback).Then(base::BindOnce(
                   &ExecutionEngine::MaybeRecordNavigationConfirmationMetrics,
-                  GetWeakPtr(), state(),
+                  GetActionSequenceWeakPtr(), state(),
                   url::Origin::Create(navigation_handle.GetURL()),
                   /*is_pre_approved=*/false))));
       return content::NavigationThrottle::DEFER;
@@ -345,12 +380,20 @@ ExecutionEngine::GatingDecision ExecutionEngine::DetermineGatingDecision(
     const GURL& source_url,
     const GURL& destination_url) const {
   switch (task_->policy_checker().Evaluate(destination_url)) {
-    case EnterprisePolicyBlockReason::kNotBlocked:
+    case EnterprisePolicyChecker::UrlBlockReason::kNotBlocked:
       break;
-    case EnterprisePolicyBlockReason::kExplicitlyAllowed:
+    case EnterprisePolicyChecker::UrlBlockReason::kExplicitlyAllowed:
       return GatingDecision::kAllowByStaticList;
-    case EnterprisePolicyBlockReason::kExplicitlyBlocked:
+    case EnterprisePolicyChecker::UrlBlockReason::kExplicitlyBlocked:
       return GatingDecision::kBlockByStaticList;
+  }
+
+  if (actor_container_config_.IsActive()) {
+    return actor_container_config_.IsNavigationAllowed(
+               url::Origin::Create(source_url),
+               url::Origin::Create(destination_url))
+               ? GatingDecision::kAllowByContainerConfig
+               : GatingDecision::kBlockByContainerConfig;
   }
 
   switch (SafetyListManager::GetInstance()->Find(source_url, destination_url)) {
@@ -388,9 +431,9 @@ void ExecutionEngine::CheckNavigationSensitiveUrlList(
       MaybeCheckOptimizationGuideForSensitiveUrl(
           destination_url, task_->GetProfile(),
           base::BindOnce(&ExecutionEngine::OnNavigationSensitiveUrlListChecked,
-                         GetWeakPtr(), source, initiator, destination_origin,
-                         ukm_source_id, skip_prompt, std::move(timer),
-                         std::move(callback)));
+                         GetActionSequenceWeakPtr(), source, initiator,
+                         destination_origin, ukm_source_id, skip_prompt,
+                         std::move(timer), std::move(callback)));
   if (!sensitive_check_result.has_value()) {
     std::move(sensitive_check_result).error().Run(/*not_sensitive=*/true);
   }
@@ -408,7 +451,7 @@ void ExecutionEngine::OnNavigationSensitiveUrlListChecked(
   // If not sensitive, check if it's an origin the actor has previously
   // interacted with or received instructions from the server to interact with.
   if (not_sensitive &&
-      origin_checker_.IsNavigationAllowed(initiator, destination)) {
+      origin_checker_.IsNavigationAllowed(source, destination)) {
     LogNavigationGating(source, initiator, destination,
                         /*applied_gate=*/false);
     ukm::builders::Actor_OriginGating builder(ukm_source_id);
@@ -457,6 +500,22 @@ void ExecutionEngine::HandleNavigationToNewOrigin(
     base::ScopedUmaHistogramTimer timer,
     ExecutionEngine::NavigationDecisionCallback callback) {
   if (!kGlicConfirmNavigationToNewOrigins.Get()) {
+    if (kGlicConfirmNavigationToNewOriginsDarkLaunch.Get() &&
+        !dark_launch_origin_checker_.IsNavigationAllowed(url::Origin(),
+                                                         destination)) {
+      SendNavigationConfirmationRequest(
+          destination,
+          base::BindOnce(&OnNavigationConfirmationDecisionInBackground, state_,
+                         ukm_source_id,
+                         base::ScopedUmaHistogramTimer(
+                             "Actor.NavigationGating."
+                             "DarkLaunchConfirmationRequestLatency")));
+      // Navigation is auto-approved, so add to origin checker allowlist to skip
+      // future checks and metrics.
+      dark_launch_origin_checker_.AllowNavigationTo(
+          destination,
+          /*is_user_confirmed=*/false);
+    }
     std::move(callback).Run(/*may_continue=*/true);
     return;
   }
@@ -466,24 +525,25 @@ void ExecutionEngine::HandleNavigationToNewOrigin(
                                       std::move(timer), std::move(callback));
     return;
   }
-  SendNavigationConfirmationRequest(destination, ukm_source_id,
-                                    std::move(timer), std::move(callback));
+  SendNavigationConfirmationRequest(
+      destination,
+      base::BindOnce(&ExecutionEngine::OnNavigationConfirmationDecision,
+                     GetActionSequenceWeakPtr(), destination, ukm_source_id,
+                     std::move(timer), state_, std::move(callback)));
 }
 
 void ExecutionEngine::SendNavigationConfirmationRequest(
     const url::Origin& destination,
-    ukm::SourceId ukm_source_id,
-    base::ScopedUmaHistogramTimer timer,
-    ExecutionEngine::NavigationDecisionCallback callback) {
+    NavigationConfirmationCallback callback) {
   if (!task_->delegate()) {
-    std::move(callback).Run(/*may_continue=*/false);
+    auto response = webui::mojom::NavigationConfirmationResponse::New();
+    response->result =
+        webui::mojom::ConfirmationRequestResult::NewPermissionGranted(false);
+    std::move(callback).Run(std::move(response));
     return;
   }
-  task_->delegate()->RequestToConfirmNavigation(
-      task_->id(), destination,
-      base::BindOnce(&ExecutionEngine::OnNavigationConfirmationDecision,
-                     GetWeakPtr(), destination, ukm_source_id, std::move(timer),
-                     std::move(callback)));
+  task_->delegate()->RequestToConfirmNavigation(task_->id(), destination,
+                                                std::move(callback));
 }
 
 void ExecutionEngine::MaybeRecordNavigationConfirmationMetrics(
@@ -513,47 +573,57 @@ void ExecutionEngine::MaybeRecordNavigationConfirmationMetrics(
   }
   task_->delegate()->RequestToConfirmNavigation(
       task_->id(), destination,
-      base::BindOnce(
-          [](webui::mojom::NavigationConfirmationResponsePtr response) {
-            if (response->result->is_permission_granted()) {
-              base::UmaHistogramBoolean(
-                  kActionNavigationsApprovedByServerHistogram,
-                  response->result->get_permission_granted());
-            }
-          }));
+      base::BindOnce([](webui::mojom::NavigationConfirmationResponsePtr
+                            response) {
+        switch (response->result->which()) {
+          case webui::mojom::ConfirmationRequestResult::Tag::kPermissionGranted:
+            base::UmaHistogramBoolean(
+                kActionNavigationsApprovedByServerHistogram,
+                response->result->get_permission_granted());
+            return;
+          case webui::mojom::ConfirmationRequestResult::Tag::kErrorReason:
+            return;
+        }
+        NOTREACHED();
+      }));
 }
 
 void ExecutionEngine::OnNavigationConfirmationDecision(
     const url::Origin& destination,
     ukm::SourceId ukm_source_id,
     base::ScopedUmaHistogramTimer timer,
+    State engine_state,
     ExecutionEngine::NavigationDecisionCallback callback,
     webui::mojom::NavigationConfirmationResponsePtr response) {
-  if (response->result->is_permission_granted()) {
-    bool permission_granted = response->result->get_permission_granted();
-    // TODO(dylancutler): Separate Actor.NavigationGating.PermissionGranted into
-    // separate histograms for different confirmation types.
-    base::UmaHistogramBoolean(kPermissionGrantedHistogram, permission_granted);
-    ukm::builders::Actor_OriginGating builder(ukm_source_id);
-    builder
-        .SetServerConfirmationResult(static_cast<int64_t>(
-            permission_granted
-                ? ExecutionEngine::ActorServerConfirmationResult::kAccepted
-                : ExecutionEngine::ActorServerConfirmationResult::kRejected))
-        .SetEngineState(static_cast<int64_t>(state_));
-    builder.Record(ukm::UkmRecorder::Get());
-    permission_granted = permission_granted ||
-                         kGlicConfirmNavigationToNewOriginsDarkLaunch.Get();
-    if (permission_granted) {
-      origin_checker_.AllowNavigationTo(destination,
-                                        /*is_user_confirmed=*/false);
+  switch (response->result->which()) {
+    case webui::mojom::ConfirmationRequestResult::Tag::kPermissionGranted: {
+      bool permission_granted = response->result->get_permission_granted();
+      // TODO(dylancutler): Separate Actor.NavigationGating.PermissionGranted
+      // into separate histograms for different confirmation types.
+      base::UmaHistogramBoolean(kPermissionGrantedHistogram,
+                                permission_granted);
+      ukm::builders::Actor_OriginGating builder(ukm_source_id);
+      builder
+          .SetServerConfirmationResult(static_cast<int64_t>(
+              permission_granted
+                  ? ExecutionEngine::ActorServerConfirmationResult::kAccepted
+                  : ExecutionEngine::ActorServerConfirmationResult::kRejected))
+          .SetEngineState(static_cast<int64_t>(engine_state));
+      builder.Record(ukm::UkmRecorder::Get());
+      if (permission_granted) {
+        origin_checker_.AllowNavigationTo(destination,
+                                          /*is_user_confirmed=*/false);
+      }
+      std::move(callback).Run(permission_granted);
+      return;
     }
-    std::move(callback).Run(permission_granted);
-    return;
+    case webui::mojom::ConfirmationRequestResult::Tag::kErrorReason:
+      // TODO(crbug.com/450302860): Add UMA metrics for logging frequency of
+      // different failure modes.
+      std::move(callback).Run(/*may_continue=*/false);
+      return;
   }
-  // TODO(crbug.com/450302860): Add UMA metrics for logging frequency of
-  // different failure modes.
-  std::move(callback).Run(/*may_continue=*/false);
+  NOTREACHED();
 }
 
 void ExecutionEngine::SendUserConfirmationDialogRequest(
@@ -572,28 +642,36 @@ void ExecutionEngine::SendUserConfirmationDialogRequest(
   task_->delegate()->RequestToShowUserConfirmationDialog(
       task_->id(), destination, for_sensitive_origin,
       base::BindOnce(&ExecutionEngine::OnPromptUserToConfirmNavigationDecision,
-                     GetWeakPtr(), destination, std::move(callback)));
+                     GetActionSequenceWeakPtr(), destination,
+                     std::move(callback)));
 }
 
 void ExecutionEngine::OnPromptUserToConfirmNavigationDecision(
     const url::Origin& destination,
     ExecutionEngine::NavigationDecisionCallback callback,
     webui::mojom::UserConfirmationDialogResponsePtr response) {
-  if (response->result->is_permission_granted()) {
-    bool permission_granted = response->result->get_permission_granted();
-    base::UmaHistogramBoolean(kPermissionGrantedHistogram, permission_granted);
-    if (permission_granted) {
-      // See the comment on `OriginOrPrecursorIfOpaque` for why we do not store
-      // `destination` directly here.
-      origin_checker_.AllowNavigationTo(OriginOrPrecursorIfOpaque(destination),
-                                        /*is_user_confirmed=*/true);
+  switch (response->result->which()) {
+    case webui::mojom::ConfirmationRequestResult::Tag::kPermissionGranted: {
+      bool permission_granted = response->result->get_permission_granted();
+      base::UmaHistogramBoolean(kPermissionGrantedHistogram,
+                                permission_granted);
+      if (permission_granted) {
+        // See the comment on `OriginOrPrecursorIfOpaque` for why we do not
+        // store `destination` directly here.
+        origin_checker_.AllowNavigationTo(
+            OriginOrPrecursorIfOpaque(destination),
+            /*is_user_confirmed=*/true);
+      }
+      std::move(callback).Run(permission_granted);
+      return;
     }
-    std::move(callback).Run(permission_granted);
-    return;
+    case webui::mojom::ConfirmationRequestResult::Tag::kErrorReason:
+      // TODO(crbug.com/450302860): Add UMA metrics for logging frequency of
+      // different failure modes.
+      std::move(callback).Run(/*may_continue=*/false);
+      return;
   }
-  // TODO(crbug.com/450302860): Add UMA metrics for logging frequency of
-  // different failure modes.
-  std::move(callback).Run(/*may_continue=*/false);
+  NOTREACHED();
 }
 
 void ExecutionEngine::UserTakeover(
@@ -638,6 +716,10 @@ bool ExecutionEngine::TabsCanOpenNewWebContents() const {
          GetInProgressAction().RequiresOpeningWebContents();
 }
 
+base::WeakPtr<ExecutionEngine> ExecutionEngine::GetWeakPtr() {
+  return weak_ptr_factory_.GetWeakPtr();
+}
+
 void ExecutionEngine::CancelOngoingActions(mojom::ActionResultCode reason) {
   TRACE_EVENT0("actor", "ExecutionEngine::CancelOngoingActions");
   deferred_finish_tool_invoke_.Reset();
@@ -646,6 +728,13 @@ void ExecutionEngine::CancelOngoingActions(mojom::ActionResultCode reason) {
   }
   if (!action_sequence_.empty()) {
     CompleteActions(MakeResult(reason), /*action_index=*/std::nullopt);
+  }
+}
+
+void ExecutionEngine::PauseOngoingActions() {
+  TRACE_EVENT0("actor", "ExecutionEngine::PauseOngoingActions");
+  if (tool_controller_) {
+    tool_controller_->Pause();
   }
 }
 
@@ -689,12 +778,14 @@ void ExecutionEngine::Act(std::vector<std::unique_ptr<ToolRequest>>&& actions,
     PostTaskForActCallback(
         std::move(callback),
         MakeResultVector(
-            mojom::ActionResultCode::kExecutionEngineExistingAction));
+            mojom::ActionResultCode::kExecutionEngineExistingAction),
+        TabObservationStrategy());
     return;
   }
 
   act_callback_ = std::move(callback);
   next_action_index_ = 0;
+  observation_strategy_ = TabObservationStrategy();
 
   absl::flat_hash_set<int32_t> acting_tab_handles;
 
@@ -741,7 +832,8 @@ void ExecutionEngine::KickOffNextAction() {
           contents->GetLastCommittedURL(), task_->id(),
           "ExecutionEngine::KickOffNextAction",
           JournalDetailsBuilder().AddError("Renderer crashed").Build());
-      task_->AddTab(GetNextAction().GetTabHandle(), base::DoNothing());
+      task_->AddTab(GetNextAction().GetTabHandle(),
+                    /*stop_task_on_detach=*/true, base::DoNothing());
       CompleteActions(MakeResult(mojom::ActionResultCode::kRendererCrashed,
                                  /*requires_page_stabilization=*/false,
                                  "Renderer crashed."),
@@ -773,10 +865,21 @@ void ExecutionEngine::SafetyChecksForNextAction() {
     return;
   }
 
-  const SafetyListManager& safety_list_manager =
-      *SafetyListManager::GetInstance();
   const GURL& url =
       tab->GetContents()->GetPrimaryMainFrame()->GetLastCommittedURL();
+
+  if (actor_container_config_.IsActive()) {
+    bool navigation_allowed =
+        actor_container_config_.IsActuationAllowed(url::Origin::Create(url));
+    OnMayActOnTabDecision(
+        tab->GetContents()->GetPrimaryMainFrame()->GetLastCommittedOrigin(),
+        navigation_allowed ? MayActOnUrlBlockReason::kAllowed
+                           : MayActOnUrlBlockReason::kBlockedByContainerConfig);
+    return;
+  }
+
+  const SafetyListManager& safety_list_manager =
+      *SafetyListManager::GetInstance();
   if (safety_list_manager.Find(url, url) ==
       SafetyListManager::Decision::kBlock) {
     OnMayActOnTabDecision(
@@ -793,7 +896,7 @@ void ExecutionEngine::SafetyChecksForNextAction() {
   MayActOnTab(
       *tab, *journal_, task_->id(), origin_checker_, task_->policy_checker(),
       base::BindOnce(
-          &ExecutionEngine::OnMayActOnTabDecision, GetWeakPtr(),
+          &ExecutionEngine::OnMayActOnTabDecision, GetActionSequenceWeakPtr(),
           tab->GetContents()->GetPrimaryMainFrame()->GetLastCommittedOrigin()));
 }
 
@@ -817,7 +920,8 @@ void ExecutionEngine::OnMayActOnTabDecision(
         /*timer=*/std::nullopt,
         std::move(response_to_result_code)
             .Then(base::BindOnce(&ExecutionEngine::DidFinishAsyncSafetyChecks,
-                                 GetWeakPtr(), evaluated_origin)));
+                                 GetActionSequenceWeakPtr(),
+                                 evaluated_origin)));
     return;
   }
 
@@ -888,7 +992,7 @@ void ExecutionEngine::FailedOnTabBeforeToolCreation() {
                     .Add("tabId", tab.raw_value())
                     .AddError("Associating tab for failed action")
                     .Build());
-  task_->AddTab(tab, base::DoNothing());
+  task_->AddTab(tab, /*stop_task_on_detach=*/true, base::DoNothing());
 }
 
 void ExecutionEngine::ExecuteNextAction() {
@@ -901,8 +1005,8 @@ void ExecutionEngine::ExecuteNextAction() {
 
   SetState(State::kToolCreateAndVerify);
   tool_controller_->CreateToolAndValidate(
-      GetInProgressAction(),
-      base::BindOnce(&ExecutionEngine::PostToolCreate, GetWeakPtr()));
+      GetInProgressAction(), base::BindOnce(&ExecutionEngine::PostToolCreate,
+                                            GetActionSequenceWeakPtr()));
 }
 
 void ExecutionEngine::PostToolCreate(mojom::ActionResultPtr result) {
@@ -914,7 +1018,8 @@ void ExecutionEngine::PostToolCreate(mojom::ActionResultPtr result) {
   SetState(State::kUiPreInvoke);
   ui_event_dispatcher_->OnPreTool(
       GetInProgressAction(),
-      base::BindOnce(&ExecutionEngine::FinishedUiPreInvoke, GetWeakPtr()));
+      base::BindOnce(&ExecutionEngine::FinishedUiPreInvoke,
+                     GetActionSequenceWeakPtr()));
 }
 
 void ExecutionEngine::FinishedUiPreInvoke(mojom::ActionResultPtr result) {
@@ -926,8 +1031,8 @@ void ExecutionEngine::FinishedUiPreInvoke(mojom::ActionResultPtr result) {
   }
 
   SetState(State::kToolInvoke);
-  tool_controller_->Invoke(
-      base::BindOnce(&ExecutionEngine::FinishedToolInvoke, GetWeakPtr()));
+  tool_controller_->Invoke(base::BindOnce(&ExecutionEngine::FinishedToolInvoke,
+                                          GetActionSequenceWeakPtr()));
 }
 
 void ExecutionEngine::FinishedToolInvoke(mojom::ActionResultPtr result) {
@@ -976,6 +1081,15 @@ void ExecutionEngine::FinishedToolInvoke(mojom::ActionResultPtr result) {
   RecordToolTimings(GetInProgressAction().Name(), end_time - action_start_time_,
                     end_time - *result->execution_end_time);
 
+  if (GetInProgressAction().GetTabHandle() != tabs::TabHandle::Null()) {
+    observation_strategy_.VoteForScreenshot(
+        GetInProgressAction().GetTabHandle(),
+        static_cast<ScreenshotPolicy>(result->screenshot_policy));
+    observation_strategy_.VoteForPageContentExtraction(
+        GetInProgressAction().GetTabHandle(),
+        static_cast<PageContentExtractionPolicy>(result->page_content_policy));
+  }
+
   if (GetInProgressAction().IsFollowup()) {
     CHECK(!action_results_.empty());
     ActionResultWithLatencyInfo& action_result = action_results_.back();
@@ -989,7 +1103,8 @@ void ExecutionEngine::FinishedToolInvoke(mojom::ActionResultPtr result) {
   SetState(State::kUiPostInvoke);
   ui_event_dispatcher_->OnPostTool(
       GetInProgressAction(),
-      base::BindOnce(&ExecutionEngine::FinishedUiPostInvoke, GetWeakPtr()));
+      base::BindOnce(&ExecutionEngine::FinishedUiPostInvoke,
+                     GetActionSequenceWeakPtr()));
 }
 
 void ExecutionEngine::FinishedUiPostInvoke(mojom::ActionResultPtr result) {
@@ -1057,14 +1172,16 @@ void ExecutionEngine::CompleteActions(mojom::ActionResultPtr result,
   }
 
   RecordActionResultCode(result->code);
-  PostTaskForActCallback(std::move(act_callback_), std::move(action_results_));
+  observation_strategy_.Lock();
+  PostTaskForActCallback(std::move(act_callback_), std::move(action_results_),
+                         std::move(observation_strategy_));
 
   action_sequence_.clear();
   next_action_index_ = 0;
   actions_weak_ptr_factory_.InvalidateWeakPtrs();
 }
 
-base::WeakPtr<ExecutionEngine> ExecutionEngine::GetWeakPtr() {
+base::WeakPtr<ExecutionEngine> ExecutionEngine::GetActionSequenceWeakPtr() {
   return actions_weak_ptr_factory_.GetWeakPtr();
 }
 
@@ -1075,6 +1192,11 @@ bool ExecutionEngine::HasActionSequence() const {
 favicon::FaviconService* ExecutionEngine::GetFaviconService() {
   return FaviconServiceFactory::GetForProfile(
       task_->GetProfile(), ServiceAccessType::EXPLICIT_ACCESS);
+}
+
+const EnterprisePolicyChecker& ExecutionEngine::GetEnterprisePolicyChecker()
+    const {
+  return task_->policy_checker();
 }
 
 void ExecutionEngine::IsAcceptableNavigationDestination(
@@ -1101,20 +1223,17 @@ ExecutionEngine::GetActorFormFillingService() {
   return *actor_form_filling_service_;
 }
 
+autofill::ActorOneTimeTokenFillingService&
+ExecutionEngine::GetActorOneTimeTokenFillingService() {
+  return *actor_one_time_token_filling_service_;
+}
+
 void ExecutionEngine::PromptToSelectCredential(
     const std::vector<actor_login::Credential>& credentials,
     const base::flat_map<std::string, gfx::Image>& icons,
     ToolDelegate::CredentialSelectedCallback callback) {
   TRACE_EVENT0("actor", "ExecutionEngine::PromptToSelectCredential");
   CHECK(!credentials.empty());
-
-  if (credential_selection_override_callback_ &&
-      base::FeatureList::IsEnabled(
-          password_manager::features::kPasswordCheckupPrototype)) {
-    std::move(credential_selection_override_callback_)
-        .Run(credentials, std::move(callback));
-    return;
-  }
 
   if (!task_->delegate()) {
     // TODO(crbug.com/427817882): Explicit error reason (kNewLonginAttempt).
@@ -1137,15 +1256,13 @@ void ExecutionEngine::SetUserSelectedCredential(
   // Fetch strongly affiliated domains, in order to be able to reuse the
   // permission for sites that do not have the exact same origin but are
   // strongly affiliated.
-  if (base::FeatureList::IsEnabled(
-          password_manager::features::
-              kActorLoginPermissionsUseStrongAffiliations) &&
-      affiliation_service) {
+  if (affiliation_service) {
     affiliation_service->GetAffiliationsAndBranding(
         affiliations::FacetURI::FromPotentiallyInvalidSpec(
             origin.GetURL().GetWithEmptyPath().spec()),
-        base::BindOnce(&ExecutionEngine::OnAffiliationsReceived, GetWeakPtr(),
-                       origin, std::move(affiliations_fetched)));
+        base::BindOnce(&ExecutionEngine::OnAffiliationsReceived,
+                       GetActionSequenceWeakPtr(), origin,
+                       std::move(affiliations_fetched)));
   } else {
     std::move(affiliations_fetched).Run();
   }
@@ -1184,17 +1301,13 @@ ExecutionEngine::GetUserSelectedCredential(
     return it->second;
   }
 
-  if (base::FeatureList::IsEnabled(
-          password_manager::features::
-              kActorLoginPermissionsUseStrongAffiliations)) {
-    // Check if the current origin is affiliated with a previously encountered
-    // one within the current task.
-    auto aff_it = affiliated_origin_map_.find(request_origin);
-    if (aff_it != affiliated_origin_map_.end()) {
-      auto original_cred_it = user_selected_credentials_.find(aff_it->second);
-      if (original_cred_it != user_selected_credentials_.end()) {
-        return original_cred_it->second;
-      }
+  // Check if the current origin is affiliated with a previously encountered
+  // one within the current task.
+  auto aff_it = affiliated_origin_map_.find(request_origin);
+  if (aff_it != affiliated_origin_map_.end()) {
+    auto original_cred_it = user_selected_credentials_.find(aff_it->second);
+    if (original_cred_it != user_selected_credentials_.end()) {
+      return original_cred_it->second;
     }
   }
 
@@ -1224,7 +1337,11 @@ void ExecutionEngine::RequestToShowAutofillSuggestions(
 }
 
 void ExecutionEngine::InterruptFromTool() {
-  task_->Interrupt();
+  InterruptFromTool(/*retain_user_control=*/false);
+}
+
+void ExecutionEngine::InterruptFromTool(bool retain_user_control) {
+  task_->Interrupt(retain_user_control);
 }
 
 void ExecutionEngine::UninterruptFromTool() {
@@ -1238,9 +1355,24 @@ void ExecutionEngine::EnqueueFollowupAction(
                           std::move(action));
 }
 
+void ExecutionEngine::AddTab(
+    tabs::TabHandle tab_handle,
+    bool stop_task_on_detach,
+    base::OnceCallback<void(mojom::ActionResultPtr)> callback) {
+  task_->AddTab(tab_handle, stop_task_on_detach, std::move(callback));
+}
+
+bool ExecutionEngine::HasTab(tabs::TabHandle tab_handle) {
+  return task_->HasTab(tab_handle);
+}
+
+void ExecutionEngine::RemoveTab(tabs::TabHandle tab_handle) {
+  task_->RemoveTab(tab_handle);
+}
+
 base::WeakPtr<actor_login::ActionSequenceDelegate>
 ExecutionEngine::GetActionSequenceDelegate() {
-  return actions_weak_ptr_factory_.GetWeakPtr();
+  return GetActionSequenceWeakPtr();
 }
 
 base::CallbackListSubscription ExecutionEngine::RegisterActionSequenceEnded(
@@ -1266,9 +1398,9 @@ void ExecutionEngine::AddWritableMainframeOrigins(
   origin_checker_.AllowNavigationTo(added_writable_mainframe_origins);
 }
 
-void ExecutionEngine::PreHandleCredentialSelectionDialog(
-    CredentialSelectionOverrideCallback callback) {
-  credential_selection_override_callback_ = std::move(callback);
+void ExecutionEngine::SetActorLoginService(
+    std::unique_ptr<actor_login::ActorLoginService> actor_login_service) {
+  actor_login_service_ = std::move(actor_login_service);
 }
 
 const ToolRequest& ExecutionEngine::GetNextAction() const {

@@ -38,7 +38,8 @@ std::unique_ptr<LoopbackServerEntity> PersistentNotesEntity::CreateNew(
   CHECK(IsNotes(client_entity)) << "The given entity must be a notes.";
 
   string id = LoopbackServerEntity::CreateId(
-      syncer::NOTES, base::Uuid::GenerateRandomV4().AsLowercaseString());
+      syncer::NOTES, base::Uuid::GenerateRandomV4().AsLowercaseString(),
+      /* migration_version= */ 0);
   string originator_cache_guid = client_guid;
   string originator_client_item_id = client_entity.id_string();
 

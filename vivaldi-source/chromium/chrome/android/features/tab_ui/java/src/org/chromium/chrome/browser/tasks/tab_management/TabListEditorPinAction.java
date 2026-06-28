@@ -108,7 +108,7 @@ public class TabListEditorPinAction extends TabListEditorAction {
         assert mState != State.UNSUPPORTED;
 
         boolean shouldPin = mState == State.PIN;
-        TabModel tabModel = getTabGroupModelFilter().getTabModel();
+        TabModel tabModel = getTabModel();
         for (Tab tab : tabs) {
             if (shouldPin) {
                 tabModel.pinTab(tab.getId(), /* showUngroupDialog= */ false);
@@ -175,7 +175,7 @@ public class TabListEditorPinAction extends TabListEditorAction {
         // Note(david@vivaldi.com): Remove or disable items if applicable.
         if (mState == State.PIN
                 && !VivaldiTabModelUtils.maybeRemoveOrDisableTabActionMenuItem(
-                        getTabGroupModelFilter().getTabModel(), selectedTabs, null, this))
+                        getTabModel(), selectedTabs, null, this))
             mState = State.UNSUPPORTED;
     }
 }

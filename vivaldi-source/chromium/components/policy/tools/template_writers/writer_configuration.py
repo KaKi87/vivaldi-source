@@ -24,7 +24,35 @@ def GetConfigurationForBuild(defines):
   # Google:Cat_Google references the external google.admx file.
   # category_path_strings strings in curly braces are looked up from localized
   # 'messages' in policy_templates.json.
-  if '_chromium' in defines:
+
+  # VB-127924 - Vivaldi must be checked first
+  if '_vivaldi' in defines:
+    win_policy_path = 'Software\\Policies\\Vivaldi'
+    config = {
+        'build': 'vivaldi',
+        'app_name': 'Vivaldi Chromium', # It's used to refer to Chromium version
+        'doc_url': 'https://chromeenterprise.google/policies/', # TODO: Add Vivaldi URL
+        'frame_name': 'Chromium Frame (Unsuported)',
+        'os_name': 'Chrome OS (Unsuported)',
+        'webview_name': 'Vivaldi WebView',
+        'win_config': {
+            'win': {
+                'reg_mandatory_key_name': win_policy_path,
+                'reg_recommended_key_name': win_policy_path + '\\Recommended',
+                'mandatory_category_path': ['vivaldi'],
+                'recommended_category_path': ['vivaldi_recommended'],
+                'category_path_strings': {
+                    'vivaldi': 'Vivaldi',
+                    'vivaldi_recommended': 'Vivaldi - {doc_recommended}',
+                },
+                'namespace': 'Vivaldi.Policies.Vivaldi',
+            },
+        },
+        'admx_prefix': 'vivaldi',
+        'linux_policy_path': '/etc/vivaldi/policies/',
+        'bundle_id': 'org.vivaldi',
+    }
+  elif '_chromium' in defines:
     config = {
         'build': 'chromium',
         'app_name': 'Chromium',
@@ -124,22 +152,6 @@ def GetConfigurationForBuild(defines):
         },
         'linux_policy_path': linux_policy_path,
         'bundle_id': 'com.google.chrome.ios',
-    }
-  elif '_vivaldi' in defines:
-    config = {
-      'build': 'vivaldi',
-      'app_name': 'Vivaldi',
-      'frame_name': 'Vivaldi Frame',
-      'os_name': 'Chromium OS',
-      'webview_name': 'Vivaldi WebView',
-      'win_reg_mandatory_key_name': 'Software\\Policies\\Vivaldi',
-      'win_reg_recommended_key_name':
-          'Software\\Policies\\Vivaldi\\Recommended',
-      'win_mandatory_category_path': ['vivaldi'],
-      'win_recommended_category_path': ['vivaldi_recommended'],
-      'admx_namespace': 'Vivaldi.Policies.Vivaldi',
-      'admx_prefix': 'vivaldi',
-      'linux_policy_path': '/etc/vivaldi/policies/',
     }
   else:
     raise Exception('Unknown build')

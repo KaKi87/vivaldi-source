@@ -6,12 +6,13 @@
 
 #include "build/build_config.h"
 #include "chrome/browser/ui/browser_window_deleter.h"
+#include "chrome/browser/ui/fullscreen/browser_window_fullscreen_controller.h"
 #include "chrome/browser/ui/views/frame/browser_native_widget_factory.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/browser_widget.h"
 #include "chrome/browser/ui/webui_browser/webui_browser.h"
 #include "chrome/browser/ui/webui_browser/webui_browser_window.h"
-#include "chrome/grit/branded_strings.h"
+#include "chrome/browser/ui/window_feature_controller/window_feature_controller.h"
 #include "components/safe_browsing/core/browser/password_protection/metrics_util.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/views/widget/widget.h"
@@ -41,7 +42,7 @@ BrowserWindow::CreateBrowserWindow(Browser* browser,
   // Avoid generating too many occlusion tracking calculation events before this
   // function returns. The occlusion status will be computed only once once this
   // function returns.
-  // See crbug.com/1183894#c4
+  // See crbug.com/40171404#comment5
   aura::WindowOcclusionTracker::ScopedPause pause_occlusion;
 #endif
   // Create the view and the frame. The frame will attach itself via the view
@@ -60,7 +61,8 @@ BrowserWindow::CreateBrowserWindow(Browser* browser,
   view->browser_widget()->InitBrowserWidget();
 
 #if BUILDFLAG(IS_MAC)
-  if (view->UsesImmersiveFullscreenMode()) {
+  if (WindowFeatureController::From(view->browser())
+          ->UsesImmersiveFullscreenMode()) {
     // This needs to happen after BrowserWidget has been initialized. It creates
     // a new Widget that copies the theme from BrowserWidget.
     view->CreateMacOverlayView();
@@ -75,7 +77,7 @@ BrowserWindow::CreateBrowserWindow(Browser* browser,
 #endif
 #if BUILDFLAG(IS_CHROMEOS)
   if (chromeos::IsKioskSession()) {
-    view->SetForceFullscreen(true);
+    BrowserWindowFullscreenController::From(browser)->SetForceFullscreen(true);
   }
 #endif
 

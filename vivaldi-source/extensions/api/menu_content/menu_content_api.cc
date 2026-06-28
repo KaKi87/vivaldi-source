@@ -4,6 +4,7 @@
 #include "extensions/api/menu_content/menu_content_api.h"
 
 #include "base/lazy_instance.h"
+#include "base/logging.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/uuid.h"
 #include "chrome/browser/profiles/profile.h"

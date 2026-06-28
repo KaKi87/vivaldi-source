@@ -23,12 +23,14 @@
 #include "chrome/common/url_constants.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_node_data.h"
+#include "components/bookmarks/common/bookmark_bar_visibility_state.h"
 #include "components/bookmarks/common/bookmark_pref_names.h"
 #include "components/bookmarks/managed/managed_bookmark_service.h"
 #include "components/dom_distiller/core/url_constants.h"
 #include "components/dom_distiller/core/url_utils.h"
 #include "components/prefs/pref_service.h"
 #include "components/saved_tab_groups/public/features.h"
+#include "components/search/ntp_features.h"
 #include "components/search/search.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/url_formatter/url_formatter.h"
@@ -185,7 +187,7 @@ bool GetURLAndTitleToBookmark(content::WebContents* web_contents,
   }
 
   // Use "New tab" as title if the current page is NTP even in incognito mode.
-  if (u == GURL(chrome::kChromeUINewTabURL)) {
+  if (u == chrome::ChromeUINewTabURLAsGURL()) {
     *title = l10n_util::GetStringUTF16(IDS_NEW_TAB_TITLE);
   }
 
@@ -201,6 +203,42 @@ void ToggleBookmarkBarWhenVisible(content::BrowserContext* browser_context) {
   prefs->SetBoolean(bookmarks::prefs::kShowBookmarkBar, always_show);
 }
 
+// Called upon direct user interaction with the Bookmarks Bar UI (e.g. clicking
+// a bookmark/folder, interacting with saved tab groups, or modifying items via
+// context menu/drag-and-drop).
+//
+// For users in the NTP Simplification transition period (`IsDefaultValue()` is
+// true), this explicitly sets `kBookmarkBarVisibilityState` to
+// `kOnlyShowOnNtp`. This establishes the user store as the controlling
+// preference store, transitioning the user out of the experiment's default
+// state and preventing future auto-hiding.
+//
+// Note: Users who had `kShowBookmarkBar` set to true prior to the experiment
+// are upgraded to `kAlwaysShow` at startup in `BookmarkBarController`, making
+// `IsDefaultValue()` false. Therefore, `IsDefaultValue()` is only true here for
+// users in the "off by default" / "only show on NTP" transition group.
+void UpdateBookmarkBarVisibilityPrefOnUserAction(Profile* profile) {
+  if (!profile || !profile->GetPrefs()) {
+    return;
+  }
+
+  if (!base::FeatureList::IsEnabled(
+          ntp_features::kNtpSimplificationBookmarkBar)) {
+    return;
+  }
+
+  PrefService* prefs = profile->GetPrefs();
+  const PrefService::Preference* state_pref =
+      prefs->FindPreference(bookmarks::prefs::kBookmarkBarVisibilityState);
+
+  if (state_pref && state_pref->IsDefaultValue()) {
+    prefs->SetInteger(
+        bookmarks::prefs::kBookmarkBarVisibilityState,
+        static_cast<int>(
+            bookmarks::BookmarkBarVisibilityState::kOnlyShowOnNtp));
+  }
+}
+
 std::u16string FormatBookmarkURLForDisplay(const GURL& url) {
   // Because this gets re-parsed by FixupURL(), it's safe to omit the scheme
   // and trailing slash, and unescape most characters. However, it's
@@ -211,7 +249,7 @@ std::u16string FormatBookmarkURLForDisplay(const GURL& url) {
       ~url_formatter::kFormatUrlOmitUsernamePassword;
 
   // If username is present, we must not omit the scheme because FixupURL() will
-  // subsequently interpret the username as a scheme. crbug.com/639126
+  // subsequently interpret the username as a scheme. crbug.com/40085150
   if (url.has_username()) {
     format_types &= ~url_formatter::kFormatUrlOmitHTTP;
   }
@@ -333,9 +371,13 @@ ui::ImageModel GetBookmarkFolderIcon(BookmarkFolderIconType icon_type,
                                      ui::ColorVariant color) {
   const gfx::VectorIcon* icon_id;
   if (icon_type == BookmarkFolderIconType::kNormal) {
-    icon_id = &vector_icons::kFolderChromeRefreshIcon;
+    icon_id = &(features::IsRoundedIconsEnabled()
+                    ? vector_icons::kFolderFlippableIcon
+                    : vector_icons::kFolderChromeRefreshOldIcon);
   } else {
-    icon_id = &vector_icons::kFolderManagedRefreshIcon;
+    icon_id = &(features::IsRoundedIconsEnabled()
+                    ? vector_icons::kFolderManagedFlippableIcon
+                    : vector_icons::kFolderManagedRefreshOldIcon);
   }
   return ui::ImageModel::FromVectorIcon(*icon_id, color);
 }

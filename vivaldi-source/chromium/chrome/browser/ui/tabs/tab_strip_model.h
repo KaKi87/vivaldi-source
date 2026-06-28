@@ -29,7 +29,6 @@
 #include "chrome/browser/ui/tabs/tab_strip_model_selection_state.h"
 #include "chrome/browser/ui/tabs/tab_strip_scrubbing_metrics.h"
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
-#include "chrome/common/buildflags.h"
 #include "components/sessions/core/session_id.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tab_groups/tab_group_visual_data.h"
@@ -100,7 +99,7 @@ struct DetachedTabCollection {
                std::unique_ptr<tabs::SplitTabCollection>>
       collection_;
   // Store the index of tab that was active in the detached group.
-  std::optional<int> active_index_ = std::nullopt;
+  std::optional<int> active_index_;
   bool pinned_ = false;
 };
 
@@ -632,7 +631,8 @@ class TabStripModel {
 
   // Updates the ratio for the tabs with `split_id` and notifies observers.
   void UpdateSplitRatio(split_tabs::SplitTabId split_id,
-                        double start_content_ratio);
+                        double start_content_ratio,
+                        bool is_intermediate = false);
 
   // Updates the split tab at index `split_index` with the tab at
   // `update_index`. The split that includes `split_index` must include the
@@ -838,6 +838,12 @@ class TabStripModel {
   // If |context_index| is selected the command applies to all selected tabs.
   void ExecuteAddToExistingWindowCommand(int context_index, int browser_index);
 
+  // Adds the tab at |context_index| to a new split with the current active tab.
+  // If |context_index| is active, the currently selected tabs are added to a
+  // new split.
+  void ExecuteAddToNewSplitCommand(int context_index,
+                                   split_tabs::SplitTabLayout layout);
+
   // Returns true if 'CommandToggleSiteMuted' will mute. |index| is the
   // index supplied to |ExecuteContextMenuCommand|.
   bool WillContextMenuMuteSites(int index);
@@ -978,7 +984,8 @@ class TabStripModel {
       split_tabs::SplitTabId split_id,
       const split_tabs::SplitTabVisualData& old_visual_data,
       const split_tabs::SplitTabVisualData& new_visual_data,
-      const SplitTabChange::SplitVisualChangeReason reason);
+      const SplitTabChange::SplitVisualChangeReason reason,
+      bool is_intermediate = false);
 
   // Notify observers that contents of a split has been reordered.
   void NotifySplitTabContentsUpdated(
@@ -1073,7 +1080,7 @@ class TabStripModel {
   //   1) This allows us to send the minimal number of necessary notifications.
   //   This is important because some notifications cause the main thread to
   //   synchronously communicate with the GPU process and cause jank.
-  //   https://crbug.com/826287.
+  //   https://crbug.com/41379209.
   //   2) This allows us to avoid some problems caused by re-entrancy [e.g.
   //   using destroyed WebContents instances]. Ideally, this second check
   //   wouldn't be necessary because we would enforce that there is no
@@ -1418,6 +1425,12 @@ class TabStripModel {
   // For each split that has tabs in `indices`, remove any of them that contain
   // tabs not in `indices`.
   void MaybeRemoveSplitsForUpdate(const std::vector<int>& indices);
+
+  // Checks if both tabs of a split view are closing simultaneously and, if so,
+  // creates a historical split entry in the tab restore service.
+  void CreateHistoricalSplitIfClosing(
+      const std::vector<tabs::TabInterface*>& tabs,
+      uint32_t close_types);
 
   void NotifyForegroundTabsWillEnterBackground();
 
